@@ -5,13 +5,13 @@ mod stream;
 mod utils;
 mod handshake;
 
-use std::{io::{Write, Read}, string};
+use std::io::{Write, Read};
 
 use base64::Engine;
 use dioxus_router::prelude::*;
 
 use dioxus::prelude::*;
-use http::{request, Request};
+use http::request;
 use js_sys::wasm_bindgen::{closure::Closure, JsCast};
 use log::LevelFilter;
 
@@ -52,10 +52,12 @@ fn main() {
     let window = web_sys::window().unwrap();
     let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
         log::info!("interval elapsed");
+        static mut SENT: bool = false;
+        static mut START: Option<wasm_timer::Instant> = None;
         stream.poll();
-        if stream.may_send() {
+        if stream.can_send() && !unsafe { SENT } {
             let request = request::Builder::new()
-                .method("OPTIONS")
+                .method("GET")
                 .uri("/")
                 .body(())
                 .unwrap();
@@ -65,17 +67,28 @@ fn main() {
             log::info!("sending {:?}", std::str::from_utf8(&request).unwrap());
             let len = stream.write(&request).unwrap();
             stream.flush().unwrap();
+            unsafe { SENT = true };
+            unsafe { START = Some(wasm_timer::Instant::now()) };
             log::info!("sent {} bytes", len);
         }
+
+        static mut BYTES: usize = 0;
+        static mut RECEIVED: bool = false;
         if stream.can_recv() {
             let mut buf = [0u8; 2048];
             let len = stream.read(&mut buf).unwrap();
-            log::info!("received {:?} bytes", std::str::from_utf8(&buf[..len]).unwrap());
+            unsafe { BYTES += len };
+            unsafe { RECEIVED = false };
+            log::info!("received {:?} bytes", len);
+        } else if !stream.can_recv() && unsafe { SENT } && !unsafe { RECEIVED } {
+            unsafe { RECEIVED = true };
+            let elapsed = unsafe { START.unwrap().elapsed() };
+            log::info!("Took : {}ms to load {} bytes.", elapsed.as_millis(), unsafe { BYTES });
         }
     });
     window.set_interval_with_callback_and_timeout_and_arguments_0(
         closure.as_ref().unchecked_ref(),
-        1000,
+        0,
     ).unwrap();
     closure.forget();
 

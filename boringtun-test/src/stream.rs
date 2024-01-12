@@ -27,8 +27,8 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
             addrs.push(ip).unwrap();
         });
 
-        let rx_buf = tcp::SocketBuffer::new(vec![0; 64]);
-        let tx_buf = tcp::SocketBuffer::new(vec![0; 64]);
+        let rx_buf = tcp::SocketBuffer::new(vec![0; 64000]);
+        let tx_buf = tcp::SocketBuffer::new(vec![0; 2048]);
         let tcp_socket = tcp::Socket::new(rx_buf, tx_buf);
 
         let mut socket_set = SocketSet::new(vec![]);
@@ -131,7 +131,6 @@ pub mod test {
     use std::io::{Read, Write};
     use log::LevelFilter;
     use smoltcp::wire::{IpAddress, IpCidr};
-    use tungstenite::{client::IntoClientRequest, handshake::{server::NoCallback, machine::RoundResult}, HandshakeError, ClientHandshake};
     use wasm_bindgen_test::*;
 
     use crate::tests::LocalDevice;
