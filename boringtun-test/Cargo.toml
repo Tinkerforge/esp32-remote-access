@@ -1,0 +1,41 @@
+[package]
+name = "boringtun-test"
+version = "0.1.0"
+authors = ["Frederic Henrichs <frederic@tinkerforge.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+dioxus-web = { version = "0.4" }
+dioxus = { version = "0.4" }
+
+dioxus-router = { version = "0.4", features = ["web"] }
+
+boringtun = { git = "https://github.com/Tinkerforge/boringtun.git", rev = "3ab948931fe2051e56cea928a36a2ead7a273ac4", default-features = false }
+getrandom = { version = "0.2.11", features = ["js"] }
+rand_core = "0.6.4"
+console_error_panic_hook = "0.1.7"
+anyhow = { version = "1.0.79", default-features = false}
+js-sys = "0.3.66"
+wasm-timer = "0.2.5"
+http = "1.0.0"
+tungstenite = "0.21.0"
+
+# Instant::now from smoltcp, enabled by the std-feature must not be used since it will crash in wasm32
+smoltcp = { version = "0.11.0", default-features = false, features = ["proto-ipv4", "medium-ip", "socket-tcp", "std"] }
+web-sys = { version = "0.3.66", features = ["WebSocket", "Window", "FileReader"] }
+
+# Debug
+log = "0.4.19"
+dioxus-logger = "0.4.1"
+sha1 = "0.10"
+data-encoding = "2.5.0"
+serde = "1.0.195"
+base64 = "0.21.6"
+gloo-file = "0.3.0"
+wasm-bindgen-futures = "0.4.39"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.0"
