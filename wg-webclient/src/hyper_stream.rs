@@ -1,58 +1,26 @@
-use std::{sync::{Mutex, Arc}, task::Poll, io::{Read, Write}};
+use std::{task::Poll, io::{Read, Write}, rc::Rc, cell::RefCell};
 
-use crate::console_log;
 use crate::{stream::TcpStream, wg_device::WgTunDevice};
 
-
-enum State {
-    Created,
-    Connected,
-    Finished,
-}
-
 pub struct HyperStream {
-    stream: Arc<Mutex<TcpStream<'static, WgTunDevice>>>,
-    state: State,
+    stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
 }
 
 impl HyperStream {
-    pub fn new(stream: Arc<Mutex<TcpStream<'static, WgTunDevice>>>) -> Self {
+    pub fn new(stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>) -> Self {
         Self {
             stream,
-            state: State::Created,
         }
     }
 }
 
 impl hyper::rt::Read for HyperStream {
     fn poll_read(
-            mut self: std::pin::Pin<&mut Self>,
+            self: std::pin::Pin<&mut Self>,
             cx: &mut std::task::Context<'_>,
             mut buf: hyper::rt::ReadBufCursor<'_>,
         ) -> std::task::Poll<Result<(), std::io::Error>> {
-        // match self.state {
-        //     State::Created => {
-        //         let mut stream = self.stream.lock().unwrap();
-        //         stream.poll();
-        //         if !stream.can_send() {
-        //             console_log!("can't send");
-        //             cx.waker().wake_by_ref();
-        //             return Poll::Pending
-        //         }
-        //         self.state = State::Connected;
-        //     },
-        //     State::Connected => {
-        //         let stream = self.stream.lock().unwrap();
-        //         if stream.is_open() {
-        //             return
-        //         }
-        //     },
-        //     State::Finished => {
-        //         return Poll::Ready(Ok(()))
-        //     }
-        // }
-        let mut stream = self.stream.lock().unwrap();
-        // console_log!("poll_read");
+        let mut stream = self.stream.borrow_mut();
         stream.poll();
         if !stream.can_recv() {
             cx.waker().clone().wake();
@@ -80,7 +48,7 @@ impl hyper::rt::Write for HyperStream {
             _: &mut std::task::Context<'_>,
             buf: &[u8],
         ) -> Poll<Result<usize, std::io::Error>> {
-        let mut stream = self.stream.lock().unwrap();
+        let mut stream = self.stream.borrow_mut();
         match stream.write(buf) {
             Ok(len) => Poll::Ready(Ok(len)),
             Err(_) => Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, "failed to write data"))),
@@ -88,7 +56,7 @@ impl hyper::rt::Write for HyperStream {
     }
 
     fn poll_flush(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), std::io::Error>> {
-        let mut stream = self.stream.lock().unwrap();
+        let mut stream = self.stream.borrow_mut();
         stream.poll();
         if !stream.can_send() {
             cx.waker().wake_by_ref();

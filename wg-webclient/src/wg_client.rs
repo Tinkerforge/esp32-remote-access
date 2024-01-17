@@ -1,5 +1,5 @@
 
-use std::{sync::{Arc, Mutex}, task::Poll, io::Read};
+use std::{task::Poll, io::Read, collections::VecDeque, rc::Rc, cell::RefCell};
 
 use futures::{Future, FutureExt};
 use http_body_util::{Empty, BodyExt};
@@ -7,7 +7,7 @@ use hyper::body::Bytes;
 use smoltcp::wire::{IpAddress, IpCidr};
 use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, window};
-use crate::{stream::TcpStream, wg_device::WgTunDevice, hyper_stream::HyperStream};
+use crate::{stream::TcpStream, wg_device::WgTunDevice, hyper_stream::HyperStream, interval_handle::IntervalHandle};
 use base64::Engine;
 use boringtun::x25519;
 use flate2::read::GzDecoder;
@@ -17,7 +17,9 @@ use crate::console_log;
 
 #[wasm_bindgen]
 pub struct WgClient {
-    stream: Arc<Mutex<TcpStream<'static, WgTunDevice>>>,
+    stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
+    current_request: Rc<RefCell<Option<IntervalHandle<MessageEvent>>>>,
+    request_queue: Rc<RefCell<VecDeque<Request>>>
 }
 
 #[derive(PartialEq)]
@@ -29,9 +31,6 @@ enum RequestState {
     StreamingBody,
     Done,
 }
-
-const SECRET: &str = "EMx11sTpRVrReWObruImxwm3rxZMwSJWBqdIJRDPxHM=";
-const PEER: &str = "AZmudADBwjZIF6vOEDnnzgVPmg/hI987RPllAM1wW2w=";
 
 #[wasm_bindgen]
 impl WgClient {
@@ -57,52 +56,14 @@ impl WgClient {
             peer,
         ).unwrap();
         let ip = IpCidr::new(IpAddress::v4(123, 123, 123, 3), 24);
-        let mut stream = TcpStream::new(test, ip);
+        let stream = TcpStream::new(test, ip);
 
-        let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
-        // stream.connect(endpoint, 1234).unwrap();
-
-        // wasm_thread::spawn(move || {
-        //     console_log!("Hello from a web worker!");
-        // });
-
-        let stream = Arc::new(Mutex::new(stream));
+        let stream = Rc::new(RefCell::new(stream));
         let stream2 = stream.clone();
         let window = web_sys::window().unwrap();
         let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
-            static mut SENT: bool = false;
-            static mut START: Option<wasm_timer::Instant> = None;
-            let mut stream = stream2.lock().unwrap();
+            let mut stream = stream2.borrow_mut();
             stream.poll();
-            // if stream.can_send() && !unsafe { SENT } {
-            //     let request = request::Builder::new()
-            //         .method("GET")
-            //         .uri("/")
-            //         .body(())
-            //         .unwrap();
-
-            //     let request = RequestWrap::new_get(request);
-            //     let request = request.build_get();
-            //     console_log!("sending {:?}", std::str::from_utf8(&request).unwrap());
-            //     let len = stream.write(&request).unwrap();
-            //     stream.flush().unwrap();
-            //     unsafe { SENT = true };
-            //     unsafe { START = Some(wasm_timer::Instant::now()) };
-            //     console_log!("sent {} bytes", len);
-            // }
-
-            // static mut BYTES: usize = 0;
-            // static mut RECEIVED: bool = false;
-            // if stream.can_recv() {
-            //     let mut buf = [0u8; 2048];
-            //     let len = stream.read(&mut buf).unwrap();
-            //     unsafe { BYTES += len };
-            //     unsafe { RECEIVED = false };
-            // } else if !stream.can_recv() && unsafe { SENT } && !unsafe { RECEIVED } {
-            //     unsafe { RECEIVED = true };
-            //     let elapsed = unsafe { START.unwrap().elapsed() };
-            //     console_log!("Took : {}ms to load {} bytes.", elapsed.as_millis(), unsafe { BYTES });
-            // }
         });
         window.set_interval_with_callback_and_timeout_and_arguments_0(
             closure.as_ref().unchecked_ref(),
@@ -112,42 +73,52 @@ impl WgClient {
 
         Self {
             stream,
+            current_request: Rc::new(RefCell::new(None)),
+            request_queue: Rc::new(RefCell::new(VecDeque::new()))
         }
     }
 
     #[wasm_bindgen]
-    pub async fn get(&self, url: &str) -> String {
+    pub fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>) -> String {
         console_error_panic_hook::set_once();
-        console_log!("get: {:?}", url);
+        let id = js_sys::Math::random();
+        if self.current_request.borrow_mut().is_some() {
+            let mut request_queue = self.request_queue.borrow_mut();
+            request_queue.push_back(Request {
+                uri,
+                method,
+                body,
+            });
+            return format!("get_{}", id);
+        }
+        console_log!("get: {:?}", uri);
         {
             let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
-            self.stream.lock().unwrap().connect(endpoint, 80).unwrap();
+            self.stream.borrow_mut().connect(endpoint, 80).unwrap();
         }
 
-        let id = js_sys::Math::random();
-
-        let state = Arc::new(Mutex::new(RequestState::Started));
+        let state = Rc::new(RefCell::new(RequestState::Started));
         let state_cpy = state.clone();
         let stream_cpy = self.stream.clone();
 
-        let sender = Arc::new(Mutex::new(None));
+        let sender = Rc::new(RefCell::new(None));
         let sender_cpy = sender.clone();
-        let conn = Arc::new(Mutex::new(None));
+        let conn = Rc::new(RefCell::new(None));
         let conn_cpy = conn.clone();
-        let request = Arc::new(Mutex::new(None));
-        let resp = Arc::new(Mutex::new(None));
+        let request = Rc::new(RefCell::new(None));
+        let resp = Rc::new(RefCell::new(None));
 
-        let result = Arc::new(Mutex::new(vec!{0u8; 0}));
+        let result = Rc::new(RefCell::new(vec!{0u8; 0}));
 
-        let url = Arc::new(url.to_string());
+        let uri = Rc::new(uri);
 
         let connect = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             let stream_cpy = stream_cpy.clone();
-            let mut state = state_cpy.lock().unwrap();
+            let mut state = state_cpy.borrow_mut();
 
             match *state {
                 RequestState::Started => {
-                    let mut stream = stream_cpy.lock().unwrap();
+                    let mut stream = stream_cpy.borrow_mut();
                     if stream.can_send() {
                         console_log!("can send");
                         *state = RequestState::Connected;
@@ -156,7 +127,7 @@ impl WgClient {
                 RequestState::Connected => {
                     let is_none;
                     {
-                        let sender = sender.lock().unwrap();
+                        let sender = sender.borrow_mut();
                         is_none = sender.is_none();
                     }
 
@@ -170,21 +141,21 @@ impl WgClient {
                             let stream = HyperStream::new(stream_cpy.clone());
                             let (sender, conn) = hyper::client::conn::http1::handshake(stream).await.unwrap();
                             console_log!("handshake done");
-                            *sender_cpy.lock().unwrap() = Some(sender);
-                            *conn_cpy.lock().unwrap() = Some(Box::pin(conn));
-                            *state_cpy.lock().unwrap() = RequestState::HandshakeDone;
+                            *sender_cpy.borrow_mut() = Some(sender);
+                            *conn_cpy.borrow_mut() = Some(Box::pin(conn));
+                            *state_cpy.borrow_mut() = RequestState::HandshakeDone;
                         });
                     }
                 },
                 RequestState::HandshakeDone => {
                     let req = http::Request::builder()
                     .method("GET")
-                    .uri(url.as_ref())
+                    .uri(uri.as_ref())
                     .body(Empty::<Bytes>::new())
                     .unwrap();
-                    let mut sender = sender.lock().unwrap();
+                    let mut sender = sender.borrow_mut();
                     let sender = sender.as_mut().unwrap();
-                    let mut request = request.lock().unwrap();
+                    let mut request = request.borrow_mut();
                     *request = Some(Box::pin(sender.send_request(req)));
                     *state = RequestState::RequestSent;
                     console_log!("request sent");
@@ -193,18 +164,18 @@ impl WgClient {
                     console_log!("request poll");
                     let waker = futures::task::noop_waker();
                     let mut cx = std::task::Context::from_waker(&waker);
-                    let mut request = request.lock().unwrap();
+                    let mut request = request.borrow_mut();
                     let request = request.as_mut().unwrap();
                     match request.as_mut().poll(&mut cx) {
                         Poll::Ready(Ok(response)) => {
                             console_log!("resp: {:?}", response);
-                            *resp.lock().unwrap() = Some(Box::pin(response));
+                            *resp.borrow_mut() = Some(Box::pin(response));
                             *state = RequestState::StreamingBody;
                         },
                         Poll::Ready(Err(e)) => panic!("error: {}", e),
                         Poll::Pending => (),
                     };
-                    let mut conn = conn.lock().unwrap();
+                    let mut conn = conn.borrow_mut();
                     let conn = conn.as_mut().unwrap();
                     match conn.as_mut().poll(&mut cx) {
                         Poll::Ready(Ok(_)) => (),
@@ -215,12 +186,12 @@ impl WgClient {
                 RequestState::StreamingBody => {
                     let waker = futures::task::noop_waker();
                     let mut cx = std::task::Context::from_waker(&waker);
-                    let mut resp = resp.lock().unwrap();
+                    let mut resp = resp.borrow_mut();
                     let resp = resp.as_mut().unwrap();
                     match resp.frame().poll_unpin(&mut cx) {
                         Poll::Ready(Some(Ok(frame))) => {
                             if let Some(chunk) = frame.data_ref() {
-                                let mut result = result.lock().unwrap();
+                                let mut result = result.borrow_mut();
                                 result.extend_from_slice(chunk);
                             }
                         },
@@ -228,7 +199,7 @@ impl WgClient {
                         Poll::Ready(None) => {
                             console_log!("done");
                             *state = RequestState::Done;
-                            let result = result.lock().unwrap();
+                            let result = result.borrow_mut();
                             let mut gz = GzDecoder::new(&result[..]);
                             let mut s = String::new();
                             gz.read_to_string(&mut s).unwrap();
@@ -241,7 +212,7 @@ impl WgClient {
                         },
                         Poll::Pending => (),
                     };
-                    let mut conn = conn.lock().unwrap();
+                    let mut conn = conn.borrow_mut();
                     let conn = conn.as_mut().unwrap();
                     match conn.as_mut().poll(&mut cx) {
                         Poll::Ready(Ok(_)) => (),
@@ -264,4 +235,10 @@ impl WgClient {
 
         format!("get_{}", id)
     }
+}
+
+struct Request {
+    pub uri: String,
+    pub method: String,
+    pub body: Option<Vec<u8>>,
 }

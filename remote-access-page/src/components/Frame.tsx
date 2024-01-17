@@ -9,13 +9,12 @@ const wgClient = new WgClient(secret, peer);
 let data_url: [string, StateUpdater<string>];
 
 setTimeout(async () => {
-    let event = await wgClient.get("/");
+    let event = await wgClient.fetch("/", "GET");
     window.addEventListener(event, (e: CustomEvent) => {
         const data = new Blob([e.detail]);
         const url = URL.createObjectURL(data);
         data_url[1](url);
     }, {once: true})
-    // greet();
 }, 0);
 
 export class Frame extends Component {

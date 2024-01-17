@@ -19,11 +19,6 @@ macro_rules! console_log {
     ($($t:tt)*) => (crate::utils::log(&format_args!($($t)*).to_string()))
 }
 
-#[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, wg-webclient!");
-}
-
 #[cfg(test)]
 pub mod tests {
     use std::{ sync::{Arc, Mutex}, collections::VecDeque};
@@ -113,7 +108,7 @@ pub mod tests {
         }
     }
 
-    fn create_WgTunDevice() -> WgTunDevice {
+    fn create_wg_tun_device() -> WgTunDevice {
         WgTunDevice::new(
             x25519::StaticSecret::random_from_rng(rand_core::OsRng),
             x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng))
@@ -121,8 +116,8 @@ pub mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn test_create_WgTunDevice() {
-        let _ = create_WgTunDevice();
+    fn test_create_wg_tun_device() {
+        let _ = create_wg_tun_device();
     }
 
     struct SocketWrap<'a> {

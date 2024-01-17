@@ -1,6 +1,5 @@
-use std::{io::{Read, Write}, sync::{Arc, Mutex}, pin::Pin};
-use smoltcp::{iface::{SocketSet, Interface, SocketHandle, Config}, phy::{self, Device}, wire::IpCidr, socket::tcp::{self, ListenError, ConnectError, RecvError}};
-use smoltcp::wire::IpListenEndpoint;
+use std::io::{Read, Write};
+use smoltcp::{iface::{SocketSet, Interface, SocketHandle, Config}, phy::{self}, wire::{IpCidr, IpListenEndpoint}, socket::tcp::{self, ConnectError, RecvError, ListenError}};
 use crate::utils::now;
 
 pub struct TcpStream<'a, Device>
@@ -43,8 +42,9 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
         }
     }
 
+    #[allow(dead_code)]
     #[inline]
-    pub fn is_open(&self) -> bool {
+    fn is_open(&self) -> bool {
         let socket = self.socket_set.get::<tcp::Socket>(self.handle);
         socket.is_open()
     }
@@ -61,14 +61,18 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
         socket.can_send()
     }
 
+    // for testing
+    #[allow(dead_code)]
     #[inline]
-    pub fn may_recv(&mut self) -> bool {
+    fn may_recv(&mut self) -> bool {
         let socket = self.socket_set.get::<tcp::Socket>(self.handle);
         socket.may_recv()
     }
 
+    // for testing
+    #[allow(dead_code)]
     #[inline]
-    pub fn may_send(&mut self) -> bool {
+    fn may_send(&mut self) -> bool {
         let socket = self.socket_set.get::<tcp::Socket>(self.handle);
         socket.may_send()
     }
@@ -78,6 +82,8 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
         self.iface.poll(now(), &mut self.device, &mut self.socket_set);
     }
 
+    // for testing
+    #[allow(dead_code)]
     pub fn listen<T: Into<IpListenEndpoint>>(&mut self, endpoint: T) -> Result<(), ListenError> {
         let socket = self.socket_set.get_mut::<tcp::Socket>(self.handle);
         socket.listen(endpoint.into())?;
@@ -89,20 +95,6 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
           U: Into<smoltcp::wire::IpListenEndpoint> {
         let socket = self.socket_set.get_mut::<tcp::Socket>(self.handle);
         socket.connect(self.iface.context(), remote.into(), local.into())?;
-        Ok(())
-    }
-
-    pub async fn connect_async<T, U>(socket: Arc<Mutex<TcpStream<'_, Device>>>, remote: T, local: U) -> Result<(), ConnectError>
-    where T: Into<smoltcp::wire::IpEndpoint>,
-          U: Into<smoltcp::wire::IpListenEndpoint> {
-        {
-            let mut socket = socket.lock().unwrap();
-            socket.connect(remote, local)?;
-        }
-
-        let future = ConnectFuture::new(socket, std::time::Duration::from_secs(4));
-        future.await?;
-
         Ok(())
     }
 }
@@ -141,43 +133,6 @@ impl<Device: phy::Device> Read for TcpStream<'_, Device> {
                 RecvError::Finished => Ok(0),
                 RecvError::InvalidState => Err(std::io::Error::new(std::io::ErrorKind::Other, "failed to recv data"))
             },
-        }
-    }
-}
-
-pub struct ConnectFuture<'a, Device>
-where Device: phy::Device {
-    socket: Arc<Mutex<TcpStream<'a, Device>>>,
-    started: wasm_timer::Instant,
-    timeout: std::time::Duration,
-}
-
-impl <'a, Device: phy::Device> ConnectFuture<'a, Device> {
-    pub fn new(socket: Arc<Mutex<TcpStream<'a, Device>>>, timeout: std::time::Duration) -> Self {
-        Self {
-            socket,
-            started: wasm_timer::Instant::now(),
-            timeout
-        }
-    }
-}
-
-impl<Device> std::future::Future for ConnectFuture<'_, Device>
-where Device: phy::Device {
-    type Output = Result<(), ConnectError>;
-
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
-        if self.started.elapsed() > self.timeout {
-            return std::task::Poll::Ready(Err(ConnectError::Unaddressable))
-        }
-
-        let mut socket = self.socket.lock().unwrap();
-        socket.poll();
-        if socket.may_send() {
-            std::task::Poll::Ready(Ok(()))
-        } else {
-            cx.waker().wake_by_ref();
-            std::task::Poll::Pending
         }
     }
 }

@@ -1,5 +1,6 @@
+use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 use gloo_file::{File, ObjectUrl};
 use pcap_file::pcapng::PcapNgWriter;
 use pcap_file::pcapng::blocks::interface_description::InterfaceDescriptionBlock;
@@ -23,11 +24,11 @@ enum WsConnectionState {
 }
 
 pub struct WgTunDevice {
-    pcap: Arc<Mutex<PcapNgWriter<Vec<u8>>>>,
-    tun: Arc<Mutex<Tunn>>,
-    rx: Arc<Mutex<VecDeque<Vec<u8>>>>,
-    socket: Arc<WebSocket>,
-    socket_state: Arc<Mutex<WsConnectionState>>,
+    pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
+    tun: Rc<RefCell<Tunn>>,
+    rx: Rc<RefCell<VecDeque<Vec<u8>>>>,
+    socket: Rc<WebSocket>,
+    socket_state: Rc<RefCell<WsConnectionState>>,
 }
 
 impl WgTunDevice {
@@ -41,22 +42,22 @@ impl WgTunDevice {
             None
         );
 
-        let tun = Arc::new(Mutex::new(tun));
-        let rx = Arc::new(Mutex::new(VecDeque::new()));
-        let socket_state = Arc::new(Mutex::new(WsConnectionState::Disconnected));
+        let tun = Rc::new(RefCell::new(tun));
+        let rx = Rc::new(RefCell::new(VecDeque::new()));
+        let socket_state = Rc::new(RefCell::new(WsConnectionState::Disconnected));
 
-        let socket = WebSocket::new("ws://localhost:8081")?;
+        let socket = WebSocket::new("ws://192.168.1.215:8081")?;
         console_log!("Parent WebSocket Created");
 
-        let socket = Arc::new(socket);
+        let socket = Rc::new(socket);
         let onopen_socket = socket.clone();
         let onopen_socket_state = socket_state.clone();
         let onopen_tun = tun.clone();
         let onopen = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             console_log!("Parent WebSocket Opened");
-            *onopen_socket_state.lock().unwrap() = WsConnectionState::Connected;
+            *onopen_socket_state.borrow_mut() = WsConnectionState::Connected;
 
-            let mut tun = onopen_tun.lock().unwrap();
+            let mut tun = onopen_tun.borrow_mut();
             let mut buf = [0u8; 2048];
             match tun.format_handshake_initiation(&mut buf, false) {
                 TunnResult::WriteToNetwork(d) => {
@@ -70,19 +71,19 @@ impl WgTunDevice {
         let onclose_socket_state = socket_state.clone();
         let onclose = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             console_log!("Parent WebSocket Closed");
-            *onclose_socket_state.lock().unwrap() = WsConnectionState::Disconnected;
+            *onclose_socket_state.borrow_mut() = WsConnectionState::Disconnected;
         });
         socket.set_onclose(Some(onclose.as_ref().unchecked_ref()));
 
         let onerror_socket_state = socket_state.clone();
         let onerror = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             console_log!("Parent WebSocket Error");
-            *onerror_socket_state.lock().unwrap() = WsConnectionState::Disconnected;
+            *onerror_socket_state.borrow_mut() = WsConnectionState::Disconnected;
         });
         socket.set_onerror(Some(onerror.as_ref().unchecked_ref()));
 
         let pcap = vec![];
-        let pcap = Arc::new(Mutex::new(PcapNgWriter::new(pcap).unwrap()));
+        let pcap = Rc::new(RefCell::new(PcapNgWriter::new(pcap).unwrap()));
 
         let message_pcap = pcap.clone();
         let message_vec = rx.clone();
@@ -102,7 +103,7 @@ impl WgTunDevice {
             let loaded = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
                 let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
                 let data = array.to_vec();
-                let mut tun = message_tun.lock().unwrap();
+                let mut tun = message_tun.borrow_mut();
                 if data.is_empty() {
                     console_log!("Empty data");
                     return
@@ -130,7 +131,7 @@ impl WgTunDevice {
                         };
 
                         {
-                            let mut message_pcap = message_pcap.lock().unwrap();
+                            let mut message_pcap = message_pcap.borrow_mut();
                             message_pcap.write_pcapng_block(interface).unwrap();
                             message_pcap.write_pcapng_block(packet).unwrap();
                         }
@@ -163,7 +164,7 @@ impl WgTunDevice {
                             };
 
                             {
-                                let mut message_pcap = message_pcap.lock().unwrap();
+                                let mut message_pcap = message_pcap.borrow_mut();
                                 message_pcap.write_pcapng_block(interface).unwrap();
                                 message_pcap.write_pcapng_block(packet).unwrap();
                             }
@@ -193,11 +194,11 @@ impl WgTunDevice {
                         };
 
                         {
-                            let mut message_pcap = message_pcap.lock().unwrap();
+                            let mut message_pcap = message_pcap.borrow_mut();
                             message_pcap.write_pcapng_block(interface).unwrap();
                             message_pcap.write_pcapng_block(packet).unwrap();
                         }
-                        (*message_vec.lock().unwrap()).push_back(d.to_vec());
+                        (*message_vec.borrow_mut()).push_back(d.to_vec());
                         let mut buf = vec![0u8; data.len() + 32];
                         match tun.encapsulate(&data, &mut buf) {
                             TunnResult::WriteToNetwork(d) => {
@@ -229,11 +230,11 @@ impl WgTunDevice {
                 };
 
                 {
-                    let mut message_pcap = message_pcap.lock().unwrap();
+                    let mut message_pcap = message_pcap.borrow_mut();
                     message_pcap.write_pcapng_block(interface).unwrap();
                     message_pcap.write_pcapng_block(packet).unwrap();
                 }
-                (*message_vec.lock().unwrap()).push_back(buf.to_vec());
+                (*message_vec.borrow_mut()).push_back(buf.to_vec());
             });
 
             fr.set_onload(Some(loaded.as_ref().unchecked_ref()));
@@ -246,7 +247,7 @@ impl WgTunDevice {
 
         let write_pcap = pcap.clone();
         let download_file = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            let pcap = write_pcap.lock().unwrap();
+            let pcap = write_pcap.borrow_mut();
             let content = pcap.get_ref().to_owned();
             let file = File::new("out.pcap", &content[..]);
             let file = ObjectUrl::from(file);
@@ -290,8 +291,8 @@ impl phy::Device for WgTunDevice {
     type TxToken<'a> = WgTunPhyTxToken;
 
     fn receive(&mut self, _: Instant) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
-        let mut deque = self.rx.lock().unwrap();
-        if *self.socket_state.lock().unwrap() != WsConnectionState::Connected || deque.is_empty() {
+        let mut deque = self.rx.borrow_mut();
+        if *self.socket_state.borrow_mut() != WsConnectionState::Connected || deque.is_empty() {
             return None
         }
 
@@ -309,7 +310,7 @@ impl phy::Device for WgTunDevice {
     }
 
     fn transmit(&mut self, _: Instant) -> Option<Self::TxToken<'_>> {
-        if (*self.socket_state.lock().unwrap()) != WsConnectionState::Connected {
+        if (*self.socket_state.borrow_mut()) != WsConnectionState::Connected {
             return None
         }
 
@@ -342,9 +343,9 @@ impl phy::RxToken for WgTunPhyRxToken {
 }
 
 pub struct WgTunPhyTxToken {
-    pcap: Arc<Mutex<PcapNgWriter<Vec<u8>>>>,
-    tun: Arc<Mutex<Tunn>>,
-    socket: Arc<WebSocket>,
+    pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
+    tun: Rc<RefCell<Tunn>>,
+    socket: Rc<WebSocket>,
 }
 
 impl phy::TxToken for WgTunPhyTxToken {
@@ -372,12 +373,12 @@ impl phy::TxToken for WgTunPhyTxToken {
         };
 
         {
-            let mut message_pcap = self.pcap.lock().unwrap();
+            let mut message_pcap = self.pcap.borrow_mut();
             message_pcap.write_pcapng_block(interface).unwrap();
             message_pcap.write_pcapng_block(packet).unwrap();
         }
 
-        let mut tun = self.tun.lock().unwrap();
+        let mut tun = self.tun.borrow_mut();
         let mut dst_buf = vec![0u8; size + 32];
         match tun.encapsulate(&buf, &mut dst_buf) {
             TunnResult::Done => (),
