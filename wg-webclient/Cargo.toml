@@ -36,12 +36,19 @@ web-sys = { version = "0.3.66", features = ["WebSocket",
     "Element",
     "HtmlElement",
     "Performance",
-    "MessageEvent" ]}
+    "MessageEvent",
+    "CustomEventInit",
+    "CustomEvent" ]}
 
 
 pcap-file = "2.0.0"
 base64 = "0.21.6"
 gloo-file = "0.3.0"
+hyper = { version = "1.1.0", features = ["client", "http1"] }
+wasm-bindgen-futures = "0.4.39"
+http-body-util = "0.1.0"
+futures = "0.3.30"
+tokio = { version = "1.35.1", features = ["io-util"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"

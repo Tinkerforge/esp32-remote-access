@@ -175,7 +175,7 @@ impl WgTunDevice {
                         console_log!("Error: {:?}", e);
                         return
                     },
-                    TunnResult::WriteToTunnelV4(d, ip) => {
+                    TunnResult::WriteToTunnelV4(d, _) => {
                         let interface = InterfaceDescriptionBlock {
                             linktype: pcap_file::DataLink::IPV4,
                             snaplen: 0,
@@ -233,7 +233,6 @@ impl WgTunDevice {
                     message_pcap.write_pcapng_block(interface).unwrap();
                     message_pcap.write_pcapng_block(packet).unwrap();
                 }
-                console_log!("Received data from tun, {:?}", buf);
                 (*message_vec.lock().unwrap()).push_back(buf.to_vec());
             });
 
@@ -266,7 +265,7 @@ impl WgTunDevice {
         let window = web_sys::window().unwrap();
         window.set_timeout_with_callback_and_timeout_and_arguments_0(
             download_file.as_ref().unchecked_ref(),
-            20000).unwrap();
+            10000).unwrap();
 
         // !!!! This leaks memory !!!!
         // But it should be fine because the Object should have a static lifetime

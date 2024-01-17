@@ -1,5 +1,5 @@
-use std::io::{Read, Write};
-use smoltcp::{iface::{SocketSet, Interface, SocketHandle, Config}, phy, wire::IpCidr, socket::tcp::{self, ListenError, ConnectError, RecvError}};
+use std::{io::{Read, Write}, sync::{Arc, Mutex}, pin::Pin};
+use smoltcp::{iface::{SocketSet, Interface, SocketHandle, Config}, phy::{self, Device}, wire::IpCidr, socket::tcp::{self, ListenError, ConnectError, RecvError}};
 use smoltcp::wire::IpListenEndpoint;
 use crate::utils::now;
 
@@ -27,7 +27,7 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
             addrs.push(ip).unwrap();
         });
 
-        let rx_buf = tcp::SocketBuffer::new(vec![0; 64000]);
+        let rx_buf = tcp::SocketBuffer::new(vec![0; 500000]);
         let tx_buf = tcp::SocketBuffer::new(vec![0; 2048]);
         let tcp_socket = tcp::Socket::new(rx_buf, tx_buf);
 
@@ -41,6 +41,12 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
             device,
             buf: vec![],
         }
+    }
+
+    #[inline]
+    pub fn is_open(&self) -> bool {
+        let socket = self.socket_set.get::<tcp::Socket>(self.handle);
+        socket.is_open()
     }
 
     #[inline]
@@ -85,6 +91,20 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
         socket.connect(self.iface.context(), remote.into(), local.into())?;
         Ok(())
     }
+
+    pub async fn connect_async<T, U>(socket: Arc<Mutex<TcpStream<'_, Device>>>, remote: T, local: U) -> Result<(), ConnectError>
+    where T: Into<smoltcp::wire::IpEndpoint>,
+          U: Into<smoltcp::wire::IpListenEndpoint> {
+        {
+            let mut socket = socket.lock().unwrap();
+            socket.connect(remote, local)?;
+        }
+
+        let future = ConnectFuture::new(socket, std::time::Duration::from_secs(4));
+        future.await?;
+
+        Ok(())
+    }
 }
 
 impl<Device: phy::Device> Write for TcpStream<'_, Device> {
@@ -98,11 +118,11 @@ impl<Device: phy::Device> Write for TcpStream<'_, Device> {
         let socket = self.socket_set.get_mut::<tcp::Socket>(self.handle);
         match socket.send_slice(&self.buf[..]) {
             Ok(_) =>(),
-            Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "failed to send data")),
+            Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("failed to send data: {:?}", e))),
         }
 
         self.iface.poll(now(), &mut self.device, &mut self.socket_set);
-        // self.buf.clear();
+        self.buf.clear();
         Ok(())
     }
 }
@@ -121,6 +141,43 @@ impl<Device: phy::Device> Read for TcpStream<'_, Device> {
                 RecvError::Finished => Ok(0),
                 RecvError::InvalidState => Err(std::io::Error::new(std::io::ErrorKind::Other, "failed to recv data"))
             },
+        }
+    }
+}
+
+pub struct ConnectFuture<'a, Device>
+where Device: phy::Device {
+    socket: Arc<Mutex<TcpStream<'a, Device>>>,
+    started: wasm_timer::Instant,
+    timeout: std::time::Duration,
+}
+
+impl <'a, Device: phy::Device> ConnectFuture<'a, Device> {
+    pub fn new(socket: Arc<Mutex<TcpStream<'a, Device>>>, timeout: std::time::Duration) -> Self {
+        Self {
+            socket,
+            started: wasm_timer::Instant::now(),
+            timeout
+        }
+    }
+}
+
+impl<Device> std::future::Future for ConnectFuture<'_, Device>
+where Device: phy::Device {
+    type Output = Result<(), ConnectError>;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+        if self.started.elapsed() > self.timeout {
+            return std::task::Poll::Ready(Err(ConnectError::Unaddressable))
+        }
+
+        let mut socket = self.socket.lock().unwrap();
+        socket.poll();
+        if socket.may_send() {
+            std::task::Poll::Ready(Ok(()))
+        } else {
+            cx.waker().wake_by_ref();
+            std::task::Poll::Pending
         }
     }
 }
