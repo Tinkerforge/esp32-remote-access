@@ -17,6 +17,10 @@ setTimeout(async () => {
     }, {once: true})
 }, 1000);
 
+setTimeout(() => {
+    wgClient.download_pcap_log();
+}, 10000)
+
 export class Frame extends Component {
     render() {
         data_url = useState("");

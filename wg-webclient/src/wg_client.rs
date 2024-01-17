@@ -2,8 +2,10 @@
 use std::{task::Poll, io::Read, collections::VecDeque, rc::Rc, cell::RefCell};
 
 use futures::{Future, FutureExt};
+use gloo_file::{File, ObjectUrl};
 use http_body_util::{Empty, BodyExt};
 use hyper::body::Bytes;
+use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::{IpAddress, IpCidr};
 use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, window};
@@ -29,12 +31,20 @@ impl Client {
         let cpy = self.0.clone();
         cpy.fetch(uri, method, body)
     }
+
+    // leaks memory, for debugging only!!!
+    #[wasm_bindgen]
+    pub fn download_pcap_log(&self) {
+        let cpy = self.0.clone();
+        cpy.download_pcap_log();
+    }
 }
 
 struct WgClient {
     stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
     current_request: Rc<RefCell<Option<IntervalHandle<MessageEvent>>>>,
-    request_queue: Rc<RefCell<VecDeque<Request>>>
+    request_queue: Rc<RefCell<VecDeque<Request>>>,
+    pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
 }
 
 enum RequestState {
@@ -64,12 +74,15 @@ impl WgClient {
         }
         let self_key = x25519::StaticSecret::from(secret);
         let peer = x25519::PublicKey::from(peer);
-        let test = WgTunDevice::new(
+        let device = WgTunDevice::new(
             self_key,
             peer,
         ).unwrap();
+
+        let pcap = device.get_pcap();
+
         let ip = IpCidr::new(IpAddress::v4(123, 123, 123, 3), 24);
-        let stream = TcpStream::new(test, ip);
+        let stream = TcpStream::new(device, ip);
 
         let stream = Rc::new(RefCell::new(stream));
         let stream2 = stream.clone();
@@ -87,7 +100,8 @@ impl WgClient {
         Self {
             stream,
             current_request: Rc::new(RefCell::new(None)),
-            request_queue: Rc::new(RefCell::new(VecDeque::new()))
+            request_queue: Rc::new(RefCell::new(VecDeque::new())),
+            pcap,
         }
     }
 
@@ -264,6 +278,35 @@ impl WgClient {
         *self.current_request.borrow_mut() = Some(interval);
 
         format!("get_{}", id)
+    }
+
+
+    // leaks memory, for debugging only!!!
+    pub fn download_pcap_log(&self) {
+        let write_pcap = self.pcap.clone();
+        // let download_file = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
+            let pcap = write_pcap.borrow_mut();
+            let content = pcap.get_ref().to_owned();
+            let file = File::new("out.pcap", &content[..]);
+            let file = ObjectUrl::from(file);
+
+            let window = web_sys::window().unwrap();
+            let document = window.document().unwrap();
+            let element = document.create_element("a").unwrap();
+            element.set_attribute("download", "out.pcap").unwrap();
+            element.set_attribute("href", &file.to_string()).unwrap();
+            element.set_attribute("target", "_blank").unwrap();
+            let element = wasm_bindgen::JsValue::from(element);
+            let element = web_sys::HtmlElement::from(element);
+            element.click();
+        // });
+
+        // let window = web_sys::window().unwrap();
+        // window.set_timeout_with_callback_and_timeout_and_arguments_0(
+        //     download_file.as_ref().unchecked_ref(),
+        //     10000).unwrap();
+
+        // download_file.forget();
     }
 }
 

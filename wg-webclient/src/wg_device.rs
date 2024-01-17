@@ -245,36 +245,12 @@ impl WgTunDevice {
         socket.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
         socket.set_onopen(Some(onopen.as_ref().as_ref().unchecked_ref()));
 
-        let write_pcap = pcap.clone();
-        let download_file = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            let pcap = write_pcap.borrow_mut();
-            let content = pcap.get_ref().to_owned();
-            let file = File::new("out.pcap", &content[..]);
-            let file = ObjectUrl::from(file);
-
-            let window = web_sys::window().unwrap();
-            let document = window.document().unwrap();
-            let element = document.create_element("a").unwrap();
-            element.set_attribute("download", "out.pcap").unwrap();
-            element.set_attribute("href", &file.to_string()).unwrap();
-            element.set_attribute("target", "_blank").unwrap();
-            let element = wasm_bindgen::JsValue::from(element);
-            let element = web_sys::HtmlElement::from(element);
-            element.click();
-        });
-
-        let window = web_sys::window().unwrap();
-        window.set_timeout_with_callback_and_timeout_and_arguments_0(
-            download_file.as_ref().unchecked_ref(),
-            10000).unwrap();
-
         // !!!! This leaks memory !!!!
         // But it should be fine because the Object should have a static lifetime
         onclose.forget();
         onopen.forget();
         onerror.forget();
         onmessage.forget();
-        download_file.forget();
 
         Ok(Self {
             pcap,
@@ -283,6 +259,10 @@ impl WgTunDevice {
             socket,
             socket_state,
         })
+    }
+
+    pub fn get_pcap(&self) -> Rc<RefCell<PcapNgWriter<Vec<u8>>>> {
+        self.pcap.clone()
     }
 }
 
