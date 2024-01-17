@@ -283,30 +283,20 @@ impl WgClient {
 
     // leaks memory, for debugging only!!!
     pub fn download_pcap_log(&self) {
-        let write_pcap = self.pcap.clone();
-        // let download_file = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            let pcap = write_pcap.borrow_mut();
-            let content = pcap.get_ref().to_owned();
-            let file = File::new("out.pcap", &content[..]);
-            let file = ObjectUrl::from(file);
+        let pcap = self.pcap.borrow_mut();
+        let content = pcap.get_ref().to_owned();
+        let file = File::new("out.pcap", &content[..]);
+        let file = ObjectUrl::from(file);
 
-            let window = web_sys::window().unwrap();
-            let document = window.document().unwrap();
-            let element = document.create_element("a").unwrap();
-            element.set_attribute("download", "out.pcap").unwrap();
-            element.set_attribute("href", &file.to_string()).unwrap();
-            element.set_attribute("target", "_blank").unwrap();
-            let element = wasm_bindgen::JsValue::from(element);
-            let element = web_sys::HtmlElement::from(element);
-            element.click();
-        // });
-
-        // let window = web_sys::window().unwrap();
-        // window.set_timeout_with_callback_and_timeout_and_arguments_0(
-        //     download_file.as_ref().unchecked_ref(),
-        //     10000).unwrap();
-
-        // download_file.forget();
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let element = document.create_element("a").unwrap();
+        element.set_attribute("download", "out.pcap").unwrap();
+        element.set_attribute("href", &file.to_string()).unwrap();
+        element.set_attribute("target", "_blank").unwrap();
+        let element = wasm_bindgen::JsValue::from(element);
+        let element = web_sys::HtmlElement::from(element);
+        element.click();
     }
 }
 

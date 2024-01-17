@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use gloo_file::{File, ObjectUrl};
 use pcap_file::pcapng::PcapNgWriter;
 use pcap_file::pcapng::blocks::interface_description::InterfaceDescriptionBlock;
 use smoltcp::phy::{self, DeviceCapabilities, Medium};
