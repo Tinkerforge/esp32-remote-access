@@ -7,7 +7,7 @@ pub struct IntervalHandle<T> {
 }
 
 impl<T> IntervalHandle<T> {
-    pub fn new(mut f: Closure<dyn FnMut(T)>, interval: i32) -> Self {
+    pub fn new(f: Closure<dyn FnMut(T)>, interval: i32) -> Self {
         let interval_handle = window()
             .unwrap()
             .set_interval_with_callback_and_timeout_and_arguments_0(

@@ -14,15 +14,29 @@ use flate2::read::GzDecoder;
 // use tokio::io::{AsyncWriteExt as _, self};
 
 use crate::console_log;
+#[wasm_bindgen]
+struct Client(Rc::<WgClient>);
 
 #[wasm_bindgen]
-pub struct WgClient {
+impl Client {
+    #[wasm_bindgen(constructor)]
+    pub fn new(secret_str: &str, peer_str: &str) -> Self {
+        Self(Rc::new(WgClient::new(secret_str, peer_str)))
+    }
+
+    #[wasm_bindgen]
+    pub fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>) -> String {
+        let cpy = self.0.clone();
+        cpy.fetch(uri, method, body)
+    }
+}
+
+struct WgClient {
     stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
     current_request: Rc<RefCell<Option<IntervalHandle<MessageEvent>>>>,
     request_queue: Rc<RefCell<VecDeque<Request>>>
 }
 
-#[derive(PartialEq)]
 enum RequestState {
     Started,
     Connected,
@@ -32,10 +46,9 @@ enum RequestState {
     Done,
 }
 
-#[wasm_bindgen]
+
 impl WgClient {
-    #[wasm_bindgen(constructor)]
-    pub fn new(secret_str: &str, peer_str: &str) -> Self {
+    fn new(secret_str: &str, peer_str: &str) -> Self {
 
         let mut secret = [0u8; 32];
         let engine = base64::engine::general_purpose::STANDARD;
@@ -78,8 +91,7 @@ impl WgClient {
         }
     }
 
-    #[wasm_bindgen]
-    pub fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>) -> String {
+    fn fetch(self: Rc<Self>, uri: String, method: String, body: Option<Vec<u8>>) -> String {
         console_error_panic_hook::set_once();
         let id = js_sys::Math::random();
         if self.current_request.borrow_mut().is_some() {
@@ -93,8 +105,12 @@ impl WgClient {
         }
         console_log!("get: {:?}", uri);
         {
+            let port = js_sys::Math::random() * 1000.0;
+            let port = port as u16;
             let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
-            self.stream.borrow_mut().connect(endpoint, 80).unwrap();
+            console_log!("before");
+            self.stream.borrow_mut().connect(endpoint, port).unwrap();
+            console_log!("after");
         }
 
         let state = Rc::new(RefCell::new(RequestState::Started));
@@ -112,9 +128,14 @@ impl WgClient {
 
         let uri = Rc::new(uri);
 
-        let connect = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
+        let request_queue = self.request_queue.clone();
+        let current_request = self.current_request.clone();
+        let self_cpy = self.clone();
+
+        let req = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             let stream_cpy = stream_cpy.clone();
             let mut state = state_cpy.borrow_mut();
+            let self_cpy = self_cpy.clone();
 
             match *state {
                 RequestState::Started => {
@@ -203,7 +224,6 @@ impl WgClient {
                             let mut gz = GzDecoder::new(&result[..]);
                             let mut s = String::new();
                             gz.read_to_string(&mut s).unwrap();
-                            // console_log!("result: {:?}", result);
                             let arr = js_sys::Uint8Array::from(s.as_bytes());
                             let mut init = web_sys::CustomEventInit::new();
                             init.detail(&arr);
@@ -220,18 +240,28 @@ impl WgClient {
                         Poll::Pending => (),
                     };
                 },
-                _ => {},
+                _ => {
+                    let mut stream = stream_cpy.borrow_mut();
+                    stream.close();
+                    stream.poll();
+                    if stream.is_open() {
+                        console_log!("is open: {}", stream.is_open());
+                        return;
+                    }
+                    *current_request.borrow_mut() = None;
+                    let mut request_queue = request_queue.borrow_mut();
+                    console_log!("references to self: {}", Rc::strong_count(&self_cpy));
+                    if let Some(next) = request_queue.pop_front() {
+                        wasm_bindgen_futures::spawn_local(async move {
+                            self_cpy.fetch(next.uri, next.method, next.body);
+                        })
+                    }
+                },
             }
 
         });
-        // let interval = IntervalHandle::new(connect, 0);
-        // let connect = Rc::new(interval);
-
-        window().unwrap().set_interval_with_callback_and_timeout_and_arguments_0(
-            connect.as_ref().unchecked_ref(),
-            0,
-        ).unwrap();
-        connect.forget();
+        let interval = IntervalHandle::new(req, 0);
+        *self.current_request.borrow_mut() = Some(interval);
 
         format!("get_{}", id)
     }

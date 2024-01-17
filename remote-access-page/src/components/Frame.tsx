@@ -1,21 +1,21 @@
 
-import { WgClient } from 'wg-webclient';
+import { Client } from 'wg-webclient';
 import { StateUpdater, useState } from 'preact/hooks';
 import { Component } from 'preact';
 
 const secret = "EMx11sTpRVrReWObruImxwm3rxZMwSJWBqdIJRDPxHM=";
 const peer = "AZmudADBwjZIF6vOEDnnzgVPmg/hI987RPllAM1wW2w=";
-const wgClient = new WgClient(secret, peer);
+const wgClient = new Client(secret, peer);
 let data_url: [string, StateUpdater<string>];
 
 setTimeout(async () => {
-    let event = await wgClient.fetch("/", "GET");
+    let event = wgClient.fetch("/", "GET");
     window.addEventListener(event, (e: CustomEvent) => {
         const data = new Blob([e.detail]);
         const url = URL.createObjectURL(data);
         data_url[1](url);
     }, {once: true})
-}, 0);
+}, 1000);
 
 export class Frame extends Component {
     render() {

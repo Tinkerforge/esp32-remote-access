@@ -42,9 +42,8 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
         }
     }
 
-    #[allow(dead_code)]
     #[inline]
-    fn is_open(&self) -> bool {
+    pub fn is_open(&self) -> bool {
         let socket = self.socket_set.get::<tcp::Socket>(self.handle);
         socket.is_open()
     }
@@ -88,6 +87,11 @@ impl<'a, Device: phy::Device> TcpStream <'a, Device> {
         let socket = self.socket_set.get_mut::<tcp::Socket>(self.handle);
         socket.listen(endpoint.into())?;
         Ok(())
+    }
+
+    pub fn close(&mut self) {
+        let socket = self.socket_set.get_mut::<tcp::Socket>(self.handle);
+        socket.close();
     }
 
     pub fn connect<T, U>(&mut self, remote: T, local: U) -> Result<(), ConnectError>
