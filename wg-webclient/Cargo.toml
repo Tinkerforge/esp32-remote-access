@@ -49,6 +49,7 @@ wasm-bindgen-futures = "0.4.39"
 http-body-util = "0.1.0"
 futures = "0.3.30"
 tokio = { version = "1.35.1", features = ["io-util"] }
+flate2 = "1.0.28"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"

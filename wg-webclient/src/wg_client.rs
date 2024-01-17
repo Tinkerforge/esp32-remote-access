@@ -1,5 +1,5 @@
 
-use std::{sync::{Arc, Mutex}, task::Poll};
+use std::{sync::{Arc, Mutex}, task::Poll, io::Read};
 
 use futures::{Future, FutureExt};
 use http_body_util::{Empty, BodyExt};
@@ -10,7 +10,8 @@ use web_sys::{MessageEvent, window};
 use crate::{stream::TcpStream, wg_device::WgTunDevice, hyper_stream::HyperStream};
 use base64::Engine;
 use boringtun::x25519;
-use tokio::io::{AsyncWriteExt as _, self};
+use flate2::read::GzDecoder;
+// use tokio::io::{AsyncWriteExt as _, self};
 
 use crate::console_log;
 
@@ -218,19 +219,23 @@ impl WgClient {
                     let resp = resp.as_mut().unwrap();
                     match resp.frame().poll_unpin(&mut cx) {
                         Poll::Ready(Some(Ok(frame))) => {
-                            let data = frame.into_data().unwrap();
-                            let mut result = result.lock().unwrap();
-                            result.extend_from_slice(&data);
+                            if let Some(chunk) = frame.data_ref() {
+                                let mut result = result.lock().unwrap();
+                                result.extend_from_slice(chunk);
+                            }
                         },
                         Poll::Ready(Some(Err(e))) => panic!("error: {}", e),
                         Poll::Ready(None) => {
                             console_log!("done");
                             *state = RequestState::Done;
                             let result = result.lock().unwrap();
-                            let arr = js_sys::Uint8Array::from(&result[..]);
+                            let mut gz = GzDecoder::new(&result[..]);
+                            let mut s = String::new();
+                            gz.read_to_string(&mut s).unwrap();
+                            // console_log!("result: {:?}", result);
+                            let arr = js_sys::Uint8Array::from(s.as_bytes());
                             let mut init = web_sys::CustomEventInit::new();
                             init.detail(&arr);
-                            console_log!("{:?}", init);
                             let event = web_sys::CustomEvent::new_with_event_init_dict(format!("get_{}", id).as_str(), &init).unwrap();
                             window().unwrap().dispatch_event(&event).unwrap();
                         },
