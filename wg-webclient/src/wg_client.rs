@@ -1,9 +1,9 @@
 
-use std::{task::Poll, io::Read, collections::VecDeque, rc::Rc, cell::RefCell};
+use std::{task::Poll, io::Read, collections::VecDeque, rc::Rc, cell::RefCell, ops::Deref};
 
 use futures::{Future, FutureExt};
 use gloo_file::{File, ObjectUrl};
-use http_body_util::{Empty, BodyExt};
+use http_body_util::BodyExt;
 use hyper::body::Bytes;
 use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::{IpAddress, IpCidr};
@@ -56,9 +56,43 @@ enum RequestState {
     Done,
 }
 
+#[wasm_bindgen]
+struct Response {
+    status: u16,
+    content_type: String,
+    body: js_sys::Uint8Array,
+}
+
+#[wasm_bindgen]
+impl Response {
+    fn new(status: u16, content_type: String, body: js_sys::Uint8Array) -> Self {
+        Self {
+            status,
+            content_type,
+            body,
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn status(&self) -> u16 {
+        self.status
+    }
+
+    #[wasm_bindgen]
+    pub fn content_type(&self) -> String {
+        self.content_type.clone()
+    }
+
+    #[wasm_bindgen]
+    pub fn body(&self) -> js_sys::Uint8Array {
+        self.body.clone()
+    }
+}
+
 
 impl WgClient {
     fn new(secret_str: &str, peer_str: &str) -> Self {
+        console_error_panic_hook::set_once();
 
         let mut secret = [0u8; 32];
         let engine = base64::engine::general_purpose::STANDARD;
@@ -106,7 +140,6 @@ impl WgClient {
     }
 
     fn fetch(self: Rc<Self>, uri: String, method: String, body: Option<Vec<u8>>, in_id: Option<f64>) -> String {
-        console_error_panic_hook::set_once();
         let id;
         if let Some(in_id) = in_id {
             id = in_id;
@@ -147,6 +180,8 @@ impl WgClient {
         let result = Rc::new(RefCell::new(vec!{0u8; 0}));
 
         let uri = Rc::new(uri);
+        let method = Rc::new(method);
+        let body = Rc::new(body);
 
         let request_queue = self.request_queue.clone();
         let current_request = self.current_request.clone();
@@ -189,10 +224,21 @@ impl WgClient {
                     }
                 },
                 RequestState::HandshakeDone => {
+                    let method = match method.as_ref().as_str() {
+                        "GET" => hyper::Method::GET,
+                        "PUT" => hyper::Method::PUT,
+                        // FIXME: throw exception instead of panic
+                        _ => panic!("unknown method: {}", method),
+                    };
+                    let body = match body.deref() {
+                        Some(body) => &body[..],
+                        None => &[][..],
+                    };
                     let req = http::Request::builder()
-                    .method("GET")
+                    .method(method)
+                    .header("Content-Type", "application/json; charset=utf-8")
                     .uri(uri.as_ref())
-                    .body(Empty::<Bytes>::new())
+                    .body(Box::new(Body::new(Bytes::copy_from_slice(body))))
                     .unwrap();
                     let mut sender = sender.borrow_mut();
                     let sender = sender.as_mut().unwrap();
@@ -209,10 +255,10 @@ impl WgClient {
                     let request = request.as_mut().unwrap();
                     match request.as_mut().poll(&mut cx) {
                         Poll::Ready(Ok(response)) => {
-                            console_log!("resp: {:?}", response);
                             *resp.borrow_mut() = Some(Box::pin(response));
                             *state = RequestState::StreamingBody;
                         },
+                        // FIXME: throw exception instead of panic
                         Poll::Ready(Err(e)) => panic!("error: {}", e),
                         Poll::Pending => (),
                     };
@@ -220,6 +266,7 @@ impl WgClient {
                     let conn = conn.as_mut().unwrap();
                     match conn.as_mut().poll(&mut cx) {
                         Poll::Ready(Ok(_)) => (),
+                        // FIXME: throw exception instead of panic
                         Poll::Ready(Err(e)) => panic!("error: {}", e),
                         Poll::Pending => (),
                     };
@@ -236,22 +283,30 @@ impl WgClient {
                                 result.extend_from_slice(chunk);
                             }
                         },
+                        // FIXME: throw exception instead of panic
                         Poll::Ready(Some(Err(e))) => panic!("error: {}", e),
                         Poll::Ready(None) => {
                             console_log!("done");
                             *state = RequestState::Done;
                             let result = result.borrow_mut();
                             let arr;
-                            if resp.headers().contains_key("Content-Encoding") {
-                            let mut gz = GzDecoder::new(&result[..]);
-                            let mut s = String::new();
-                            gz.read_to_string(&mut s).unwrap();
-                                arr = js_sys::Uint8Array::from(s.as_bytes());
+                            if let Some(encoding) = resp.headers().get("Content-Encoding") {
+                                if encoding == "gzip" {
+                                    let mut gz = GzDecoder::new(&result[..]);
+                                    let mut s = String::new();
+                                    gz.read_to_string(&mut s).unwrap();
+                                    arr = js_sys::Uint8Array::from(s.as_bytes());
+                                } else {
+                                    // FIXME: handle other encodings and throw exception instead of panic
+                                    panic!("unknown encoding: {}", encoding.to_str().unwrap());
+                                }
                             } else {
                                 arr = js_sys::Uint8Array::from(&result[..]);
                             }
+                            let content_type = resp.headers()["Content-Type"].to_str().unwrap().to_owned();
+                            let response = Response::new(u16::from(resp.status()), content_type, arr);
                             let mut init = web_sys::CustomEventInit::new();
-                            init.detail(&arr);
+                            init.detail(&response.into());
                             let event = web_sys::CustomEvent::new_with_event_init_dict(format!("get_{}", id).as_str(), &init).unwrap();
                             window().unwrap().dispatch_event(&event).unwrap();
                         },
@@ -261,6 +316,7 @@ impl WgClient {
                     let conn = conn.as_mut().unwrap();
                     match conn.as_mut().poll(&mut cx) {
                         Poll::Ready(Ok(_)) => (),
+                        // FIXME: throw exception instead of panic
                         Poll::Ready(Err(e)) => panic!("error: {}", e),
                         Poll::Pending => (),
                     };
@@ -314,4 +370,39 @@ struct Request {
     pub uri: String,
     pub method: String,
     pub body: Option<Vec<u8>>,
+}
+
+struct Body(Bytes);
+
+impl Body {
+    fn new(bytes: Bytes) -> Self {
+        Self(bytes)
+    }
+}
+
+impl hyper::body::Body for Body {
+    type Data = Bytes;
+    type Error = DummyErr;
+
+    fn poll_frame(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
+            Poll::Ready(Some(Ok(hyper::body::Frame::data(self.0.clone()))))
+    }
+
+    fn size_hint(&self) -> hyper::body::SizeHint {
+        hyper::body::SizeHint::with_exact(self.0.len() as u64)
+    }
+}
+
+#[derive(Debug)]
+struct DummyErr;
+
+impl std::error::Error for DummyErr {}
+
+impl std::fmt::Display for DummyErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "how the f did this happen!?")
+    }
 }

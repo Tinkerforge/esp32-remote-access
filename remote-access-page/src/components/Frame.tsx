@@ -3,18 +3,12 @@ import { Client } from 'wg-webclient';
 import { StateUpdater, useState } from 'preact/hooks';
 import { Component } from 'preact';
 
-const secret = "EMx11sTpRVrReWObruImxwm3rxZMwSJWBqdIJRDPxHM=";
-const peer = "AZmudADBwjZIF6vOEDnnzgVPmg/hI987RPllAM1wW2w=";
+const secret = "EFHaYB4PvohMsO7VqxNQFyQhw6uKq6PD0FpjhZrCMkI=";
+const peer = "T1gy5yRSwYlSkjxAfnk/koNhlRyxsrFhdGW87LY1cxM=";
 const wgClient = new Client(secret, peer);
 let data_url: [string, StateUpdater<string>];
 
 setTimeout(async () => {
-    let event = wgClient.fetch("/", "GET");
-    window.addEventListener(event, (e: CustomEvent) => {
-        const data = new Blob([e.detail]);
-        const url = URL.createObjectURL(data);
-        data_url[1](url);
-    }, {once: true})
 }, 1000);
 
 setTimeout(() => {
@@ -22,6 +16,73 @@ setTimeout(() => {
 }, 10000)
 
 export class Frame extends Component {
+    constructor() {
+        super();
+
+        // let event = wgClient.fetch("/", "GET");
+        // window.addEventListener(event, (e: CustomEvent) => {
+        //     const data = new Blob([e.detail.body()]);
+        //     const url = URL.createObjectURL(data);
+        //     data_url[1](url);
+        //     console.log("type:", e.detail.content_type())
+        // }, {once: true})
+
+        // let get = wgClient.fetch("/evse/state", "GET");
+        // console.log(get);
+        // window.addEventListener(get, (e: CustomEvent) => {
+        //     const data = new TextDecoder().decode(e.detail.body());
+        //     console.log("data:", data);
+
+        // }, {once: true})
+
+        const data = {
+            "tasks": [
+              {
+                "trigger": [
+                  5,
+                  {
+                    "tag_type": 2,
+                    "tag_id": "04:52:40:1A:25:55:80"
+                  }
+                ],
+                "action": [
+                  2,
+                  {
+                    "topic": "test",
+                    "payload": "bla",
+                    "retain": false,
+                    "use_prefix": false
+                  }
+                ]
+              },
+              {
+                "trigger": [
+                  3,
+                  {
+                    "topic_filter": "bla",
+                    "payload": "",
+                    "retain": false,
+                    "use_prefix": false
+                  }
+                ],
+                "action": [
+                  7,
+                  {
+                    "tag_type": 2,
+                    "tag_id": "04:52:40:1A:25:55:80",
+                    "action": 0
+                  }
+                ]
+              }
+            ]
+          }
+        const body = new TextEncoder().encode(JSON.stringify(data));
+
+        let put = wgClient.fetch("/automation/config", "PUT", body);
+        window.addEventListener(put, (e: CustomEvent) => {
+            console.log("put:", new TextDecoder().decode(e.detail.body()));
+        });
+    }
     render() {
         data_url = useState("");
         let iframe = <></>;
