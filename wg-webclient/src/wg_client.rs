@@ -29,7 +29,7 @@ impl Client {
     #[wasm_bindgen]
     pub fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>) -> String {
         let cpy = self.0.clone();
-        cpy.fetch(uri, method, body)
+        cpy.fetch(uri, method, body, None)
     }
 
     // leaks memory, for debugging only!!!
@@ -105,12 +105,18 @@ impl WgClient {
         }
     }
 
-    fn fetch(self: Rc<Self>, uri: String, method: String, body: Option<Vec<u8>>) -> String {
+    fn fetch(self: Rc<Self>, uri: String, method: String, body: Option<Vec<u8>>, in_id: Option<f64>) -> String {
         console_error_panic_hook::set_once();
-        let id = js_sys::Math::random();
+        let id;
+        if let Some(in_id) = in_id {
+            id = in_id;
+        } else {
+            id = js_sys::Math::random();
+        }
         if self.current_request.borrow_mut().is_some() {
             let mut request_queue = self.request_queue.borrow_mut();
             request_queue.push_back(Request {
+                id,
                 uri,
                 method,
                 body,
@@ -235,10 +241,15 @@ impl WgClient {
                             console_log!("done");
                             *state = RequestState::Done;
                             let result = result.borrow_mut();
+                            let arr;
+                            if resp.headers().contains_key("Content-Encoding") {
                             let mut gz = GzDecoder::new(&result[..]);
                             let mut s = String::new();
                             gz.read_to_string(&mut s).unwrap();
-                            let arr = js_sys::Uint8Array::from(s.as_bytes());
+                                arr = js_sys::Uint8Array::from(s.as_bytes());
+                            } else {
+                                arr = js_sys::Uint8Array::from(&result[..]);
+                            }
                             let mut init = web_sys::CustomEventInit::new();
                             init.detail(&arr);
                             let event = web_sys::CustomEvent::new_with_event_init_dict(format!("get_{}", id).as_str(), &init).unwrap();
@@ -259,15 +270,13 @@ impl WgClient {
                     stream.close();
                     stream.poll();
                     if stream.is_open() {
-                        console_log!("is open: {}", stream.is_open());
                         return;
                     }
                     *current_request.borrow_mut() = None;
                     let mut request_queue = request_queue.borrow_mut();
-                    console_log!("references to self: {}", Rc::strong_count(&self_cpy));
                     if let Some(next) = request_queue.pop_front() {
                         wasm_bindgen_futures::spawn_local(async move {
-                            self_cpy.fetch(next.uri, next.method, next.body);
+                            self_cpy.fetch(next.uri, next.method, next.body, Some(next.id));
                         })
                     }
                 },
@@ -301,6 +310,7 @@ impl WgClient {
 }
 
 struct Request {
+    pub id: f64,
     pub uri: String,
     pub method: String,
     pub body: Option<Vec<u8>>,
