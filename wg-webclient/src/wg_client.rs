@@ -56,40 +56,6 @@ enum RequestState {
     Done,
 }
 
-#[wasm_bindgen]
-struct Response {
-    status: u16,
-    content_type: String,
-    body: js_sys::Uint8Array,
-}
-
-#[wasm_bindgen]
-impl Response {
-    fn new(status: u16, content_type: String, body: js_sys::Uint8Array) -> Self {
-        Self {
-            status,
-            content_type,
-            body,
-        }
-    }
-
-    #[wasm_bindgen]
-    pub fn status(&self) -> u16 {
-        self.status
-    }
-
-    #[wasm_bindgen]
-    pub fn content_type(&self) -> String {
-        self.content_type.clone()
-    }
-
-    #[wasm_bindgen]
-    pub fn body(&self) -> js_sys::Uint8Array {
-        self.body.clone()
-    }
-}
-
-
 impl WgClient {
     fn new(secret_str: &str, peer_str: &str) -> Self {
         console_error_panic_hook::set_once();
@@ -289,22 +255,33 @@ impl WgClient {
                             console_log!("done");
                             *state = RequestState::Done;
                             let result = result.borrow_mut();
-                            let arr;
-                            if let Some(encoding) = resp.headers().get("Content-Encoding") {
+                            let mut body = if let Some(encoding) = resp.headers().get("Content-Encoding") {
                                 if encoding == "gzip" {
                                     let mut gz = GzDecoder::new(&result[..]);
                                     let mut s = String::new();
                                     gz.read_to_string(&mut s).unwrap();
-                                    arr = js_sys::Uint8Array::from(s.as_bytes());
+                                    s.as_bytes().to_vec()
                                 } else {
                                     // FIXME: handle other encodings and throw exception instead of panic
                                     panic!("unknown encoding: {}", encoding.to_str().unwrap());
                                 }
                             } else {
-                                arr = js_sys::Uint8Array::from(&result[..]);
+                                result.clone()
+                            };
+
+                            let headers = web_sys::Headers::new().unwrap();
+                            for (key, value) in resp.headers().iter() {
+                                let value = match value.to_str() {
+                                    Ok(value) => value,
+                                    Err(_) => continue,
+                                };
+                                headers.set(key.as_str(), value).unwrap();
                             }
-                            let content_type = resp.headers()["Content-Type"].to_str().unwrap().to_owned();
-                            let response = Response::new(u16::from(resp.status()), content_type, arr);
+                            let mut response_init = web_sys::ResponseInit::new();
+                            response_init.status(resp.status().as_u16());
+                            response_init.headers(&headers);
+                            response_init.status_text(resp.status().canonical_reason().unwrap_or(""));
+                            let response = web_sys::Response::new_with_opt_u8_array_and_init(Some(&mut body[..]), &response_init).unwrap();
                             let mut init = web_sys::CustomEventInit::new();
                             init.detail(&response.into());
                             let event = web_sys::CustomEvent::new_with_event_init_dict(format!("get_{}", id).as_str(), &init).unwrap();
@@ -406,3 +383,36 @@ impl std::fmt::Display for DummyErr {
         write!(f, "how the f did this happen!?")
     }
 }
+
+// #[wasm_bindgen]
+// struct Response {
+//     status: u16,
+//     content_type: String,
+//     body: js_sys::Uint8Array,
+// }
+
+// #[wasm_bindgen]
+// impl Response {
+//     fn new(status: u16, content_type: String, body: js_sys::Uint8Array) -> Self {
+//         Self {
+//             status,
+//             content_type,
+//             body,
+//         }
+//     }
+
+//     #[wasm_bindgen]
+//     pub fn status(&self) -> u16 {
+//         self.status
+//     }
+
+//     #[wasm_bindgen]
+//     pub fn content_type(&self) -> String {
+//         self.content_type.clone()
+//     }
+
+//     #[wasm_bindgen]
+//     pub fn body(&self) -> js_sys::Uint8Array {
+//         self.body.clone()
+//     }
+// }

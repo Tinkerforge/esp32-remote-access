@@ -22,6 +22,11 @@ enum WsConnectionState {
     Disconnected,
 }
 
+/**
+ * This struct emulates the hardware layer for smoltcp.
+ * This is done by encoding outgoing packets before sending them over Websocket
+ * and decoding incoming packets from Websocket and storing them in a queue.
+ */
 pub struct WgTunDevice {
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
     tun: Rc<RefCell<Tunn>>,

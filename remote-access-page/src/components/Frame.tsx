@@ -19,13 +19,14 @@ export class Frame extends Component {
     constructor() {
         super();
 
-        // let event = wgClient.fetch("/", "GET");
-        // window.addEventListener(event, (e: CustomEvent) => {
-        //     const data = new Blob([e.detail.body()]);
-        //     const url = URL.createObjectURL(data);
-        //     data_url[1](url);
-        //     console.log("type:", e.detail.content_type())
-        // }, {once: true})
+        let event = wgClient.fetch("/", "GET");
+        window.addEventListener(event, (e: CustomEvent) => {
+            console.log("event:", e.detail);
+
+            const data = new Blob([e.detail.body()]);
+            const url = URL.createObjectURL(data);
+            data_url[1](url);
+        }, {once: true})
 
         // let get = wgClient.fetch("/evse/state", "GET");
         // console.log(get);
@@ -35,53 +36,53 @@ export class Frame extends Component {
 
         // }, {once: true})
 
-        const data = {
-            "tasks": [
-              {
-                "trigger": [
-                  5,
-                  {
-                    "tag_type": 2,
-                    "tag_id": "04:52:40:1A:25:55:80"
-                  }
-                ],
-                "action": [
-                  2,
-                  {
-                    "topic": "test",
-                    "payload": "bla",
-                    "retain": false,
-                    "use_prefix": false
-                  }
-                ]
-              },
-              {
-                "trigger": [
-                  3,
-                  {
-                    "topic_filter": "bla",
-                    "payload": "",
-                    "retain": false,
-                    "use_prefix": false
-                  }
-                ],
-                "action": [
-                  7,
-                  {
-                    "tag_type": 2,
-                    "tag_id": "04:52:40:1A:25:55:80",
-                    "action": 0
-                  }
-                ]
-              }
-            ]
-          }
-        const body = new TextEncoder().encode(JSON.stringify(data));
+        // const data = {
+        //     "tasks": [
+        //       {
+        //         "trigger": [
+        //           5,
+        //           {
+        //             "tag_type": 2,
+        //             "tag_id": "04:52:40:1A:25:55:80"
+        //           }
+        //         ],
+        //         "action": [
+        //           2,
+        //           {
+        //             "topic": "test",
+        //             "payload": "bla",
+        //             "retain": false,
+        //             "use_prefix": false
+        //           }
+        //         ]
+        //       },
+        //       {
+        //         "trigger": [
+        //           3,
+        //           {
+        //             "topic_filter": "bla",
+        //             "payload": "",
+        //             "retain": false,
+        //             "use_prefix": false
+        //           }
+        //         ],
+        //         "action": [
+        //           7,
+        //           {
+        //             "tag_type": 2,
+        //             "tag_id": "04:52:40:1A:25:55:80",
+        //             "action": 0
+        //           }
+        //         ]
+        //       }
+        //     ]
+        //   }
+        // const body = new TextEncoder().encode(JSON.stringify(data));
 
-        let put = wgClient.fetch("/automation/config", "PUT", body);
-        window.addEventListener(put, (e: CustomEvent) => {
-            console.log("put:", new TextDecoder().decode(e.detail.body()));
-        });
+        // let put = wgClient.fetch("/automation/config", "PUT", body);
+        // window.addEventListener(put, (e: CustomEvent) => {
+        //     console.log("put:", new TextDecoder().decode(e.detail.body()));
+        // });
     }
     render() {
         data_url = useState("");
