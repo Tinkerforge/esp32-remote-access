@@ -22,11 +22,10 @@ export class Frame extends Component {
             data_url[1](url);
         });
 
-        // let get = wgClient.fetch("/evse/state", "GET");
-        // console.log(get);
-        // window.addEventListener(get, (e: CustomEvent) => {
-        //     const data = new TextDecoder().decode(e.detail.body());
-        //     console.log("data:", data);
+        wgClient.fetch("/evse/state", "GET").then(async (e: Response) => {
+            const data = await e.json();
+            console.log(data);
+        });
 
         // }, {once: true})
 

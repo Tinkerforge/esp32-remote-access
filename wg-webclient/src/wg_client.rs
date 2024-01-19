@@ -17,13 +17,13 @@ use flate2::read::GzDecoder;
 
 use crate::console_log;
 #[wasm_bindgen]
-struct Client(Rc::<WgClient>);
+struct Client(Rc::<WgClient>, Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)>>>>);
 
 #[wasm_bindgen]
 impl Client {
     #[wasm_bindgen(constructor)]
     pub fn new(secret_str: &str, peer_str: &str) -> Self {
-        Self(Rc::new(WgClient::new(secret_str, peer_str)))
+        Self(Rc::new(WgClient::new(secret_str, peer_str)), Rc::new(RefCell::new(VecDeque::new())))
     }
 
     #[wasm_bindgen]
@@ -31,12 +31,14 @@ impl Client {
         let cpy = self.0.clone();
         let id = cpy.fetch(uri, method, body, None);
         Promise::new(&mut move |resolve, _| {
+            let queue = self.1.clone();
             let closure = Closure::<dyn FnMut(_)>::new(move |event: CustomEvent| {
                 let response = event.detail();
+                let _ = queue.borrow_mut().pop_front();
                 resolve.call1(&JsValue::NULL, &response).unwrap();
             });
             window().unwrap().add_event_listener_with_callback(id.as_str(), closure.as_ref().unchecked_ref()).unwrap();
-            closure.forget();
+            self.1.borrow_mut().push_back(closure);
         })
     }
 
@@ -381,6 +383,9 @@ impl hyper::body::Body for Body {
     }
 }
 
+/**
+ * This is a dummy error type that is never returned. It is needed because the Body trait needs an Error type.
+ */
 #[derive(Debug)]
 struct DummyErr;
 
@@ -391,36 +396,3 @@ impl std::fmt::Display for DummyErr {
         write!(f, "how the f did this happen!?")
     }
 }
-
-// #[wasm_bindgen]
-// struct Response {
-//     status: u16,
-//     content_type: String,
-//     body: js_sys::Uint8Array,
-// }
-
-// #[wasm_bindgen]
-// impl Response {
-//     fn new(status: u16, content_type: String, body: js_sys::Uint8Array) -> Self {
-//         Self {
-//             status,
-//             content_type,
-//             body,
-//         }
-//     }
-
-//     #[wasm_bindgen]
-//     pub fn status(&self) -> u16 {
-//         self.status
-//     }
-
-//     #[wasm_bindgen]
-//     pub fn content_type(&self) -> String {
-//         self.content_type.clone()
-//     }
-
-//     #[wasm_bindgen]
-//     pub fn body(&self) -> js_sys::Uint8Array {
-//         self.body.clone()
-//     }
-// }
