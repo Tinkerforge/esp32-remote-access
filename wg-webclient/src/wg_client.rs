@@ -5,15 +5,15 @@ use futures::{Future, FutureExt};
 use gloo_file::{File, ObjectUrl};
 use http_body_util::BodyExt;
 use hyper::body::Bytes;
+use js_sys::Promise;
 use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::{IpAddress, IpCidr};
 use wasm_bindgen::prelude::*;
-use web_sys::{MessageEvent, window};
+use web_sys::{MessageEvent, window, CustomEvent};
 use crate::{stream::TcpStream, wg_device::WgTunDevice, hyper_stream::HyperStream, interval_handle::IntervalHandle};
 use base64::Engine;
 use boringtun::x25519;
 use flate2::read::GzDecoder;
-// use tokio::io::{AsyncWriteExt as _, self};
 
 use crate::console_log;
 #[wasm_bindgen]
@@ -27,9 +27,17 @@ impl Client {
     }
 
     #[wasm_bindgen]
-    pub fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>) -> String {
+    pub fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>) -> Promise {
         let cpy = self.0.clone();
-        cpy.fetch(uri, method, body, None)
+        let id = cpy.fetch(uri, method, body, None);
+        Promise::new(&mut move |resolve, _| {
+            let closure = Closure::<dyn FnMut(_)>::new(move |event: CustomEvent| {
+                let response = event.detail();
+                resolve.call1(&JsValue::NULL, &response).unwrap();
+            });
+            window().unwrap().add_event_listener_with_callback(id.as_str(), closure.as_ref().unchecked_ref()).unwrap();
+            closure.forget();
+        })
     }
 
     // leaks memory, for debugging only!!!

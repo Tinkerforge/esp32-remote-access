@@ -8,9 +8,6 @@ const peer = "T1gy5yRSwYlSkjxAfnk/koNhlRyxsrFhdGW87LY1cxM=";
 const wgClient = new Client(secret, peer);
 let data_url: [string, StateUpdater<string>];
 
-setTimeout(async () => {
-}, 1000);
-
 setTimeout(() => {
     wgClient.download_pcap_log();
 }, 10000)
@@ -19,14 +16,11 @@ export class Frame extends Component {
     constructor() {
         super();
 
-        let event = wgClient.fetch("/", "GET");
-        window.addEventListener(event, (e: CustomEvent) => {
-            console.log("event:", e.detail);
-
-            const data = new Blob([e.detail.body()]);
+        wgClient.fetch("/", "GET").then(async (e: Response) => {
+            const data = await e.blob();
             const url = URL.createObjectURL(data);
             data_url[1](url);
-        }, {once: true})
+        });
 
         // let get = wgClient.fetch("/evse/state", "GET");
         // console.log(get);
