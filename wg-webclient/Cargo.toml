@@ -3,6 +3,8 @@ name = "wg-webclient"
 version = "0.1.0"
 authors = ["Frederic Henrichs <frederic@tinkerforge.com>"]
 edition = "2021"
+description = "A wasm library to provide a fetch/ws api that is tunneled through Wireguard."
+repository = "https://github.com/Tinkerforge/esp32-remote-access"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

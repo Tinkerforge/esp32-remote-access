@@ -10,7 +10,7 @@ use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::{IpAddress, IpCidr};
 use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, window, CustomEvent};
-use crate::{stream::TcpStream, wg_device::WgTunDevice, hyper_stream::HyperStream, interval_handle::IntervalHandle};
+use crate::{stream::TcpStream, wg_device::WgTunDevice, hyper_stream::HyperStream, interval_handle::IntervalHandle, interface::Interface};
 use base64::Engine;
 use boringtun::x25519;
 use flate2::read::GzDecoder;
@@ -92,7 +92,8 @@ impl WgClient {
         let pcap = device.get_pcap();
 
         let ip = IpCidr::new(IpAddress::v4(123, 123, 123, 3), 24);
-        let stream = TcpStream::new(device, ip);
+        let iface = Rc::new(RefCell::new(Interface::new(device, ip)));
+        let stream = TcpStream::new(iface);
 
         let stream = Rc::new(RefCell::new(stream));
         let stream2 = stream.clone();
@@ -170,7 +171,7 @@ impl WgClient {
 
             match *state {
                 RequestState::Started => {
-                    let mut stream = stream_cpy.borrow_mut();
+                    let stream = stream_cpy.borrow_mut();
                     if stream.can_send() {
                         console_log!("can send");
                         *state = RequestState::Connected;
@@ -309,6 +310,7 @@ impl WgClient {
                     };
                 },
                 _ => {
+                    let stream_cpy = stream_cpy.clone();
                     let mut stream = stream_cpy.borrow_mut();
                     stream.close();
                     stream.poll();

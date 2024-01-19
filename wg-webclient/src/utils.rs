@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 
+#[inline]
 pub fn now() -> smoltcp::time::Instant {
     let now = web_sys::window()
         .expect("not in a browser")

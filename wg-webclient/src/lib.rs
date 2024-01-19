@@ -5,6 +5,7 @@ mod handshake;
 mod wg_device;
 mod hyper_stream;
 mod interval_handle;
+mod interface;
 
 
 use wasm_bindgen::prelude::*;

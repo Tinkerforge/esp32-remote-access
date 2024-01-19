@@ -12,6 +12,13 @@ setTimeout(() => {
     wgClient.download_pcap_log();
 }, 10000)
 
+// setInterval(() => {
+//     wgClient.fetch("/evse/state", "GET").then(async (e: Response) => {
+//         const data = await e.json();
+//         console.log(data);
+//     });
+// }, 500);
+
 export class Frame extends Component {
     constructor() {
         super();
@@ -20,11 +27,6 @@ export class Frame extends Component {
             const data = await e.blob();
             const url = URL.createObjectURL(data);
             data_url[1](url);
-        });
-
-        wgClient.fetch("/evse/state", "GET").then(async (e: Response) => {
-            const data = await e.json();
-            console.log(data);
         });
 
         // }, {once: true})
