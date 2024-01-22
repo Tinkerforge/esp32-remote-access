@@ -57,7 +57,7 @@ impl WgTunDevice {
         let onopen_socket = socket.clone();
         let onopen_socket_state = socket_state.clone();
         let onopen_tun = tun.clone();
-        let onopen = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
+        let onopen = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
             console_log!("Parent WebSocket Opened");
             *onopen_socket_state.borrow_mut() = WsConnectionState::Connected;
 
@@ -73,14 +73,14 @@ impl WgTunDevice {
         });
 
         let onclose_socket_state = socket_state.clone();
-        let onclose = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
+        let onclose = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
             console_log!("Parent WebSocket Closed");
             *onclose_socket_state.borrow_mut() = WsConnectionState::Disconnected;
         });
         socket.set_onclose(Some(onclose.as_ref().unchecked_ref()));
 
         let onerror_socket_state = socket_state.clone();
-        let onerror = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
+        let onerror = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
             console_log!("Parent WebSocket Error");
             *onerror_socket_state.borrow_mut() = WsConnectionState::Disconnected;
         });
@@ -95,17 +95,30 @@ impl WgTunDevice {
         let message_tun = tun.clone();
         let onmessage = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
             let data = e.data();
-            let data = data.dyn_into::<web_sys::Blob>().unwrap();
+            let data = match data.dyn_into::<web_sys::Blob>(){
+                Ok(blob) => blob,
+                Err(_) => {
+                    console_log!("Not a blob");
+                    return
+                }
+            };
 
             let fr = web_sys::FileReader::new().unwrap();
-            let fr_c = fr.clone();
+            let fr_cpy = fr.clone();
             let message_tun = message_tun.clone();
             let message_socket = message_socket.clone();
             let message_vec = message_vec.clone();
             let message_pcap = message_pcap.clone();
 
             let loaded = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-                let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
+                let value = match fr_cpy.result() {
+                    Ok(v) => v,
+                    Err(_) => {
+                        console_log!("Error reading file");
+                        return
+                    }
+                };
+                let array = js_sys::Uint8Array::new(&value);
                 let data = array.to_vec();
                 let mut tun = message_tun.borrow_mut();
                 if data.is_empty() {
@@ -243,6 +256,8 @@ impl WgTunDevice {
 
             fr.set_onload(Some(loaded.as_ref().unchecked_ref()));
             fr.read_as_array_buffer(&data).unwrap();
+
+            // FIXME: need to get rid of this since it leaks memory
             loaded.forget();
 
         });
