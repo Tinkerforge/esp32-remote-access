@@ -36,7 +36,7 @@ pub struct WgTunDevice {
 }
 
 impl WgTunDevice {
-    pub fn new(self_key: x25519::StaticSecret, peer: x25519::PublicKey) -> Result<Self, JsValue> {
+    pub fn new(self_key: x25519::StaticSecret, peer: x25519::PublicKey, url: &str) -> Result<Self, JsValue> {
         let tun = Tunn::new(
             self_key,
             peer,
@@ -50,7 +50,7 @@ impl WgTunDevice {
         let rx = Rc::new(RefCell::new(VecDeque::new()));
         let socket_state = Rc::new(RefCell::new(WsConnectionState::Disconnected));
 
-        let socket = WebSocket::new("ws://192.168.1.215:8081")?;
+        let socket = WebSocket::new(url)?;
         console_log!("Parent WebSocket Created");
 
         let socket = Rc::new(socket);
@@ -396,4 +396,9 @@ impl phy::TxToken for WgTunPhyTxToken {
 
         result
     }
+}
+
+#[cfg(test)]
+pub mod test {
+
 }

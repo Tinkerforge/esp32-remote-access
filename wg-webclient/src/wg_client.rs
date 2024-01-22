@@ -22,8 +22,8 @@ struct Client(Rc::<WgClient>, Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)
 #[wasm_bindgen]
 impl Client {
     #[wasm_bindgen(constructor)]
-    pub fn new(secret_str: &str, peer_str: &str) -> Self {
-        Self(Rc::new(WgClient::new(secret_str, peer_str)), Rc::new(RefCell::new(VecDeque::new())))
+    pub fn new(secret_str: &str, peer_str: &str, url: &str) -> Self {
+        Self(Rc::new(WgClient::new(secret_str, peer_str, url)), Rc::new(RefCell::new(VecDeque::new())))
     }
 
     #[wasm_bindgen]
@@ -67,7 +67,7 @@ enum RequestState {
 }
 
 impl WgClient {
-    fn new(secret_str: &str, peer_str: &str) -> Self {
+    fn new(secret_str: &str, peer_str: &str, url: &str) -> Self {
         console_error_panic_hook::set_once();
 
         let mut secret = [0u8; 32];
@@ -87,6 +87,7 @@ impl WgClient {
         let device = WgTunDevice::new(
             self_key,
             peer,
+            url
         ).unwrap();
 
         let pcap = device.get_pcap();

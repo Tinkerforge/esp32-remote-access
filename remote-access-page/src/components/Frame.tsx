@@ -5,7 +5,7 @@ import { Component } from 'preact';
 
 const secret = "EFHaYB4PvohMsO7VqxNQFyQhw6uKq6PD0FpjhZrCMkI=";
 const peer = "T1gy5yRSwYlSkjxAfnk/koNhlRyxsrFhdGW87LY1cxM=";
-const wgClient = new Client(secret, peer);
+const wgClient = new Client(secret, peer, "ws://localhost:8081");
 let data_url: [string, StateUpdater<string>];
 
 setTimeout(() => {

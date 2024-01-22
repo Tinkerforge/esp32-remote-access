@@ -112,7 +112,8 @@ pub mod tests {
     fn create_wg_tun_device() -> WgTunDevice {
         WgTunDevice::new(
             x25519::StaticSecret::random_from_rng(rand_core::OsRng),
-            x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng))
+            x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng)),
+            "ws://localhost:8081"
         ).unwrap()
     }
 
