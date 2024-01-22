@@ -26,8 +26,6 @@ pub mod tests {
 
     use smoltcp::{iface::{Config, Interface, SocketSet}, wire::{IpAddress, IpCidr}, socket::tcp::{self, Socket}, phy};
     use wasm_bindgen_test::*;
-    use crate::wg_device::*;
-    use boringtun::x25519;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -107,19 +105,6 @@ pub mod tests {
             queue.push_back(buf);
             res
         }
-    }
-
-    fn create_wg_tun_device() -> WgTunDevice {
-        WgTunDevice::new(
-            x25519::StaticSecret::random_from_rng(rand_core::OsRng),
-            x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng)),
-            "ws://localhost:8081"
-        ).unwrap()
-    }
-
-    #[wasm_bindgen_test]
-    fn test_create_wg_tun_device() {
-        let _ = create_wg_tun_device();
     }
 
     struct SocketWrap<'a> {

@@ -400,5 +400,19 @@ impl phy::TxToken for WgTunPhyTxToken {
 
 #[cfg(test)]
 pub mod test {
+    use wasm_bindgen_test::*;
+    use super::*;
 
+    fn create_wg_tun_device() -> WgTunDevice {
+        WgTunDevice::new(
+            x25519::StaticSecret::random_from_rng(rand_core::OsRng),
+            x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng)),
+            "ws://localhost:8081"
+        ).unwrap()
+    }
+
+    #[wasm_bindgen_test]
+    fn test_create_wg_tun_device() {
+        let _ = create_wg_tun_device();
+    }
 }
