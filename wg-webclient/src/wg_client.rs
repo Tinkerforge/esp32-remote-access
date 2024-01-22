@@ -37,6 +37,8 @@ impl Client {
                 let _ = queue.borrow_mut().pop_front();
                 resolve.call1(&JsValue::NULL, &response).unwrap();
             });
+
+            // add event listener should not fail
             window().unwrap().add_event_listener_with_callback(id.as_str(), closure.as_ref().unchecked_ref()).unwrap();
             self.1.borrow_mut().push_back(closure);
         })
@@ -72,6 +74,8 @@ impl WgClient {
 
         let mut secret = [0u8; 32];
         let engine = base64::engine::general_purpose::STANDARD;
+
+        // decoding secret and peer public key should fail very noticably. So either panic or throw exception
         let secret_vec = engine.decode(secret_str).unwrap();
         for (i, b) in secret_vec.iter().enumerate() {
             secret[i] = *b;
@@ -84,6 +88,8 @@ impl WgClient {
         }
         let self_key = x25519::StaticSecret::from(secret);
         let peer = x25519::PublicKey::from(peer);
+
+        // same as above
         let device = WgTunDevice::new(
             self_key,
             peer,
@@ -140,6 +146,8 @@ impl WgClient {
             let port = port as u16;
             let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
             console_log!("before");
+
+            // FIXME: throw exception instead of panic
             self.stream.borrow_mut().connect(endpoint, port).unwrap();
             console_log!("after");
         }
@@ -193,6 +201,8 @@ impl WgClient {
                         wasm_bindgen_futures::spawn_local(async move {
                             console_log!("handshake");
                             let stream = HyperStream::new(stream_cpy.clone());
+
+                            // FIXME: throw exception instead of panic
                             let (sender, conn) = hyper::client::conn::http1::handshake(stream).await.unwrap();
                             console_log!("handshake done");
                             *sender_cpy.borrow_mut() = Some(sender);
@@ -253,6 +263,8 @@ impl WgClient {
                     let waker = futures::task::noop_waker();
                     let mut cx = std::task::Context::from_waker(&waker);
                     let mut resp = resp.borrow_mut();
+
+                    // resp is never None here
                     let resp = resp.as_mut().unwrap();
                     match resp.frame().poll_unpin(&mut cx) {
                         Poll::Ready(Some(Ok(frame))) => {
@@ -302,6 +314,8 @@ impl WgClient {
                         Poll::Pending => (),
                     };
                     let mut conn = conn.borrow_mut();
+
+                    // conn is never None here
                     let conn = conn.as_mut().unwrap();
                     match conn.as_mut().poll(&mut cx) {
                         Poll::Ready(Ok(_)) => (),
