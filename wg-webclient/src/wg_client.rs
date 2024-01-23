@@ -17,7 +17,7 @@ use flate2::read::GzDecoder;
 
 use crate::console_log;
 #[wasm_bindgen]
-struct Client(Rc::<WgClient>, Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)>>>>);
+pub struct Client(Rc::<WgClient>, Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)>>>>);
 
 #[wasm_bindgen]
 impl Client {
