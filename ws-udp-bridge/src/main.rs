@@ -72,7 +72,7 @@ async fn main() -> std::io::Result<()> {
 
     let udp_sock = UdpSocket::bind("0.0.0.0:51820").await?;
 
-    let remote_addr = "192.168.1.123:51820";
+    let remote_addr = "192.168.178.28:51820";
     udp_sock.connect(remote_addr).await?;
     let mut buf = [0u8; 2048];
     println!("Entering udp loop");

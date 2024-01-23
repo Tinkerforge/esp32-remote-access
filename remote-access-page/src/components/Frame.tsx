@@ -3,8 +3,8 @@ import { Client } from 'wg-webclient';
 import { StateUpdater, useState } from 'preact/hooks';
 import { Component } from 'preact';
 
-const secret = "EFHaYB4PvohMsO7VqxNQFyQhw6uKq6PD0FpjhZrCMkI=";
-const peer = "T1gy5yRSwYlSkjxAfnk/koNhlRyxsrFhdGW87LY1cxM=";
+const secret = "EBJ5ZxLZItwPax6WzbydJbdaRvSTUee79JHrAs1HoX4=";
+const peer = "iZ+cJQdnetnaYaAePe5Idk8NnxO28o87tOGws63Jn0I=";
 const wgClient = new Client(secret, peer, "ws://localhost:8081");
 let data_url: [string, StateUpdater<string>];
 
@@ -23,11 +23,13 @@ export class Frame extends Component {
     constructor() {
         super();
 
-        wgClient.fetch("/", "GET").then(async (e: Response) => {
-            const data = await e.blob();
-            const url = URL.createObjectURL(data);
-            data_url[1](url);
-        });
+        // wgClient.fetch("/", "GET").then(async (e: Response) => {
+        //     const data = await e.blob();
+        //     const url = URL.createObjectURL(data);
+        //     data_url[1](url);
+        // });
+
+        wgClient.start_ws();
 
         // }, {once: true})
 

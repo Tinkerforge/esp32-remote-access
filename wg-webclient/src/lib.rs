@@ -6,6 +6,7 @@ mod wg_device;
 mod hyper_stream;
 mod interval_handle;
 mod interface;
+mod websocket;
 
 
 use wasm_bindgen::prelude::*;
