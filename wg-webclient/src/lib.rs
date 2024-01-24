@@ -30,6 +30,7 @@ pub mod tests {
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
+    #[derive(Clone)]
     pub struct LocalDevice {
         rx: Arc<Mutex<VecDeque<Vec<u8>>>>,
         tx: Arc<Mutex<VecDeque<Vec<u8>>>>,
@@ -113,46 +114,6 @@ pub mod tests {
         pub socket: Socket<'a>,
         pub iface: Interface,
     }
-
-    // fn create_tcp_socket<'a>(ip: (u8, u8, u8, u8)) -> SocketWrap<'a> {
-    //     let mut device = create_WgTunDevice();
-    //     let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
-    //     let mut rng = [0u8; 8];
-    //     getrandom::getrandom(&mut rng).unwrap();
-    //     config.random_seed = u64::from_ne_bytes(rng);
-
-    //     let now = web_sys::window()
-    //         .expect("not in a browser")
-    //         .performance()
-    //         .expect("performance object not available")
-    //         .now();
-    //     let now = smoltcp::time::Instant::from_millis(now as i64);
-
-    //     let mut iface = Interface::new(config, &mut device, now);
-    //     iface.update_ip_addrs(|ip_addrs| {
-    //         ip_addrs.push(IpCidr::new(IpAddress::v4(ip.0, ip.1, ip.2, ip.3), 24)).unwrap();
-    //     });
-    //     iface.routes_mut().add_default_ipv4_route(Ipv4Address::new(192, 168, 69, 1)).unwrap();
-
-    //     let tcp_rx_buf = tcp::SocketBuffer::new(vec![0; 1500]);
-    //     let tcp_tx_buf = tcp::SocketBuffer::new(vec![0; 1500]);
-    //     let tcp_socket = tcp::Socket::new(tcp_rx_buf, tcp_tx_buf);
-    //     let mut sockets = SocketSet::new(vec![]);
-    //     let tcp_handle = sockets.add(tcp_socket);
-
-    //     SocketWrap {
-    //         sockets,
-    //         tcp_handle,
-    //         iface,
-    //     }
-    // }
-
-    // fn create_two_tcp_sockets<'a>() -> (SocketWrap<'a>, SocketWrap<'a>) {
-    //     (
-    //         create_tcp_socket((192, 168, 69, 1)),
-    //         create_tcp_socket((192, 168, 69, 2)),
-    //     )
-    // }
 
     fn create_local_socket<'a>(device_rx: Arc<Mutex<VecDeque<Vec<u8>>>>, device_tx: Arc<Mutex<VecDeque<Vec<u8>>>>, ip: (u8, u8, u8, u8)) -> SocketWrap<'a> {
         let mut device = LocalDevice::new(device_rx, device_tx);

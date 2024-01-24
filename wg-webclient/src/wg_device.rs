@@ -27,6 +27,8 @@ enum WsConnectionState {
  * This is done by encoding outgoing packets before sending them over Websocket
  * and decoding incoming packets from Websocket and storing them in a queue.
  */
+
+ #[derive(Clone)]
 pub struct WgTunDevice {
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
     tun: Rc<RefCell<Tunn>>,

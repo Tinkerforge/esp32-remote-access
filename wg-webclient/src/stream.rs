@@ -1,15 +1,16 @@
 use std::{io::{Read, Write}, rc::Rc, cell::RefCell};
 use smoltcp::{iface::SocketHandle, phy::{self}, wire::IpListenEndpoint, socket::tcp::{self, ConnectError, RecvError, ListenError}};
-use crate::interface::Interface;
+use crate::{console_log, interface::Interface};
 
+#[derive(Clone)]
 pub struct TcpStream<'a, Device>
-where Device: phy::Device {
+where Device: phy::Device + Clone {
     iface: Rc<RefCell<Interface<'a, Device>>>,
     handle: SocketHandle,
     buf: Vec<u8>,
 }
 
-impl<'a, Device: phy::Device> TcpStream<'a, Device> {
+impl<'a, Device: phy::Device + Clone> TcpStream<'a, Device> {
     pub fn new(iface: Rc<RefCell<Interface<'a, Device>>>) -> Self {
 
         let rx_buf = tcp::SocketBuffer::new(vec![0; 65535]);
@@ -85,7 +86,7 @@ impl<'a, Device: phy::Device> TcpStream<'a, Device> {
     }
 }
 
-impl<Device: phy::Device> Write for TcpStream<'_, Device> {
+impl<Device: phy::Device + Clone> Write for TcpStream<'_, Device> {
 
     #[inline]
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
@@ -103,7 +104,7 @@ impl<Device: phy::Device> Write for TcpStream<'_, Device> {
     }
 }
 
-impl<Device: phy::Device> Read for TcpStream<'_, Device> {
+impl<Device: phy::Device + Clone> Read for TcpStream<'_, Device> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.iface.borrow_mut().poll();

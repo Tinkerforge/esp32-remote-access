@@ -10,20 +10,20 @@ use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::{IpAddress, IpCidr};
 use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, window, CustomEvent};
-use crate::{hyper_stream::HyperStream, interface::Interface, interval_handle::IntervalHandle, stream::TcpStream, websocket::Websocket, wg_device::WgTunDevice};
+use crate::{hyper_stream::HyperStream, interface::Interface, interval_handle::IntervalHandle, stream::TcpStream, websocket::{self, Websocket}, wg_device::WgTunDevice};
 use base64::Engine;
 use boringtun::x25519;
 use flate2::read::GzDecoder;
 
 use crate::console_log;
 #[wasm_bindgen]
-pub struct Client(Rc::<WgClient>, Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)>>>>);
+pub struct Client(WgClient, Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)>>>>);
 
 #[wasm_bindgen]
 impl Client {
     #[wasm_bindgen(constructor)]
     pub fn new(secret_str: &str, peer_str: &str, url: &str) -> Self {
-        Self(Rc::new(WgClient::new(secret_str, peer_str, url)), Rc::new(RefCell::new(VecDeque::new())))
+        Self(WgClient::new(secret_str, peer_str, url), Rc::new(RefCell::new(VecDeque::new())))
     }
 
     #[wasm_bindgen]
@@ -45,8 +45,13 @@ impl Client {
     }
 
     #[wasm_bindgen]
-    pub fn start_ws(&self) {
+    pub fn start_ws(&mut self) {
         self.0.start_ws();
+    }
+
+    #[wasm_bindgen]
+    pub fn on_message(&mut self, cb: js_sys::Function) {
+        self.0.websocket.as_ref().unwrap().borrow_mut().on_message(cb);
     }
 
     // leaks memory, for debugging only!!!
@@ -57,10 +62,11 @@ impl Client {
     }
 }
 
+#[derive(Clone)]
 struct WgClient {
     stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
     iface: Rc<RefCell<Interface<'static, WgTunDevice>>>,
-    ws_stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
+    websocket: Option<Rc<RefCell<Websocket<WgTunDevice>>>>,
     current_request: Rc<RefCell<Option<IntervalHandle<MessageEvent>>>>,
     request_queue: Rc<RefCell<VecDeque<Request>>>,
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
@@ -113,7 +119,6 @@ impl WgClient {
 
         let stream = Rc::new(RefCell::new(stream));
 
-        let ws_stream = Rc::new(RefCell::new(TcpStream::new(iface.clone())));
         let window = web_sys::window().unwrap();
         let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             iface_cpy.borrow_mut().poll();
@@ -127,49 +132,24 @@ impl WgClient {
         Self {
             stream,
             iface,
-            ws_stream,
+            websocket: None,
             current_request: Rc::new(RefCell::new(None)),
             request_queue: Rc::new(RefCell::new(VecDeque::new())),
             pcap,
         }
     }
 
-    fn start_ws(&self) {
-        {
-            let mut stream = self.ws_stream.borrow_mut();
-            let port = js_sys::Math::random() * 1000.0;
-            let port = port as u16;
-            let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
-            stream.connect(endpoint, port).unwrap();
-        }
-
-        let stream_cpy = self.ws_stream.clone();
-        let closure = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            let mut stream = match stream_cpy.try_borrow_mut() {
-                Ok(s) => s,
-                Err(e) => {
-                    console_log!("error while borrowing: {}", e);
-                    return
-                }
-            };
-
-            static mut SENT: bool = false;
-            if !stream.can_send() || unsafe {
-                 SENT
-            } {
-                return
-            }
-
-            console_log!("sending");
-            unsafe {SENT = true;}
-            Websocket::connect(&mut (*stream));
-        });
-        window().unwrap().set_interval_with_callback_and_timeout_and_arguments_0(closure.as_ref().unchecked_ref(), 0).unwrap();
-        closure.forget();
+    fn start_ws(&mut self) {
+        let mut stream = TcpStream::new(self.iface.clone());
+        let port = js_sys::Math::random() * 1000.0;
+        let port = port as u16;
+        let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
+        stream.connect(endpoint, port).unwrap();
+        let websocket = Websocket::connect(stream).unwrap();
+        self.websocket = Some(Rc::new(RefCell::new(websocket)));
     }
 
-
-    fn fetch(self: Rc<Self>, uri: String, method: String, body: Option<Vec<u8>>, in_id: Option<f64>) -> String {
+    fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>, in_id: Option<f64>) -> String {
         let id;
         if let Some(in_id) = in_id {
             id = in_id;
@@ -371,7 +351,6 @@ impl WgClient {
                     };
                 },
                 _ => {
-                    let stream_cpy = stream_cpy.clone();
                     let mut stream = stream_cpy.borrow_mut();
                     stream.close();
                     stream.poll();
@@ -457,5 +436,20 @@ impl std::error::Error for DummyErr {}
 impl std::fmt::Display for DummyErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "how the f did this happen!?")
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use wasm_bindgen_test::*;
+    use super::*;
+
+    pub(self) fn create_wg_client(secret: &str, peer: &str, url: &str) -> WgClient {
+        WgClient::new(secret, peer, url)
+    }
+
+    #[wasm_bindgen_test]
+    fn test_create_wg_client() {
+        let _ = create_wg_client("EFHaYB4PvohMsO7VqxNQFyQhw6uKq6PD0FpjhZrCMkI=", "T1gy5yRSwYlSkjxAfnk/koNhlRyxsrFhdGW87LY1cxM=", "ws://localhost:8081");
     }
 }
