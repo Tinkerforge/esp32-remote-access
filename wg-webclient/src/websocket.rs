@@ -12,14 +12,14 @@ use crate::stream::TcpStream;
 
 struct ConnectingStruct<Device>
  where Device: smoltcp::phy::Device + Clone {
-    pub stream: TcpStream<'static, Device>,
-    pub interval: IntervalHandle<JsValue>,
+    stream: TcpStream<'static, Device>,
+    _interval: IntervalHandle<JsValue>,
 }
 
 struct ConnectedStruct<Device>
  where Device: smoltcp::phy::Device + Clone {
-    pub stream: Rc<RefCell<tungstenite::WebSocket<TcpStream<'static, Device>>>>,
-    pub interval: IntervalHandle<JsValue>,
+    stream: Rc<RefCell<tungstenite::WebSocket<TcpStream<'static, Device>>>>,
+    _interval: IntervalHandle<JsValue>,
 }
 
 enum WebsocketState<Device>
@@ -32,7 +32,7 @@ enum WebsocketState<Device>
 
 pub struct Websocket<Device>
  where Device: smoltcp::phy::Device + Clone {
-    state: Rc<RefCell<WebsocketState<Device>>>,
+    _state: Rc<RefCell<WebsocketState<Device>>>,
     cb: Rc<RefCell<Option<js_sys::Function>>>,
 }
 
@@ -50,11 +50,7 @@ impl<Device> Websocket<Device>
             .header("Host", "bla")
             .body(()).unwrap();
         let (request, key) = generate_request(request)?;
-        let len = stream.write(&request[..]).unwrap();
-        match std::str::from_utf8(&request[..]) {
-            Ok(req) => console_log!("request: {}", req),
-            Err(e) => console_log!("error while decoding request: {}", e.to_string())
-        }
+        let _ = stream.write(&request[..]).unwrap();
 
         let key = Rc::new(key);
         let key_cpy = key.clone();
@@ -89,7 +85,7 @@ impl<Device> Websocket<Device>
                 }
             };
 
-            let (size, response) = match tungstenite::handshake::client::Response::try_parse(&buf[..len]) {
+            let (_, response) = match tungstenite::handshake::client::Response::try_parse(&buf[..len]) {
                 Ok(Some(response)) => response,
                 Ok(None) => {
                     *state_cpy.borrow_mut() = WebsocketState::Disconnected;
@@ -150,18 +146,18 @@ impl<Device> Websocket<Device>
 
             *state = WebsocketState::Connected(ConnectedStruct {
                 stream: Rc::new(RefCell::new(tungstenite::WebSocket::from_raw_socket(stream, tungstenite::protocol::Role::Client, None))),
-                interval: IntervalHandle::new(closure, 0),
+                _interval: IntervalHandle::new(closure, 0),
             });
         }));
 
         let interval = IntervalHandle::new(closure, 0);
         *state.borrow_mut() = WebsocketState::Connecting(ConnectingStruct {
             stream,
-            interval,
+            _interval: interval,
         });
 
         Ok(Self {
-            state,
+            _state: state,
             cb,
         })
      }
