@@ -28,7 +28,7 @@ pub mod tests {
     use smoltcp::{iface::{Config, Interface, SocketSet}, wire::{IpAddress, IpCidr}, socket::tcp::{self, Socket}, phy};
     use wasm_bindgen_test::*;
 
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_worker);
 
     #[derive(Clone)]
     pub struct LocalDevice {
@@ -122,11 +122,7 @@ pub mod tests {
         getrandom::getrandom(&mut rng).unwrap();
         config.random_seed = u64::from_ne_bytes(rng);
 
-        let now = web_sys::window()
-            .expect("not in a browser")
-            .performance()
-            .expect("performance object not available")
-            .now();
+        let now = js_sys::Date::now();
         let now = smoltcp::time::Instant::from_millis(now as i64);
 
         let mut iface = Interface::new(config, &mut device, now);
@@ -183,11 +179,7 @@ pub mod tests {
 
         let mut send = false;
         loop {
-            let now = web_sys::window()
-                .expect("not in a browser")
-                .performance()
-                .expect("performance object not available")
-                .now();
+            let now = js_sys::Date::now();
             let now = smoltcp::time::Instant::from_millis(now as i64);
             let test = socket2.iface.poll(now, &mut socket2.device, &mut sock_set2);
             if !send {

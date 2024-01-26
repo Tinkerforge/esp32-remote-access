@@ -39,7 +39,9 @@ impl Client {
             });
 
             // add event listener should not fail
-            window().unwrap().add_event_listener_with_callback(id.as_str(), closure.as_ref().unchecked_ref()).unwrap();
+            let global = js_sys::global();
+            let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
+            global.add_event_listener_with_callback(id.as_str(), closure.as_ref().unchecked_ref()).unwrap();
             self.1.borrow_mut().push_back(closure);
         })
     }
@@ -119,11 +121,12 @@ impl WgClient {
 
         let stream = Rc::new(RefCell::new(stream));
 
-        let window = web_sys::window().unwrap();
+        let global = js_sys::global();
+        let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
         let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             iface_cpy.borrow_mut().poll();
         });
-        window.set_interval_with_callback_and_timeout_and_arguments_0(
+        global.set_interval_with_callback_and_timeout_and_arguments_0(
             closure.as_ref().unchecked_ref(),
             0,
         ).unwrap();
@@ -335,7 +338,10 @@ impl WgClient {
                             let mut init = web_sys::CustomEventInit::new();
                             init.detail(&response.into());
                             let event = web_sys::CustomEvent::new_with_event_init_dict(format!("get_{}", id).as_str(), &init).unwrap();
-                            window().unwrap().dispatch_event(&event).unwrap();
+
+                            let global = js_sys::global();
+                            let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
+                            global.dispatch_event(&event).unwrap();
                         },
                         Poll::Pending => (),
                     };
