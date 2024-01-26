@@ -1,16 +1,16 @@
 
-import { Client } from 'wg-webclient';
+// import { Client } from 'wg-webclient';
 import { StateUpdater, useState } from 'preact/hooks';
 import { Component } from 'preact';
 
 const secret = "EBJ5ZxLZItwPax6WzbydJbdaRvSTUee79JHrAs1HoX4=";
 const peer = "iZ+cJQdnetnaYaAePe5Idk8NnxO28o87tOGws63Jn0I=";
-const wgClient = new Client(secret, peer, "ws://localhost:8081");
+// const wgClient = new Client(secret, peer, "ws://localhost:8081");
 let data_url: [string, StateUpdater<string>];
 
-setTimeout(() => {
-    wgClient.download_pcap_log();
-}, 10000)
+// setTimeout(() => {
+//     wgClient.download_pcap_log();
+// }, 10000)
 
 // setInterval(() => {
 //     wgClient.fetch("/evse/state", "GET").then(async (e: Response) => {
@@ -29,7 +29,13 @@ export class Frame extends Component {
         //     data_url[1](url);
         // });
 
-        wgClient.start_ws();
+        // wgClient.start_ws();
+
+        // wgClient.on_message((e: string) => {
+        //     const iframe = document.getElementById("interface") as HTMLIFrameElement;
+        //     iframe.contentWindow.postMessage(e, "*");
+        //     // console.log("got message", e);
+        // })
 
         // }, {once: true})
 
@@ -85,7 +91,11 @@ export class Frame extends Component {
         data_url = useState("");
         let iframe = <></>;
         if (data_url[0] != "") {
-            iframe = <iframe src={data_url[0]} height={600} width={1048}></iframe>;
+            // window.fetch = async (...args) => {
+            //     const response = await wgClient.fetch(...args);
+            //     return response;
+            // }
+            iframe = <iframe src={data_url[0]} height={600} width={1048} id="interface"></iframe>;
         }
         return (
             <div class="home">
