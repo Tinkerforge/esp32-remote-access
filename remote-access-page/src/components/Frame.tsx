@@ -1,10 +1,13 @@
 
-// import { Client } from 'wg-webclient';
+import { Client } from 'wg-webclient';
 import { StateUpdater, useState } from 'preact/hooks';
 import { Component } from 'preact';
+import { Message, MessageType } from '../types';
+// import Worker from '../fetch_sw?worker';
 
-const secret = "EBJ5ZxLZItwPax6WzbydJbdaRvSTUee79JHrAs1HoX4=";
-const peer = "iZ+cJQdnetnaYaAePe5Idk8NnxO28o87tOGws63Jn0I=";
+
+// const secret = "+ATK0a+6eX1w4cZ/ueDLfJGa/er8VfCfnon/9I7Hd2s=";
+// const peer = "Ev900s9ZPaBFYR0qQqmv4n2zYzOH69XPqsISPf3GXD4=";
 // const wgClient = new Client(secret, peer, "ws://localhost:8081");
 let data_url: [string, StateUpdater<string>];
 
@@ -23,11 +26,49 @@ export class Frame extends Component {
     constructor() {
         super();
 
-        // wgClient.fetch("/", "GET").then(async (e: Response) => {
-        //     const data = await e.blob();
-        //     const url = URL.createObjectURL(data);
-        //     data_url[1](url);
+        setTimeout(async () => {
+            let response = await fetch("/evse/state");
+            console.log(await response.json());
+
+            const req = new XMLHttpRequest();
+            req.addEventListener("load", (e) => {
+                console.log(e);
+            });
+            req.open("GET", "http://localhost/evse/state");
+            req.send();
+        }, 500);
+
+        // if ("serviceWorker" in navigator) {
+        //     console.log(import.meta.env.MODE);
+        //     navigator.serviceWorker.register(
+        //         import.meta.env.MODE === 'production' ? '/worker.js' : '/dev-sw.js?dev-sw',
+        //         { type: import.meta.env.MODE === 'production' ? 'classic' : 'module' }
+        //     ).then((v) => {
+        //         console.log(v);
+        //         fetch("/esve/state");
+        //     })
+
+        // }
+        // const worker = new Worker();
+
+        // console.log("frame constructor");
+        // worker.addEventListener("message", async (e: MessageEvent) => {
+
+        //     let test = await fetch("/evse/state");
+        //     console.log("test", await test);
+        //     const data = e.data as Message;
+        //     console.log("got message", data);
+        //     switch (data.type) {
+        //         case MessageType.FileDownload:
+        //             const a = document.createElement("a");
+        //             a.href = data.data;
+        //             a.download = "log.pcap";
+        //             a.target = "_blank";
+        //             a.click();
+        //             break;
+        //     }
         // });
+
 
         // wgClient.start_ws();
 
