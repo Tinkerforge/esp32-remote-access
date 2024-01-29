@@ -1,0 +1,9 @@
+services:
+  nginx:
+    build:
+      dockerfile: nginx/Dockerfile
+      # name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ../remote-access-page/dist:/usr/share/nginx/html
