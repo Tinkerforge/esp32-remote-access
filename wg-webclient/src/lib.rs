@@ -1,7 +1,6 @@
 mod utils;
 pub mod wg_client;
 mod stream;
-mod handshake;
 mod wg_device;
 mod hyper_stream;
 mod interval_handle;

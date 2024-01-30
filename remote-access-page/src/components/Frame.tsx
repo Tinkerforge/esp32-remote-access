@@ -1,29 +1,36 @@
-
-import { Client } from 'wg-webclient';
-import { StateUpdater, useState } from 'preact/hooks';
+import { StateUpdater, useState, useEffect } from 'preact/hooks';
 import { Component } from 'preact';
-import { Message, MessageType } from '../types';
 let data_url: [string, StateUpdater<string>];
 
 export class Frame extends Component {
     constructor() {
         super();
-
-        setTimeout(async () => {
-            let response = await fetch("/wg/");
-            let data = await response.blob();
-            data_url[1](URL.createObjectURL(data))
-        }, 500);
     }
+
+    onload() {
+        console.log("!!!!!!loaded");
+        window.addEventListener("message", (e: MessageEvent) => {
+            console.log("!!!!!! message:", e.data, "initIFrame", e.data === "initIFrame");
+            if (e.data === "initIFrame") {
+                navigator.serviceWorker.controller.postMessage("connect");
+                return;
+            }
+        });
+
+
+        navigator.serviceWorker.addEventListener("message", (e: MessageEvent) => {
+            const iframe = document.getElementById("interface") as HTMLIFrameElement;
+            const window = iframe.contentWindow;
+            window.postMessage(e.data);
+        });
+
+    }
+
     render() {
         data_url = useState("");
-        let iframe = <></>;
-        if (data_url[0] != "") {
-            iframe = <iframe src={data_url[0]} height={600} width={1048} id="interface"></iframe>;
-        }
         return (
             <div class="home">
-                {iframe}
+                <iframe src="/wg/" onLoad={this.onload} height={600} width={1048} id="interface"></iframe>
             </div>
         )
     }

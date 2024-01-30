@@ -9,8 +9,8 @@ use js_sys::Promise;
 use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::{IpAddress, IpCidr};
 use wasm_bindgen::prelude::*;
-use web_sys::{MessageEvent, window, CustomEvent};
-use crate::{hyper_stream::HyperStream, interface::Interface, interval_handle::IntervalHandle, stream::TcpStream, websocket::{self, Websocket}, wg_device::WgTunDevice};
+use web_sys::{MessageEvent, CustomEvent};
+use crate::{hyper_stream::HyperStream, interface::Interface, interval_handle::IntervalHandle, stream::TcpStream, websocket::Websocket, wg_device::WgTunDevice};
 use base64::Engine;
 use boringtun::x25519;
 use flate2::read::GzDecoder;
@@ -56,11 +56,22 @@ impl Client {
         self.0.websocket.as_ref().unwrap().borrow_mut().on_message(cb);
     }
 
+    #[wasm_bindgen]
+    pub fn disconnect_ws(&mut self) {
+        self.0.disconnect_ws();
+    }
+
     // leaks memory, for debugging only!!!
     #[wasm_bindgen]
     pub fn download_pcap_log(&self) {
         let cpy = self.0.clone();
         cpy.download_pcap_log();
+    }
+
+    #[wasm_bindgen]
+    pub fn get_pcap_log(&self) -> Vec<u8> {
+        let cpy = self.0.clone();
+        cpy.get_cpap_log()
     }
 }
 
@@ -147,12 +158,17 @@ impl WgClient {
         let port = js_sys::Math::random() * 1000.0;
         let port = port as u16;
         let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
-        stream.connect(endpoint, port).unwrap();
+        stream.connect(endpoint, port).unwrap_or_else(|e| {
+            console_log!("{}", e);
+            return
+        });
         let websocket = Websocket::connect(stream).unwrap();
         self.websocket = Some(Rc::new(RefCell::new(websocket)));
     }
 
     fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>, in_id: Option<f64>) -> String {
+
+        console_log!("{:?}", body);
         let id;
         if let Some(in_id) = in_id {
             id = in_id;
@@ -169,7 +185,7 @@ impl WgClient {
             });
             return format!("get_{}", id);
         }
-        console_log!("get: {:?}", uri);
+
         {
             let port = js_sys::Math::random() * 1000.0;
             let port = port as u16;
@@ -397,6 +413,18 @@ impl WgClient {
         let element = wasm_bindgen::JsValue::from(element);
         let element = web_sys::HtmlElement::from(element);
         element.click();
+    }
+
+    pub fn disconnect_ws(&mut self) {
+        if let Some(socket) = self.websocket.clone() {
+            let socket = socket.borrow_mut();
+            socket.disconnect();
+            self.websocket = None;
+        }
+    }
+
+    pub fn get_cpap_log(&self) -> Vec<u8> {
+        self.pcap.borrow_mut().get_ref().to_owned()
     }
 }
 

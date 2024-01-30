@@ -1,6 +1,6 @@
 use std::{io::{Read, Write}, rc::Rc, cell::RefCell};
 use smoltcp::{iface::SocketHandle, phy::{self}, wire::IpListenEndpoint, socket::tcp::{self, ConnectError, RecvError, ListenError}};
-use crate::{console_log, interface::Interface};
+use crate::interface::Interface;
 
 #[derive(Clone)]
 pub struct TcpStream<'a, Device>

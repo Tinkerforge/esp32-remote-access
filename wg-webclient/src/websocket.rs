@@ -32,7 +32,7 @@ enum WebsocketState<Device>
 
 pub struct Websocket<Device>
  where Device: smoltcp::phy::Device + Clone {
-    _state: Rc<RefCell<WebsocketState<Device>>>,
+    state: Rc<RefCell<WebsocketState<Device>>>,
     cb: Rc<RefCell<Option<js_sys::Function>>>,
 }
 
@@ -157,9 +157,20 @@ impl<Device> Websocket<Device>
         });
 
         Ok(Self {
-            _state: state,
+            state,
             cb,
         })
+     }
+
+     pub fn disconnect(&self) {
+        match &*self.state.borrow_mut() {
+            WebsocketState::Connected(state) => {
+                let mut socket = state.stream.borrow_mut();
+                let _ = socket.close(None);
+                let _ = socket.flush();
+            },
+            _ => ()
+        }
      }
 
      pub fn on_message(&mut self, cb: js_sys::Function) {
