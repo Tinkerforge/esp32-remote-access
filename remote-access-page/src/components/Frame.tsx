@@ -8,9 +8,7 @@ export class Frame extends Component {
     }
 
     onload() {
-        console.log("!!!!!!loaded");
         window.addEventListener("message", (e: MessageEvent) => {
-            console.log("!!!!!! message:", e.data, "initIFrame", e.data === "initIFrame");
             if (e.data === "initIFrame") {
                 navigator.serviceWorker.controller.postMessage("connect");
                 return;

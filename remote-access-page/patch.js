@@ -34,7 +34,6 @@ self.addEventListener("message", (e) => {
             client.start_ws();
             client.on_message(async function(msg) {
                 mainThread.postMessage(msg);
-                // console.log(self);
             });
             break;
     }
