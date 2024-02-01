@@ -23,6 +23,17 @@ self.addEventListener("fetch", async function(event) {
     }
 });
 
+
+self.addEventListener("activate", function() {
+    self.clients.claim();
+    self.clients.matchAll({type: "all", includeUncontrolled: true}).then((clients) => {
+        console.log("clients:", clients);
+        for (let client of clients) {
+            client.postMessage("ready");
+        }
+    });
+});
+
 var mainThread;
 
 self.addEventListener("message", (e) => {
@@ -33,8 +44,28 @@ self.addEventListener("message", (e) => {
             client.disconnect_ws();
             client.start_ws();
             client.on_message(async function(msg) {
-                mainThread.postMessage(msg);
+                mainThread.postMessage({
+                    type: 0,
+                    data: msg
+                });
             });
+            break;
+
+        case "close":
+            client.free();
+            break;
+
+        case "download":
+            triggerDownload();
             break;
     }
 });
+
+function triggerDownload() {
+    console.log("start download");
+    const msg = client.get_pcap_log();
+    mainThread.postMessage({
+        type: 1,
+        data: msg
+    });
+}

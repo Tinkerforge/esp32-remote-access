@@ -14,7 +14,7 @@ export default defineConfig({
 		wasm(),
 		topLevelAwait(),
 		VitePWA({
-			// injectRegister: false,
+			injectRegister: false,
 			manifest: false,
 			injectManifest: {
 				injectionPoint: undefined,
