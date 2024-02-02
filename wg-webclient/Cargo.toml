@@ -44,7 +44,9 @@ web-sys = { version = "0.3.66", features = ["WebSocket",
     "Headers",
     "ResponseInit",
     "Response",
-    "WorkerGlobalScope" ]}
+    "WorkerGlobalScope",
+    "Request",
+    "AddEventListenerOptions" ]}
 
 
 pcap-file = "2.0.0"

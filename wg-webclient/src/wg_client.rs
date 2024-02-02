@@ -1,5 +1,5 @@
 
-use std::{cell::RefCell, collections::VecDeque, io::Read, ops::Deref, rc::Rc, task::Poll};
+use std::{cell::RefCell, collections::VecDeque, io::Read, rc::Rc, task::Poll};
 
 use futures::{Future, FutureExt};
 use gloo_file::{File, ObjectUrl};
@@ -9,6 +9,7 @@ use js_sys::Promise;
 use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::{IpAddress, IpCidr};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
 use web_sys::{MessageEvent, CustomEvent};
 use crate::{hyper_stream::HyperStream, interface::Interface, interval_handle::IntervalHandle, stream::TcpStream, websocket::Websocket, wg_device::WgTunDevice};
 use base64::Engine;
@@ -27,9 +28,9 @@ impl Client {
     }
 
     #[wasm_bindgen]
-    pub fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>) -> Promise {
+    pub fn fetch(&self, request: web_sys::Request, url: String) -> Promise {
         let cpy = self.0.clone();
-        let id = cpy.fetch(uri, method, body, None);
+        let id = cpy.fetch(request, url, None);
         Promise::new(&mut move |resolve, _| {
             let queue = self.1.clone();
             let closure = Closure::<dyn FnMut(_)>::new(move |event: CustomEvent| {
@@ -73,7 +74,7 @@ impl Client {
     #[wasm_bindgen]
     pub fn get_pcap_log(&self) -> Vec<u8> {
         let cpy = self.0.clone();
-        cpy.get_cpap_log()
+        cpy.get_pcap_log()
     }
 }
 
@@ -91,6 +92,7 @@ enum RequestState {
     Started,
     Connected,
     HandshakeDone,
+    SendingRequest,
     RequestSent,
     StreamingBody,
     Done,
@@ -168,9 +170,7 @@ impl WgClient {
         self.websocket = Some(Rc::new(RefCell::new(websocket)));
     }
 
-    fn fetch(&self, uri: String, method: String, body: Option<Vec<u8>>, in_id: Option<f64>) -> String {
-
-        console_log!("{:?}", body);
+    fn fetch(&self, js_request: web_sys::Request, url: String, in_id: Option<f64>) -> String {
         let id;
         if let Some(in_id) = in_id {
             id = in_id;
@@ -181,9 +181,8 @@ impl WgClient {
             let mut request_queue = self.request_queue.borrow_mut();
             request_queue.push_back(Request {
                 id,
-                uri,
-                method,
-                body,
+                js_request,
+                url
             });
             return format!("get_{}", id);
         }
@@ -192,11 +191,9 @@ impl WgClient {
             let port = js_sys::Math::random() * 1000.0;
             let port = port as u16;
             let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
-            console_log!("before");
 
             // FIXME: throw exception instead of panic
             self.stream.borrow_mut().connect(endpoint, port).unwrap();
-            console_log!("after");
         }
 
         let state = Rc::new(RefCell::new(RequestState::Started));
@@ -212,9 +209,8 @@ impl WgClient {
 
         let result = Rc::new(RefCell::new(vec!{0u8; 0}));
 
-        let uri = Rc::new(uri);
-        let method = Rc::new(method);
-        let body = Rc::new(body);
+        let url = Rc::new(url);
+        let js_request = Rc::new(js_request);
 
         let request_queue = self.request_queue.clone();
         let current_request = self.current_request.clone();
@@ -234,11 +230,7 @@ impl WgClient {
                     }
                 },
                 RequestState::Connected => {
-                    let is_none;
-                    {
-                        let sender = sender.borrow_mut();
-                        is_none = sender.is_none();
-                    }
+                    let is_none = sender.borrow_mut().is_none();
 
                     if is_none {
                         let sender_cpy = sender_cpy.clone();
@@ -246,12 +238,10 @@ impl WgClient {
                         let stream_cpy = stream_cpy.clone();
                         let state_cpy = state_cpy.clone();
                         wasm_bindgen_futures::spawn_local(async move {
-                            console_log!("handshake");
                             let stream = HyperStream::new(stream_cpy.clone());
 
                             // FIXME: throw exception instead of panic
                             let (sender, conn) = hyper::client::conn::http1::handshake(stream).await.unwrap();
-                            console_log!("handshake done");
                             *sender_cpy.borrow_mut() = Some(sender);
                             *conn_cpy.borrow_mut() = Some(Box::pin(conn));
                             *state_cpy.borrow_mut() = RequestState::HandshakeDone;
@@ -259,29 +249,53 @@ impl WgClient {
                     }
                 },
                 RequestState::HandshakeDone => {
-                    let method = match method.as_ref().as_str() {
-                        "GET" => hyper::Method::GET,
-                        "PUT" => hyper::Method::PUT,
-                        // FIXME: throw exception instead of panic
-                        _ => panic!("unknown method: {}", method),
-                    };
-                    let body = match body.deref() {
-                        Some(body) => &body[..],
-                        None => &[][..],
-                    };
-                    let req = http::Request::builder()
-                    .method(method)
-                    .header("Content-Type", "application/json; charset=utf-8")
-                    .uri(uri.as_ref())
-                    .body(Box::new(Body::new(Bytes::copy_from_slice(body))))
-                    .unwrap();
-                    let mut sender = sender.borrow_mut();
-                    let sender = sender.as_mut().unwrap();
-                    let mut request = request.borrow_mut();
-                    *request = Some(Box::pin(sender.send_request(req)));
-                    *state = RequestState::RequestSent;
-                    console_log!("request sent");
+                    console_log!("Handshake done");
+                    let js_request_cpy = js_request.clone();
+                    let sender_cpy = sender.clone();
+                    let request_cpy = request.clone();
+                    let state_cpy = state_cpy.clone();
+                    let url_cpy = url.clone();
+                    wasm_bindgen_futures::spawn_local(async move {
+                        console_log!("start async part");
+                        let body = JsFuture::from(js_request_cpy.array_buffer().unwrap()).await.unwrap();
+                        let body = js_sys::Uint8Array::new(&body).to_vec();
+                        let method = match js_request_cpy.method().as_str() {
+                            "GET" => hyper::Method::GET,
+                            "PUT" => hyper::Method::PUT,
+                            "POST" => hyper::Method::POST,
+                            // FIXME: throw exception instead of panic
+                            _ => panic!("unknown method: {}", js_request_cpy.method()),
+                        };
+
+                        let mut req = http::Request::builder()
+                        .method(method);
+
+                        let headers = js_request_cpy.headers();
+                        for key in js_sys::Object::keys(&headers).iter() {
+                            let key = key.as_string().unwrap();
+                            let value = if let Ok(Some(value)) = headers.get(&key) {
+                                value
+                            } else {
+                                continue;
+                            };
+                            req = req.header(key, value);
+                        }
+
+                        console_log!("!!!!!!!!!!!! body size: {}", body.len());
+                        let req = req.header("Content-Type", "application/json; charset=utf-8")
+                        .uri(url_cpy.as_str())
+                        .body(Box::new(Body::new(Bytes::copy_from_slice(&body))))
+                        .unwrap();
+                        let mut sender = sender_cpy.borrow_mut();
+                        let sender = sender.as_mut().unwrap();
+                        let mut request = request_cpy.borrow_mut();
+                        *request = Some(Box::pin(sender.send_request(req)));
+                        let mut state = state_cpy.borrow_mut();
+                        *state = RequestState::RequestSent;
+                    });
+                    *state = RequestState::SendingRequest;
                 },
+                RequestState::SendingRequest => (),
                 RequestState::RequestSent => {
                     console_log!("request poll");
                     let waker = futures::task::noop_waker();
@@ -385,7 +399,7 @@ impl WgClient {
                     let mut request_queue = request_queue.borrow_mut();
                     if let Some(next) = request_queue.pop_front() {
                         wasm_bindgen_futures::spawn_local(async move {
-                            self_cpy.fetch(next.uri, next.method, next.body, Some(next.id));
+                            self_cpy.fetch(next.js_request, next.url, Some(next.id));
                         })
                     }
                 },
@@ -425,16 +439,15 @@ impl WgClient {
         }
     }
 
-    pub fn get_cpap_log(&self) -> Vec<u8> {
+    pub fn get_pcap_log(&self) -> Vec<u8> {
         self.pcap.borrow_mut().get_ref().to_owned()
     }
 }
 
 struct Request {
     pub id: f64,
-    pub uri: String,
-    pub method: String,
-    pub body: Option<Vec<u8>>,
+    pub js_request: web_sys::Request,
+    pub url: String
 }
 
 struct Body(Bytes);
