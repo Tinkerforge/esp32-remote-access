@@ -41,7 +41,9 @@ impl Client {
             // add event listener should not fail
             let global = js_sys::global();
             let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
-            global.add_event_listener_with_callback(id.as_str(), closure.as_ref().unchecked_ref()).unwrap();
+            let mut options = web_sys::AddEventListenerOptions::new();
+            options.once(true);
+            global.add_event_listener_with_callback_and_add_event_listener_options(id.as_str(), closure.as_ref().unchecked_ref(), &options).unwrap();
             self.1.borrow_mut().push_back(closure);
         })
     }
