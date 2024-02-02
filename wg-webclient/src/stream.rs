@@ -12,9 +12,10 @@ where Device: phy::Device + Clone {
 
 impl<'a, Device: phy::Device + Clone> TcpStream<'a, Device> {
     pub fn new(iface: Rc<RefCell<Interface<'a, Device>>>) -> Self {
-
         let rx_buf = tcp::SocketBuffer::new(vec![0; 65535]);
-        let tx_buf = tcp::SocketBuffer::new(vec![0; 2048]);
+
+        //FIXME: Implement a buffer in the interface struct to handle bigger payloads.
+        let tx_buf = tcp::SocketBuffer::new(vec![0; 5000000]);
         let tcp_socket = tcp::Socket::new(rx_buf, tx_buf);
 
         let handle = iface.borrow_mut().set_socket(tcp_socket);
@@ -96,7 +97,12 @@ impl<Device: phy::Device + Clone> Write for TcpStream<'_, Device> {
     #[inline]
     fn flush(&mut self) -> std::io::Result<()> {
         match self.iface.borrow_mut().send_slice(self.handle, &self.buf[..]) {
-            Ok(_) =>(),
+            Ok(sent) => {
+                if sent != self.buf.len() {
+                    //FIXME: Implement a buffer in the interface struct to handle bigger payloads.
+                    panic!("tx buffer is too small!");
+                }
+            },
             Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("failed to send data: {:?}", e))),
         }
         self.buf.clear();

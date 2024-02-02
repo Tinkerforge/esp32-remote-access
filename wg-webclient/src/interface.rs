@@ -63,11 +63,11 @@ impl<'a, Device: phy::Device> Interface<'a, Device> {
     }
 
     #[inline]
-    pub fn send_slice(&mut self, handle: SocketHandle, slice: &[u8]) -> Result<(), smoltcp::socket::tcp::SendError> {
+    pub fn send_slice(&mut self, handle: SocketHandle, slice: &[u8]) -> Result<usize, smoltcp::socket::tcp::SendError> {
         let socket = self.sockets.get_mut::<Socket>(handle);
-        socket.send_slice(slice)?;
+        let sent = socket.send_slice(slice)?;
         self.poll();
-        Ok(())
+        Ok(sent)
     }
 
     #[inline]
