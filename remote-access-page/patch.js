@@ -2,21 +2,11 @@
 var client;
 
 self.addEventListener("fetch", async function(event) {
-    console.log(event);
-    let url = event.request.url.replace("http://localhost", "");
+    let url = event.request.url.replace(self.location.origin, "");
     console.log("fetch event", url);
     if (client && url.startsWith("/wg/")) {
         url = url.replace("/wg", "");
         const promise = new Promise(async (resolve, reject) => {
-            // let body;
-            // try {
-            //     const text = await event.request.text();
-            //     const enc = new TextEncoder();
-            //     body = enc.encode(text);
-            // } catch {
-            //     body = undefined;
-            // }
-            // console.log(body);
             let response = await client.fetch(event.request, url);
             resolve(response);
         });
