@@ -3,7 +3,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite --host",
-		"build": "vite build && ./patch_worker.py",
+		"build": "vite build",
 		"preview": "vite preview"
 	},
 	"dependencies": {

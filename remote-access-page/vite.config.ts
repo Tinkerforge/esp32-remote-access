@@ -14,24 +14,19 @@ export default defineConfig({
 		wasm(),
 		topLevelAwait(),
 		VitePWA({
-			injectRegister: false,
-			manifest: false,
-			injectManifest: {
-				injectionPoint: undefined,
-				// rollupFormat: 'iife',
-				// this only works with a patched version of VitePWA.
-				plugins: [
-					wasm(),
-					topLevelAwait(),
-				],
-			},
+			minify: false,
 			strategies: 'injectManifest',
+			injectRegister: false,
+			injectManifest: {
+				injectionPoint: null,
+			},
+			manifest: false,
 			devOptions: {
 				enabled: true,
 				type: 'module',
 			},
 			srcDir: 'src',
-			filename: 'worker.ts',
+			filename: 'sw.ts',
 		})
 	],
 	worker: {

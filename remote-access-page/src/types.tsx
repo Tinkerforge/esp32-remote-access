@@ -1,9 +1,26 @@
 export enum MessageType {
     Websocket,
-    FileDownload
+    FileDownload,
+    Fetch,
+    FetchResponse,
 }
 
 export interface Message {
     type: MessageType,
-    data: string
+    id?: string,
+    data: any
+}
+
+export interface FetchMessage {
+    method: string,
+    headers: [string, string][],
+    body?: ArrayBuffer,
+    url: string
+}
+
+export interface ResponseMessage {
+    status: number,
+    statusText: string,
+    headers: [string, string][],
+    body: ArrayBuffer,
 }

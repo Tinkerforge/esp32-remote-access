@@ -1,75 +1,81 @@
-import { StateUpdater, useState, useEffect } from 'preact/hooks';
 import { Component } from 'preact';
-import { MessageType } from '../types';
-let data_url: [string, StateUpdater<string>];
-
+import { Message, MessageType } from '../types';
+import Worker from '../worker?worker'
 
 export class Frame extends Component {
 
-    worker: ServiceWorkerRegistration
+    worker: Worker;
     constructor() {
         super();
 
-        this.cleanRegisterWorker();
+        this.worker = new Worker();
 
-        window.addEventListener("beforeunload", () => {
-            navigator.serviceWorker.controller.postMessage("close");
-            this.worker.unregister();
-        })
-
-        navigator.serviceWorker.onmessage = (e: MessageEvent) => {
-            if (e.data === "ready") {
-                const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                iframe.onload = this.onload;
-                iframe.src = "/wg/";
-            }
-        };
-    }
-
-    async cleanRegisterWorker() {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        for (let reg of regs) {
-            reg.unregister();
-        }
-        this.worker = await navigator.serviceWorker.register("/worker.js");
-    }
-
-    onload() {
-        window.addEventListener("message", (e: MessageEvent) => {
-            if (e.data === "initIFrame") {
-                navigator.serviceWorker.controller.postMessage("connect");
-                return;
+        navigator.serviceWorker.addEventListener("message", (e: MessageEvent) => {
+            const msg = e.data as Message;
+            if (msg.type) {
+                this.worker.postMessage(msg);
+            } else {
+                console.log("Got unknown message from service worker!");
             }
         });
 
-        navigator.serviceWorker.onmessage = (e: MessageEvent) => {
-            const data = e.data;
-            if (data.type === MessageType.Websocket) {
-            const iframe = document.getElementById("interface") as HTMLIFrameElement;
-            const window = iframe.contentWindow;
-                window.postMessage(data.data);
-            } else if (data.type === MessageType.FileDownload) {
-                const a = document.createElement("a");
-                const blob = new Blob([data.data as Uint8Array]);
-                const url = URL.createObjectURL(blob)
-                a.href = url;
-                a.download = "out.pcap";
-                a.target = "_blank";
-                a.click();
+        this.worker.onmessage = (e: MessageEvent) => {
+            if (e.data === "ready") {
+                const iframe = document.getElementById("interface") as HTMLIFrameElement;
+                iframe.src = "/wg/";
+            } else {
+                const msg = e.data as Message;
+                switch (msg.type) {
+                    case MessageType.Websocket:
+                        const iframe = document.getElementById("interface") as HTMLIFrameElement;
+                        const window = iframe.contentWindow;
+                        window.postMessage(msg.data);
+                        break;
+
+                    case MessageType.FileDownload:
+                        const a = document.createElement("a");
+                        const blob = new Blob([msg.data as Uint8Array]);
+                        const url = URL.createObjectURL(blob)
+                        a.href = url;
+                        a.download = "out.pcap";
+                        a.target = "_blank";
+                        a.click();
+                        break;
+
+                    case MessageType.FetchResponse:
+                        navigator.serviceWorker.controller.postMessage(msg);
+                        break;
+                }
             }
         };
-
+        window.addEventListener("message", (e: MessageEvent) => {
+            if (e.data === "initIFrame") {
+                this.worker.postMessage("connect");
+                return;
+            }
+        });
     }
 
+    // onload() {
+
+    //     this.worker.onmessage = (e: MessageEvent) => {
+    //         console.log("Got message from worker");
+    //         const data = e.data;
+    //         if (data.type === MessageType.Websocket) {
+    //         } else if (data.type === MessageType.FileDownload) {
+    //         }
+    //     };
+
+    // }
+
     render() {
-        data_url = useState("");
         return (
             <div class="home">
                 <iframe height={600} width={1048} id="interface"></iframe>
                 <button onClick={() => {
                     console.log("trigger download");
-                    navigator.serviceWorker.controller.postMessage("download");
-                }}> Download Pcap log</button>
+                    this.worker.postMessage("download");
+                }}>Download Pcap log</button>
             </div>
         )
     }
