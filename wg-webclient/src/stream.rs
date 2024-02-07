@@ -2,6 +2,10 @@ use std::{io::{Read, Write}, rc::Rc, cell::RefCell};
 use smoltcp::{iface::SocketHandle, phy::{self}, wire::IpListenEndpoint, socket::tcp::{self, ConnectError, RecvError, ListenError}};
 use crate::interface::Interface;
 
+/**
+    This is an abstraction to be able to implement the std::io::Read and std::io::Write traits for
+    smoltcp tcp sockets.
+ */
 #[derive(Clone)]
 pub struct TcpStream<'a, Device>
 where Device: phy::Device + Clone {

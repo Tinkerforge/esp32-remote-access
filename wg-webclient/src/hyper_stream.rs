@@ -2,6 +2,10 @@ use std::{task::Poll, io::{Read, Write}, rc::Rc, cell::RefCell};
 
 use crate::{stream::TcpStream, wg_device::WgTunDevice};
 
+/**
+    A wrapper around a reference counted TcpStream struct that implements the hyper::rt::Read and
+    hyper::rt::Write traits to be able to reuse one TcpStream when passing the ownership of this to hyper.
+ */
 pub struct HyperStream {
     stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
 }

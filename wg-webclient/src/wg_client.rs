@@ -17,16 +17,30 @@ use boringtun::x25519;
 use flate2::read::GzDecoder;
 
 use crate::console_log;
+
+/**
+ * The exported client struct. It Wraps the actual Client and a Queue to keep the needed
+ * callbacks alive.
+ * Most function calls are simply passed to the wrapped object.
+ */
 #[wasm_bindgen]
 pub struct Client(WgClient, Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)>>>>);
 
 #[wasm_bindgen]
 impl Client {
+    /**
+     * Creates a new Client struct by also creating the wrapped objects.
+     */
     #[wasm_bindgen(constructor)]
     pub fn new(secret_str: &str, peer_str: &str, url: &str) -> Self {
         Self(WgClient::new(secret_str, peer_str, url), Rc::new(RefCell::new(VecDeque::new())))
     }
 
+    /**
+     * Makes a http request to the provided url and return a Promise that resolves to a JS Response object.
+     * Internally it calls the fetch function of the wrapped WgClient object and
+     * registers an EventListener for the event returned by it.
+     */
     #[wasm_bindgen]
     pub fn fetch(&self, request: web_sys::Request, url: String) -> Promise {
         let cpy = self.0.clone();
@@ -78,6 +92,9 @@ impl Client {
     }
 }
 
+/**
+ * The struct that acutally does all the work
+ */
 #[derive(Clone)]
 struct WgClient {
     stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
@@ -99,6 +116,9 @@ enum RequestState {
 }
 
 impl WgClient {
+    /**
+     * Creates a new object.
+     */
     fn new(secret_str: &str, peer_str: &str, url: &str) -> Self {
         console_error_panic_hook::set_once();
 
@@ -157,6 +177,9 @@ impl WgClient {
         }
     }
 
+    /**
+     * Creates a new Websocket object and connection that gets stored internally.
+     */
     fn start_ws(&mut self) {
         let mut stream = TcpStream::new(self.iface.clone());
         let port = js_sys::Math::random() * 1000.0;
@@ -170,6 +193,13 @@ impl WgClient {
         self.websocket = Some(Rc::new(RefCell::new(websocket)));
     }
 
+    /**
+      The function that actually does the http requests.
+      Since we must not block the thread while waiting for the response because it would also block
+      the underlaying network stack it starts a task with setTimeout that polls the so far received
+      response, fires a custom event when finished and either returns or proceeds with the next
+      request.
+     */
     fn fetch(&self, js_request: web_sys::Request, url: String, in_id: Option<f64>) -> String {
         let id;
         if let Some(in_id) = in_id {
@@ -444,12 +474,18 @@ impl WgClient {
     }
 }
 
+/**
+    Simple struct to hold all relevant informations until WgClient is ready to process the next request.
+*/
 struct Request {
     pub id: f64,
     pub js_request: web_sys::Request,
     pub url: String
 }
 
+/**
+    Helper struct to be able to send Bytes as Body.
+*/
 struct Body(Bytes);
 
 impl Body {
@@ -475,7 +511,7 @@ impl hyper::body::Body for Body {
 }
 
 /**
- * This is a dummy error type that is never returned. It is needed because the Body trait needs an Error type.
+ This is a dummy error type that is never returned. It is needed because the Body trait needs an Error type.
  */
 #[derive(Debug)]
 struct DummyErr;

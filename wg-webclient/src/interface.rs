@@ -3,7 +3,10 @@ use smoltcp::{iface::{SocketSet, Config, SocketHandle}, phy, wire::{IpCidr, IpLi
 use crate::utils::now;
 
 
-
+/**
+    Creates an abstraction layer between smoltcp and this crates TcpStream to be able to have
+    multiple TcpStreams at once.
+*/
 pub struct Interface<'a, Device>
 where Device: phy::Device {
     device: Device,

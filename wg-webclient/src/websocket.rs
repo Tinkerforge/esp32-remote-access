@@ -30,6 +30,9 @@ enum WebsocketState<Device>
     Disconnected,
 }
 
+/**
+    This struct manages the complete inner Websocket.
+ */
 pub struct Websocket<Device>
  where Device: smoltcp::phy::Device + Clone {
     state: Rc<RefCell<WebsocketState<Device>>>,
@@ -38,6 +41,9 @@ pub struct Websocket<Device>
 
 impl<Device> Websocket<Device>
  where Device: smoltcp::phy::Device + 'static + Clone {
+    /**
+        Consumes the provided TcpStream, does the Websocket handshake and returns a Connected Websocket struct.
+     */
     pub fn connect(mut stream: TcpStream<'static, Device>) -> Result<Self, tungstenite::Error> {
         let key = generate_key();
         let request = Request::builder()
@@ -47,7 +53,7 @@ impl<Device> Websocket<Device>
             .header("Upgrade", "websocket")
             .header("Connection", "Upgrade")
             .header("Sec-WebSocket-Version", "13")
-            .header("Host", "bla")
+            .header("Host", "")
             .body(()).unwrap();
         let (request, key) = generate_request(request)?;
         let _ = stream.write(&request[..]).unwrap();
@@ -173,6 +179,9 @@ impl<Device> Websocket<Device>
         }
      }
 
+     /**
+        Sets the onMessage callback.
+      */
      pub fn on_message(&mut self, cb: js_sys::Function) {
         *self.cb.borrow_mut() = Some(cb);
      }

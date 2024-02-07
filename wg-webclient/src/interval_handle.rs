@@ -1,5 +1,8 @@
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 
+/**
+    This is a helper struct to be able to automagically clear intervals once they are not needed anymore.
+*/
 pub struct IntervalHandle<T> {
     interval_handle: i32,
     _closure: Closure<dyn FnMut(T)>,

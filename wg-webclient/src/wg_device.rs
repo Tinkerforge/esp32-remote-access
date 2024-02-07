@@ -27,7 +27,6 @@ enum WsConnectionState {
  * This is done by encoding outgoing packets before sending them over Websocket
  * and decoding incoming packets from Websocket and storing them in a queue.
  */
-
  #[derive(Clone)]
 pub struct WgTunDevice {
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
@@ -38,6 +37,9 @@ pub struct WgTunDevice {
 }
 
 impl WgTunDevice {
+    /**
+     * Creates a new WgTunDevice and connects the underlaying Websocket
+     */
     pub fn new(self_key: x25519::StaticSecret, peer: x25519::PublicKey, url: &str) -> Result<Self, JsValue> {
         let tun = Tunn::new(
             self_key,
