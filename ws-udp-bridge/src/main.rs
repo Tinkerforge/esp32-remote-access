@@ -119,8 +119,8 @@ async fn create_ws_server(peer: Peer, udp_sock: Arc<UdpSocket>) -> anyhow::Resul
 }
 
 fn get_certificates() -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
-    let mut cert_file = File::open("/home/freddy/tf/esp32-remote-access/docker/nginx/certs/cert.pem")?;
-    let mut key_file = File::open("/home/freddy/tf/esp32-remote-access/docker/nginx/certs/key.pem")?;
+    let mut cert_file = File::open("../docker/nginx/certs/cert.pem")?;
+    let mut key_file = File::open("../docker/nginx/certs/key.pem")?;
 
     let mut cert = vec![];
     let mut key = vec![];
