@@ -56,18 +56,6 @@ export class Frame extends Component {
         });
     }
 
-    // onload() {
-
-    //     this.worker.onmessage = (e: MessageEvent) => {
-    //         console.log("Got message from worker");
-    //         const data = e.data;
-    //         if (data.type === MessageType.Websocket) {
-    //         } else if (data.type === MessageType.FileDownload) {
-    //         }
-    //     };
-
-    // }
-
     render() {
         return (
             <div class="home">
