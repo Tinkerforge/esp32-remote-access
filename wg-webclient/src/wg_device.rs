@@ -389,7 +389,7 @@ impl phy::TxToken for WgTunPhyTxToken {
                 let _ = self.socket.send_with_u8_array(d);
             },
             TunnResult::Err(e) => {
-                console_log!("Error: {:?}", e);
+                console_log!("Error in recv: {:?}", e);
                 return result
             },
             _ => {

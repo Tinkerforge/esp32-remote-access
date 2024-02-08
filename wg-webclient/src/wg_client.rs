@@ -255,7 +255,6 @@ impl WgClient {
                 RequestState::Started => {
                     let stream = stream_cpy.borrow_mut();
                     if stream.can_send() {
-                        console_log!("can send");
                         *state = RequestState::Connected;
                     }
                 },
@@ -279,14 +278,12 @@ impl WgClient {
                     }
                 },
                 RequestState::HandshakeDone => {
-                    console_log!("Handshake done");
                     let js_request_cpy = js_request.clone();
                     let sender_cpy = sender.clone();
                     let request_cpy = request.clone();
                     let state_cpy = state_cpy.clone();
                     let url_cpy = url.clone();
                     wasm_bindgen_futures::spawn_local(async move {
-                        console_log!("start async part");
                         let body = JsFuture::from(js_request_cpy.array_buffer().unwrap()).await.unwrap();
                         let body = js_sys::Uint8Array::new(&body).to_vec();
                         let method = match js_request_cpy.method().as_str() {
@@ -311,7 +308,6 @@ impl WgClient {
                             req = req.header(key, value);
                         }
 
-                        console_log!("!!!!!!!!!!!! body size: {}", body.len());
                         let req = req.header("Content-Type", "application/json; charset=utf-8")
                         .uri(url_cpy.as_str())
                         .body(Box::new(Body::new(Bytes::copy_from_slice(&body))))
@@ -327,7 +323,6 @@ impl WgClient {
                 },
                 RequestState::SendingRequest => (),
                 RequestState::RequestSent => {
-                    console_log!("request poll");
                     let waker = futures::task::noop_waker();
                     let mut cx = std::task::Context::from_waker(&waker);
                     let mut request = request.borrow_mut();
