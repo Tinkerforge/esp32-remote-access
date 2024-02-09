@@ -3,7 +3,7 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
 
 pub mod model;
-mod schema;
+pub mod schema;
 
 pub type Pool = diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
 
@@ -19,6 +19,7 @@ pub fn run_migrations(connection: &mut impl MigrationHarness<Pg>) -> Result<(), 
  * Create db connection pool
  */
 pub fn get_connection_pool() -> Pool {
+    dotenv::dotenv().ok();
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(url);
     Pool::builder()
