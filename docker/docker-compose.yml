@@ -6,3 +6,15 @@ services:
       - "443:443"
     volumes:
       - ../remote-access-page/dist:/usr/share/nginx/html
+
+  postgres:
+    image: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=${PG_PASS}
+
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
