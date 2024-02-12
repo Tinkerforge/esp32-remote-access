@@ -14,7 +14,8 @@ async fn main() -> std::io::Result<()> {
     run_migrations(&mut conn).expect("Failed to run migrations");
 
     let state = web::Data::new(AppState {
-        pool
+        pool,
+        jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!")
     });
 
     HttpServer::new(move || {
@@ -30,5 +31,38 @@ async fn main() -> std::io::Result<()> {
 }
 
 pub struct AppState {
-    pub pool: Pool
+    pub pool: Pool,
+    pub jwt_secret: String
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use actix_web::web::ServiceConfig;
+
+    pub struct ScopeCall<F: FnMut()> {
+        pub c: F
+    }
+    impl <F: FnMut()> Drop for ScopeCall<F> {
+        fn drop(&mut self) {
+            (self.c)();
+        }
+    }
+
+    #[macro_export]
+    macro_rules! defer {
+        ($e:expr) => {
+            let _scope_call = crate::tests::ScopeCall { c: || -> () { $e; }};
+        };
+    }
+
+    pub fn configure(cfg: &mut ServiceConfig) {
+        let pool = db_connector::get_connection_pool();
+        let state = AppState {
+            pool,
+            jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!")
+        };
+        let state = web::Data::new(state);
+        cfg.app_data(state.clone());
+    }
 }

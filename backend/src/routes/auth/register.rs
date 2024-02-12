@@ -30,7 +30,9 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
         }
     };
 
-    let result = match users.filter(email.eq(&data.email))
+    let user_mail = data.email.to_lowercase();
+
+    let result = match users.filter(email.eq(&user_mail))
         .select(User::as_select())
         .load(&mut conn) {
             Ok(result) => result,
@@ -52,7 +54,7 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
         id: uuid::Uuid::new_v4(),
         name: data.name.clone(),
         password: password_hash,
-        email: data.email.clone(),
+        email: user_mail,
         email_verified: false
     };
 
@@ -72,18 +74,11 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
 
 
 #[cfg(test)]
-mod tests {
-    use actix_web::{http::header::ContentType, test, web::ServiceConfig, App};
-    use super::*;
+pub(crate) mod tests {
+    use actix_web::{http::header::ContentType, test, App};
+    use crate::{defer, tests::configure};
 
-    fn configure(cfg: &mut ServiceConfig) {
-        let pool = db_connector::get_connection_pool();
-        let state = AppState {
-            pool
-        };
-        let state = web::Data::new(state);
-        cfg.app_data(state.clone());
-    }
+    use super::*;
 
     #[actix_web::test]
     async fn test_no_data() {
@@ -156,11 +151,30 @@ mod tests {
         assert!(resp.status().is_client_error());
     }
 
-    fn delete_test_user() {
+    pub async fn create_user(mail: &str) {
+        // test with valid syntax
+        let app = App::new().configure(configure ).service(register);
+        let app = test::init_service(app).await;
+        let user = RegisterSchema {
+            name: "Test".to_string(),
+            email: mail.to_string(),
+            password: "TestTestTest".to_string()
+        };
+        let req = test::TestRequest::post()
+            .uri("/register")
+            .insert_header(ContentType::json())
+            .set_json(user)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+        println!("Created user");
+    }
+
+    pub fn delete_test_user(mail: &str) {
         use crate::schema::users::dsl::*;
         let pool = db_connector::get_connection_pool();
         let mut conn = pool.get().unwrap();
-        diesel::delete(users.filter(name.eq("Test"))).execute(&mut conn).expect("Error deleting test tuser");
+        diesel::delete(users.filter(email.eq(mail.to_lowercase()))).execute(&mut conn).expect("Error deleting test tuser");
     }
 
     #[actix_web::test]
@@ -180,16 +194,17 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
-        delete_test_user();
+        delete_test_user("Test@test.de");
     }
 
     #[actix_web::test]
     async fn test_existing_user() {
         let app = App::new().configure(configure ).service(register);
         let app = test::init_service(app).await;
+        let mail = "Test@test.de".to_string();
         let user = RegisterSchema {
             name: "Test".to_string(),
-            email: "Test@test.de".to_string(),
+            email: mail.clone(),
             password: "TestTestTest".to_string()
         };
         let req = test::TestRequest::post()
@@ -199,6 +214,7 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
+        defer!(delete_test_user(mail.as_str()));
 
         let req = test::TestRequest::post()
             .uri("/register")
@@ -207,6 +223,5 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_client_error());
-        delete_test_user();
     }
 }
