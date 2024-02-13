@@ -57,7 +57,7 @@ pub(crate) mod tests {
     }
 
     pub fn configure(cfg: &mut ServiceConfig) {
-        let pool = db_connector::get_connection_pool();
+        let pool = db_connector::test_connection_pool();
         let state = AppState {
             pool,
             jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!")

@@ -28,6 +28,16 @@ pub fn get_connection_pool() -> Pool {
         .expect("Could not build connection pool")
 }
 
+pub fn test_connection_pool() -> Pool {
+    dotenv::dotenv().ok();
+    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(url);
+    Pool::builder()
+        .test_on_check_out(true)
+        .max_size(1)
+        .build(manager)
+        .expect("Could not build connection pool")
+}
 
 #[cfg(test)]
 mod tests {
