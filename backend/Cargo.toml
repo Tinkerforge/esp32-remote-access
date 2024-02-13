@@ -18,4 +18,13 @@ anyhow = "1.0.79"
 actix-web-validator = "5.0.1"
 validator = { version = "0.16.1", features = ["derive"] }
 chrono = "0.4.33"
+actix-cors = "0.7.0"
 jsonwebtoken = "9.2.0"
+futures-util = "0.3.30"
+
+[dev-dependencies]
+rand = "0.8.5"
+
+[profile.release]
+opt-level = 3
+lto = true
