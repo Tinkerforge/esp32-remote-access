@@ -19,9 +19,13 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
         }
     };
 
-    let result = users.filter(email.eq(&data.email.to_lowercase()))
-        .select(User::as_select())
-        .load(&mut conn);
+    let mail = data.email.to_lowercase();
+    let result = web::block(move|| {
+        users.filter(email.eq(mail))
+            .select(User::as_select())
+            .load(&mut conn)
+    }).await.unwrap();
+
     let user: User = match result {
         Ok(data) => {
             if data.len() == 1 {
@@ -71,7 +75,7 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
         }
     };
 
-    let cookie = Cookie::build("token", token)
+    let cookie = Cookie::build("access_token", token)
         .path("/")
         .max_age(actix_web::cookie::time::Duration::minutes(max_token_age))
         .http_only(false)
@@ -106,12 +110,11 @@ mod tests {
             .set_json(login_schema)
             .to_request();
         let resp = test::call_service(&app, req).await;
-        println!("{}", resp.status());
         assert!(resp.status().is_success());
         let cookies = resp.response().cookies();
         let mut valid = false;
         for cookie in cookies {
-            if cookie.name() == "token" {
+            if cookie.name() == "access_token" {
                 valid = true;
                 break;
             }

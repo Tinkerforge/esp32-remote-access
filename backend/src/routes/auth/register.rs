@@ -31,10 +31,15 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
     };
 
     let user_mail = data.email.to_lowercase();
+    let mail_cpy = user_mail.clone();
 
-    let result = match users.filter(email.eq(&user_mail))
-        .select(User::as_select())
-        .load(&mut conn) {
+    let result = web::block(move || {
+        users.filter(email.eq(mail_cpy))
+            .select(User::as_select())
+            .load(&mut conn)
+    }).await.unwrap();
+
+    let result = match result {
             Ok(result) => result,
             Err(_err) => {
                 return HttpResponse::InternalServerError()
@@ -58,9 +63,20 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
         email_verified: false
     };
 
-    let insert_result = diesel::insert_into(users)
-        .values(&user)
-        .execute(&mut conn);
+    let mut conn = match state.pool.get() {
+        Ok(conn) => conn,
+        Err(_err) => {
+            return HttpResponse::InternalServerError()
+        }
+    };
+
+    let insert_result = web::block(move || {
+        diesel::insert_into(users)
+            .values(&user)
+            .execute(&mut conn)
+    }).await.unwrap();
+
+    let insert_result = insert_result ;
 
     match insert_result {
         Ok(_) => (),
@@ -71,6 +87,7 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
 
     HttpResponse::Created()
 }
+
 
 
 #[cfg(test)]
