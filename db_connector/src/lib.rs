@@ -2,7 +2,7 @@ use diesel::{pg::Pg, PgConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
 
-pub mod model;
+pub mod models;
 pub mod schema;
 
 pub type Pool = diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;

@@ -1,16 +1,20 @@
+use std::time::Instant;
+
 use actix_web::{cookie::Cookie, post, web, HttpResponse, Responder};
 use actix_web_validator::Json;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use chrono::{Duration, Utc};
-use db_connector::model::users::User;
+use db_connector::models::users::User;
 use diesel::prelude::*;
 
-use crate::{model::{login::LoginSchema, token_claims::TokenClaims}, AppState};
+use crate::{models::{login::LoginSchema, token_claims::TokenClaims}, AppState};
 
 
 #[post("/login")]
 pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl Responder {
     use db_connector::schema::users::dsl::*;
+
+    let now = Instant::now();
 
     let mut conn = match state.pool.get() {
         Ok(conn) => conn,
@@ -25,6 +29,8 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
             .select(User::as_select())
             .load(&mut conn)
     }).await.unwrap();
+
+    println!("Took {}ms to get user from database", now.elapsed().as_millis());
 
     let user: User = match result {
         Ok(data) => {
@@ -46,12 +52,17 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
         }
     };
 
+    println!("Took {}ms to hash password", now.elapsed().as_millis());
+
     match Argon2::default().verify_password(data.password.as_bytes(), &password_hash) {
         Ok(_) => (),
         Err(_err) => {
+            println!("Took {}ms to verify password", now.elapsed().as_millis());
             return HttpResponse::BadRequest().body("")
         }
     }
+
+    println!("Took {}ms to verify password", now.elapsed().as_millis());
 
     let max_token_age = 60;
 
@@ -85,12 +96,38 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use actix_web::{http::header::ContentType, test, App};
 
     use super::*;
     use crate::{routes::auth::register::tests::{create_user, delete_test_user}, tests::configure};
     use crate::defer;
+
+    pub async fn login_user(mail: &str) -> String {
+        let app = App::new().configure(configure ).service(login);
+        let app = test::init_service(app).await;
+        let login_schema = LoginSchema {
+            email: mail.to_string(),
+            password: "TestTestTest".to_string()
+        };
+        let req = test::TestRequest::post()
+            .uri("/login")
+            .insert_header(ContentType::json())
+            .set_json(login_schema)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        let cookies = resp.response().cookies();
+        for cookie in cookies {
+            if cookie.name() == "access_token" {
+                return cookie.value().to_string();
+            }
+        };
+        assert!(false);
+
+        String::new()
+    }
 
     #[actix_web::test]
     async fn test_valid_login() {

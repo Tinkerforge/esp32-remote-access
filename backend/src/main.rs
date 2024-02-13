@@ -1,5 +1,6 @@
 mod routes;
-mod model;
+mod models;
+mod middleware;
 
 use actix_web::{web, App, HttpServer};
 use db_connector::*;
@@ -19,11 +20,12 @@ async fn main() -> std::io::Result<()> {
     });
 
     HttpServer::new(move || {
+        let cors = actix_cors::Cors::permissive();
         let app = App::new()
+            .wrap(cors)
             .app_data(state.clone());
 
         register_routes(app)
-
     })
     .bind("0.0.0.0:8081")?
     .run()

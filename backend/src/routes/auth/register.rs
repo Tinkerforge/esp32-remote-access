@@ -1,10 +1,10 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use argon2::{password_hash::{rand_core::OsRng, SaltString}, Argon2, PasswordHasher};
-use db_connector::model::users::User;
+use db_connector::models::users::User;
 use diesel::prelude::*;
 use actix_web_validator::Json;
 
-use crate::{model::register::RegisterSchema, AppState};
+use crate::{models::register::RegisterSchema, AppState};
 
 fn hash_pass(password: &String) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
@@ -183,6 +183,7 @@ pub(crate) mod tests {
             .set_json(user)
             .to_request();
         let resp = test::call_service(&app, req).await;
+        println!("{}", resp.status());
         assert!(resp.status().is_success());
         println!("Created user");
     }
@@ -201,7 +202,7 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
         let user = RegisterSchema {
             name: "Test".to_string(),
-            email: "Test@test.de".to_string(),
+            email: "valid_request@test.de".to_string(),
             password: "TestTestTest".to_string()
         };
         let req = test::TestRequest::post()
@@ -210,15 +211,16 @@ pub(crate) mod tests {
             .set_json(user)
             .to_request();
         let resp = test::call_service(&app, req).await;
+        println!("{}", resp.status());
         assert!(resp.status().is_success());
-        delete_test_user("Test@test.de");
+        delete_test_user("valid_request@test.de");
     }
 
     #[actix_web::test]
     async fn test_existing_user() {
         let app = App::new().configure(configure ).service(register);
         let app = test::init_service(app).await;
-        let mail = "Test@test.de".to_string();
+        let mail = "existing_user@test.de".to_string();
         let user = RegisterSchema {
             name: "Test".to_string(),
             email: mail.clone(),
@@ -230,6 +232,7 @@ pub(crate) mod tests {
             .set_json(user.clone())
             .to_request();
         let resp = test::call_service(&app, req).await;
+        println!("{}", resp.status());
         assert!(resp.status().is_success());
         defer!(delete_test_user(mail.as_str()));
 

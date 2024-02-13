@@ -1,7 +1,7 @@
 use actix_web::{dev::{ServiceFactory, ServiceRequest}, web, App, Error};
 
-pub mod register;
-mod login;
+pub(crate) mod register;
+pub(crate) mod login;
 
 
 pub fn register_auth_routes<T>(app: App<T>) -> App<T>
