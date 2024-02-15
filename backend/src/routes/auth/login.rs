@@ -5,7 +5,7 @@ use actix_web_validator::Json;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use chrono::{Duration, Utc};
 use db_connector::models::users::User;
-use diesel::prelude::*;
+use diesel::{prelude::*, result::Error::NotFound};
 
 use crate::{models::{login::LoginSchema, token_claims::TokenClaims}, AppState};
 
@@ -27,18 +27,15 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
     let result = web::block(move|| {
         users.filter(email.eq(mail))
             .select(User::as_select())
-            .load(&mut conn)
+            .get_result(&mut conn)
     }).await.unwrap();
 
     println!("Took {}ms to get user from database", now.elapsed().as_millis());
 
     let user: User = match result {
-        Ok(data) => {
-            if data.len() == 1 {
-                data[0].clone()
-            } else {
-                return HttpResponse::BadRequest().body("")
-            }
+        Ok(data) => data,
+        Err(NotFound) => {
+            return HttpResponse::BadRequest().body("")
         },
         Err(_err) => {
             return HttpResponse::InternalServerError().body("")

@@ -1,7 +1,7 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use argon2::{password_hash::{rand_core::OsRng, SaltString}, Argon2, PasswordHasher};
 use db_connector::models::users::User;
-use diesel::prelude::*;
+use diesel::{prelude::*, result::Error::NotFound};
 use actix_web_validator::Json;
 
 use crate::{models::register::RegisterSchema, AppState};
@@ -36,19 +36,18 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
     let result = web::block(move || {
         users.filter(email.eq(mail_cpy))
             .select(User::as_select())
-            .load(&mut conn)
+            .get_result(&mut conn)
     }).await.unwrap();
 
-    let result = match result {
-            Ok(result) => result,
+    match result {
+            Err(NotFound) => (),
+            Ok(_result) => {
+                return HttpResponse::Conflict()
+            },
             Err(_err) => {
                 return HttpResponse::InternalServerError()
             }
         };
-
-    if result.len() != 0 {
-        return HttpResponse::Conflict()
-    }
 
     let password_hash = match hash_pass(&data.password) {
         Ok(hash) => hash,
