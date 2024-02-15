@@ -28,6 +28,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    verification (id) {
+        id -> Uuid,
+        user -> Uuid,
+    }
+}
+
+diesel::table! {
     wg_keys (id) {
         id -> Uuid,
         charger -> Varchar,
@@ -39,11 +46,13 @@ diesel::table! {
 
 diesel::joinable!(allowed_users -> chargers (charger));
 diesel::joinable!(allowed_users -> users (user));
+diesel::joinable!(verification -> users (user));
 diesel::joinable!(wg_keys -> chargers (charger));
 
 diesel::allow_tables_to_appear_in_same_query!(
     allowed_users,
     chargers,
     users,
+    verification,
     wg_keys,
 );

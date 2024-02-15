@@ -97,7 +97,7 @@ pub(crate) mod tests {
     use actix_web::{http::header::ContentType, test, App};
 
     use super::*;
-    use crate::{routes::auth::register::tests::{create_user, delete_test_user}, tests::configure};
+    use crate::{routes::auth::register::tests::{create_user, delete_user}, tests::configure};
     use crate::defer;
 
     pub async fn login_user(mail: &str) -> String {
@@ -130,7 +130,7 @@ pub(crate) mod tests {
     async fn test_valid_login() {
         let mail = "login@test.de";
         create_user(mail).await;
-        defer!(delete_test_user(mail));
+        defer!(delete_user(mail));
 
         let app = App::new().configure(configure ).service(login);
         let app = test::init_service(app).await;
@@ -160,7 +160,7 @@ pub(crate) mod tests {
     async fn test_invalid_email() {
         let mail = "invalid_mail@test.de";
         create_user(mail).await;
-        defer!(delete_test_user(mail));
+        defer!(delete_user(mail));
 
         let app = App::new().configure(configure ).service(login);
         let app = test::init_service(app).await;
@@ -182,7 +182,7 @@ pub(crate) mod tests {
     async fn test_invalid_password() {
         let mail = "invalid_pass@test.de";
         create_user(mail).await;
-        defer!(delete_test_user(mail));
+        defer!(delete_user(mail));
 
         let app = App::new().configure(configure ).service(login);
         let app = test::init_service(app).await;

@@ -114,7 +114,7 @@ mod tests {
     use actix_web::{cookie::Cookie, get, test, App, Responder};
     use chrono::{Duration, Utc};
     use rand::{distributions::Alphanumeric, Rng};
-    use crate::{defer, routes::auth::{login::tests::login_user, register::tests::{create_user, delete_test_user}}, tests::configure};
+    use crate::{defer, routes::auth::{login::tests::login_user, register::tests::{create_user, delete_user}}, tests::configure};
 
 
     #[get("/hello")]
@@ -133,7 +133,7 @@ mod tests {
     async fn test_valid_token_extractor() {
         let mail = "token@test.de";
         create_user(mail).await;
-        defer!(delete_test_user(mail));
+        defer!(delete_user(mail));
 
         let token = login_user(mail).await;
 
@@ -154,7 +154,7 @@ mod tests {
     async fn test_valid_token_middleware() {
         let mail = "token_middleware@test.de";
         create_user(mail).await;
-        defer!(delete_test_user(mail));
+        defer!(delete_user(mail));
 
         let token = login_user(mail).await;
 
@@ -175,7 +175,7 @@ mod tests {
     async fn test_no_token_extractor() {
         let mail = "no_token@test.de";
         create_user(mail).await;
-        defer!(delete_test_user(mail));
+        defer!(delete_user(mail));
 
         let app = App::new().configure(configure ).service(with_extractor);
         let app = test::init_service(app).await;
@@ -192,7 +192,7 @@ mod tests {
     async fn test_no_token_middleware() {
         let mail = "no_token_middleware@test.de";
         create_user(mail).await;
-        defer!(delete_test_user(mail));
+        defer!(delete_user(mail));
 
         let app = App::new().configure(configure ).service(without_extractor).wrap(JwtMiddleware);
         let app = test::init_service(app).await;
@@ -209,7 +209,7 @@ mod tests {
     async fn garbage_token() {
         let mail = "garbage_token@test.de";
         create_user(mail).await;
-        defer!(delete_test_user(mail));
+        defer!(delete_user(mail));
 
         let app = App::new().configure(configure ).service(with_extractor);
         let app = test::init_service(app).await;
@@ -233,7 +233,7 @@ mod tests {
     async fn fake_token() {
         let mail = "fake_token@test.de";
         create_user(mail).await;
-        defer!(delete_test_user(mail));
+        defer!(delete_user(mail));
 
         let app = App::new().configure(configure ).service(with_extractor);
         let app = test::init_service(app).await;

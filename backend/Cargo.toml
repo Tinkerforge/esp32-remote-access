@@ -21,6 +21,7 @@ chrono = "0.4.33"
 actix-cors = "0.7.0"
 jsonwebtoken = "9.2.0"
 futures-util = "0.3.30"
+lettre = { version = "0.11.4", features = ["native-tls"] }
 
 [dev-dependencies]
 rand = "0.8.5"

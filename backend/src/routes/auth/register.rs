@@ -1,8 +1,9 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use argon2::{password_hash::{rand_core::OsRng, SaltString}, Argon2, PasswordHasher};
-use db_connector::models::users::User;
+use db_connector::models::{users::User, verification::Verification};
 use diesel::{prelude::*, result::Error::NotFound};
 use actix_web_validator::Json;
+use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 
 use crate::{models::register::RegisterSchema, AppState};
 
@@ -19,9 +20,29 @@ fn hash_pass(password: &String) -> Result<String, String> {
     Ok(hashed_password)
 }
 
+fn send_verification_mail(id: Verification, email: String, mailer: SmtpTransport) -> Result<(), actix_web::Error> {
+    let email = Message::builder()
+        .from("Warp <warp@tinkerforge.com>".parse().unwrap())
+        .to(email.parse().unwrap())
+        .subject("Verify email")
+        .header(ContentType::TEXT_PLAIN)
+        .body(format!("http://localhost:8081/auth/verify?{}", id.id.to_string()))
+        .unwrap();
+
+
+
+    match mailer.send(&email) {
+        Ok(_) => println!("Email sent successfully!"),
+        Err(e) => panic!("Could not send email: {e:?}"),
+    }
+
+    Ok(())
+}
+
 #[post("/register")]
 pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) -> impl Responder {
     use db_connector::schema::users::dsl::*;
+    use db_connector::schema::verification::dsl::*;
 
     let mut conn = match state.pool.get() {
         Ok(conn) => conn,
@@ -54,7 +75,7 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
         Err(_) => return HttpResponse::InternalServerError()
     };
 
-    let user = User {
+    let user_insert = User {
         id: uuid::Uuid::new_v4(),
         name: data.name.clone(),
         password: password_hash,
@@ -69,13 +90,37 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
         }
     };
 
-    let insert_result = web::block(move || {
-        diesel::insert_into(users)
-            .values(&user)
-            .execute(&mut conn)
-    }).await.unwrap();
+    let insert_result = match web::block(move || {
+        let verify = Verification {
+            id: uuid::Uuid::new_v4(),
+            user: user_insert.id.clone()
+        };
 
-    let insert_result = insert_result ;
+        let mail = user_insert.email.clone();
+
+        let user_insert = diesel::insert_into(users)
+            .values(&user_insert)
+            .execute(&mut conn);
+        match diesel::insert_into(verification)
+            .values(&verify)
+            .execute(&mut conn)
+        {
+            Ok(_) => (),
+            Err(err) => {
+                return Err(err)
+            }
+        }
+
+        #[cfg(not(test))]
+        send_verification_mail(verify, mail, state.mailer.clone()).ok();
+
+        user_insert
+    }).await {
+        Ok(result) => result,
+        Err(_err) => {
+            return HttpResponse::InternalServerError()
+        }
+    };
 
     match insert_result {
         Ok(_) => (),
@@ -187,10 +232,17 @@ pub(crate) mod tests {
         println!("Created user");
     }
 
-    pub fn delete_test_user(mail: &str) {
+    pub fn delete_user(mail: &str) {
         use crate::schema::users::dsl::*;
+        use crate::schema::verification::dsl::*;
+        use diesel::prelude::*;
+
         let pool = db_connector::get_connection_pool();
         let mut conn = pool.get().unwrap();
+        let mail = mail.to_lowercase();
+        let u: User = users.filter(email.eq(mail.clone())).select(User::as_select()).get_result(&mut conn).unwrap();
+
+        diesel::delete(verification.filter(user.eq(u.id))).execute(&mut conn).expect("Error deleting verification");
         diesel::delete(users.filter(email.eq(mail.to_lowercase()))).execute(&mut conn).expect("Error deleting test tuser");
     }
 
@@ -212,7 +264,7 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
         println!("{}", resp.status());
         assert!(resp.status().is_success());
-        delete_test_user("valid_request@test.de");
+        delete_user("valid_request@test.de");
     }
 
     #[actix_web::test]
@@ -233,7 +285,7 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
         println!("{}", resp.status());
         assert!(resp.status().is_success());
-        defer!(delete_test_user(mail.as_str()));
+        defer!(delete_user(mail.as_str()));
 
         let req = test::TestRequest::post()
             .uri("/register")
