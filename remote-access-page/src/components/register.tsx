@@ -67,7 +67,7 @@ export class Register extends Component<{}, RegisterState> {
                         this.setState({data: {...this.state.data, password: (e.target as HTMLInputElement).value}})
                     }} />
                 </Form.Group>
-                <Form.Group className="mb3" controlId="registerSubmit">
+                <Form.Group className="mb-3" controlId="registerSubmit">
                     <Form.Check type="checkbox" label="Accept privacy notice" required/>
                 </Form.Group>
                 <Button variant="primary" type="submit">

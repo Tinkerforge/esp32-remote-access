@@ -7,9 +7,39 @@ import { NotFound } from './pages/_404.jsx';
 import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { User } from './pages/user.js';
+import * as cookie from "cookie";
+import Card from "react-bootstrap/Card";
+import Tabs from "react-bootstrap/Tabs";
+import Tab from "react-bootstrap/Tab";
+import { Login } from './components/login.js';
+import { Register } from './components/register.js';
 
 
 export function App() {
+
+    const cookies = cookie.parse(document.cookie);
+    if (!("access_token" in cookies)) {
+        return <Row fluid className="align-items-center vh-100">
+            <div class="d-flex col justify-content-center">
+                <Card className="p-3">
+                    <Tabs
+                        defaultActiveKey="login"
+                        id="login-register-tab"
+                        className="mb-3"
+                    >
+                        <Tab eventKey="login" title="Login">
+                            <Login />
+                        </Tab>
+                        <Tab eventKey="register" title="Register">
+                            <Register />
+                        </Tab>
+                    </Tabs>
+                </Card>
+            </div>
+        </Row>
+    }
+
     return (
         <LocationProvider>
             <Container fluid>
@@ -18,6 +48,7 @@ export function App() {
                     <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
                         <Router>
                             <Route path="/" component={Home} />
+                            <Route path="/user" component={User} />
                             <Route default component={NotFound} />
                         </Router>
                     </main>
