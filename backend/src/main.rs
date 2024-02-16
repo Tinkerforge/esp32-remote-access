@@ -29,6 +29,7 @@ async fn main() -> std::io::Result<()> {
         pool,
         jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!"),
         mailer,
+        frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
     });
 
     HttpServer::new(move || {
@@ -48,6 +49,7 @@ pub struct AppState {
     pub pool: Pool,
     pub jwt_secret: String,
     pub mailer: SmtpTransport,
+    pub frontend_url: String,
 }
 
 #[cfg(test)]
@@ -87,6 +89,7 @@ pub(crate) mod tests {
             pool,
             jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!"),
             mailer,
+            frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
         };
         let state = web::Data::new(state);
         cfg.app_data(state.clone());

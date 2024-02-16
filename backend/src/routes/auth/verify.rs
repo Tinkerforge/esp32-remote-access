@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use actix_web::{error::ErrorBadRequest, get, web, HttpResponse, Responder};
+use actix_web::{error::ErrorBadRequest, get, web::{self, Redirect}, Responder};
 use db_connector::models::verification::Verification;
 use diesel::prelude::*;
 use serde::Deserialize;
@@ -67,7 +67,7 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
     }
 
 
-    Ok(HttpResponse::Ok())
+    Ok(Redirect::to(state.frontend_url.clone()))
 }
 
 #[cfg(test)]
@@ -127,8 +127,9 @@ pub(crate) mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_success());
 
+        println!("{}", resp.status());
+        assert!(resp.status().is_redirection());
         assert_eq!(false, check_for_verify(&mut conn, &verify_id));
     }
 
