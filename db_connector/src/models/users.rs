@@ -1,8 +1,7 @@
-use diesel::{deserialize::Queryable, Selectable, prelude::Insertable};
+use diesel::{deserialize::Queryable, prelude::Insertable, Selectable};
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::users)]
-#[diesel(belongs_to(verification))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct User {
     pub id: uuid::Uuid,
