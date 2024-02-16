@@ -1,24 +1,30 @@
 import { render } from 'preact';
 import { LocationProvider, Router, Route } from 'preact-iso';
 
-import { Header } from './components/Header.jsx';
+import { Sidebar } from './components/sidebar.js';
 import { Home } from './pages/Home/index.jsx';
 import { NotFound } from './pages/_404.jsx';
-import './style.css';
+import Container from "react-bootstrap/Container";
+import Row from "react-bootstrap/Row";
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 
 export function App() {
-	return (
-		<LocationProvider>
-			<Header />
-			<main>
-				<Router>
-					<Route path="/" component={Home} />
-					<Route default component={NotFound} />
-				</Router>
-			</main>
-		</LocationProvider>
-	);
+    return (
+        <LocationProvider>
+            <Container fluid>
+                <Row>
+                    <Sidebar />
+                    <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
+                        <Router>
+                            <Route path="/" component={Home} />
+                            <Route default component={NotFound} />
+                        </Router>
+                    </main>
+                </Row>
+            </Container>
+        </LocationProvider>
+    );
 }
 
 render(<App />, document.getElementById('app'));

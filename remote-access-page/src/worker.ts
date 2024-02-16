@@ -4,8 +4,8 @@ import { FetchMessage, Message, MessageType, ResponseMessage } from "./types";
 declare const self: DedicatedWorkerGlobalScope;
 
 
-const secret = "UDz0p8kY+v7iLwCvQZLdJCz0QgQ0ORnx5Q6bLW5Gflw=";
-const peer = "M3XrOeZy6GawK650at4A9wokxp1Oy9pWIilWx2Q+MnE=";
+const secret = "2NNRTIrxCM4mhk6eTvhm9ke6MTVIUMf78SrjYncIelU=";
+const peer = "amwFG4NeJcSq8A0oKoEYSFV5PQgibqO9CAho4j90gBA=";
 const url = "wss://" + self.location.hostname + ":8081"
 const wgClient = new Client(secret, peer, url);
 self.postMessage("ready");
