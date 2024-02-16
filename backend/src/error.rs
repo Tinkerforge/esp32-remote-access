@@ -9,6 +9,8 @@ pub enum Error {
     AlreadyExists,
     #[display(fmt = "Wrong username or password")]
     WrongCredentials,
+    #[display(fmt = "Not verified")]
+    NotVerified,
 }
 
 impl error::ResponseError for Error {
@@ -22,7 +24,8 @@ impl error::ResponseError for Error {
         match *self {
             Self::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::AlreadyExists => StatusCode::CONFLICT,
-            Self::WrongCredentials => StatusCode::BAD_REQUEST
+            Self::WrongCredentials => StatusCode::BAD_REQUEST,
+            Self::NotVerified => StatusCode::UNAUTHORIZED
         }
     }
 }

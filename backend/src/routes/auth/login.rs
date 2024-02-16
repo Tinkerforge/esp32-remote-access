@@ -30,8 +30,6 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Resul
             .get_result(&mut conn)
     }).await.unwrap();
 
-    println!("Took {}ms to get user from database", now.elapsed().as_millis());
-
     let user: User = match result {
         Ok(data) => data,
         Err(NotFound) => {
@@ -42,14 +40,16 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Resul
         }
     };
 
+    if !user.email_verified {
+        return Err(Error::NotVerified.into())
+    }
+
     let password_hash = match PasswordHash::new(&user.password) {
         Ok(hash) => hash,
         Err(_err) => {
             return Err(Error::InternalError.into())
         }
     };
-
-    println!("Took {}ms to hash password", now.elapsed().as_millis());
 
     match Argon2::default().verify_password(data.password.as_bytes(), &password_hash) {
         Ok(_) => (),
@@ -58,8 +58,6 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Resul
             return Err(Error::WrongCredentials.into())
         }
     }
-
-    println!("Took {}ms to verify password", now.elapsed().as_millis());
 
     let max_token_age = 60;
 
@@ -97,7 +95,7 @@ pub(crate) mod tests {
     use actix_web::{http::header::ContentType, test, App};
 
     use super::*;
-    use crate::{routes::auth::register::tests::{create_user, delete_user}, tests::configure};
+    use crate::{routes::auth::{register::tests::{create_user, delete_user}, verify::tests::fast_verify}, tests::configure};
     use crate::defer;
 
     pub async fn login_user(mail: &str) -> String {
@@ -112,7 +110,9 @@ pub(crate) mod tests {
             .insert_header(ContentType::json())
             .set_json(login_schema)
             .to_request();
+        fast_verify(mail);
         let resp = test::call_service(&app, req).await;
+
         assert!(resp.status().is_success());
 
         let cookies = resp.response().cookies();
@@ -138,13 +138,17 @@ pub(crate) mod tests {
             email: mail.to_string(),
             password: "TestTestTest".to_string()
         };
+        fast_verify(mail);
+
         let req = test::TestRequest::post()
             .uri("/login")
             .insert_header(ContentType::json())
             .set_json(login_schema)
             .to_request();
         let resp = test::call_service(&app, req).await;
+
         assert!(resp.status().is_success());
+
         let cookies = resp.response().cookies();
         let mut valid = false;
         for cookie in cookies {
@@ -168,14 +172,21 @@ pub(crate) mod tests {
             email: "invalid@test.invalid".to_string(),
             password: "TestTestTest".to_string()
         };
+        fast_verify(mail);
+
         let req = test::TestRequest::post()
             .uri("/login")
             .insert_header(ContentType::json())
             .set_json(login_schema)
             .to_request();
         let resp = test::call_service(&app, req).await;
+
         println!("{}", resp.status());
         assert!(resp.status().is_client_error());
+
+        let body = test::read_body(resp).await;
+        let body = std::str::from_utf8(&body).unwrap();
+        assert_eq!(body, "Wrong username or password");
     }
 
     #[actix_web::test]
@@ -190,13 +201,48 @@ pub(crate) mod tests {
             email: "invalid_pass@test.invalid".to_string(),
             password: "TestTestTest1".to_string()
         };
+        fast_verify(mail);
+
+        let req = test::TestRequest::post()
+            .uri("/login")
+            .insert_header(ContentType::json())
+            .set_json(login_schema)
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        println!("{}", resp.status());
+
+        assert!(resp.status().is_client_error());
+
+        let body = test::read_body(resp).await;
+        let body = std::str::from_utf8(&body).unwrap();
+        assert_eq!(body, "Wrong username or password");
+    }
+
+    #[actix_web::test]
+    async fn test_unverified() {
+        let mail = "unverified_login@test.invalid";
+        create_user(mail).await;
+        defer!(delete_user(mail));
+
+        let app = App::new().configure(configure ).service(login);
+        let app = test::init_service(app).await;
+        let login_schema = LoginSchema {
+            email: mail.to_string(),
+            password: "TestTestTest".to_string()
+        };
+
         let req = test::TestRequest::post()
             .uri("/login")
             .insert_header(ContentType::json())
             .set_json(login_schema)
             .to_request();
         let resp = test::call_service(&app, req).await;
-        println!("{}", resp.status());
+
         assert!(resp.status().is_client_error());
+
+        let body = test::read_body(resp).await;
+        let body = std::str::from_utf8(&body).unwrap();
+        assert_eq!(body, "Not verified");
     }
 }
