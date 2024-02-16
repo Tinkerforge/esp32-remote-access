@@ -131,7 +131,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_valid_token_extractor() {
-        let mail = "token@test.de";
+        let mail = "token@test.invalid";
         create_user(mail).await;
         defer!(delete_user(mail));
 
@@ -152,7 +152,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_valid_token_middleware() {
-        let mail = "token_middleware@test.de";
+        let mail = "token_middleware@test.invalid";
         create_user(mail).await;
         defer!(delete_user(mail));
 
@@ -173,7 +173,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_no_token_extractor() {
-        let mail = "no_token@test.de";
+        let mail = "no_token@test.invalid";
         create_user(mail).await;
         defer!(delete_user(mail));
 
@@ -190,7 +190,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_no_token_middleware() {
-        let mail = "no_token_middleware@test.de";
+        let mail = "no_token_middleware@test.invalid";
         create_user(mail).await;
         defer!(delete_user(mail));
 
@@ -207,7 +207,7 @@ mod tests {
 
     #[actix_web::test]
     async fn garbage_token() {
-        let mail = "garbage_token@test.de";
+        let mail = "garbage_token@test.invalid";
         create_user(mail).await;
         defer!(delete_user(mail));
 
@@ -231,7 +231,7 @@ mod tests {
 
     #[actix_web::test]
     async fn fake_token() {
-        let mail = "fake_token@test.de";
+        let mail = "fake_token@test.invalid";
         create_user(mail).await;
         defer!(delete_user(mail));
 

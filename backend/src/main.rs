@@ -1,6 +1,8 @@
 mod routes;
 mod models;
 mod middleware;
+mod utils;
+mod error;
 
 use actix_web::{web, App, HttpServer};
 use db_connector::*;

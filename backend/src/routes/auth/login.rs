@@ -7,11 +7,11 @@ use chrono::{Duration, Utc};
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound};
 
-use crate::{models::{login::LoginSchema, token_claims::TokenClaims}, AppState};
+use crate::{error::Error, models::{login::LoginSchema, token_claims::TokenClaims}, AppState};
 
 
 #[post("/login")]
-pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl Responder {
+pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
     let now = Instant::now();
@@ -19,7 +19,7 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
     let mut conn = match state.pool.get() {
         Ok(conn) => conn,
         Err(_err) => {
-            return HttpResponse::InternalServerError().body("")
+            return Err(Error::InternalError.into())
         }
     };
 
@@ -35,17 +35,17 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
     let user: User = match result {
         Ok(data) => data,
         Err(NotFound) => {
-            return HttpResponse::BadRequest().body("")
+            return Err(Error::WrongCredentials.into())
         },
         Err(_err) => {
-            return HttpResponse::InternalServerError().body("")
+            return Err(Error::InternalError.into())
         }
     };
 
     let password_hash = match PasswordHash::new(&user.password) {
         Ok(hash) => hash,
         Err(_err) => {
-            return HttpResponse::InternalServerError().body("")
+            return Err(Error::InternalError.into())
         }
     };
 
@@ -55,7 +55,7 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
         Ok(_) => (),
         Err(_err) => {
             println!("Took {}ms to verify password", now.elapsed().as_millis());
-            return HttpResponse::BadRequest().body("")
+            return Err(Error::WrongCredentials.into())
         }
     }
 
@@ -79,7 +79,7 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
     ) {
         Ok(token) => token,
         Err(_err) => {
-            return HttpResponse::InternalServerError().body("")
+            return Err(Error::InternalError.into())
         }
     };
 
@@ -89,7 +89,7 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> impl 
         .http_only(false)
         .finish();
 
-    HttpResponse::Ok().cookie(cookie).body("Logged in")
+    Ok(HttpResponse::Ok().cookie(cookie).body(""))
 }
 
 #[cfg(test)]
@@ -128,7 +128,7 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_valid_login() {
-        let mail = "login@test.de";
+        let mail = "login@test.invalid";
         create_user(mail).await;
         defer!(delete_user(mail));
 
@@ -158,14 +158,14 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_invalid_email() {
-        let mail = "invalid_mail@test.de";
+        let mail = "invalid_mail@test.invalid";
         create_user(mail).await;
         defer!(delete_user(mail));
 
         let app = App::new().configure(configure ).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
-            email: "invalid@test.de".to_string(),
+            email: "invalid@test.invalid".to_string(),
             password: "TestTestTest".to_string()
         };
         let req = test::TestRequest::post()
@@ -180,14 +180,14 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_invalid_password() {
-        let mail = "invalid_pass@test.de";
+        let mail = "invalid_pass@test.invalid";
         create_user(mail).await;
         defer!(delete_user(mail));
 
         let app = App::new().configure(configure ).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
-            email: "invalid_pass@test.de".to_string(),
+            email: "invalid_pass@test.invalid".to_string(),
             password: "TestTestTest1".to_string()
         };
         let req = test::TestRequest::post()

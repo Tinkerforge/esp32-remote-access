@@ -5,7 +5,7 @@ use diesel::{prelude::*, result::Error::NotFound};
 use actix_web_validator::Json;
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 
-use crate::{models::register::RegisterSchema, AppState};
+use crate::{error::Error, models::register::RegisterSchema, utils::get_connection, AppState};
 
 fn hash_pass(password: &String) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
@@ -26,7 +26,7 @@ fn send_verification_mail(id: Verification, email: String, mailer: SmtpTransport
         .to(email.parse().unwrap())
         .subject("Verify email")
         .header(ContentType::TEXT_PLAIN)
-        .body(format!("http://localhost:8081/auth/verify?{}", id.id.to_string()))
+        .body(format!("http://localhost:8081/auth/verify?id={}", id.id.to_string()))
         .unwrap();
 
 
@@ -40,16 +40,11 @@ fn send_verification_mail(id: Verification, email: String, mailer: SmtpTransport
 }
 
 #[post("/register")]
-pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) -> impl Responder {
+pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
     use db_connector::schema::verification::dsl::*;
 
-    let mut conn = match state.pool.get() {
-        Ok(conn) => conn,
-        Err(_err) => {
-            return HttpResponse::InternalServerError()
-        }
-    };
+    let mut conn = get_connection(&state)?;
 
     let user_mail = data.email.to_lowercase();
     let mail_cpy = user_mail.clone();
@@ -63,16 +58,16 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
     match result {
             Err(NotFound) => (),
             Ok(_result) => {
-                return HttpResponse::Conflict()
+                return Err(Error::AlreadyExists.into())
             },
             Err(_err) => {
-                return HttpResponse::InternalServerError()
+                return Err(Error::InternalError.into())
             }
         };
 
     let password_hash = match hash_pass(&data.password) {
         Ok(hash) => hash,
-        Err(_) => return HttpResponse::InternalServerError()
+        Err(_) => return Err(Error::InternalError.into())
     };
 
     let user_insert = User {
@@ -83,12 +78,7 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
         email_verified: false
     };
 
-    let mut conn = match state.pool.get() {
-        Ok(conn) => conn,
-        Err(_err) => {
-            return HttpResponse::InternalServerError()
-        }
-    };
+    let mut conn = get_connection(&state)?;
 
     let insert_result = match web::block(move || {
         let verify = Verification {
@@ -118,18 +108,18 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
     }).await {
         Ok(result) => result,
         Err(_err) => {
-            return HttpResponse::InternalServerError()
+            return Err(Error::InternalError.into())
         }
     };
 
     match insert_result {
         Ok(_) => (),
         Err(_err) => {
-            return HttpResponse::InternalServerError()
+            return Err(Error::InternalError.into())
         }
     }
 
-    HttpResponse::Created()
+    Ok(HttpResponse::Created())
 }
 
 
@@ -161,7 +151,7 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
         let user = RegisterSchema {
             name: "Test".to_string(),
-            email: "Test@test.de".to_string(),
+            email: "Test@test.invalid".to_string(),
             password: "Test".to_string()
         };
         let req = test::TestRequest::post()
@@ -200,7 +190,7 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
         let user = RegisterSchema {
             name: "Te".to_string(),
-            email: "Test@test.de".to_string(),
+            email: "Test@test.invalid".to_string(),
             password: "TestTestTest".to_string()
         };
         let req = test::TestRequest::post()
@@ -253,7 +243,7 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
         let user = RegisterSchema {
             name: "Test".to_string(),
-            email: "valid_request@test.de".to_string(),
+            email: "valid_request@test.invalid".to_string(),
             password: "TestTestTest".to_string()
         };
         let req = test::TestRequest::post()
@@ -264,14 +254,14 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
         println!("{}", resp.status());
         assert!(resp.status().is_success());
-        delete_user("valid_request@test.de");
+        delete_user("valid_request@test.invalid");
     }
 
     #[actix_web::test]
     async fn test_existing_user() {
         let app = App::new().configure(configure ).service(register);
         let app = test::init_service(app).await;
-        let mail = "existing_user@test.de".to_string();
+        let mail = "existing_user@test.invalid".to_string();
         let user = RegisterSchema {
             name: "Test".to_string(),
             email: mail.clone(),
