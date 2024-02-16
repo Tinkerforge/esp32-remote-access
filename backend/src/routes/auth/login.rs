@@ -98,7 +98,9 @@ pub(crate) mod tests {
     use crate::{routes::auth::{register::tests::{create_user, delete_user}, verify::tests::fast_verify}, tests::configure};
     use crate::defer;
 
-    pub async fn login_user(mail: &str) -> String {
+    pub async fn verify_and_login_user(mail: &str) -> String {
+        fast_verify(mail);
+
         let app = App::new().configure(configure ).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
@@ -110,7 +112,6 @@ pub(crate) mod tests {
             .insert_header(ContentType::json())
             .set_json(login_schema)
             .to_request();
-        fast_verify(mail);
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_success());

@@ -114,7 +114,7 @@ mod tests {
     use actix_web::{cookie::Cookie, get, test, App, Responder};
     use chrono::{Duration, Utc};
     use rand::{distributions::Alphanumeric, Rng};
-    use crate::{defer, routes::auth::{login::tests::login_user, register::tests::{create_user, delete_user}}, tests::configure};
+    use crate::{defer, routes::auth::{login::tests::verify_and_login_user, register::tests::{create_user, delete_user}}, tests::configure};
 
 
     #[get("/hello")]
@@ -135,7 +135,7 @@ mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let token = login_user(mail).await;
+        let token = verify_and_login_user(mail).await;
 
         let app = App::new().configure(configure ).service(with_extractor);
         let app = test::init_service(app).await;
@@ -156,7 +156,7 @@ mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let token = login_user(mail).await;
+        let token = verify_and_login_user(mail).await;
 
         let app = App::new().configure(configure ).service(without_extractor).wrap(JwtMiddleware);
         let app = test::init_service(app).await;
