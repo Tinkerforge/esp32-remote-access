@@ -82,6 +82,7 @@ pub(crate) mod tests {
         use crate::schema::users::dsl::*;
         use crate::schema::verification::dsl::verification;
 
+        println!("Fast verify for {}", mail);
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
         let verify = get_verify_id(&mut conn, mail);

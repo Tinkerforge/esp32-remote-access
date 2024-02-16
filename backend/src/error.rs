@@ -11,6 +11,8 @@ pub enum Error {
     WrongCredentials,
     #[display(fmt = "Not verified")]
     NotVerified,
+    #[display(fmt = "")]
+    Unauthorized
 }
 
 impl error::ResponseError for Error {
@@ -25,7 +27,8 @@ impl error::ResponseError for Error {
             Self::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::AlreadyExists => StatusCode::CONFLICT,
             Self::WrongCredentials => StatusCode::BAD_REQUEST,
-            Self::NotVerified => StatusCode::UNAUTHORIZED
+            Self::NotVerified => StatusCode::UNAUTHORIZED,
+            Self::Unauthorized => StatusCode::UNAUTHORIZED,
         }
     }
 }

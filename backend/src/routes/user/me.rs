@@ -10,11 +10,21 @@ async fn me(state: web::Data<AppState>, id: uuid::Uuid) -> Result<impl Responder
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
+    use db_connector::models::users::User;
+    use diesel::{SelectableHelper, prelude::*};
 
     use crate::{defer, routes::auth::{login::tests::verify_and_login_user, register::tests::{create_user, delete_user}}, tests::configure};
+
+    pub fn get_test_user(mail: &str) -> User {
+        use crate::schema::users::dsl::*;
+
+        let pool = db_connector::test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        users.filter(email.eq(mail)).select(User::as_select()).get_result(&mut conn).unwrap()
+    }
 
     #[actix_web::test]
     async fn test_me() {

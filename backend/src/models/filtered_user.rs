@@ -1,11 +1,14 @@
 use db_connector::models::users::User;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use validator::Validate;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct FilteredUser {
     pub id: String,
+    #[validate(length(min = 3))]
     pub name: String,
-    pub email: String
+    #[validate(email)]
+    pub email: String,
 }
 
 impl From<User> for FilteredUser {

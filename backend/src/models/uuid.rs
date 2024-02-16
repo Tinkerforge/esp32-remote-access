@@ -2,7 +2,7 @@ use std::future::{ready, Ready};
 
 use actix_web::HttpMessage;
 
-
+#[derive(Clone, Debug)]
 pub struct Uuid(pub uuid::Uuid);
 
 impl Uuid {

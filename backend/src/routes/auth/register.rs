@@ -164,7 +164,11 @@ pub(crate) mod tests {
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
         let mail = mail.to_lowercase();
-        let u: User = users.filter(email.eq(mail.clone())).select(User::as_select()).get_result(&mut conn).unwrap();
+        let u: User = if let Ok(u) = users.filter(email.eq(mail.clone())).select(User::as_select()).get_result(&mut conn) {
+            u
+        } else {
+            return;
+        };
 
         diesel::delete(verification.filter(user.eq(u.id))).execute(&mut conn).expect("Error deleting verification");
         diesel::delete(users.filter(email.eq(mail.to_lowercase()))).execute(&mut conn).expect("Error deleting test tuser");
