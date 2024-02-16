@@ -20,6 +20,8 @@ fn hash_pass(password: &String) -> Result<String, String> {
     Ok(hashed_password)
 }
 
+// This is shown as unused in vscode since vscode assumes you have tests enabled.
+#[allow(unused)]
 fn send_verification_mail(id: Verification, email: String, mailer: SmtpTransport) -> Result<(), actix_web::Error> {
     let email = Message::builder()
         .from("Warp <warp@tinkerforge.com>".parse().unwrap())
@@ -86,6 +88,8 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
             user: user_insert.id.clone()
         };
 
+        // same as above
+        #[allow(unused)]
         let mail = user_insert.email.clone();
 
         let user_insert = diesel::insert_into(users)
@@ -101,6 +105,7 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
             }
         }
 
+        // maybe add mechanism to automatically retry?
         #[cfg(not(test))]
         send_verification_mail(verify, mail, state.mailer.clone()).ok();
 
