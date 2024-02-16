@@ -136,77 +136,6 @@ pub(crate) mod tests {
 
     use super::*;
 
-    #[actix_web::test]
-    async fn test_no_data() {
-        // Test without data
-        let app = App::new().configure(configure ).service(register);
-        let app = test::init_service(app).await;
-        let req = test::TestRequest::post()
-            .uri("/register")
-            .insert_header(ContentType::json())
-            .to_request();
-        let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_client_error());
-    }
-
-    #[actix_web::test]
-    async fn test_short_password() {
-        // test with to short password
-        let app = App::new().configure(configure ).service(register);
-        let app = test::init_service(app).await;
-        let user = RegisterSchema {
-            name: "Test".to_string(),
-            email: "Test@test.invalid".to_string(),
-            password: "Test".to_string()
-        };
-        let req = test::TestRequest::post()
-            .uri("/register")
-            .insert_header(ContentType::json())
-            .set_json(user)
-            .to_request();
-        let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_client_error());
-    }
-
-    #[actix_web::test]
-    async fn test_invalid_email() {
-        // test with invalid email
-        let app = App::new().configure(configure ).service(register);
-        let app = test::init_service(app).await;
-        let user = RegisterSchema {
-            name: "Test".to_string(),
-            email: "Testtest.de".to_string(),
-            password: "TestTestTest".to_string()
-        };
-        let req = test::TestRequest::post()
-            .uri("/register")
-            .insert_header(ContentType::json())
-            .set_json(user)
-            .to_request();
-        let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_client_error());
-
-    }
-
-    #[actix_web::test]
-    async fn test_short_username() {
-        // test with too short username
-        let app = App::new().configure(configure ).service(register);
-        let app = test::init_service(app).await;
-        let user = RegisterSchema {
-            name: "Te".to_string(),
-            email: "Test@test.invalid".to_string(),
-            password: "TestTestTest".to_string()
-        };
-        let req = test::TestRequest::post()
-            .uri("/register")
-            .insert_header(ContentType::json())
-            .set_json(user)
-            .to_request();
-        let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_client_error());
-    }
-
     pub async fn create_user(mail: &str) {
         // test with valid syntax
         let app = App::new().configure(configure ).service(register);
@@ -232,7 +161,7 @@ pub(crate) mod tests {
         use crate::schema::verification::dsl::*;
         use diesel::prelude::*;
 
-        let pool = db_connector::get_connection_pool();
+        let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
         let mail = mail.to_lowercase();
         let u: User = users.filter(email.eq(mail.clone())).select(User::as_select()).get_result(&mut conn).unwrap();
@@ -241,14 +170,108 @@ pub(crate) mod tests {
         diesel::delete(users.filter(email.eq(mail.to_lowercase()))).execute(&mut conn).expect("Error deleting test tuser");
     }
 
+    fn user_exists(mail: &str) -> bool {
+        use crate::schema::users::dsl::*;
+        use diesel::prelude::*;
+
+        let pool = db_connector::test_connection_pool();
+        match users.filter(email.eq(mail)).select(User::as_select()).get_result(&mut pool.get().unwrap()) {
+            Ok(_) => true,
+            Err(NotFound) => false,
+            Err(err) => panic!("Something went wrong: {}", err)
+        }
+    }
+
+    #[actix_web::test]
+    async fn test_no_data() {
+        // Test without data
+        let app = App::new().configure(configure ).service(register);
+        let app = test::init_service(app).await;
+        let req = test::TestRequest::post()
+            .uri("/register")
+            .insert_header(ContentType::json())
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_client_error());
+    }
+
+    #[actix_web::test]
+    async fn test_short_password() {
+        // test with to short password
+        let app = App::new().configure(configure ).service(register);
+        let app = test::init_service(app).await;
+        let mail = "Test@test.invalid";
+        let user = RegisterSchema {
+            name: "Test".to_string(),
+            email: mail.to_string(),
+            password: "Test".to_string()
+        };
+        let req = test::TestRequest::post()
+            .uri("/register")
+            .insert_header(ContentType::json())
+            .set_json(user)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(false, user_exists(mail));
+    }
+
+    #[actix_web::test]
+    async fn test_invalid_email() {
+        // test with invalid email
+        let app = App::new().configure(configure ).service(register);
+        let app = test::init_service(app).await;
+
+        let mail = "Testtest.de";
+        let user = RegisterSchema {
+            name: "Test".to_string(),
+            email: mail.to_string(),
+            password: "TestTestTest".to_string()
+        };
+        let req = test::TestRequest::post()
+            .uri("/register")
+            .insert_header(ContentType::json())
+            .set_json(user)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(false, user_exists(mail));
+    }
+
+    #[actix_web::test]
+    async fn test_short_username() {
+        // test with too short username
+        let app = App::new().configure(configure ).service(register);
+        let app = test::init_service(app).await;
+
+        let mail = "Test@test.invalid";
+        let user = RegisterSchema {
+            name: "Te".to_string(),
+            email: mail.to_string(),
+            password: "TestTestTest".to_string()
+        };
+        let req = test::TestRequest::post()
+            .uri("/register")
+            .insert_header(ContentType::json())
+            .set_json(user)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(false, user_exists(mail));
+    }
+
     #[actix_web::test]
     async fn test_valid_request() {
         // test with valid syntax
         let app = App::new().configure(configure ).service(register);
         let app = test::init_service(app).await;
+        let mail = "valid_request@test.invalid";
         let user = RegisterSchema {
             name: "Test".to_string(),
-            email: "valid_request@test.invalid".to_string(),
+            email: mail.to_string(),
             password: "TestTestTest".to_string()
         };
         let req = test::TestRequest::post()
@@ -258,7 +281,9 @@ pub(crate) mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         println!("{}", resp.status());
+
         assert!(resp.status().is_success());
+        assert_eq!(true, user_exists(mail));
         delete_user("valid_request@test.invalid");
     }
 
