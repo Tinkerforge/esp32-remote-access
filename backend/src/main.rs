@@ -17,7 +17,7 @@ async fn main() -> std::io::Result<()> {
     let mut conn = pool.get().expect("Failed to get connection from pool");
     run_migrations(&mut conn).expect("Failed to run migrations");
 
-    let mail = std::env::var("MAIL_USER").expect("MAIL must be set");
+    let mail = std::env::var("MAIL_USER").expect("MAIL_USER must be set");
     let pass = std::env::var("MAIL_PASS").expect("MAIL_PASS must be set");
     let mailer = SmtpTransport::relay("mail.tinkerforge.com")
         .unwrap()

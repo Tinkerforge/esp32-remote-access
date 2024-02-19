@@ -7,7 +7,7 @@ use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 
 use crate::{error::Error, models::register::RegisterSchema, utils::get_connection, AppState};
 
-fn hash_pass(password: &String) -> Result<String, String> {
+pub fn hash_pass(password: &String) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
     let hashed_password = match Argon2::default()
         .hash_password(password.as_bytes(), &salt) {

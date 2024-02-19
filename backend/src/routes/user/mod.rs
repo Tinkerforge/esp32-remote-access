@@ -1,16 +1,19 @@
 mod me;
 mod update_user;
+mod update_password;
 
 use actix_web::{dev::{ServiceFactory, ServiceRequest}, web, App, Error};
 use db_connector::models::users::User;
 use diesel::result::Error::NotFound;
 use crate::{middleware::jwt::JwtMiddleware, utils::get_connection, AppState};
 
+
 pub fn register_user_routes<T>(app: App<T>) -> App<T>
 where
     T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()> {
     let scope = web::scope("/user").wrap(JwtMiddleware)
         .service(update_user::update_user)
+        .service(update_password::update_password)
         .service(me::me);
     app.service(scope)
 }

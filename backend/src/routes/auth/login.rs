@@ -1,33 +1,33 @@
-use std::time::Instant;
-
 use actix_web::{cookie::Cookie, post, web, HttpResponse, Responder};
 use actix_web_validator::Json;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use chrono::{Duration, Utc};
 use db_connector::models::users::User;
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{prelude::*, r2d2::{ConnectionManager, PooledConnection}, result::Error::NotFound};
 
 use crate::{error::Error, models::{login::LoginSchema, token_claims::TokenClaims}, AppState};
 
+pub enum FindBy {
+    Uuid(uuid::Uuid),
+    Email(String),
+}
 
-#[post("/login")]
-pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Result<impl Responder, actix_web::Error> {
+pub async fn validate_password(pass: &str, identifier: FindBy, mut conn: PooledConnection<ConnectionManager<PgConnection>>) -> Result<uuid::Uuid, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
-    let now = Instant::now();
-
-    let mut conn = match state.pool.get() {
-        Ok(conn) => conn,
-        Err(_err) => {
-            return Err(Error::InternalError.into())
-        }
-    };
-
-    let mail = data.email.to_lowercase();
     let result = web::block(move|| {
-        users.filter(email.eq(mail))
-            .select(User::as_select())
-            .get_result(&mut conn)
+        match identifier {
+            FindBy::Email(mail) => {
+                users.filter(email.eq(mail))
+                    .select(User::as_select())
+                    .get_result(&mut conn)
+            },
+            FindBy::Uuid(uid) => {
+                users.find(uid)
+                    .select(User::as_select())
+                    .get_result(&mut conn)
+            }
+        }
     }).await.unwrap();
 
     let user: User = match result {
@@ -51,13 +51,26 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Resul
         }
     };
 
-    match Argon2::default().verify_password(data.password.as_bytes(), &password_hash) {
-        Ok(_) => (),
+    match Argon2::default().verify_password(pass.as_bytes(), &password_hash) {
+        Ok(_) => Ok(user.id),
         Err(_err) => {
-            println!("Took {}ms to verify password", now.elapsed().as_millis());
-            return Err(Error::WrongCredentials.into())
+            Err(Error::WrongCredentials.into())
         }
     }
+}
+
+#[post("/login")]
+pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Result<impl Responder, actix_web::Error> {
+
+    let conn = match state.pool.get() {
+        Ok(conn) => conn,
+        Err(_err) => {
+            return Err(Error::InternalError.into())
+        }
+    };
+
+    let mail = data.email.to_lowercase();
+    let uuid = validate_password(&data.password, FindBy::Email(mail), conn).await?;
 
     let max_token_age = 60;
 
@@ -67,7 +80,7 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Resul
     let claims = TokenClaims {
         iat,
         exp,
-        sub: user.id.to_string()
+        sub: uuid.to_string()
     };
 
     let token = match jsonwebtoken::encode(
@@ -98,14 +111,19 @@ pub(crate) mod tests {
     use crate::{routes::auth::{register::tests::{create_user, delete_user}, verify::tests::fast_verify}, tests::configure};
     use crate::defer;
 
-    pub async fn verify_and_login_user(mail: &str) -> String {
-        fast_verify(mail);
-
+    pub async fn login_user(mail: &str, password: Option<String>) -> String {
         let app = App::new().configure(configure ).service(login);
         let app = test::init_service(app).await;
+
+        let password = if let Some(pass) = password {
+            pass
+        } else {
+            "TestTestTest".to_string()
+        };
+
         let login_schema = LoginSchema {
             email: mail.to_string(),
-            password: "TestTestTest".to_string()
+            password: password
         };
         let req = test::TestRequest::post()
             .uri("/login")
@@ -125,6 +143,12 @@ pub(crate) mod tests {
         assert!(false);
 
         String::new()
+    }
+
+    pub async fn verify_and_login_user(mail: &str) -> String {
+        fast_verify(mail);
+
+        login_user(mail, None).await
     }
 
     #[actix_web::test]
