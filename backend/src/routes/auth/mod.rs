@@ -3,6 +3,7 @@ use actix_web::{dev::{ServiceFactory, ServiceRequest}, web, App, Error};
 pub(crate) mod register;
 pub(crate) mod login;
 pub(crate) mod verify;
+mod logout;
 
 
 pub fn register_auth_routes<T>(app: App<T>) -> App<T>
@@ -11,6 +12,7 @@ where
     let scope = web::scope("/auth")
         .service(register::register)
         .service(verify::verify)
+        .service(logout::logout)
         .service(login::login);
     app.service(scope)
 }
