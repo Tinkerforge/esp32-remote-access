@@ -1,5 +1,6 @@
 import { useLocation } from "preact-iso";
 import Nav from "react-bootstrap/Nav";
+import { BACKEND } from "../types";
 
 export function Sidebar() {
     const { url } = useLocation();
@@ -7,12 +8,14 @@ export function Sidebar() {
     const logout = async (e: Event) => {
         e.preventDefault();
 
-        await fetch("http://localhost:8081/auth/logout", {
+        await fetch(BACKEND + "/auth/logout", {
             credentials: "include"
         });
 
         window.location.reload();
     }
+
+    console.log("backend:", BACKEND);
 
     return (
         <div class="collapse bg-light col-lg-2 col-md-3 d-md-block navbar-collapse sidebar">

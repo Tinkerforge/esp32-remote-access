@@ -1,6 +1,7 @@
 import { Component } from "preact";
 import Button from "react-bootstrap/Button"
 import Form from "react-bootstrap/Form";
+import { BACKEND } from "../types";
 
 interface LoginSchema {
     email: string,
@@ -27,7 +28,7 @@ export class Login extends Component<{}, LoginSchema> {
                     e.stopPropagation();
                 }
 
-                let resp = await fetch("http://localhost:8081/auth/login", {
+                let resp = await fetch(BACKEND + "/auth/login", {
                     method: "POST",
                     body: JSON.stringify(this.state),
                     headers: {

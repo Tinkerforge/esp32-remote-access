@@ -1,5 +1,6 @@
 import { Component } from "preact";
 import { Button, Form, FormGroup } from "react-bootstrap"
+import { BACKEND } from "../types";
 
 interface RegisterSchema {
     name: string,
@@ -40,7 +41,7 @@ export class Register extends Component<{}, RegisterState> {
                     console.log("invalid");
                 }
 
-                fetch("http://localhost:8081/auth/register", {
+                fetch(BACKEND + "/auth/register", {
                     method: "POST",
                     body: JSON.stringify(this.state.data),
                     headers: {

@@ -3,6 +3,7 @@ import Form from "react-bootstrap/Form"
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import { useState } from "preact/hooks";
+import { BACKEND } from "../types";
 
 
 interface UserState {
@@ -31,7 +32,7 @@ class UserComponent extends Component<{}, State> {
             user: state,
         }
 
-        fetch("http://localhost:8081/user/me", {
+        fetch(BACKEND + "/user/me", {
             credentials: "include"
         }).then(async (r) => {
             if (r.status === 200) {
@@ -45,7 +46,7 @@ class UserComponent extends Component<{}, State> {
 
     submit = async (e: SubmitEvent) => {
         e.preventDefault();
-        const resp = await fetch("http://localhost:8081/user/update_user", {
+        const resp = await fetch(BACKEND + "/user/update_user", {
             method: "PUT",
             credentials: "include",
             headers: {
@@ -100,7 +101,7 @@ export function User() {
             new_pass: newPassword
         };
 
-        const resp = await fetch("http://localhost:8081/user/update_password", {
+        const resp = await fetch(BACKEND + "/user/update_password", {
             credentials: "include",
             method: "PUT",
             headers: {

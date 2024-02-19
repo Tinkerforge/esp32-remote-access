@@ -24,3 +24,5 @@ export interface ResponseMessage {
     headers: [string, string][],
     body: ArrayBuffer,
 }
+
+export const BACKEND = import.meta.env.VITE_BACKEND_URL;
