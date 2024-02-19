@@ -1,6 +1,6 @@
 use actix_web::{put, web, HttpResponse, Responder};
 use diesel::{prelude::*, result::Error::NotFound};
-
+use db_connector::models::users::User;
 use crate::{error::Error, models::filtered_user::FilteredUser, utils::get_connection, AppState};
 
 #[put("/update_user")]
@@ -13,6 +13,14 @@ pub async fn update_user(
 
     let mut conn = get_connection(&state)?;
     match web::block(move || {
+        match users.filter(email.eq(&user.email)).select(User::as_select()).get_result(&mut conn) {
+            Err(NotFound) => (),
+            Ok(_) => return Err(Error::AlreadyExists),
+            Err(_err) => {
+                return Err(Error::InternalError)
+            }
+        }
+
         match diesel::update(users.find::<uuid::Uuid>(uid.clone().into())).set(email.eq(&user.email)).execute(&mut conn) {
             Ok(_) => (),
             Err(NotFound) => return Err(Error::Unauthorized),
@@ -76,5 +84,32 @@ mod tests {
         assert!(resp.status().is_success());
 
         let _ = get_test_user(&update_mail);
+    }
+
+    #[actix_web::test]
+    async fn test_existing_mail() {
+        let mail = "update_mail_exists@test.invalid";
+        let mail2 = "update_mail_exists2@test.invalid";
+        create_user(mail).await;
+        defer!(delete_user(mail));
+        create_user(mail2).await;
+        defer!(delete_user(mail2));
+
+        let app = App::new().configure(configure ).service(update_user)
+            .wrap(crate::middleware::jwt::JwtMiddleware);
+        let app = test::init_service(app).await;
+
+        let user = get_test_user(mail);
+        let mut user = FilteredUser::from(user);
+        user.email = mail.to_string();
+
+        let token = verify_and_login_user(mail).await;
+        let req = test::TestRequest::put()
+            .uri("/update_user")
+            .set_json(user)
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_client_error());
     }
 }
