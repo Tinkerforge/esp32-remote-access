@@ -45,7 +45,6 @@ class UserComponent extends Component<{}, State> {
 
     submit = async (e: SubmitEvent) => {
         e.preventDefault();
-        console.log(this);
         const resp = await fetch("http://localhost:8081/user/update_user", {
             method: "PUT",
             credentials: "include",
@@ -76,7 +75,6 @@ class UserComponent extends Component<{}, State> {
                 <Form.Group className="pb-3" controlId="userName">
                     <Form.Label>Name</Form.Label>
                     <Form.Control type="text" value={this.state.user.name} onChange={(e) => {
-                        console.log(this);
                         this.setState({user: {...this.state.user, name: (e.target as HTMLInputElement).value}, isDirty: true});
                     }} />
                 </Form.Group>
