@@ -13,9 +13,13 @@ pub async fn update_user(
 
     let mut conn = get_connection(&state)?;
     match web::block(move || {
-        match users.filter(email.eq(&user.email)).select(User::as_select()).get_result(&mut conn) {
+        match users.filter(email.eq(&user.email)).select(User::as_select()).get_result(&mut conn) as Result<User, diesel::result::Error> {
             Err(NotFound) => (),
-            Ok(_) => return Err(Error::AlreadyExists),
+            Ok(u) => {
+                if u.id != uid.clone().into() {
+                    return Err(Error::AlreadyExists)
+                }
+            },
             Err(_err) => {
                 return Err(Error::InternalError)
             }
@@ -101,7 +105,7 @@ mod tests {
 
         let user = get_test_user(mail);
         let mut user = FilteredUser::from(user);
-        user.email = mail.to_string();
+        user.email = mail2.to_string();
 
         let token = verify_and_login_user(mail).await;
         let req = test::TestRequest::put()
