@@ -23,6 +23,7 @@ jsonwebtoken = "9.2.0"
 futures-util = "0.3.30"
 lettre = { version = "0.11.4", features = ["native-tls"] }
 derive_more = "0.99.17"
+simplelog = "0.12.1"
 
 [dev-dependencies]
 rand = "0.8.5"

@@ -4,13 +4,18 @@ mod middleware;
 mod utils;
 mod error;
 
-use actix_web::{web, App, HttpServer};
+use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::*;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use routes::register_routes;
+use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    CombinedLogger::init(
+        vec![TermLogger::new(LevelFilter::Debug, Config::default(), TerminalMode::Mixed, ColorChoice::Auto)]
+    ).unwrap();
+
     dotenv::dotenv().ok();
 
     let pool = get_connection_pool();
@@ -36,6 +41,7 @@ async fn main() -> std::io::Result<()> {
         let cors = actix_cors::Cors::permissive();
         let app = App::new()
             .wrap(cors)
+            .wrap(Logger::default())
             .app_data(state.clone());
 
         register_routes(app)
