@@ -68,3 +68,7 @@ export class Frame extends Component {
         )
     }
 }
+
+export function FrameFunction() {
+    return (<Frame/>);
+}

@@ -4,16 +4,17 @@ import { LocationProvider, Router, Route } from 'preact-iso';
 import { Sidebar } from './components/sidebar.js';
 import { Home } from './pages/Home/index.jsx';
 import { NotFound } from './pages/_404.jsx';
+import { Login } from './components/login.js';
+import { Register } from './components/register.js';
+import { FrameFunction } from './components/Frame.js';
+import { User } from './pages/user.js';
 import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
-import 'bootstrap/dist/css/bootstrap.min.css';
-import { User } from './pages/user.js';
-import * as cookie from "cookie";
 import Card from "react-bootstrap/Card";
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
-import { Login } from './components/login.js';
-import { Register } from './components/register.js';
+import * as cookie from "cookie";
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 
 export function App() {
@@ -49,6 +50,7 @@ export function App() {
                         <Router>
                             <Route path="/" component={Home} />
                             <Route path="/user" component={User} />
+                            <Route path="/frame" component={FrameFunction} />
                             <Route default component={NotFound} />
                         </Router>
                     </main>
