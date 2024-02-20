@@ -15,8 +15,6 @@ export function Sidebar() {
         window.location.reload();
     }
 
-    console.log("backend:", BACKEND);
-
     return (
         <div class="collapse bg-light col-lg-2 col-md-3 d-md-block navbar-collapse sidebar">
             <Nav className="flex-column col-2">
