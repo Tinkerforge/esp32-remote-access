@@ -22,13 +22,13 @@ pub fn hash_pass(password: &String) -> Result<String, String> {
 
 // This is shown as unused in vscode since vscode assumes you have tests enabled.
 #[allow(unused)]
-fn send_verification_mail(id: Verification, email: String, mailer: SmtpTransport) -> Result<(), actix_web::Error> {
+fn send_verification_mail(id: Verification, email: String, mailer: SmtpTransport, frontend_url: String) -> Result<(), actix_web::Error> {
     let email = Message::builder()
         .from("Warp <warp@tinkerforge.com>".parse().unwrap())
         .to(email.parse().unwrap())
         .subject("Verify email")
         .header(ContentType::TEXT_PLAIN)
-        .body(format!("http://localhost:8081/auth/verify?id={}", id.id.to_string()))
+        .body(format!("{}/api/auth/verify?id={}", frontend_url, id.id.to_string()))
         .unwrap();
 
 
@@ -107,7 +107,9 @@ pub async fn register(state: web::Data<AppState>, data: Json<RegisterSchema>) ->
 
         // maybe add mechanism to automatically retry?
         #[cfg(not(test))]
-        send_verification_mail(verify, mail, state.mailer.clone()).ok();
+        std::thread::spawn(move || {
+            send_verification_mail(verify, mail, state.mailer.clone(), state.frontend_url.clone()).ok();
+        });
 
         user_insert
     }).await {
