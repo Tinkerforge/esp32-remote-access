@@ -50,7 +50,7 @@ async fn create_ws_server(peer: Peer, udp_sock: Arc<UdpSocket>) -> anyhow::Resul
 
     let acceptor = tokio_native_tls::native_tls::TlsAcceptor::new(identity)?;
     let acceptor = TlsAcceptor::from(acceptor);
-    let listener = TcpListener::bind("0.0.0.0:8081").await?;
+    let listener = TcpListener::bind("0.0.0.0:8082").await?;
     tokio::spawn(async move {
         while let Ok((stream, addr)) = listener.accept().await {
             let tls_stream = match acceptor.accept(stream).await {
