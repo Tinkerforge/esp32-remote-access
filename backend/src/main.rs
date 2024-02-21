@@ -7,7 +7,6 @@ mod error;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::*;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
-use routes::register_routes;
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 
 #[actix_web::main]
@@ -39,12 +38,11 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         let cors = actix_cors::Cors::permissive();
-        let app = App::new()
+        App::new()
             .wrap(cors)
             .wrap(Logger::default())
-            .app_data(state.clone());
-
-        register_routes(app)
+            .app_data(state.clone())
+            .configure(routes::configure)
     })
     .bind("0.0.0.0:8081")?
     .run()

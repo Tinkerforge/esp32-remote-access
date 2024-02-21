@@ -1,13 +1,10 @@
 pub(crate) mod auth;
 mod user;
+mod wallbox;
 
-use actix_web::{dev::{ServiceFactory, ServiceRequest}, App, Error};
+use actix_web::web;
 
-
-pub fn register_routes<T>(app: App<T>) -> App<T>
-where
-    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>
-{
-    let app = user::register_user_routes(app);
-    auth::register_auth_routes(app)
+pub fn configure(cfg: &mut web::ServiceConfig) {
+    cfg.configure(user::configure);
+    cfg.configure(auth::configure);
 }
