@@ -3,70 +3,72 @@ use actix_web_validator::Json;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use chrono::{Duration, Utc};
 use db_connector::models::users::User;
-use diesel::{prelude::*, r2d2::{ConnectionManager, PooledConnection}, result::Error::NotFound};
+use diesel::{
+    prelude::*,
+    r2d2::{ConnectionManager, PooledConnection},
+    result::Error::NotFound,
+};
 
-use crate::{error::Error, models::{login::LoginSchema, token_claims::TokenClaims}, AppState};
+use crate::{
+    error::Error,
+    models::{login::LoginSchema, token_claims::TokenClaims},
+    AppState,
+};
 
 pub enum FindBy {
     Uuid(uuid::Uuid),
     Email(String),
 }
 
-pub async fn validate_password(pass: &str, identifier: FindBy, mut conn: PooledConnection<ConnectionManager<PgConnection>>) -> Result<uuid::Uuid, actix_web::Error> {
+pub async fn validate_password(
+    pass: &str,
+    identifier: FindBy,
+    mut conn: PooledConnection<ConnectionManager<PgConnection>>,
+) -> Result<uuid::Uuid, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
-    let result = web::block(move|| {
-        match identifier {
-            FindBy::Email(mail) => {
-                users.filter(email.eq(mail))
-                    .select(User::as_select())
-                    .get_result(&mut conn)
-            },
-            FindBy::Uuid(uid) => {
-                users.find(uid)
-                    .select(User::as_select())
-                    .get_result(&mut conn)
-            }
-        }
-    }).await.unwrap();
+    let result = web::block(move || match identifier {
+        FindBy::Email(mail) => users
+            .filter(email.eq(mail))
+            .select(User::as_select())
+            .get_result(&mut conn),
+        FindBy::Uuid(uid) => users
+            .find(uid)
+            .select(User::as_select())
+            .get_result(&mut conn),
+    })
+    .await
+    .unwrap();
 
     let user: User = match result {
         Ok(data) => data,
-        Err(NotFound) => {
-            return Err(Error::WrongCredentials.into())
-        },
-        Err(_err) => {
-            return Err(Error::InternalError.into())
-        }
+        Err(NotFound) => return Err(Error::WrongCredentials.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
     };
 
     if !user.email_verified {
-        return Err(Error::NotVerified.into())
+        return Err(Error::NotVerified.into());
     }
 
     let password_hash = match PasswordHash::new(&user.password) {
         Ok(hash) => hash,
-        Err(_err) => {
-            return Err(Error::InternalError.into())
-        }
+        Err(_err) => return Err(Error::InternalError.into()),
     };
 
     match Argon2::default().verify_password(pass.as_bytes(), &password_hash) {
         Ok(_) => Ok(user.id),
-        Err(_err) => {
-            Err(Error::WrongCredentials.into())
-        }
+        Err(_err) => Err(Error::WrongCredentials.into()),
     }
 }
 
 #[post("/login")]
-pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Result<impl Responder, actix_web::Error> {
-
+pub async fn login(
+    state: web::Data<AppState>,
+    data: Json<LoginSchema>,
+) -> Result<impl Responder, actix_web::Error> {
     let conn = match state.pool.get() {
         Ok(conn) => conn,
-        Err(_err) => {
-            return Err(Error::InternalError.into())
-        }
+        Err(_err) => return Err(Error::InternalError.into()),
     };
 
     let mail = data.email.to_lowercase();
@@ -80,18 +82,16 @@ pub async fn login(state: web::Data<AppState>, data: Json<LoginSchema>) -> Resul
     let claims = TokenClaims {
         iat,
         exp,
-        sub: uuid.to_string()
+        sub: uuid.to_string(),
     };
 
     let token = match jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),
         &claims,
-        &jsonwebtoken::EncodingKey::from_secret(state.jwt_secret.as_ref())
+        &jsonwebtoken::EncodingKey::from_secret(state.jwt_secret.as_ref()),
     ) {
         Ok(token) => token,
-        Err(_err) => {
-            return Err(Error::InternalError.into())
-        }
+        Err(_err) => return Err(Error::InternalError.into()),
     };
 
     let cookie = Cookie::build("access_token", token)
@@ -108,11 +108,17 @@ pub(crate) mod tests {
     use actix_web::{http::header::ContentType, test, App};
 
     use super::*;
-    use crate::{routes::auth::{register::tests::{create_user, delete_user}, verify::tests::fast_verify}, tests::configure};
     use crate::defer;
+    use crate::{
+        routes::auth::{
+            register::tests::{create_user, delete_user},
+            verify::tests::fast_verify,
+        },
+        tests::configure,
+    };
 
     pub async fn login_user(mail: &str, password: Option<String>) -> String {
-        let app = App::new().configure(configure ).service(login);
+        let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
 
         let password = if let Some(pass) = password {
@@ -123,7 +129,7 @@ pub(crate) mod tests {
 
         let login_schema = LoginSchema {
             email: mail.to_string(),
-            password: password
+            password: password,
         };
         let req = test::TestRequest::post()
             .uri("/login")
@@ -139,7 +145,7 @@ pub(crate) mod tests {
             if cookie.name() == "access_token" {
                 return cookie.value().to_string();
             }
-        };
+        }
         assert!(false);
 
         String::new()
@@ -157,11 +163,11 @@ pub(crate) mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let app = App::new().configure(configure ).service(login);
+        let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
             email: mail.to_string(),
-            password: "TestTestTest".to_string()
+            password: "TestTestTest".to_string(),
         };
         fast_verify(mail);
 
@@ -191,11 +197,11 @@ pub(crate) mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let app = App::new().configure(configure ).service(login);
+        let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
             email: "invalid@test.invalid".to_string(),
-            password: "TestTestTest".to_string()
+            password: "TestTestTest".to_string(),
         };
         fast_verify(mail);
 
@@ -220,11 +226,11 @@ pub(crate) mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let app = App::new().configure(configure ).service(login);
+        let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
             email: "invalid_pass@test.invalid".to_string(),
-            password: "TestTestTest1".to_string()
+            password: "TestTestTest1".to_string(),
         };
         fast_verify(mail);
 
@@ -250,11 +256,11 @@ pub(crate) mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let app = App::new().configure(configure ).service(login);
+        let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
             email: mail.to_string(),
-            password: "TestTestTest".to_string()
+            password: "TestTestTest".to_string(),
         };
 
         let req = test::TestRequest::post()

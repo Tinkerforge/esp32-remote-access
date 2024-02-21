@@ -1,6 +1,11 @@
 use std::str::FromStr;
 
-use actix_web::{error::ErrorBadRequest, get, web::{self, Redirect}, Responder};
+use actix_web::{
+    error::ErrorBadRequest,
+    get,
+    web::{self, Redirect},
+    Responder,
+};
 use db_connector::models::verification::Verification;
 use diesel::prelude::*;
 use serde::Deserialize;
@@ -14,33 +19,34 @@ struct Query {
 
 #[get("/verify")]
 pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl Responder {
-    use crate::schema::verification::dsl::* ;
     use crate::schema::users::dsl::*;
+    use crate::schema::verification::dsl::*;
 
     let mut conn = get_connection(&state)?;
 
     let verify_id = match uuid::Uuid::from_str(&ver.id) {
         Ok(verify_id) => verify_id,
-        Err(err) => {
-            return Err(ErrorBadRequest(err))
-        }
+        Err(err) => return Err(ErrorBadRequest(err)),
     };
 
     let result = match web::block(move || {
-        verification.filter(crate::schema::verification::id.eq(verify_id))
+        verification
+            .filter(crate::schema::verification::id.eq(verify_id))
             .select(Verification::as_select())
             .get_result(&mut conn)
-    }).await {
+    })
+    .await
+    {
         Ok(result) => result,
-        Err(_err) => {
-            return Err(Error::InternalError.into())
-        }
+        Err(_err) => return Err(Error::InternalError.into()),
     };
 
     let verify: Verification = match result {
         Ok(verify) => verify,
         Err(_err) => {
-            return Err(ErrorBadRequest("Account was already veryfied or does not exist"))
+            return Err(ErrorBadRequest(
+                "Account was already veryfied or does not exist",
+            ))
         }
     };
 
@@ -49,23 +55,25 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
     match web::block(move || {
         if let Err(_err) = diesel::update(users.find(verify.user))
             .set(email_verified.eq(true))
-            .execute(&mut conn) {
-                    return Err::<(), Error>(Error::InternalError.into())
+            .execute(&mut conn)
+        {
+            return Err::<(), Error>(Error::InternalError.into());
         }
 
         if let Err(_err) = diesel::delete(verification.find(verify.id)).execute(&mut conn) {
-            return Err::<(), Error>(Error::InternalError.into())
+            return Err::<(), Error>(Error::InternalError.into());
         }
 
-       Ok(())
-    }).await {
+        Ok(())
+    })
+    .await
+    {
         Ok(res) => match res {
             Ok(()) => (),
-            Err(err) => return Err(err.into())
+            Err(err) => return Err(err.into()),
         },
-        Err(_) => return Err(Error::InternalError.into())
+        Err(_) => return Err(Error::InternalError.into()),
     }
-
 
     Ok(Redirect::to(state.frontend_url.clone()))
 }
@@ -74,9 +82,18 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
 pub(crate) mod tests {
     use actix_web::{test, App};
     use db_connector::models::{users::User, verification::Verification};
-    use diesel::{prelude::*, r2d2::{ConnectionManager, PooledConnection}, result::Error::NotFound, PgConnection, SelectableHelper};
+    use diesel::{
+        prelude::*,
+        r2d2::{ConnectionManager, PooledConnection},
+        result::Error::NotFound,
+        PgConnection, SelectableHelper,
+    };
 
-    use crate::{defer, routes::auth::register::tests::{create_user, delete_user}, tests::configure};
+    use crate::{
+        defer,
+        routes::auth::register::tests::{create_user, delete_user},
+        tests::configure,
+    };
 
     pub fn fast_verify(mail: &str) {
         use crate::schema::users::dsl::*;
@@ -86,27 +103,50 @@ pub(crate) mod tests {
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
         let verify = get_verify_id(&mut conn, mail);
-        diesel::delete(verification.find(verify)).execute(&mut conn).unwrap();
-        diesel::update(users.filter(email.eq(mail))).set(email_verified.eq(true)).execute(&mut conn).unwrap();
+        diesel::delete(verification.find(verify))
+            .execute(&mut conn)
+            .unwrap();
+        diesel::update(users.filter(email.eq(mail)))
+            .set(email_verified.eq(true))
+            .execute(&mut conn)
+            .unwrap();
     }
 
-    fn get_verify_id(conn: &mut PooledConnection<ConnectionManager<PgConnection>>, mail: &str) -> uuid::Uuid {
-        use crate::schema::users::dsl::{users, email};
+    fn get_verify_id(
+        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+        mail: &str,
+    ) -> uuid::Uuid {
+        use crate::schema::users::dsl::{email, users};
         use crate::schema::verification::dsl::*;
 
-        let u: User = users.filter(email.eq(mail)).select(User::as_select()).get_result(conn).unwrap();
-        let verify: Verification = verification.filter(user.eq(u.id)).select(Verification::as_select()).get_result(conn).unwrap();
+        let u: User = users
+            .filter(email.eq(mail))
+            .select(User::as_select())
+            .get_result(conn)
+            .unwrap();
+        let verify: Verification = verification
+            .filter(user.eq(u.id))
+            .select(Verification::as_select())
+            .get_result(conn)
+            .unwrap();
 
         verify.id
     }
 
-    fn check_for_verify(conn: &mut PooledConnection<ConnectionManager<PgConnection>>, verify: &uuid::Uuid) -> bool {
+    fn check_for_verify(
+        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+        verify: &uuid::Uuid,
+    ) -> bool {
         use crate::schema::verification::dsl::*;
 
-        match verification.find(verify).select(Verification::as_select()).get_result(conn) {
+        match verification
+            .find(verify)
+            .select(Verification::as_select())
+            .get_result(conn)
+        {
             Ok(_) => true,
             Err(NotFound) => false,
-            Err(err) => panic!("Something went wrong: {}", err)
+            Err(err) => panic!("Something went wrong: {}", err),
         }
     }
 

@@ -1,17 +1,21 @@
-use std::future::{ready, Ready};
-use actix_web::{dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform}, error::{ErrorInternalServerError, ErrorUnauthorized}, http, web, Error, FromRequest, HttpMessage, HttpRequest};
+use actix_web::{
+    dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform},
+    error::{ErrorInternalServerError, ErrorUnauthorized},
+    http, web, Error, FromRequest, HttpMessage, HttpRequest,
+};
 use futures_util::future::LocalBoxFuture;
 use jsonwebtoken::{decode, DecodingKey, Validation};
+use std::future::{ready, Ready};
 
 use crate::{models::token_claims::TokenClaims, AppState};
 
 pub struct JwtMiddleware;
 
-impl <S, B> Transform<S, ServiceRequest> for JwtMiddleware
+impl<S, B> Transform<S, ServiceRequest> for JwtMiddleware
 where
-     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-     S::Future: 'static,
-     B: 'static
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Error = Error;
     type Response = ServiceResponse<B>;
@@ -30,9 +34,8 @@ impl FromRequest for JwtMiddleware {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-
         if let Err(err) = validate_token(req) {
-            return ready(Err(err))
+            return ready(Err(err));
         }
 
         ready(Ok(JwtMiddleware {}))
@@ -45,7 +48,7 @@ pub struct JwtService<S> {
 
 impl<S, B> Service<ServiceRequest> for JwtService<S>
 where
-    S: Service<ServiceRequest, Response= ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
@@ -57,15 +60,11 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         if let Err(err) = validate_token(req.request()) {
-            return Box::pin(async move {
-                Err(err)
-            })
+            return Box::pin(async move { Err(err) });
         }
 
         let fut = self.service.call(req);
-        Box::pin(async move {
-            fut.await
-        })
+        Box::pin(async move { fut.await })
     }
 }
 
@@ -80,30 +79,25 @@ fn validate_token(req: &HttpRequest) -> Result<(), Error> {
         });
 
     if token.is_none() {
-        return Err(ErrorUnauthorized(""))
+        return Err(ErrorUnauthorized(""));
     }
 
     let data = req.app_data::<web::Data<AppState>>().unwrap();
     let claims = match decode::<TokenClaims>(
         &token.unwrap(),
         &DecodingKey::from_secret(data.jwt_secret.as_bytes()),
-        &Validation::default()
+        &Validation::default(),
     ) {
         Ok(claims) => claims.claims,
-        Err(_err) => {
-            return Err(ErrorUnauthorized(""))
-        }
+        Err(_err) => return Err(ErrorUnauthorized("")),
     };
 
     let user_id = match uuid::Uuid::parse_str(claims.sub.as_str()) {
         Ok(id) => id,
-        Err(_err) => {
-            return Err(ErrorInternalServerError(""))
-        }
+        Err(_err) => return Err(ErrorInternalServerError("")),
     };
 
-    req.extensions_mut()
-    .insert::<uuid::Uuid>(user_id);
+    req.extensions_mut().insert::<uuid::Uuid>(user_id);
 
     Ok(())
 }
@@ -111,11 +105,17 @@ fn validate_token(req: &HttpRequest) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        defer,
+        routes::auth::{
+            login::tests::verify_and_login_user,
+            register::tests::{create_user, delete_user},
+        },
+        tests::configure,
+    };
     use actix_web::{cookie::Cookie, get, test, App, Responder};
     use chrono::{Duration, Utc};
     use rand::{distributions::Alphanumeric, Rng};
-    use crate::{defer, routes::auth::{login::tests::verify_and_login_user, register::tests::{create_user, delete_user}}, tests::configure};
-
 
     #[get("/hello")]
     async fn with_extractor(_: JwtMiddleware) -> impl Responder {
@@ -137,7 +137,7 @@ mod tests {
 
         let token = verify_and_login_user(mail).await;
 
-        let app = App::new().configure(configure ).service(with_extractor);
+        let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
 
         let cookie = Cookie::new("access_token", token);
@@ -158,7 +158,10 @@ mod tests {
 
         let token = verify_and_login_user(mail).await;
 
-        let app = App::new().configure(configure ).service(without_extractor).wrap(JwtMiddleware);
+        let app = App::new()
+            .configure(configure)
+            .service(without_extractor)
+            .wrap(JwtMiddleware);
         let app = test::init_service(app).await;
 
         let cookie = Cookie::new("access_token", token);
@@ -177,12 +180,10 @@ mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let app = App::new().configure(configure ).service(with_extractor);
+        let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
 
-        let req = test::TestRequest::get()
-            .uri("/hello")
-            .to_request();
+        let req = test::TestRequest::get().uri("/hello").to_request();
 
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_client_error());
@@ -194,12 +195,13 @@ mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let app = App::new().configure(configure ).service(without_extractor).wrap(JwtMiddleware);
+        let app = App::new()
+            .configure(configure)
+            .service(without_extractor)
+            .wrap(JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let req = test::TestRequest::get()
-            .uri("/hello")
-            .to_request();
+        let req = test::TestRequest::get().uri("/hello").to_request();
 
         let resp = test::try_call_service(&app, req).await;
         assert!(resp.is_err());
@@ -211,7 +213,7 @@ mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let app = App::new().configure(configure ).service(with_extractor);
+        let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
 
         let token: String = rand::thread_rng()
@@ -235,7 +237,7 @@ mod tests {
         create_user(mail).await;
         defer!(delete_user(mail));
 
-        let app = App::new().configure(configure ).service(with_extractor);
+        let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
 
         let id = uuid::Uuid::new_v4();
@@ -245,21 +247,21 @@ mod tests {
         let claims = TokenClaims {
             iat,
             exp,
-            sub: id.to_string()
+            sub: id.to_string(),
         };
 
         let jwt_secret: String = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(1024)
-        .map(char::from)
-        .collect();
+            .sample_iter(&Alphanumeric)
+            .take(1024)
+            .map(char::from)
+            .collect();
 
         let token = jsonwebtoken::encode(
             &jsonwebtoken::Header::default(),
             &claims,
-            &jsonwebtoken::EncodingKey::from_secret(jwt_secret.as_ref())
-        ).unwrap();
-
+            &jsonwebtoken::EncodingKey::from_secret(jwt_secret.as_ref()),
+        )
+        .unwrap();
 
         let req = test::TestRequest::get()
             .uri("/hello")

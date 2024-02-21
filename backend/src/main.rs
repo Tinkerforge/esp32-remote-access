@@ -1,8 +1,8 @@
-mod routes;
-mod models;
-mod middleware;
-mod utils;
 mod error;
+mod middleware;
+mod models;
+mod routes;
+mod utils;
 
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::*;
@@ -11,9 +11,13 @@ use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, Te
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    CombinedLogger::init(
-        vec![TermLogger::new(LevelFilter::Debug, Config::default(), TerminalMode::Mixed, ColorChoice::Auto)]
-    ).unwrap();
+    CombinedLogger::init(vec![TermLogger::new(
+        LevelFilter::Debug,
+        Config::default(),
+        TerminalMode::Mixed,
+        ColorChoice::Auto,
+    )])
+    .unwrap();
 
     dotenv::dotenv().ok();
 
@@ -62,9 +66,9 @@ pub(crate) mod tests {
     use actix_web::web::ServiceConfig;
 
     pub struct ScopeCall<F: FnMut()> {
-        pub c: F
+        pub c: F,
     }
-    impl <F: FnMut()> Drop for ScopeCall<F> {
+    impl<F: FnMut()> Drop for ScopeCall<F> {
         fn drop(&mut self) {
             (self.c)();
         }
@@ -73,7 +77,11 @@ pub(crate) mod tests {
     #[macro_export]
     macro_rules! defer {
         ($e:expr) => {
-            let _scope_call = crate::tests::ScopeCall { c: || -> () { $e; }};
+            let _scope_call = crate::tests::ScopeCall {
+                c: || -> () {
+                    $e;
+                },
+            };
         };
     }
 
@@ -87,7 +95,6 @@ pub(crate) mod tests {
             .port(465)
             .credentials(Credentials::new(mail, pass))
             .build();
-
 
         let state = AppState {
             pool,

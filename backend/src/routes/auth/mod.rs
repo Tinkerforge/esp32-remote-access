@@ -1,9 +1,9 @@
 use actix_web::web::{self, ServiceConfig};
 
-pub(crate) mod register;
 pub(crate) mod login;
-pub(crate) mod verify;
 mod logout;
+pub(crate) mod register;
+pub(crate) mod verify;
 
 pub fn configure(cfg: &mut ServiceConfig) {
     let scope = web::scope("/auth")

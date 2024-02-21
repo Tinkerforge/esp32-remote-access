@@ -1,4 +1,8 @@
-use actix_web::{error, http::{header::ContentType, StatusCode}, HttpResponse};
+use actix_web::{
+    error,
+    http::{header::ContentType, StatusCode},
+    HttpResponse,
+};
 use derive_more::{Display, Error};
 
 #[derive(Debug, Display, Error)]
@@ -12,7 +16,7 @@ pub enum Error {
     #[display(fmt = "Not verified")]
     NotVerified,
     #[display(fmt = "")]
-    Unauthorized
+    Unauthorized,
 }
 
 impl error::ResponseError for Error {

@@ -16,7 +16,7 @@ impl From<User> for FilteredUser {
         FilteredUser {
             id: value.id.to_string(),
             name: value.name,
-            email: value.email
+            email: value.email,
         }
     }
 }

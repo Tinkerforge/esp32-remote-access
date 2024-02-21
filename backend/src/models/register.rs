@@ -8,5 +8,5 @@ pub struct RegisterSchema {
     #[validate(email)]
     pub email: String,
     #[validate(length(min = 12))]
-    pub password: String
+    pub password: String,
 }

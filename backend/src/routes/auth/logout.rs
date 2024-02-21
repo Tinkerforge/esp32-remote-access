@@ -1,4 +1,7 @@
-use actix_web::{cookie::{time::Duration, Cookie}, get, HttpResponse, Responder};
+use actix_web::{
+    cookie::{time::Duration, Cookie},
+    get, HttpResponse, Responder,
+};
 
 #[get("/logout")]
 pub async fn logout() -> impl Responder {
