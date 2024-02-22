@@ -21,7 +21,7 @@ pub async fn update_user(
             Err(NotFound) => (),
             Ok(u) => {
                 if u.id != uid.clone().into() {
-                    return Err(Error::AlreadyExists);
+                    return Err(Error::UserAlreadyExists);
                 }
             }
             Err(_err) => return Err(Error::InternalError),

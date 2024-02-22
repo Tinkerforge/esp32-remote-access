@@ -72,7 +72,7 @@ pub async fn register(
 
     match result {
         Err(NotFound) => (),
-        Ok(_result) => return Err(Error::AlreadyExists.into()),
+        Ok(_result) => return Err(Error::UserAlreadyExists.into()),
         Err(_err) => return Err(Error::InternalError.into()),
     };
 

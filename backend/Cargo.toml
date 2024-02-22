@@ -24,9 +24,12 @@ futures-util = "0.3.30"
 lettre = { version = "0.11.4", features = ["native-tls"] }
 derive_more = "0.99.17"
 simplelog = "0.12.1"
+base64 = "0.21.7"
 
 [dev-dependencies]
 rand = "0.8.5"
+boringtun = "0.6.0"
+rand_core = "0.6.4"
 
 [profile.release]
 opt-level = 3

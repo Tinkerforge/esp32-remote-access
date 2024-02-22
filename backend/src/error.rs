@@ -10,13 +10,15 @@ pub enum Error {
     #[display(fmt = "An internal error occured. Please try again later")]
     InternalError,
     #[display(fmt = "An account with this email already exists")]
-    AlreadyExists,
+    UserAlreadyExists,
     #[display(fmt = "Wrong username or password")]
     WrongCredentials,
     #[display(fmt = "Not verified")]
     NotVerified,
-    #[display(fmt = "")]
+    #[display(fmt = "Internal Server Error")]
     Unauthorized,
+    #[display(fmt = "This charger already exists")]
+    ChargerAlreadyExists,
 }
 
 impl error::ResponseError for Error {
@@ -29,10 +31,11 @@ impl error::ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match *self {
             Self::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::AlreadyExists => StatusCode::CONFLICT,
+            Self::UserAlreadyExists => StatusCode::CONFLICT,
             Self::WrongCredentials => StatusCode::BAD_REQUEST,
             Self::NotVerified => StatusCode::UNAUTHORIZED,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::ChargerAlreadyExists => StatusCode::CONFLICT,
         }
     }
 }
