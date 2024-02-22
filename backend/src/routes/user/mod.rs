@@ -59,7 +59,7 @@ pub async fn get_user(
 
     let mut conn = get_connection(state)?;
 
-    match web::block(move || {
+    web_block_unpacked(move || {
         match users
             .find(uid)
             .select(User::as_select())
@@ -71,13 +71,6 @@ pub async fn get_user(
         }
     })
     .await
-    {
-        Ok(res) => match res {
-            Ok(u) => Ok(u),
-            Err(err) => Err(err.into()),
-        },
-        Err(_err) => Err(crate::error::Error::InternalError.into()),
-    }
 }
 
 #[cfg(test)]
@@ -85,6 +78,9 @@ pub mod tests {
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
 
+    use crate::routes::{auth::{login::tests::login_user, register::tests::{create_user, delete_user}, verify::tests::fast_verify}, charger::add::tests::add_test_charger};
+
+    // Get the uuid for an test user.
     pub fn get_test_uuid(mail: &str) -> uuid::Uuid {
         use crate::schema::users::dsl::*;
 
@@ -97,5 +93,42 @@ pub mod tests {
             .unwrap();
 
         user.id
+    }
+
+    pub struct TestUser {
+        mail: String,
+        charger: Vec<String>,
+        token: Option<String>,
+    }
+
+    impl TestUser {
+        pub async fn new(mail: &str) -> Self {
+            create_user(mail).await;
+            fast_verify(mail);
+            TestUser {
+                mail: mail.to_string(),
+                charger: Vec::new(),
+                token: None
+            }
+        }
+
+        pub async fn login(&mut self) -> &str {
+            if self.token.is_some() {
+                return self.token.as_ref().unwrap()
+            }
+            self.token = Some(login_user(&self.mail, None).await);
+            self.token.as_ref().unwrap()
+        }
+
+        pub async fn add_charger(&mut self, name: &str) {
+            add_test_charger(name, self.token.as_ref().unwrap()).await;
+            self.charger.push(name.to_string());
+        }
+    }
+
+    impl Drop for TestUser {
+        fn drop(&mut self) {
+            delete_user(&self.mail);
+        }
     }
 }
