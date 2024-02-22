@@ -171,7 +171,7 @@ async fn add_wg_key(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use boringtun::x25519;
@@ -191,7 +191,7 @@ mod tests {
         tests::configure,
     };
 
-    fn remove_keys(mail: &str) {
+    fn remove_test_keys(mail: &str) {
         use crate::schema::wg_keys::dsl::*;
 
         let uid = get_test_uuid(mail);
@@ -204,7 +204,7 @@ mod tests {
         println!("remove keys: {}", test);
     }
 
-    fn remove_allowed_users(cid: &str) {
+    fn remove_allowed_test_users(cid: &str) {
         use crate::schema::allowed_users::dsl::*;
 
         let pool = test_connection_pool();
@@ -214,7 +214,7 @@ mod tests {
             .unwrap();
     }
 
-    fn remove_charger(cid: &str) {
+    fn remove_test_charger(cid: &str) {
         use crate::schema::chargers::dsl::*;
 
         let pool = test_connection_pool();
@@ -236,6 +236,32 @@ mod tests {
         }
 
         keys
+    }
+
+    pub async fn add_test_charger(name: &str, token: &str) {
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(add);
+        let app = test::init_service(app).await;
+
+        let keys = generate_keys();
+        let charger = AddChargerSchema {
+            charger: ChargerSchema {
+                id: name.to_string(),
+                name: name.to_string(),
+            },
+            keys,
+        };
+
+        let req = test::TestRequest::post()
+            .uri("/add")
+            .cookie(Cookie::new("access_token", token))
+            .set_json(charger)
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
     }
 
     #[actix_web::test]
@@ -268,9 +294,9 @@ mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        remove_keys(mail);
-        remove_allowed_users(&cid);
-        remove_charger(&cid);
+        remove_test_keys(mail);
+        remove_allowed_test_users(&cid);
+        remove_test_charger(&cid);
         assert!(resp.status().is_success());
     }
 
