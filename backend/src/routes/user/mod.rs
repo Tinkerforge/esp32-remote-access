@@ -45,3 +45,23 @@ pub async fn get_user(
         Err(_err) => Err(crate::error::Error::InternalError.into()),
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use db_connector::{models::users::User, test_connection_pool};
+    use diesel::prelude::*;
+
+    pub fn get_uid(mail: &str) -> uuid::Uuid {
+        use crate::schema::users::dsl::*;
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        let user: User = users
+            .filter(email.eq(mail))
+            .select(User::as_select())
+            .get_result(&mut conn)
+            .unwrap();
+
+        user.id
+    }
+}
