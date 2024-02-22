@@ -1,5 +1,5 @@
 pub(crate) mod auth;
-mod charger;
+pub(crate) mod charger;
 mod user;
 
 use actix_web::web;
