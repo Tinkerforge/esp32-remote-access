@@ -4,7 +4,7 @@ use diesel::{
     PgConnection,
 };
 
-use crate::AppState;
+use crate::{error::Error, AppState};
 
 pub fn get_connection(
     state: &web::Data<AppState>,
@@ -12,5 +12,19 @@ pub fn get_connection(
     match state.pool.get() {
         Ok(conn) => Ok(conn),
         Err(_err) => Err(ErrorInternalServerError("")),
+    }
+}
+
+pub async fn web_block_unpacked<F, R>(f: F) -> Result<R, actix_web::Error>
+where
+    F: FnOnce() -> Result<R, Error> + Send + 'static,
+    R: Send + 'static,
+{
+    match web::block(f).await {
+        Ok(res) => match res {
+            Ok(v) => Ok(v),
+            Err(err) => Err(err.into()),
+        },
+        Err(_err) => Err(Error::InternalError.into()),
     }
 }
