@@ -5,6 +5,7 @@ use diesel::{deserialize::Queryable, Selectable, prelude::Insertable};
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct WgKey {
     pub id: uuid::Uuid,
+    pub user_id: uuid::Uuid,
     pub charger: String,
     pub in_use: bool,
     pub charger_pub: String,

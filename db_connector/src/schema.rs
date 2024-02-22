@@ -37,6 +37,7 @@ diesel::table! {
 diesel::table! {
     wg_keys (id) {
         id -> Uuid,
+        user_id -> Uuid,
         charger -> Varchar,
         in_use -> Bool,
         charger_pub -> Varchar,
@@ -48,6 +49,7 @@ diesel::joinable!(allowed_users -> chargers (charger));
 diesel::joinable!(allowed_users -> users (user));
 diesel::joinable!(verification -> users (user));
 diesel::joinable!(wg_keys -> chargers (charger));
+diesel::joinable!(wg_keys -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     allowed_users,
