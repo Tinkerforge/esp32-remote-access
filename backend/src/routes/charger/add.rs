@@ -186,7 +186,7 @@ mod tests {
                 login::tests::verify_and_login_user,
                 register::tests::{create_user, delete_user},
             },
-            user::tests::get_uid,
+            user::tests::get_test_uuid,
         },
         tests::configure,
     };
@@ -194,7 +194,7 @@ mod tests {
     fn remove_keys(mail: &str) {
         use crate::schema::wg_keys::dsl::*;
 
-        let uid = get_uid(mail);
+        let uid = get_test_uuid(mail);
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();

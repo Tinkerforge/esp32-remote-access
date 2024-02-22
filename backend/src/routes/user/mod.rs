@@ -51,7 +51,7 @@ pub mod tests {
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
 
-    pub fn get_uid(mail: &str) -> uuid::Uuid {
+    pub fn get_test_uuid(mail: &str) -> uuid::Uuid {
         use crate::schema::users::dsl::*;
 
         let pool = test_connection_pool();
