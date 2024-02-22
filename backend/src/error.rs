@@ -19,6 +19,8 @@ pub enum Error {
     Unauthorized,
     #[display(fmt = "This charger already exists")]
     ChargerAlreadyExists,
+    #[display(fmt = "User does not exist")]
+    UserDoesNotExist,
 }
 
 impl error::ResponseError for Error {
@@ -36,6 +38,7 @@ impl error::ResponseError for Error {
             Self::NotVerified => StatusCode::UNAUTHORIZED,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::ChargerAlreadyExists => StatusCode::CONFLICT,
+            Self::UserDoesNotExist => StatusCode::BAD_REQUEST,
         }
     }
 }
