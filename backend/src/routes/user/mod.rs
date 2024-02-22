@@ -2,10 +2,15 @@ mod me;
 mod update_password;
 mod update_user;
 
-use crate::{middleware::jwt::JwtMiddleware, utils::get_connection, AppState};
+use crate::{
+    error::Error,
+    middleware::jwt::JwtMiddleware,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 use actix_web::web::{self, ServiceConfig};
 use db_connector::models::users::User;
-use diesel::result::Error::NotFound;
+use diesel::{prelude::*, result::Error::NotFound, ExpressionMethods};
 
 pub fn configure(cfg: &mut ServiceConfig) {
     let scope = web::scope("/user")
@@ -16,6 +21,35 @@ pub fn configure(cfg: &mut ServiceConfig) {
     cfg.service(scope);
 }
 
+/**
+ * Lookup the corresponding Uuid for an email.
+ */
+pub async fn get_uuid_from_email(
+    state: &web::Data<AppState>,
+    mail: String,
+) -> Result<uuid::Uuid, actix_web::Error> {
+    use crate::schema::users::dsl::*;
+
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        let user: User = match users
+            .filter(email.eq(mail))
+            .select(User::as_select())
+            .get_result(&mut conn)
+        {
+            Ok(user) => user,
+            Err(NotFound) => return Err(Error::UserDoesNotExist),
+            Err(_err) => return Err(Error::InternalError),
+        };
+
+        Ok(user.id)
+    })
+    .await
+}
+
+/**
+ * Get a User by its Uuid
+ */
 pub async fn get_user(
     state: &web::Data<AppState>,
     uid: uuid::Uuid,
