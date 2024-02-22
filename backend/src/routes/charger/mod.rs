@@ -13,7 +13,9 @@ use db_connector::models::allowed_users::AllowedUser;
 use diesel::prelude::*;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    let scope = web::scope("/wallbox").wrap(JwtMiddleware).service(add::add);
+    let scope = web::scope("/wallbox").wrap(JwtMiddleware)
+        .service(add::add)
+        .service(remove::remove);
     cfg.service(scope);
 }
 
