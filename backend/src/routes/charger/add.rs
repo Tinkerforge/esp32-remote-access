@@ -2,15 +2,18 @@ use actix_web::{post, web, HttpResponse, Responder};
 use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
 use diesel::{prelude::*, result::Error::NotFound};
+use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
 use validator::{Validate, ValidationError};
 
 use crate::{error::Error, utils::get_connection, AppState};
 
-#[derive(Serialize, Deserialize, Clone, Default, Validate)]
+#[derive(Serialize, Deserialize, Clone, Validate)]
 struct Keys {
     web_private: String,
     charger_public: String,
+    web_address: IpNetwork,
+    charger_address: IpNetwork,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -148,6 +151,8 @@ async fn add_wg_key(
         in_use: false,
         charger_pub: keys.charger_public,
         user_private: keys.web_private,
+        web_address: keys.web_address,
+        charger_address: keys.charger_address,
     };
 
     match web::block(move || {
@@ -172,9 +177,12 @@ async fn add_wg_key(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::mem::MaybeUninit;
+
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use boringtun::x25519;
+    use ipnetwork::Ipv4Network;
     use rand_core::OsRng;
 
     use crate::{
@@ -193,17 +201,19 @@ pub(crate) mod tests {
     };
 
     fn generate_keys() -> [Keys; 5] {
-        let mut keys: [Keys; 5] = Default::default();
+        let mut keys: [MaybeUninit<Keys>; 5] = unsafe { MaybeUninit::uninit().assume_init() };
         for key in keys.iter_mut() {
             let secret = x25519::StaticSecret::random_from_rng(OsRng);
             let public = x25519::PublicKey::from(&secret);
-            *key = Keys {
+            *key = MaybeUninit::new(Keys {
                 web_private: BASE64_STANDARD.encode(secret),
                 charger_public: BASE64_STANDARD.encode(public),
-            }
+                charger_address: IpNetwork::V4(Ipv4Network::new("123.123.123.123".parse().unwrap(), 24).unwrap()),
+                web_address: IpNetwork::V4(Ipv4Network::new("123.123.123.122".parse().unwrap(), 24).unwrap())
+            })
         }
 
-        keys
+        unsafe { std::mem::transmute::<_, [Keys; 5]>(keys) }
     }
 
     pub async fn add_test_charger(name: &str, token: &str) {

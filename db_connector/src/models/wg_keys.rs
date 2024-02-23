@@ -1,4 +1,5 @@
 use diesel::{deserialize::Queryable, Selectable, prelude::Insertable};
+use ipnetwork::IpNetwork;
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::wg_keys)]
@@ -9,5 +10,7 @@ pub struct WgKey {
     pub charger: String,
     pub in_use: bool,
     pub charger_pub: String,
-    pub user_private: String
+    pub user_private: String,
+    pub web_address: IpNetwork,
+    pub charger_address: IpNetwork,
 }

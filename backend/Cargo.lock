@@ -342,6 +342,7 @@ dependencies = [
  "diesel",
  "dotenv",
  "futures-util",
+ "ipnetwork",
  "jsonwebtoken",
  "lettre",
  "rand",
@@ -659,6 +660,7 @@ dependencies = [
  "diesel",
  "diesel_migrations",
  "dotenv",
+ "ipnetwork",
  "log",
  "r2d2",
  "serde",
@@ -696,7 +698,9 @@ dependencies = [
  "bitflags 2.4.2",
  "byteorder",
  "diesel_derives",
+ "ipnetwork",
  "itoa",
+ "libc",
  "pq-sys",
  "r2d2",
  "uuid",
@@ -1129,6 +1133,15 @@ name = "ip_network_table-deps-treebitmap"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e537132deb99c0eb4b752f0346b6a836200eaaa3516dd7e5514b63930a09e5d"
+
+[[package]]
+name = "ipnetwork"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "itoa"

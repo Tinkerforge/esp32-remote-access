@@ -90,6 +90,7 @@ dependencies = [
  "diesel",
  "diesel_migrations",
  "dotenv",
+ "ipnetwork",
  "log",
  "r2d2",
  "serde",
@@ -203,6 +204,15 @@ checksum = "824b2ae422412366ba479e8111fd301f7b5faece8149317bb81925979a53f520"
 dependencies = [
  "equivalent",
  "hashbrown",
+]
+
+[[package]]
+name = "ipnetwork"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

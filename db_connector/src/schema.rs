@@ -42,6 +42,8 @@ diesel::table! {
         in_use -> Bool,
         charger_pub -> Varchar,
         user_private -> Varchar,
+        web_address -> Inet,
+        charger_address -> Inet,
     }
 }
 
