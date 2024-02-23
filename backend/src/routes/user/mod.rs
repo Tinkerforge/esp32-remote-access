@@ -105,6 +105,11 @@ pub mod tests {
         user.id
     }
 
+    /**
+     * Struct for testing with users.
+       When using multiple instances create them in the opposite order they need to destroyed in.
+     */
+    #[derive(Debug)]
     pub struct TestUser {
         mail: String,
         charger: Vec<String>,
