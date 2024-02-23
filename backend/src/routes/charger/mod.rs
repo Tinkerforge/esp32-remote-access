@@ -1,6 +1,6 @@
 pub(crate) mod add;
-pub(crate) mod remove;
 mod allow_user;
+pub(crate) mod remove;
 
 use crate::{
     error::Error,
@@ -13,7 +13,8 @@ use db_connector::models::allowed_users::AllowedUser;
 use diesel::prelude::*;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    let scope = web::scope("/wallbox").wrap(JwtMiddleware)
+    let scope = web::scope("/wallbox")
+        .wrap(JwtMiddleware)
         .service(add::add)
         .service(remove::remove);
     cfg.service(scope);

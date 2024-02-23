@@ -2,11 +2,16 @@ use actix_web::{delete, web, HttpResponse, Responder};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::Error, routes::charger::charger_belongs_to_user, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    routes::charger::charger_belongs_to_user,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct DeleteChargerSchema {
-    charger: String
+    charger: String,
 }
 
 async fn delete_all_keys(cid: String, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
@@ -14,33 +19,30 @@ async fn delete_all_keys(cid: String, state: &web::Data<AppState>) -> Result<(),
 
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
-        match diesel::delete(wg_keys.filter(charger.eq(cid)))
-            .execute(&mut conn)
-        {
+        match diesel::delete(wg_keys.filter(charger.eq(cid))).execute(&mut conn) {
             Ok(_) => Ok(()),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }
 
-async fn delete_all_allowed_users(cid: String, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
+async fn delete_all_allowed_users(
+    cid: String,
+    state: &web::Data<AppState>,
+) -> Result<(), actix_web::Error> {
     use crate::schema::allowed_users::dsl::*;
 
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
-        match diesel::delete(allowed_users.filter(charger.eq(cid)))
-            .execute(&mut conn)
-        {
+        match diesel::delete(allowed_users.filter(charger.eq(cid))).execute(&mut conn) {
             Ok(_) => Ok(()),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }
@@ -49,7 +51,7 @@ async fn delete_all_allowed_users(cid: String, state: &web::Data<AppState>) -> R
 pub async fn remove(
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
-    data: web::Json<DeleteChargerSchema>
+    data: web::Json<DeleteChargerSchema>,
 ) -> Result<impl Responder, actix_web::Error> {
     use crate::schema::chargers::dsl::*;
 
@@ -59,15 +61,12 @@ pub async fn remove(
 
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
-        match diesel::delete(chargers.filter(id.eq(data.charger.clone())))
-            .execute(&mut conn)
-        {
+        match diesel::delete(chargers.filter(id.eq(data.charger.clone()))).execute(&mut conn) {
             Ok(_) => Ok(()),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(HttpResponse::Ok())
 }
@@ -77,7 +76,11 @@ pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
 
-    use crate::{middleware::jwt::JwtMiddleware, routes::{charger::add::tests::add_test_charger, user::tests::TestUser}, tests::configure};
+    use crate::{
+        middleware::jwt::JwtMiddleware,
+        routes::{charger::add::tests::add_test_charger, user::tests::TestUser},
+        tests::configure,
+    };
 
     #[actix_web::test]
     async fn test_valid_delete() {
@@ -93,7 +96,7 @@ pub(crate) mod tests {
         add_test_charger(charger, token).await;
 
         let schema = DeleteChargerSchema {
-            charger: charger.to_string()
+            charger: charger.to_string(),
         };
         let req = test::TestRequest::delete()
             .uri("/remove")

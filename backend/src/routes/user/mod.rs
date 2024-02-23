@@ -78,7 +78,14 @@ pub mod tests {
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
 
-    use crate::routes::{auth::{login::tests::login_user, register::tests::{create_user, delete_user}, verify::tests::fast_verify}, charger::add::tests::add_test_charger};
+    use crate::routes::{
+        auth::{
+            login::tests::login_user,
+            register::tests::{create_user, delete_user},
+            verify::tests::fast_verify,
+        },
+        charger::add::tests::add_test_charger,
+    };
 
     // Get the uuid for an test user.
     pub fn get_test_uuid(mail: &str) -> uuid::Uuid {
@@ -108,13 +115,13 @@ pub mod tests {
             TestUser {
                 mail: mail.to_string(),
                 charger: Vec::new(),
-                token: None
+                token: None,
             }
         }
 
         pub async fn login(&mut self) -> &str {
             if self.token.is_some() {
-                return self.token.as_ref().unwrap()
+                return self.token.as_ref().unwrap();
             }
             self.token = Some(login_user(&self.mail, None).await);
             self.token.as_ref().unwrap()
