@@ -8,12 +8,22 @@ use diesel::{
     r2d2::{ConnectionManager, PooledConnection},
     result::Error::NotFound,
 };
+use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::{
     error::Error,
-    models::{login::LoginSchema, token_claims::TokenClaims},
+    models::token_claims::TokenClaims,
     AppState,
 };
+
+#[derive(Serialize, Deserialize, Clone, Debug, Validate)]
+pub struct LoginSchema {
+    #[validate(email)]
+    pub email: String,
+    pub password: String,
+}
+
 
 pub enum FindBy {
     Uuid(uuid::Uuid),

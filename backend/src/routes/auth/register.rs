@@ -7,8 +7,20 @@ use argon2::{
 use db_connector::models::{users::User, verification::Verification};
 use diesel::{prelude::*, result::Error::NotFound};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
+use serde::{Deserialize, Serialize};
+use validator::Validate;
 
-use crate::{error::Error, models::register::RegisterSchema, utils::get_connection, AppState};
+use crate::{error::Error, utils::get_connection, AppState};
+
+#[derive(Debug, Deserialize, Serialize, Validate, Clone)]
+pub struct RegisterSchema {
+    #[validate(length(min = 3))]
+    pub name: String,
+    #[validate(email)]
+    pub email: String,
+    #[validate(length(min = 12))]
+    pub password: String,
+}
 
 pub fn hash_pass(password: &String) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
