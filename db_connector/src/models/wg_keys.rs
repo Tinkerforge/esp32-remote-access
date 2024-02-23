@@ -1,4 +1,4 @@
-use diesel::{deserialize::Queryable, Selectable, prelude::Insertable};
+use diesel::{deserialize::Queryable, prelude::Insertable, Selectable};
 use ipnetwork::IpNetwork;
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable)]

@@ -1,7 +1,6 @@
 use diesel::{pg::Pg, PgConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
-
 pub mod models;
 pub mod schema;
 
@@ -9,7 +8,9 @@ pub type Pool = diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-pub fn run_migrations(connection: &mut impl MigrationHarness<Pg>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+pub fn run_migrations(
+    connection: &mut impl MigrationHarness<Pg>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     connection.run_pending_migrations(MIGRATIONS)?;
 
     Ok(())
@@ -40,5 +41,4 @@ pub fn test_connection_pool() -> Pool {
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}
