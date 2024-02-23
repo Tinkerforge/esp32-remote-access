@@ -14,7 +14,6 @@ serde = { version = "1.0.196", features = ["derive"] }
 argon2 = "0.5.3"
 diesel = { version = "2.1.4", features = ["network-address"] }
 uuid = { version = "1.7.0", features = ["v4"] }
-anyhow = "1.0.79"
 actix-web-validator = "5.0.1"
 validator = { version = "0.16.1", features = ["derive"] }
 chrono = "0.4.33"
