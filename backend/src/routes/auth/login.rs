@@ -11,11 +11,7 @@ use diesel::{
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-use crate::{
-    error::Error,
-    models::token_claims::TokenClaims,
-    AppState,
-};
+use crate::{error::Error, models::token_claims::TokenClaims, AppState};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Validate)]
 pub struct LoginSchema {
@@ -23,7 +19,6 @@ pub struct LoginSchema {
     pub email: String,
     pub password: String,
 }
-
 
 pub enum FindBy {
     Uuid(uuid::Uuid),

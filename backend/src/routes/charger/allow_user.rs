@@ -73,12 +73,15 @@ mod tests {
         let token = user1.login().await.to_string();
         user1.add_charger(charger).await;
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(allow_user);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(allow_user);
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
             charger_id: charger.to_string(),
-            user_mail: mail2.to_string()
+            user_mail: mail2.to_string(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
@@ -101,12 +104,15 @@ mod tests {
         let token = user1.login().await.to_string();
         user1.add_charger(charger).await;
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(allow_user);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(allow_user);
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
             charger_id: charger.to_string(),
-            user_mail: mail2.to_string()
+            user_mail: mail2.to_string(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")

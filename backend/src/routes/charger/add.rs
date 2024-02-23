@@ -208,8 +208,12 @@ pub(crate) mod tests {
             *key = MaybeUninit::new(Keys {
                 web_private: BASE64_STANDARD.encode(secret),
                 charger_public: BASE64_STANDARD.encode(public),
-                charger_address: IpNetwork::V4(Ipv4Network::new("123.123.123.123".parse().unwrap(), 24).unwrap()),
-                web_address: IpNetwork::V4(Ipv4Network::new("123.123.123.122".parse().unwrap(), 24).unwrap())
+                charger_address: IpNetwork::V4(
+                    Ipv4Network::new("123.123.123.123".parse().unwrap(), 24).unwrap(),
+                ),
+                web_address: IpNetwork::V4(
+                    Ipv4Network::new("123.123.123.122".parse().unwrap(), 24).unwrap(),
+                ),
             })
         }
 
