@@ -75,12 +75,49 @@ pub async fn remove(
 pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
+    use db_connector::test_connection_pool;
 
     use crate::{
         middleware::jwt::JwtMiddleware,
-        routes::{charger::add::tests::add_test_charger, user::tests::TestUser},
+        routes::{
+            charger::add::tests::add_test_charger,
+            user::tests::{get_test_uuid, TestUser},
+        },
         tests::configure,
     };
+
+    pub fn remove_test_keys(mail: &str) {
+        use crate::schema::wg_keys::dsl::*;
+
+        let uid = get_test_uuid(mail);
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        let test = diesel::delete(wg_keys.filter(user_id.eq(uid)))
+            .execute(&mut conn)
+            .unwrap();
+        println!("remove keys: {}", test);
+    }
+
+    pub fn remove_allowed_test_users(cid: &str) {
+        use crate::schema::allowed_users::dsl::*;
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        diesel::delete(allowed_users.filter(charger.eq(cid)))
+            .execute(&mut conn)
+            .unwrap();
+    }
+
+    pub fn remove_test_charger(cid: &str) {
+        use crate::schema::chargers::dsl::*;
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        diesel::delete(chargers.filter(id.eq(cid)))
+            .execute(&mut conn)
+            .unwrap();
+    }
 
     #[actix_web::test]
     async fn test_valid_delete() {

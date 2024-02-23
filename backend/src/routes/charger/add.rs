@@ -175,7 +175,6 @@ pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use boringtun::x25519;
-    use db_connector::test_connection_pool;
     use rand_core::OsRng;
 
     use crate::{
@@ -186,43 +185,12 @@ pub(crate) mod tests {
                 login::tests::verify_and_login_user,
                 register::tests::{create_user, delete_user},
             },
-            user::tests::get_test_uuid,
+            charger::remove::tests::{
+                remove_allowed_test_users, remove_test_charger, remove_test_keys,
+            },
         },
         tests::configure,
     };
-
-    fn remove_test_keys(mail: &str) {
-        use crate::schema::wg_keys::dsl::*;
-
-        let uid = get_test_uuid(mail);
-
-        let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        let test = diesel::delete(wg_keys.filter(user_id.eq(uid)))
-            .execute(&mut conn)
-            .unwrap();
-        println!("remove keys: {}", test);
-    }
-
-    fn remove_allowed_test_users(cid: &str) {
-        use crate::schema::allowed_users::dsl::*;
-
-        let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        diesel::delete(allowed_users.filter(charger.eq(cid)))
-            .execute(&mut conn)
-            .unwrap();
-    }
-
-    fn remove_test_charger(cid: &str) {
-        use crate::schema::chargers::dsl::*;
-
-        let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        diesel::delete(chargers.filter(id.eq(cid)))
-            .execute(&mut conn)
-            .unwrap();
-    }
 
     fn generate_keys() -> [Keys; 5] {
         let mut keys: [Keys; 5] = Default::default();
