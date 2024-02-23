@@ -9,11 +9,12 @@ use diesel::{
     result::Error::NotFound,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{error::Error, models::token_claims::TokenClaims, AppState};
 
-#[derive(Serialize, Deserialize, Clone, Debug, Validate)]
+#[derive(Serialize, Deserialize, Clone, Debug, Validate, ToSchema)]
 pub struct LoginSchema {
     #[validate(email)]
     pub email: String,
@@ -66,6 +67,15 @@ pub async fn validate_password(
     }
 }
 
+
+#[utoipa::path(
+    context_path = "/auth",
+    request_body = LoginSchema,
+    responses(
+        (status = 200, description = "Login was successful"),
+        (status = 400, description = "Credentials were incorrect")
+    )
+)]
 #[post("/login")]
 pub async fn login(
     state: web::Data<AppState>,

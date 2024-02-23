@@ -9,14 +9,27 @@ use actix_web::{
 use db_connector::models::verification::Verification;
 use diesel::prelude::*;
 use serde::Deserialize;
+use utoipa::IntoParams;
 
 use crate::{error::Error, utils::get_connection, AppState};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 struct Query {
+    /// Verification id that was sent to the user via email.
     pub id: String,
 }
 
+/// Verify a registered user.
+#[utoipa::path(
+    context_path = "/auth",
+    params(
+        Query
+    ),
+    responses(
+        (status = 307, description = "Verification was successfull and a redirect to the login is sent."),
+        (status = 400, description = "There is no verification request or the account was already verified.")
+    )
+)]
 #[get("/verify")]
 pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl Responder {
     use db_connector::schema::users::dsl::*;

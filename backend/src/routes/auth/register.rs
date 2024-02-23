@@ -8,11 +8,12 @@ use db_connector::models::{users::User, verification::Verification};
 use diesel::{prelude::*, result::Error::NotFound};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{error::Error, utils::get_connection, AppState};
 
-#[derive(Debug, Deserialize, Serialize, Validate, Clone)]
+#[derive(Debug, Deserialize, Serialize, Validate, Clone, ToSchema)]
 pub struct RegisterSchema {
     #[validate(length(min = 3))]
     pub name: String,
@@ -60,6 +61,13 @@ fn send_verification_mail(
     Ok(())
 }
 
+#[utoipa::path(
+    context_path = "/auth",
+    responses(
+        (status = 201, description = "Registration was successfull"),
+        (status = 409, description = "A user with this email already exists")
+    )
+)]
 #[post("/register")]
 pub async fn register(
     state: web::Data<AppState>,

@@ -3,6 +3,12 @@ use actix_web::{
     get, HttpResponse, Responder,
 };
 
+#[utoipa::path(
+    context_path = "/auth",
+    responses(
+        (status = 200, description = "User logged out")
+    )
+)]
 #[get("/logout")]
 pub async fn logout() -> impl Responder {
     let cookie = Cookie::build("access_token", "")
