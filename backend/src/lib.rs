@@ -1,7 +1,6 @@
 use db_connector::Pool;
 use lettre::SmtpTransport;
 
-
 pub mod error;
 pub mod middleware;
 pub mod models;
