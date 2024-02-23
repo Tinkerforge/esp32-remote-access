@@ -33,7 +33,7 @@ pub(crate) mod tests {
     };
 
     pub fn get_test_user(mail: &str) -> User {
-        use crate::schema::users::dsl::*;
+        use db_connector::schema::users::dsl::*;
 
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();

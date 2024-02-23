@@ -19,8 +19,8 @@ struct Query {
 
 #[get("/verify")]
 pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl Responder {
-    use crate::schema::users::dsl::*;
-    use crate::schema::verification::dsl::*;
+    use db_connector::schema::users::dsl::*;
+    use db_connector::schema::verification::dsl::*;
 
     let mut conn = get_connection(&state)?;
 
@@ -31,7 +31,7 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
 
     let result = match web::block(move || {
         verification
-            .filter(crate::schema::verification::id.eq(verify_id))
+            .filter(db_connector::schema::verification::id.eq(verify_id))
             .select(Verification::as_select())
             .get_result(&mut conn)
     })
@@ -96,8 +96,8 @@ pub(crate) mod tests {
     };
 
     pub fn fast_verify(mail: &str) {
-        use crate::schema::users::dsl::*;
-        use crate::schema::verification::dsl::verification;
+        use db_connector::schema::users::dsl::*;
+        use db_connector::schema::verification::dsl::verification;
 
         println!("Fast verify for {}", mail);
         let pool = db_connector::test_connection_pool();
@@ -116,8 +116,8 @@ pub(crate) mod tests {
         conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
         mail: &str,
     ) -> uuid::Uuid {
-        use crate::schema::users::dsl::{email, users};
-        use crate::schema::verification::dsl::*;
+        use db_connector::schema::users::dsl::{email, users};
+        use db_connector::schema::verification::dsl::*;
 
         let u: User = users
             .filter(email.eq(mail))
@@ -137,7 +137,7 @@ pub(crate) mod tests {
         conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
         verify: &uuid::Uuid,
     ) -> bool {
-        use crate::schema::verification::dsl::*;
+        use db_connector::schema::verification::dsl::*;
 
         match verification
             .find(verify)

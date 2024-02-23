@@ -180,8 +180,8 @@ pub(crate) mod tests {
     }
 
     pub fn delete_user(mail: &str) {
-        use crate::schema::users::dsl::*;
-        use crate::schema::verification::dsl::*;
+        use db_connector::schema::users::dsl::*;
+        use db_connector::schema::verification::dsl::*;
         use diesel::prelude::*;
 
         let pool = db_connector::test_connection_pool();
@@ -206,7 +206,7 @@ pub(crate) mod tests {
     }
 
     fn user_exists(mail: &str) -> bool {
-        use crate::schema::users::dsl::*;
+        use db_connector::schema::users::dsl::*;
         use diesel::prelude::*;
 
         let pool = db_connector::test_connection_pool();

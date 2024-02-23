@@ -25,7 +25,7 @@ pub async fn charger_belongs_to_user(
     uid: uuid::Uuid,
     cid: String,
 ) -> Result<bool, actix_web::Error> {
-    use crate::schema::allowed_users::dsl::*;
+    use db_connector::schema::allowed_users::dsl::*;
 
     let mut conn = get_connection(state)?;
     let owner = web_block_unpacked(move || {

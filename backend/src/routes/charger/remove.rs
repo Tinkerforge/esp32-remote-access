@@ -15,7 +15,7 @@ struct DeleteChargerSchema {
 }
 
 async fn delete_all_keys(cid: String, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
-    use crate::schema::wg_keys::dsl::*;
+    use db_connector::schema::wg_keys::dsl::*;
 
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
@@ -33,7 +33,7 @@ async fn delete_all_allowed_users(
     cid: String,
     state: &web::Data<AppState>,
 ) -> Result<(), actix_web::Error> {
-    use crate::schema::allowed_users::dsl::*;
+    use db_connector::schema::allowed_users::dsl::*;
 
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
@@ -53,7 +53,7 @@ pub async fn remove(
     uid: crate::models::uuid::Uuid,
     data: web::Json<DeleteChargerSchema>,
 ) -> Result<impl Responder, actix_web::Error> {
-    use crate::schema::chargers::dsl::*;
+    use db_connector::schema::chargers::dsl::*;
 
     charger_belongs_to_user(&state, uid.clone().into(), data.charger.clone()).await?;
     delete_all_keys(data.charger.clone(), &state).await?;
@@ -87,7 +87,7 @@ pub(crate) mod tests {
     };
 
     pub fn remove_test_keys(mail: &str) {
-        use crate::schema::wg_keys::dsl::*;
+        use db_connector::schema::wg_keys::dsl::*;
 
         let uid = get_test_uuid(mail);
 
@@ -100,7 +100,7 @@ pub(crate) mod tests {
     }
 
     pub fn remove_allowed_test_users(cid: &str) {
-        use crate::schema::allowed_users::dsl::*;
+        use db_connector::schema::allowed_users::dsl::*;
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -110,7 +110,7 @@ pub(crate) mod tests {
     }
 
     pub fn remove_test_charger(cid: &str) {
-        use crate::schema::chargers::dsl::*;
+        use db_connector::schema::chargers::dsl::*;
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();

@@ -28,7 +28,7 @@ pub async fn get_uuid_from_email(
     state: &web::Data<AppState>,
     mail: String,
 ) -> Result<uuid::Uuid, actix_web::Error> {
-    use crate::schema::users::dsl::*;
+    use db_connector::schema::users::dsl::*;
 
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
@@ -54,7 +54,7 @@ pub async fn get_user(
     state: &web::Data<AppState>,
     uid: uuid::Uuid,
 ) -> Result<User, actix_web::Error> {
-    use crate::schema::users::dsl::*;
+    use db_connector::schema::users::dsl::*;
     use diesel::prelude::*;
 
     let mut conn = get_connection(state)?;
@@ -92,7 +92,7 @@ pub mod tests {
 
     // Get the uuid for an test user.
     pub fn get_test_uuid(mail: &str) -> uuid::Uuid {
-        use crate::schema::users::dsl::*;
+        use db_connector::schema::users::dsl::*;
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();

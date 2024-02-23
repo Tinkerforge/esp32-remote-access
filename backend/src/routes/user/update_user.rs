@@ -9,7 +9,7 @@ pub async fn update_user(
     user: actix_web_validator::Json<FilteredUser>,
     uid: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
-    use crate::schema::users::dsl::*;
+    use db_connector::schema::users::dsl::*;
 
     let mut conn = get_connection(&state)?;
     match web::block(move || {

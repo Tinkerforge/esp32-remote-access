@@ -26,7 +26,7 @@ pub async fn update_password(
     uid: crate::models::uuid::Uuid,
     data: actix_web_validator::Json<PasswordUpdate>,
 ) -> Result<impl Responder, actix_web::Error> {
-    use crate::schema::users::dsl::*;
+    use db_connector::schema::users::dsl::*;
 
     let conn = get_connection(&state)?;
     let _ = validate_password(&data.old_pass, FindBy::Uuid(uid.clone().into()), conn).await?;

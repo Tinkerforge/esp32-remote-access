@@ -22,7 +22,7 @@ pub async fn allow_user(
     uid: crate::models::uuid::Uuid,
     allow_user: web::Json<AllowUserSchema>,
 ) -> Result<impl Responder, actix_web::Error> {
-    use crate::schema::allowed_users::dsl::*;
+    use db_connector::schema::allowed_users::dsl::*;
 
     println!("Test1");
     if !charger_belongs_to_user(&state, uid.into(), allow_user.charger_id.clone()).await? {

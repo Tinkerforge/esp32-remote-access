@@ -79,8 +79,8 @@ async fn add_charger(
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> Result<(), actix_web::Error> {
-    use crate::schema::allowed_users::dsl as allowed_users;
-    use crate::schema::chargers::dsl as chargers;
+    use db_connector::schema::allowed_users::dsl as allowed_users;
+    use db_connector::schema::chargers::dsl as chargers;
 
     let mut conn = get_connection(state)?;
     match web::block(move || {
@@ -141,7 +141,7 @@ async fn add_wg_key(
     keys: Keys,
     state: &web::Data<AppState>,
 ) -> Result<(), actix_web::Error> {
-    use crate::schema::wg_keys::dsl::*;
+    use db_connector::schema::wg_keys::dsl::*;
     let mut conn = get_connection(state)?;
 
     let keys = WgKey {
