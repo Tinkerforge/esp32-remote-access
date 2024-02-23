@@ -84,7 +84,10 @@ pub mod tests {
             register::tests::{create_user, delete_user},
             verify::tests::fast_verify,
         },
-        charger::add::tests::add_test_charger,
+        charger::{
+            add::tests::add_test_charger,
+            remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
+        },
     };
 
     // Get the uuid for an test user.
@@ -135,6 +138,11 @@ pub mod tests {
 
     impl Drop for TestUser {
         fn drop(&mut self) {
+            while let Some(charger) = self.charger.pop() {
+                remove_test_keys(&self.mail);
+                remove_allowed_test_users(&charger);
+                remove_test_charger(&charger);
+            }
             delete_user(&self.mail);
         }
     }
