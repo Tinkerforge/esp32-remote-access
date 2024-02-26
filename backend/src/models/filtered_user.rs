@@ -1,8 +1,9 @@
 use db_connector::models::users::User;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use validator::Validate;
 
-#[derive(Debug, Serialize, Deserialize, Validate)]
+#[derive(Debug, Serialize, Deserialize, Validate, ToSchema)]
 pub struct FilteredUser {
     pub id: String,
     #[validate(length(min = 3))]

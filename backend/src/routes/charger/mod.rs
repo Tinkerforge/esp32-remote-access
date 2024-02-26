@@ -1,6 +1,6 @@
-pub(crate) mod add;
-mod allow_user;
-pub(crate) mod remove;
+pub mod add;
+pub mod allow_user;
+pub mod remove;
 
 use crate::{
     error::Error,
@@ -10,7 +10,7 @@ use crate::{
 };
 use actix_web::web;
 use db_connector::models::allowed_users::AllowedUser;
-use diesel::prelude::*;
+use diesel::{prelude::*, result::Error::NotFound};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     let scope = web::scope("/wallbox")
@@ -36,7 +36,10 @@ pub async fn charger_belongs_to_user(
             .get_result(&mut conn)
         {
             Ok(u) => u,
-            Err(_err) => return Err(Error::InternalError),
+            Err(NotFound) => return Err(Error::Unauthorized),
+            Err(_err) => {
+                return Err(Error::InternalError)
+            },
         };
 
         Ok(allowed_user.is_owner)

@@ -4,28 +4,31 @@ use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_key
 use diesel::{prelude::*, result::Error::NotFound};
 use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
 
 use crate::{error::Error, utils::get_connection, AppState};
 
-#[derive(Serialize, Deserialize, Clone, Validate)]
-struct Keys {
+#[derive(Serialize, Deserialize, Clone, Validate, ToSchema)]
+pub struct Keys {
     web_private: String,
     charger_public: String,
+    #[schema(value_type = SchemaType::String)]
     web_address: IpNetwork,
+    #[schema(value_type = SchemaType::String)]
     charger_address: IpNetwork,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-struct ChargerSchema {
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
+pub struct ChargerSchema {
     id: String,
     name: String,
 }
 
 // maybe add validator?
-#[derive(Serialize, Deserialize, Validate)]
+#[derive(Serialize, Deserialize, Validate, ToSchema)]
 #[validate(schema(function = "validate_add_charger_schema"))]
-struct AddChargerSchema {
+pub struct AddChargerSchema {
     charger: ChargerSchema,
     keys: [Keys; 5],
 }
@@ -53,6 +56,18 @@ fn validate_wg_key(key: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
+/// Add a new charger.
+#[utoipa::path(
+    context_path = "/charger",
+    request_body = AddChargerSchema,
+    responses(
+        (status = 200, description = "Adding the charger was successful."),
+        (status = 409, description = "The charger already exists.")
+    ),
+    security(
+        ("jwt" = [])
+    )
+)]
 #[post("/add")]
 pub async fn add(
     state: web::Data<AppState>,

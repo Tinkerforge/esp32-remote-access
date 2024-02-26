@@ -1,6 +1,6 @@
 pub mod auth;
 pub mod charger;
-mod user;
+pub mod user;
 
 use actix_web::web;
 

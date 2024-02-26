@@ -2,6 +2,7 @@ use actix_web::{put, web, HttpResponse, Responder};
 use db_connector::models::allowed_users::AllowedUser;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::{
     error::Error,
@@ -10,12 +11,24 @@ use crate::{
     AppState,
 };
 
-#[derive(Debug, Deserialize, Serialize)]
-struct AllowUserSchema {
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct AllowUserSchema {
     charger_id: String,
     user_mail: String,
 }
 
+/// Give another user permission to access a charger owned by the user.
+#[utoipa::path(
+    context_path = "/charger",
+    request_body = AllowUserSchema,
+    responses(
+        (status = 200, description = "Allowing the user to access the charger was successful."),
+        (status = 400, description = "The user does not exist.")
+    ),
+    security(
+        ("jwt" = [])
+    )
+)]
 #[put("/allow_user")]
 pub async fn allow_user(
     state: web::Data<AppState>,
@@ -52,11 +65,31 @@ pub async fn allow_user(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
 
     use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
+
+    pub async fn add_allowed_test_user(user_mail: &str, charger_id: &str, token: &str) {
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(allow_user);
+        let app = test::init_service(app).await;
+
+        let body = AllowUserSchema {
+            charger_id: charger_id.to_string(),
+            user_mail: user_mail.to_string(),
+        };
+        let req = test::TestRequest::put()
+            .cookie(Cookie::new("access_token", token))
+            .uri("/allow_user")
+            .set_json(body)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+    }
 
     #[actix_web::test]
     async fn test_allow_users() {

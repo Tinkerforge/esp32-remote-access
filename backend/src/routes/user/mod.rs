@@ -1,6 +1,6 @@
-mod me;
-mod update_password;
-mod update_user;
+pub mod me;
+pub mod update_password;
+pub mod update_user;
 
 use crate::{
     error::Error,
@@ -66,7 +66,7 @@ pub async fn get_user(
             .get_result(&mut conn)
         {
             Ok(u) => Ok(u),
-            Err(NotFound) => Err(crate::error::Error::InternalError),
+            Err(NotFound) => Err(crate::error::Error::UserDoesNotExist),
             Err(_err) => Err(crate::error::Error::InternalError),
         }
     })
@@ -85,8 +85,7 @@ pub mod tests {
             verify::tests::fast_verify,
         },
         charger::{
-            add::tests::add_test_charger,
-            remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
+            add::tests::add_test_charger, allow_user::tests::add_allowed_test_user, remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys}
         },
     };
 
@@ -138,6 +137,15 @@ pub mod tests {
         pub async fn add_charger(&mut self, name: &str) {
             add_test_charger(name, self.token.as_ref().unwrap()).await;
             self.charger.push(name.to_string());
+        }
+
+        pub async fn allow_user(&mut self, user_mail: &str, charger_id: &str) {
+            let token = self.token.as_ref().expect("Test user must be logged in.");
+            add_allowed_test_user(user_mail, charger_id, token).await;
+        }
+
+        pub fn get_mail(&self) -> &str {
+            &self.mail
         }
     }
 

@@ -1,6 +1,7 @@
 use actix_web::{delete, web, HttpResponse, Responder};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::{
     error::Error,
@@ -9,8 +10,8 @@ use crate::{
     AppState,
 };
 
-#[derive(Debug, Deserialize, Serialize)]
-struct DeleteChargerSchema {
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct DeleteChargerSchema {
     charger: String,
 }
 
@@ -47,6 +48,17 @@ async fn delete_all_allowed_users(
     Ok(())
 }
 
+#[utoipa::path(
+    context_path = "/charger",
+    request_body = DeleteChargerSchema,
+    responses(
+        (status = 200, description = "Deletion was successful."),
+        (status = 409, description = "The user sending the request is not the owner of the charger.")
+    ),
+    security(
+        ("jwt" = [])
+    )
+)]
 #[delete("/remove")]
 pub async fn remove(
     state: web::Data<AppState>,

@@ -67,6 +67,7 @@ pub async fn validate_password(
     }
 }
 
+/// Login user
 #[utoipa::path(
     context_path = "/auth",
     request_body = LoginSchema,

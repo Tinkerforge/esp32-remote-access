@@ -3,6 +3,17 @@ use actix_web::{put, web, HttpResponse, Responder};
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound};
 
+/// Update basic user information.
+#[utoipa::path(
+    context_path = "/user",
+    request_body = FilteredUser,
+    responses(
+        (status = 200, description = "Update was successful.")
+    ),
+    security(
+        ("jwt" = [])
+    )
+)]
 #[put("/update_user")]
 pub async fn update_user(
     state: web::Data<AppState>,

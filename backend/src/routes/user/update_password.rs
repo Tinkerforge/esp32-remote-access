@@ -1,6 +1,7 @@
 use actix_web::{put, web, HttpResponse, Responder};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
@@ -13,18 +14,30 @@ use crate::{
     AppState,
 };
 
-#[derive(Validate, Deserialize, Serialize)]
-struct PasswordUpdate {
+#[derive(Validate, Deserialize, Serialize, ToSchema)]
+pub struct PasswordUpdateSchema {
     old_pass: String,
     #[validate(length(min = 12))]
     new_pass: String,
 }
 
+/// Update the user password
+#[utoipa::path(
+    context_path = "/user",
+    request_body = PasswordUpdateSchema,
+    responses(
+        (status = 200, description = "Password update was successful."),
+        (status = 400, description = "The old password was wrong.")
+    ),
+    security(
+        ("jwt" = [])
+    )
+)]
 #[put("/update_password")]
 pub async fn update_password(
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
-    data: actix_web_validator::Json<PasswordUpdate>,
+    data: actix_web_validator::Json<PasswordUpdateSchema>,
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
@@ -85,7 +98,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let new_pass = "TestTestTest1".to_string();
-        let data = PasswordUpdate {
+        let data = PasswordUpdateSchema {
             old_pass: "TestTestTest".to_string(),
             new_pass: new_pass.clone(),
         };
@@ -115,7 +128,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let new_pass = "TestTestTest1".to_string();
-        let data = PasswordUpdate {
+        let data = PasswordUpdateSchema {
             old_pass: "TestTestTest2".to_string(),
             new_pass: new_pass.clone(),
         };

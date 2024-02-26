@@ -61,10 +61,11 @@ fn send_verification_mail(
     Ok(())
 }
 
+/// Register a new user
 #[utoipa::path(
     context_path = "/auth",
     responses(
-        (status = 201, description = "Registration was successfull"),
+        (status = 201, description = "Registration was successful"),
         (status = 409, description = "A user with this email already exists")
     )
 )]

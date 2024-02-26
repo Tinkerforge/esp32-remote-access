@@ -6,6 +6,17 @@ use crate::{
     AppState,
 };
 
+/// Get information about the currently logged in user.
+#[utoipa::path(
+    context_path = "/user",
+    responses(
+        (status = 200, description = "", body = FilteredUser),
+        (status = 400, description = "The jwt token was somehow valid but contained a non valid uuid.")
+    ),
+    security(
+        ("jwt" = [])
+    )
+)]
 #[get("/me")]
 async fn me(
     state: web::Data<AppState>,

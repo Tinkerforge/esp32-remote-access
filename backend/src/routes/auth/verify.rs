@@ -26,7 +26,7 @@ struct Query {
         Query
     ),
     responses(
-        (status = 307, description = "Verification was successfull and a redirect to the login is sent."),
+        (status = 307, description = "Verification was successful and a redirect to the login is sent."),
         (status = 400, description = "There is no verification request or the account was already verified.")
     )
 )]
