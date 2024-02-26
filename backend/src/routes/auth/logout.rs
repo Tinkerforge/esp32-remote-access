@@ -3,7 +3,6 @@ use actix_web::{
     get, HttpResponse, Responder,
 };
 
-
 /// Logout user
 #[utoipa::path(
     context_path = "/auth",

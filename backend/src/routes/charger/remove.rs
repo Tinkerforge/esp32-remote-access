@@ -68,7 +68,7 @@ pub async fn remove(
     use db_connector::schema::chargers::dsl::*;
 
     if !charger_belongs_to_user(&state, uid.clone().into(), data.charger.clone()).await? {
-        return Err(Error::Unauthorized.into())
+        return Err(Error::Unauthorized.into());
     }
 
     delete_all_keys(data.charger.clone(), &state).await?;
@@ -175,7 +175,7 @@ pub(crate) mod tests {
         user2.allow_user(user1.get_mail(), charger).await;
 
         let body = DeleteChargerSchema {
-            charger: charger.to_string()
+            charger: charger.to_string(),
         };
         let req = test::TestRequest::delete()
             .uri("/remove")
@@ -203,7 +203,7 @@ pub(crate) mod tests {
         let token = user1.login().await;
 
         let body = DeleteChargerSchema {
-            charger: charger.to_string()
+            charger: charger.to_string(),
         };
         let req = test::TestRequest::delete()
             .uri("/remove")
@@ -233,7 +233,7 @@ pub(crate) mod tests {
         let token = user1.login().await;
 
         let body = DeleteChargerSchema {
-            charger: charger.to_string()
+            charger: charger.to_string(),
         };
         let req = test::TestRequest::delete()
             .uri("/remove")

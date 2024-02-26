@@ -37,9 +37,7 @@ pub async fn charger_belongs_to_user(
         {
             Ok(u) => u,
             Err(NotFound) => return Err(Error::Unauthorized),
-            Err(_err) => {
-                return Err(Error::InternalError)
-            },
+            Err(_err) => return Err(Error::InternalError),
         };
 
         Ok(allowed_user.is_owner)

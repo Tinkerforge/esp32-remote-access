@@ -85,7 +85,9 @@ pub mod tests {
             verify::tests::fast_verify,
         },
         charger::{
-            add::tests::add_test_charger, allow_user::tests::add_allowed_test_user, remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys}
+            add::tests::add_test_charger,
+            allow_user::tests::add_allowed_test_user,
+            remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
         },
     };
 
