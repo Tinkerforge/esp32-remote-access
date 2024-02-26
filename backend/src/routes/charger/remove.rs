@@ -55,7 +55,10 @@ pub async fn remove(
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::chargers::dsl::*;
 
-    charger_belongs_to_user(&state, uid.clone().into(), data.charger.clone()).await?;
+    if !charger_belongs_to_user(&state, uid.clone().into(), data.charger.clone()).await? {
+        return Err(Error::Unauthorized.into())
+    }
+
     delete_all_keys(data.charger.clone(), &state).await?;
     delete_all_allowed_users(data.charger.clone(), &state).await?;
 
@@ -93,10 +96,9 @@ pub(crate) mod tests {
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let test = diesel::delete(wg_keys.filter(user_id.eq(uid)))
+        diesel::delete(wg_keys.filter(user_id.eq(uid)))
             .execute(&mut conn)
             .unwrap();
-        println!("remove keys: {}", test);
     }
 
     pub fn remove_allowed_test_users(cid: &str) {
@@ -143,5 +145,93 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
         println!("{:?}", resp);
         assert!(resp.status().is_success());
+    }
+
+    #[actix_web::test]
+    async fn test_valid_delete_with_allowed_user() {
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(remove);
+        let app = test::init_service(app).await;
+
+        let user1 = TestUser::new("valid_delete_charger1@test.invalid").await;
+        let mut user2 = TestUser::new("valid_delete_charger2@test.invalid").await;
+        let token = user2.login().await.to_owned();
+        let charger = "valid_delete_charger1";
+        add_test_charger(charger, &token).await;
+        user2.allow_user(user1.get_mail(), charger).await;
+
+        let body = DeleteChargerSchema {
+            charger: charger.to_string()
+        };
+        let req = test::TestRequest::delete()
+            .uri("/remove")
+            .cookie(Cookie::new("access_token", token))
+            .set_json(body)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+    }
+
+    #[actix_web::test]
+    async fn test_unowned_charger_delete() {
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(remove);
+        let app = test::init_service(app).await;
+
+        let mut user1 = TestUser::new("unowned_delete_charger1@test.invalid").await;
+        let mut user2 = TestUser::new("unowned_delete_charger2@test.invalid").await;
+        let charger = "unowned_delete_charger";
+        user2.login().await;
+        user2.add_charger(charger).await;
+        user2.allow_user(user1.get_mail(), charger).await;
+        let token = user1.login().await;
+
+        let body = DeleteChargerSchema {
+            charger: charger.to_string()
+        };
+        let req = test::TestRequest::delete()
+            .uri("/remove")
+            .set_json(body)
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::try_call_service(&app, req).await.unwrap();
+
+        println!("{:?}", resp);
+        assert!(resp.status().is_client_error());
+        assert!(resp.status().as_u16() == 401);
+    }
+
+    #[actix_web::test]
+    async fn test_not_allowed_charger_delete() {
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(remove);
+        let app = test::init_service(app).await;
+
+        let mut user1 = TestUser::new("not_allowed_delete_charger1@test.invalid").await;
+        let mut user2 = TestUser::new("not_allowed_delete_charger2@test.invalid").await;
+        let charger = "not_allowed_delete_charger";
+        user2.login().await;
+        user2.add_charger(charger).await;
+        let token = user1.login().await;
+
+        let body = DeleteChargerSchema {
+            charger: charger.to_string()
+        };
+        let req = test::TestRequest::delete()
+            .uri("/remove")
+            .set_json(body)
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::try_call_service(&app, req).await.unwrap();
+
+        println!("{:?}", resp);
+        assert!(resp.status().is_client_error());
+        assert!(resp.status().as_u16() == 401);
     }
 }
