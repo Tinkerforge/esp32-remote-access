@@ -24,14 +24,11 @@ pub async fn allow_user(
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::allowed_users::dsl::*;
 
-    println!("Test1");
     if !charger_belongs_to_user(&state, uid.into(), allow_user.charger_id.clone()).await? {
         return Err(Error::Unauthorized.into());
     }
-    println!("Test2");
 
     let allowed_uuid = get_uuid_from_email(&state, allow_user.user_mail.clone()).await?;
-    println!("Test3");
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         let u = AllowedUser {
