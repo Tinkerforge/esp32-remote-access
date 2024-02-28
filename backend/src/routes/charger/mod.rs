@@ -1,6 +1,7 @@
 pub mod add;
 pub mod allow_user;
 pub mod remove;
+pub mod get_key;
 pub mod get_chargers;
 
 use crate::{
@@ -18,6 +19,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .wrap(JwtMiddleware)
         .service(add::add)
         .service(allow_user::allow_user)
+        .service(remove::remove)
         .service(get_chargers::get_chargers);
     cfg.service(scope);
 }

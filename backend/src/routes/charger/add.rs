@@ -165,7 +165,7 @@ async fn add_wg_key(
         charger_id: cid,
         in_use: false,
         charger_pub: keys.charger_public,
-        user_private: keys.web_private,
+        web_private: keys.web_private,
         web_address: keys.web_address,
         charger_address: keys.charger_address,
     };

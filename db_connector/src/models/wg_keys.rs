@@ -1,8 +1,8 @@
-use diesel::{associations::Associations, deserialize::Queryable, prelude::Insertable, Selectable};
+use diesel::{associations::{Associations, Identifiable}, deserialize::Queryable, prelude::Insertable, Selectable};
 use ipnetwork::IpNetwork;
 use crate::models::{users::User, chargers::Charger};
 
-#[derive(Debug, Clone, Queryable, Selectable, Insertable, Associations)]
+#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, Associations)]
 #[diesel(table_name = crate::schema::wg_keys)]
 #[diesel(belongs_to(User))]
 #[diesel(belongs_to(Charger))]
@@ -13,7 +13,7 @@ pub struct WgKey {
     pub charger_id: String,
     pub in_use: bool,
     pub charger_pub: String,
-    pub user_private: String,
+    pub web_private: String,
     pub web_address: IpNetwork,
     pub charger_address: IpNetwork,
 }

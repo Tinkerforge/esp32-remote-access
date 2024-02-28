@@ -6,7 +6,7 @@ CREATE TABLE "wg_keys" (
   "charger_id" VARCHAR NOT NULL REFERENCES chargers(id),
   "in_use" BOOLEAN NOT NULL,
   "charger_pub" VARCHAR NOT NULL,
-  "user_private" VARCHAR NOT NULL,
+  "web_private" VARCHAR NOT NULL,
   "web_address" INET NOT NULL,
   "charger_address" INET NOT NULL
 );
