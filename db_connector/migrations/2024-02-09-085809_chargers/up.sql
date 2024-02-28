@@ -2,6 +2,6 @@
 
 CREATE TABLE "chargers" (
   "id" varchar PRIMARY KEY,
-  "last_ip" VARCHAR,
+  "last_ip" INET,
   "name" VARCHAR NOT NULL
 );

@@ -1,4 +1,5 @@
 use diesel::{associations::Identifiable, deserialize::Queryable, prelude::Insertable, Selectable};
+use ipnetwork::IpNetwork;
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable)]
 #[diesel(table_name = crate::schema::chargers)]
@@ -6,5 +7,5 @@ use diesel::{associations::Identifiable, deserialize::Queryable, prelude::Insert
 pub struct Charger {
     pub id: String,
     pub name: String,
-    pub last_ip: Option<String>,
+    pub last_ip: Option<IpNetwork>,
 }

@@ -12,7 +12,7 @@ diesel::table! {
 diesel::table! {
     chargers (id) {
         id -> Varchar,
-        last_ip -> Nullable<Varchar>,
+        last_ip -> Nullable<Inet>,
         name -> Varchar,
     }
 }
