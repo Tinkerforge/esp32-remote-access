@@ -21,6 +21,10 @@ pub enum Error {
     ChargerAlreadyExists,
     #[display(fmt = "User does not exist")]
     UserDoesNotExist,
+    #[display(fmt = "Wg keys do not exist")]
+    WgKeysDoNotExist,
+    #[display(fmt = "No unused Key left")]
+    AllKeysInUse,
 }
 
 impl error::ResponseError for Error {
@@ -39,6 +43,8 @@ impl error::ResponseError for Error {
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::ChargerAlreadyExists => StatusCode::CONFLICT,
             Self::UserDoesNotExist => StatusCode::BAD_REQUEST,
+            Self::WgKeysDoNotExist => StatusCode::BAD_REQUEST,
+            Self::AllKeysInUse => StatusCode::NOT_FOUND,
         }
     }
 }
