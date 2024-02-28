@@ -30,8 +30,8 @@ pub async fn charger_belongs_to_user(
     let mut conn = get_connection(state)?;
     let owner = web_block_unpacked(move || {
         let allowed_user: AllowedUser = match allowed_users
-            .filter(user.eq(uid))
-            .filter(charger.eq(cid))
+            .filter(user_id.eq(uid))
+            .filter(charger_id.eq(cid))
             .select(AllowedUser::as_select())
             .get_result(&mut conn)
         {

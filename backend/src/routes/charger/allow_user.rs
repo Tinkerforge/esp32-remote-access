@@ -46,8 +46,8 @@ pub async fn allow_user(
     web_block_unpacked(move || {
         let u = AllowedUser {
             id: uuid::Uuid::new_v4(),
-            user: allowed_uuid,
-            charger: allow_user.charger_id.clone(),
+            user_id: allowed_uuid,
+            charger_id: allow_user.charger_id.clone(),
             is_owner: false,
         };
 

@@ -20,7 +20,7 @@ async fn delete_all_keys(cid: String, state: &web::Data<AppState>) -> Result<(),
 
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
-        match diesel::delete(wg_keys.filter(charger.eq(cid))).execute(&mut conn) {
+        match diesel::delete(wg_keys.filter(charger_id.eq(cid))).execute(&mut conn) {
             Ok(_) => Ok(()),
             Err(_err) => Err(Error::InternalError),
         }
@@ -38,7 +38,7 @@ async fn delete_all_allowed_users(
 
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
-        match diesel::delete(allowed_users.filter(charger.eq(cid))).execute(&mut conn) {
+        match diesel::delete(allowed_users.filter(charger_id.eq(cid))).execute(&mut conn) {
             Ok(_) => Ok(()),
             Err(_err) => Err(Error::InternalError),
         }
@@ -118,7 +118,7 @@ pub(crate) mod tests {
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
-        diesel::delete(allowed_users.filter(charger.eq(cid)))
+        diesel::delete(allowed_users.filter(charger_id.eq(cid)))
             .execute(&mut conn)
             .unwrap();
     }

@@ -125,8 +125,8 @@ async fn add_charger(
 
         let user = AllowedUser {
             id: uuid::Uuid::new_v4(),
-            user: uid,
-            charger: charger.id,
+            user_id: uid,
+            charger_id: charger.id,
             is_owner: true,
         };
 
@@ -162,7 +162,7 @@ async fn add_wg_key(
     let keys = WgKey {
         id: uuid::Uuid::new_v4(),
         user_id: uid,
-        charger: cid,
+        charger_id: cid,
         in_use: false,
         charger_pub: keys.charger_public,
         user_private: keys.web_private,
