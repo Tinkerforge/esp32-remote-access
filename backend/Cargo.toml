@@ -17,7 +17,7 @@ dotenv = "0.15.0"
 db_connector = { path = "../db_connector" }
 serde = { version = "1.0.196", features = ["derive"] }
 argon2 = "0.5.3"
-diesel = { version = "2.1.4", features = ["network-address"] }
+diesel = { version = "2.1.4", features = ["postgres", "r2d2", "uuid", "network-address"] }
 uuid = { version = "1.7.0", features = ["v4"] }
 actix-web-validator = "5.0.1"
 validator = { version = "0.16.1", features = ["derive"] }
@@ -32,6 +32,8 @@ base64 = "0.21.7"
 ipnetwork = "0.20.0"
 utoipa = { version = "4.2.0", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "6.0.0", features = ["actix-web"] }
+actix-web-actors = "4.3.0"
+actix = "0.13.3"
 
 [dev-dependencies]
 rand = "0.8.5"

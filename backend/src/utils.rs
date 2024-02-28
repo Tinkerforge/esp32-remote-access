@@ -1,4 +1,4 @@
-use actix_web::{error::ErrorInternalServerError, web};
+use actix_web::web;
 use diesel::{
     r2d2::{ConnectionManager, PooledConnection},
     PgConnection,
@@ -11,7 +11,9 @@ pub fn get_connection(
 ) -> actix_web::Result<PooledConnection<ConnectionManager<PgConnection>>> {
     match state.pool.get() {
         Ok(conn) => Ok(conn),
-        Err(_err) => Err(ErrorInternalServerError("")),
+        Err(_err) => {
+            Err(Error::InternalError.into())
+        },
     }
 }
 

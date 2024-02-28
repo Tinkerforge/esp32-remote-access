@@ -1,6 +1,7 @@
 pub mod add;
 pub mod allow_user;
 pub mod remove;
+pub mod get_chargers;
 
 use crate::{
     error::Error,
@@ -16,7 +17,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     let scope = web::scope("/wallbox")
         .wrap(JwtMiddleware)
         .service(add::add)
-        .service(remove::remove);
+        .service(allow_user::allow_user)
+        .service(get_chargers::get_chargers);
     cfg.service(scope);
 }
 

@@ -40,6 +40,7 @@ async fn main() {
             routes::charger::add::add,
             routes::charger::allow_user::allow_user,
             routes::charger::remove::remove,
+            routes::charger::get_chargers::get_chargers,
             routes::user::me::me,
             routes::user::update_password::update_password,
             routes::user::update_user::update_user,
@@ -52,8 +53,9 @@ async fn main() {
             routes::charger::add::Keys,
             routes::charger::allow_user::AllowUserSchema,
             routes::charger::remove::DeleteChargerSchema,
-            models::filtered_user::FilteredUser,
+            routes::charger::get_chargers::GetChargerSchema,
             routes::user::update_password::PasswordUpdateSchema,
+            models::filtered_user::FilteredUser,
         )),
         modifiers(&JwtToken)
     )]
