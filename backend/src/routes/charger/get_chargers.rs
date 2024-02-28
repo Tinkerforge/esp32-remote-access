@@ -4,7 +4,12 @@ use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, routes::user::get_user, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    routes::user::get_user,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetChargerSchema {
@@ -24,7 +29,10 @@ pub struct GetChargerSchema {
     )
 )]
 #[get("/get_chargers")]
-pub async fn get_chargers(state: web::Data<AppState>, uid: crate::models::uuid::Uuid) -> Result<impl Responder, actix_web::Error> {
+pub async fn get_chargers(
+    state: web::Data<AppState>,
+    uid: crate::models::uuid::Uuid,
+) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::allowed_users::dsl as allowed_users;
     use db_connector::schema::chargers::dsl as chargers;
 
@@ -33,22 +41,24 @@ pub async fn get_chargers(state: web::Data<AppState>, uid: crate::models::uuid::
     let mut conn = get_connection(&state)?;
     let charger: Vec<Charger> = web_block_unpacked(move || {
         let charger_ids = AllowedUser::belonging_to(&user).select(allowed_users::charger_id);
-        match chargers::chargers.filter(chargers::id.eq_any(charger_ids))
+        match chargers::chargers
+            .filter(chargers::id.eq_any(charger_ids))
             .select(Charger::as_select())
-            .load(&mut conn) {
+            .load(&mut conn)
+        {
             Ok(v) => Ok(v),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
-    let charger = charger.into_iter().map(|c| {
-        GetChargerSchema {
+    let charger = charger
+        .into_iter()
+        .map(|c| GetChargerSchema {
             id: c.id,
-            name: c.name
-        }
-    }).collect::<Vec<GetChargerSchema>>();
+            name: c.name,
+        })
+        .collect::<Vec<GetChargerSchema>>();
 
     Ok(HttpResponse::Ok().json(charger))
 }
@@ -83,7 +93,10 @@ mod tests {
             user2.add_charger(&uuid).await;
         }
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(get_chargers);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(get_chargers);
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
@@ -99,7 +112,10 @@ mod tests {
         let (mut user1, _) = TestUser::random().await;
         user1.login().await;
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(get_chargers);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(get_chargers);
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()

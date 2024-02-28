@@ -5,7 +5,12 @@ use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, routes::user::get_user, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    routes::user::get_user,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetWgKeysSchema {
@@ -48,14 +53,14 @@ pub async fn get_key(
             .filter(charger_id.eq(&web_query.cid))
             .filter(in_use.eq(false))
             .select(WgKey::as_select())
-            .get_result(&mut conn) {
+            .get_result(&mut conn)
+        {
             Ok(v) => Ok(Some(v)),
             Err(NotFound) => Ok(None),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     if let Some(key) = key {
         let key = GetWgKeysSchema {
@@ -88,7 +93,10 @@ mod tests {
         let charger = uuid::Uuid::new_v4().to_string();
         user.add_charger(&charger).await;
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(get_key);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(get_key);
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
@@ -116,9 +124,13 @@ mod tests {
         diesel::update(wg_keys)
             .filter(charger_id.eq(&charger))
             .set(in_use.eq(true))
-            .execute(&mut conn).unwrap();
+            .execute(&mut conn)
+            .unwrap();
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(get_key);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(get_key);
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()

@@ -1,8 +1,8 @@
 pub mod add;
 pub mod allow_user;
-pub mod remove;
-pub mod get_key;
 pub mod get_chargers;
+pub mod get_key;
+pub mod remove;
 
 use crate::{
     error::Error,
