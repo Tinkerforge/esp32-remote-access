@@ -128,6 +128,17 @@ pub mod tests {
             }
         }
 
+        pub async fn random() -> (Self, String) {
+            let uuid = uuid::Uuid::new_v4().to_string();
+            let mail = format!("{}@test.invalid", uuid);
+            let user = Self::new(&mail).await;
+            (user, mail)
+        }
+
+        pub fn get_token(&self) -> &str {
+            self.token.as_ref().unwrap()
+        }
+
         pub async fn login(&mut self) -> &str {
             if self.token.is_some() {
                 return self.token.as_ref().unwrap();
