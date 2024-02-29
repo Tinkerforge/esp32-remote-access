@@ -14,6 +14,8 @@ diesel::table! {
         id -> Varchar,
         last_ip -> Nullable<Inet>,
         name -> Varchar,
+        management_private -> Varchar,
+        charger_pub -> Varchar,
     }
 }
 

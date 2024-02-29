@@ -8,4 +8,6 @@ pub struct Charger {
     pub id: String,
     pub name: String,
     pub last_ip: Option<IpNetwork>,
+    pub management_private: String,
+    pub charger_pub: String,
 }

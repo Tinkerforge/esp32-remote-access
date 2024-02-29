@@ -3,11 +3,12 @@ use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
 use diesel::{prelude::*, result::Error::NotFound};
 use ipnetwork::IpNetwork;
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
 
-use crate::{error::Error, utils::get_connection, AppState};
+use crate::{error::Error, utils::{get_connection, web_block_unpacked}, AppState};
 
 #[derive(Serialize, Deserialize, Clone, Validate, ToSchema)]
 pub struct Keys {
@@ -23,9 +24,9 @@ pub struct Keys {
 pub struct ChargerSchema {
     id: String,
     name: String,
+    charger_pub: String,
 }
 
-// maybe add validator?
 #[derive(Serialize, Deserialize, Validate, ToSchema)]
 #[validate(schema(function = "validate_add_charger_schema"))]
 pub struct AddChargerSchema {
@@ -33,11 +34,18 @@ pub struct AddChargerSchema {
     keys: [Keys; 5],
 }
 
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct AddChargerResponseSchema {
+    management_pub: String
+}
+
 fn validate_add_charger_schema(schema: &AddChargerSchema) -> Result<(), ValidationError> {
     for key in schema.keys.iter() {
         validate_wg_key(&key.charger_public)?;
         validate_wg_key(&key.web_private)?;
     }
+
+    validate_wg_key(&schema.charger.charger_pub)?;
 
     Ok(())
 }
@@ -61,7 +69,7 @@ fn validate_wg_key(key: &str) -> Result<(), ValidationError> {
     context_path = "/charger",
     request_body = AddChargerSchema,
     responses(
-        (status = 200, description = "Adding the charger was successful."),
+        (status = 200, description = "Adding the charger was successful.", body = AddChargerResponseSchema),
         (status = 409, description = "The charger already exists.")
     ),
     security(
@@ -74,7 +82,7 @@ pub async fn add(
     charger: web::Json<AddChargerSchema>,
     uid: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
-    add_charger(charger.charger.clone(), uid.clone().into(), &state).await?;
+    let pub_key = add_charger(charger.charger.clone(), uid.clone().into(), &state).await?;
 
     for keys in charger.keys.iter() {
         add_wg_key(
@@ -86,19 +94,23 @@ pub async fn add(
         .await?;
     }
 
-    Ok(HttpResponse::Ok())
+    let resp = AddChargerResponseSchema {
+        management_pub: pub_key
+    };
+
+    Ok(HttpResponse::Ok().json(resp))
 }
 
 async fn add_charger(
     charger: ChargerSchema,
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
-) -> Result<(), actix_web::Error> {
+) -> Result<String, actix_web::Error> {
     use db_connector::schema::allowed_users::dsl as allowed_users;
     use db_connector::schema::chargers::dsl as chargers;
 
     let mut conn = get_connection(state)?;
-    match web::block(move || {
+    let pub_key = web_block_unpacked(move || {
         match chargers::chargers
             .find(&charger.id)
             .select(Charger::as_select())
@@ -109,10 +121,18 @@ async fn add_charger(
             Err(_err) => return Err(Error::InternalError),
         }
 
+        let private_key = boringtun::x25519::StaticSecret::random_from_rng(OsRng);
+        let pub_key = boringtun::x25519::PublicKey::from(&private_key);
+        let private_key = BASE64_STANDARD.encode(private_key.as_bytes());
+        let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
+
         let charger = Charger {
             id: charger.id,
             name: charger.name,
             last_ip: None,
+            charger_pub: charger.charger_pub,
+            management_private: private_key,
+
         };
 
         match diesel::insert_into(chargers::chargers)
@@ -138,16 +158,11 @@ async fn add_charger(
             Err(_err) => return Err(Error::InternalError),
         }
 
-        Ok(())
+        Ok(pub_key)
     })
-    .await
-    {
-        Ok(res) => match res {
-            Ok(()) => Ok(()),
-            Err(err) => Err(err.into()),
-        },
-        Err(_err) => Err(Error::InternalError.into()),
-    }
+    .await?;
+
+    Ok(pub_key)
 }
 
 async fn add_wg_key(
@@ -247,6 +262,7 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 id: name.to_string(),
                 name: name.to_string(),
+                charger_pub: keys[0].charger_public.clone()
             },
             keys,
         };
@@ -279,6 +295,7 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 id: cid.clone(),
                 name: "Test".to_string(),
+                charger_pub: keys[0].charger_public.clone()
             },
             keys,
         };
@@ -326,6 +343,7 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 id: "ABC".to_string(),
                 name: "Test".to_string(),
+                charger_pub: keys[0].charger_public.clone()
             },
             keys,
         };
