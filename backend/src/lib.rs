@@ -6,6 +6,7 @@ pub mod middleware;
 pub mod models;
 pub mod routes;
 pub mod utils;
+pub mod ws_udp_bridge;
 
 pub struct AppState {
     pub pool: Pool,

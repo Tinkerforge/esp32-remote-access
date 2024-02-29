@@ -34,6 +34,7 @@ utoipa = { version = "4.2.0", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "6.0.0", features = ["actix-web"] }
 actix-web-actors = "4.3.0"
 actix = "0.13.3"
+log = "0.4.20"
 
 [dev-dependencies]
 rand = "0.8.5"

@@ -25,6 +25,10 @@ pub enum Error {
     WgKeysDoNotExist,
     #[display(fmt = "No unused Key left")]
     AllKeysInUse,
+    #[display(fmt = "Key already in use")]
+    WgKeyAlreadyInUse,
+    #[display(fmt = "Charger was not seen yet")]
+    ChargerNotSeenYet,
 }
 
 impl error::ResponseError for Error {
@@ -45,6 +49,8 @@ impl error::ResponseError for Error {
             Self::UserDoesNotExist => StatusCode::BAD_REQUEST,
             Self::WgKeysDoNotExist => StatusCode::BAD_REQUEST,
             Self::AllKeysInUse => StatusCode::NOT_FOUND,
+            Self::WgKeyAlreadyInUse => StatusCode::CONFLICT,
+            Self::ChargerNotSeenYet => StatusCode::NOT_FOUND,
         }
     }
 }

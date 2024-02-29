@@ -394,6 +394,7 @@ dependencies = [
  "ipnetwork",
  "jsonwebtoken",
  "lettre",
+ "log",
  "rand",
  "rand_core",
  "serde",
