@@ -17,8 +17,10 @@ pub struct GetWgKeysSchema {
     id: String,
     charger_id: String,
     charger_pub: String,
+    #[schema(value_type = SchemaType::String)]
     charger_address: IpNetwork,
     web_private: String,
+    #[schema(value_type = SchemaType::String)]
     web_address: IpNetwork,
 }
 

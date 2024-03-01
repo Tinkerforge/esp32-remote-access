@@ -52,6 +52,7 @@ async fn main() {
             routes::charger::add::AddChargerSchema,
             routes::charger::add::ChargerSchema,
             routes::charger::add::Keys,
+            routes::charger::add::AddChargerResponseSchema,
             routes::charger::allow_user::AllowUserSchema,
             routes::charger::remove::DeleteChargerSchema,
             routes::charger::get_chargers::GetChargerSchema,

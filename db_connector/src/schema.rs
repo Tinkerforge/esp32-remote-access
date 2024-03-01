@@ -16,6 +16,8 @@ diesel::table! {
         name -> Varchar,
         management_private -> Varchar,
         charger_pub -> Varchar,
+        wg_charger_ip -> Inet,
+        wg_server_ip -> Inet,
     }
 }
 

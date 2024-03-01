@@ -25,6 +25,10 @@ pub struct ChargerSchema {
     id: String,
     name: String,
     charger_pub: String,
+    #[schema(value_type = SchemaType::String)]
+    wg_charger_ip: IpNetwork,
+    #[schema(value_type = SchemaType::String)]
+    wg_server_ip: IpNetwork,
 }
 
 #[derive(Serialize, Deserialize, Validate, ToSchema)]
@@ -132,7 +136,8 @@ async fn add_charger(
             last_ip: None,
             charger_pub: charger.charger_pub,
             management_private: private_key,
-
+            wg_charger_ip: charger.wg_charger_ip,
+            wg_server_ip: charger.wg_server_ip,
         };
 
         match diesel::insert_into(chargers::chargers)
@@ -207,7 +212,7 @@ async fn add_wg_key(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::mem::MaybeUninit;
+    use std::{mem::MaybeUninit, net::Ipv4Addr};
 
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
@@ -262,7 +267,9 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 id: name.to_string(),
                 name: name.to_string(),
-                charger_pub: keys[0].charger_public.clone()
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
+                wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
             },
             keys,
         };
@@ -295,7 +302,9 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 id: cid.clone(),
                 name: "Test".to_string(),
-                charger_pub: keys[0].charger_public.clone()
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
+                wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
             },
             keys,
         };
@@ -343,7 +352,9 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 id: "ABC".to_string(),
                 name: "Test".to_string(),
-                charger_pub: keys[0].charger_public.clone()
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
+                wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
             },
             keys,
         };
