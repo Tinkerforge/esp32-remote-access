@@ -28,7 +28,7 @@ futures-util = "0.3.30"
 lettre = { version = "0.11.4", features = ["native-tls"] }
 derive_more = "0.99.17"
 simplelog = "0.12.1"
-base64 = "0.21.7"
+base64 = "0.22"
 ipnetwork = "0.20.0"
 utoipa = { version = "4.2.0", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "6.0.0", features = ["actix-web"] }
@@ -37,9 +37,10 @@ actix = "0.13.3"
 log = "0.4.20"
 boringtun = "0.6.0"
 rand_core = "0.6.4"
+rand = "0.8.5"
+anyhow = "1.0.80"
 
 [dev-dependencies]
-rand = "0.8.5"
 
 [profile.release]
 opt-level = 3
