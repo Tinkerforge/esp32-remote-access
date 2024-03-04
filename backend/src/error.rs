@@ -15,7 +15,7 @@ pub enum Error {
     WrongCredentials,
     #[display(fmt = "Not verified")]
     NotVerified,
-    #[display(fmt = "Internal Server Error")]
+    #[display(fmt = "Unauthorized")]
     Unauthorized,
     #[display(fmt = "This charger already exists")]
     ChargerAlreadyExists,
@@ -29,6 +29,8 @@ pub enum Error {
     WgKeyAlreadyInUse,
     #[display(fmt = "Charger was not seen yet")]
     ChargerNotSeenYet,
+    #[display(fmt = "Logged in user is not the owner of the charger")]
+    UserIsNotOwner,
 }
 
 impl error::ResponseError for Error {
@@ -51,6 +53,7 @@ impl error::ResponseError for Error {
             Self::AllKeysInUse => StatusCode::NOT_FOUND,
             Self::WgKeyAlreadyInUse => StatusCode::CONFLICT,
             Self::ChargerNotSeenYet => StatusCode::NOT_FOUND,
+            Self::UserIsNotOwner => StatusCode::UNAUTHORIZED,
         }
     }
 }

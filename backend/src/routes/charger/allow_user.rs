@@ -38,7 +38,7 @@ pub async fn allow_user(
     use db_connector::schema::allowed_users::dsl::*;
 
     if !charger_belongs_to_user(&state, uid.into(), allow_user.charger_id.clone()).await? {
-        return Err(Error::Unauthorized.into());
+        return Err(Error::UserIsNotOwner.into());
     }
 
     let allowed_uuid = get_uuid_from_email(&state, allow_user.user_mail.clone()).await?;

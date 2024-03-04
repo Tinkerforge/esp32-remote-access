@@ -41,7 +41,7 @@ pub async fn charger_belongs_to_user(
             .get_result(&mut conn)
         {
             Ok(u) => u,
-            Err(NotFound) => return Err(Error::Unauthorized),
+            Err(NotFound) => return Err(Error::UserIsNotOwner),
             Err(_err) => return Err(Error::InternalError),
         };
 

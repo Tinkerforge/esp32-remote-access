@@ -68,7 +68,7 @@ pub async fn remove(
     use db_connector::schema::chargers::dsl::*;
 
     if !charger_belongs_to_user(&state, uid.clone().into(), data.charger.clone()).await? {
-        return Err(Error::Unauthorized.into());
+        return Err(Error::UserIsNotOwner.into());
     }
 
     delete_all_keys(data.charger.clone(), &state).await?;
