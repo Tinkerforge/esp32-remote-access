@@ -45,6 +45,7 @@ async fn main() {
             routes::user::me::me,
             routes::user::update_password::update_password,
             routes::user::update_user::update_user,
+            routes::management::management,
         ),
         components(schemas(
             routes::auth::login::LoginSchema,
@@ -58,6 +59,8 @@ async fn main() {
             routes::charger::get_chargers::GetChargerSchema,
             routes::charger::get_key::GetWgKeysSchema,
             routes::user::update_password::PasswordUpdateSchema,
+            routes::management::ManagementSchema,
+            routes::management::ManagementResponseSchema,
             models::filtered_user::FilteredUser,
         )),
         modifiers(&JwtToken)

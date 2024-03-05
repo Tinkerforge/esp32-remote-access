@@ -31,6 +31,8 @@ pub enum Error {
     ChargerNotSeenYet,
     #[display(fmt = "Logged in user is not the owner of the charger")]
     UserIsNotOwner,
+    #[display(fmt = "Request does not contain a valid ip address")]
+    NoValidIp,
 }
 
 impl error::ResponseError for Error {
@@ -54,6 +56,7 @@ impl error::ResponseError for Error {
             Self::WgKeyAlreadyInUse => StatusCode::CONFLICT,
             Self::ChargerNotSeenYet => StatusCode::NOT_FOUND,
             Self::UserIsNotOwner => StatusCode::UNAUTHORIZED,
+            Self::NoValidIp => StatusCode::BAD_REQUEST,
         }
     }
 }

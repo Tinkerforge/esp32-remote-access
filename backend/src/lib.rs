@@ -1,5 +1,10 @@
+use std::{collections::HashMap, net::IpAddr, os::unix::net::SocketAddr, sync::Mutex};
+
+use actix::prelude::*;
+use actix_web::web::Bytes;
 use db_connector::Pool;
 use lettre::SmtpTransport;
+use udp_server::TunnData;
 
 pub mod error;
 pub mod middleware;
@@ -7,6 +12,17 @@ pub mod models;
 pub mod routes;
 pub mod utils;
 pub mod ws_udp_bridge;
+pub mod udp_server;
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Message(pub Bytes);
+
+pub struct BridgeState {
+    pub pool: Pool,
+    pub web_client_map: Mutex<HashMap<IpAddr, Recipient<Message>>>,
+    pub charger_map: Mutex<HashMap<SocketAddr, Vec<TunnData>>>,
+}
 
 pub struct AppState {
     pub pool: Pool,
@@ -53,12 +69,21 @@ pub(crate) mod tests {
             .build();
 
         let state = AppState {
-            pool,
+            pool: pool.clone(),
             jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!"),
             mailer,
             frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
         };
+
+        let bridge_state = BridgeState {
+            pool,
+            web_client_map: Mutex::new(HashMap::new()),
+            charger_map: Mutex::new(HashMap::new())
+        };
+
         let state = web::Data::new(state);
-        cfg.app_data(state.clone());
+        let bridge_state = web::Data::new(bridge_state);
+        cfg.app_data(state);
+        cfg.app_data(bridge_state);
     }
 }

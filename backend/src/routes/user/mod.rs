@@ -144,12 +144,20 @@ pub mod tests {
                 return self.token.as_ref().unwrap();
             }
             self.token = Some(login_user(&self.mail, None).await);
+            
             self.token.as_ref().unwrap()
         }
 
         pub async fn add_charger(&mut self, name: &str) {
             add_test_charger(name, self.token.as_ref().unwrap()).await;
             self.charger.push(name.to_string());
+        }
+
+        pub async fn add_random_charger(&mut self) -> String {
+            let charger = uuid::Uuid::new_v4().to_string();
+            self.add_charger(&charger).await;
+
+            charger
         }
 
         pub async fn allow_user(&mut self, user_mail: &str, charger_id: &str) {
