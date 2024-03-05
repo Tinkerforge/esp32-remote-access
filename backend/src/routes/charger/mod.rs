@@ -15,7 +15,7 @@ use db_connector::models::allowed_users::AllowedUser;
 use diesel::{prelude::*, result::Error::NotFound};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    let scope = web::scope("/wallbox")
+    let scope = web::scope("/charger")
         .wrap(JwtMiddleware)
         .service(add::add)
         .service(allow_user::allow_user)
