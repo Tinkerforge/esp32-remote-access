@@ -7,7 +7,7 @@ use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, middleware::jwt::JwtMiddleware, routes::user::get_user, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{error::Error, routes::user::get_user, utils::{get_connection, web_block_unpacked}, AppState};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ManagementSchema {
@@ -30,7 +30,6 @@ pub struct ManagementResponseSchema {
 )]
 #[put("/management")]
 pub async fn management(
-    _: JwtMiddleware,
     req: HttpRequest,
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
