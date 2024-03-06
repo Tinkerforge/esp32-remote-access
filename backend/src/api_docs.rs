@@ -1,7 +1,9 @@
 use std::net::Ipv4Addr;
 
-use actix_web::{App, HttpServer};
+use actix_web::{middleware::Logger, App, HttpServer};
 pub use backend::*;
+use log::LevelFilter;
+use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
 use utoipa::{
     openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
     Modify, OpenApi,
@@ -30,6 +32,13 @@ impl Modify for JwtToken {
  */
 #[actix_web::main]
 async fn main() {
+    CombinedLogger::init(vec![TermLogger::new(
+        LevelFilter::Debug,
+        Config::default(),
+        TerminalMode::Mixed,
+        ColorChoice::Auto,
+    )])
+    .unwrap();
     #[derive(OpenApi)]
     #[openapi(
         paths(
@@ -70,7 +79,7 @@ async fn main() {
     let openapi = ApiDoc::openapi();
 
     HttpServer::new(move || {
-        App::new().service(SwaggerUi::new("/{_:.*}").url("/api-docs/openapi.json", openapi.clone()))
+        App::new().wrap(Logger::default()).service(SwaggerUi::new("/{_:.*}").url("/api-docs/openapi.json", openapi.clone()))
     })
     .bind((Ipv4Addr::UNSPECIFIED, 12345))
     .unwrap()
