@@ -22,7 +22,7 @@ pub struct TunnData {
 fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr) -> anyhow::Result<TunnData> {
     let mut conn = state.pool.get()?;
 
-    let ip = IpNetwork::new(addr.ip(), addr.port().try_into()?)?;
+    let ip = IpNetwork::new(addr.ip(), 32)?;
     let charger: Charger = chargers::chargers.filter(chargers::last_ip.eq(ip)).select(Charger::as_select())
         .get_result(&mut conn)?;
 
@@ -93,9 +93,9 @@ fn run_server(state: web::Data<BridgeState>, sock: UdpSocket) {
             let mut buf2 = vec![0u8; s + 32];
             match tunn_data.tunn.decapsulate(None, &buf[0..s], &mut buf2) {
                 TunnResult::WriteToNetwork(data) => {
-                    match sock.send_to(&data, addr) {
+                    match sock.send_to(data, addr) {
                         Ok(s) => {
-                            if s < buf2.len() {
+                            if s < data.len() {
                                 log::error!("Sent incomplete datagram to charger with ip '{}'", addr.to_string());
                             }
                         },
