@@ -1,6 +1,14 @@
 import { Component } from 'preact';
-import { Message, MessageType } from '../types';
+import { signal } from '@preact/signals';
+import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
+
+export let charger_info = signal({
+    self_key: "",
+    peer_key: "",
+    self_internal_ip: "",
+    peer_internal_ip: "",
+});
 
 export class Frame extends Component {
 
@@ -19,7 +27,7 @@ export class Frame extends Component {
             }
         });
 
-        this.worker.onmessage = (e: MessageEvent) => {
+        const message_event = (e: MessageEvent) => {
             if (e.data === "ready") {
                 const iframe = document.getElementById("interface") as HTMLIFrameElement;
                 iframe.src = "/wg/";
@@ -48,6 +56,20 @@ export class Frame extends Component {
                 }
             }
         };
+
+        this.worker.onmessage = (e: MessageEvent) => {
+            if (e.data === "started") {
+                this.worker.onmessage = message_event;
+                const message_data: SetupMessage = charger_info.value;
+                const message: Message = {
+                    type: MessageType.Setup,
+                    data: message_data
+                };
+
+                this.worker.postMessage(message);
+            }
+        }
+
         window.addEventListener("message", (e: MessageEvent) => {
             if (e.data === "initIFrame") {
                 this.worker.postMessage("connect");

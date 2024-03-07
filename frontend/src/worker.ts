@@ -1,14 +1,11 @@
 import { Client } from "wg-webclient";
-import { FetchMessage, Message, MessageType, ResponseMessage } from "./types";
+import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } from "./types";
 
 declare const self: DedicatedWorkerGlobalScope;
 
-
-const secret = "ELizT/tDBXfQkW6JhQpgaYNlcdt8KU4p1DQ4v3unD04=";
-const peer = "IWMPibSd9E2e95PwBU+VsAHDxkjr6vWvRPdG1ICndkM=";
-const url = "wss://" + self.location.hostname + ":8082"
-const wgClient = new Client(secret, peer, url);
-self.postMessage("ready");
+const tunnel_url = "wss://" + self.location.hostname + ":8081"
+let wgClient = undefined;
+self.postMessage("started");
 
 self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
@@ -57,6 +54,12 @@ self.addEventListener("message", async (e: MessageEvent) => {
                     data: response_msg
                 }
                 self.postMessage(msg);
+                break;
+
+            case MessageType.Setup:
+                const setup_data = data.data as SetupMessage;
+                wgClient = new Client(setup_data.self_key, setup_data.peer_key, tunnel_url, setup_data.self_internal_ip, setup_data.peer_internal_ip);
+                self.postMessage("ready");
                 break;
         }
     }

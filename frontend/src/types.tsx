@@ -3,6 +3,7 @@ export enum MessageType {
     FileDownload,
     Fetch,
     FetchResponse,
+    Setup,
 }
 
 export interface Message {
@@ -23,6 +24,13 @@ export interface ResponseMessage {
     statusText: string,
     headers: [string, string][],
     body: ArrayBuffer,
+}
+
+export interface SetupMessage {
+    self_key: string,
+    peer_key: string,
+    self_internal_ip: string,
+    peer_internal_ip: string,
 }
 
 export const BACKEND = import.meta.env.VITE_BACKEND_URL;
