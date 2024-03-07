@@ -89,7 +89,10 @@ fn validate_token(req: &HttpRequest) -> Result<(), Error> {
         &Validation::default(),
     ) {
         Ok(claims) => claims.claims,
-        Err(_err) => return Err(ErrorUnauthorized("")),
+        Err(_err) => {
+            log::error!("Error while decoding token");
+            return Err(ErrorUnauthorized(""))
+        },
     };
 
     let user_id = match uuid::Uuid::parse_str(claims.sub.as_str()) {
