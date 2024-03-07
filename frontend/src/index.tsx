@@ -15,6 +15,7 @@ import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 import * as cookie from "cookie";
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { ChargerList } from './pages/chargers.js';
 
 
 export function App() {
@@ -51,6 +52,7 @@ export function App() {
                             <Route path="/" component={Home} />
                             <Route path="/user" component={User} />
                             <Route path="/frame" component={FrameFunction} />
+                            <Route path="/chargers" component={ChargerList} />
                             <Route default component={NotFound} />
                         </Router>
                     </main>
