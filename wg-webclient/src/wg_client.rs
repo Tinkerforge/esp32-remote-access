@@ -7,7 +7,7 @@ use http_body_util::BodyExt;
 use hyper::body::Bytes;
 use js_sys::Promise;
 use pcap_file::pcapng::PcapNgWriter;
-use smoltcp::wire::{IpAddress, IpCidr};
+use smoltcp::wire::IpCidr;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{MessageEvent, CustomEvent};
@@ -32,8 +32,8 @@ impl Client {
      * Creates a new Client struct by also creating the wrapped objects.
      */
     #[wasm_bindgen(constructor)]
-    pub fn new(secret_str: &str, peer_str: &str, url: &str) -> Self {
-        Self(WgClient::new(secret_str, peer_str, url), Rc::new(RefCell::new(VecDeque::new())))
+    pub fn new(secret_str: &str, peer_str: &str, url: &str, internal_ip: &str, internap_peer_ip: &str) -> Self {
+        Self(WgClient::new(secret_str, peer_str, url, internal_ip, internap_peer_ip), Rc::new(RefCell::new(VecDeque::new())))
     }
 
     /**
@@ -103,6 +103,7 @@ struct WgClient {
     current_request: Rc<RefCell<Option<IntervalHandle<MessageEvent>>>>,
     request_queue: Rc<RefCell<VecDeque<Request>>>,
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
+    internal_peer_ip: String
 }
 
 enum RequestState {
@@ -119,7 +120,7 @@ impl WgClient {
     /**
      * Creates a new object.
      */
-    fn new(secret_str: &str, peer_str: &str, url: &str) -> Self {
+    fn new(secret_str: &str, peer_str: &str, url: &str, internal_ip: &str, internal_peer_ip: &str) -> Self {
         console_error_panic_hook::set_once();
 
         let mut secret = [0u8; 32];
@@ -148,7 +149,7 @@ impl WgClient {
 
         let pcap = device.get_pcap();
 
-        let ip = IpCidr::new(IpAddress::v4(123, 123, 123, 3), 24);
+        let ip = IpCidr::new(internal_ip.parse().unwrap(), 24);
         let iface = Rc::new(RefCell::new(Interface::new(device, ip)));
         let iface_cpy = iface.clone();
 
@@ -174,6 +175,7 @@ impl WgClient {
             current_request: Rc::new(RefCell::new(None)),
             request_queue: Rc::new(RefCell::new(VecDeque::new())),
             pcap,
+            internal_peer_ip: internal_peer_ip.to_string(),
         }
     }
 
@@ -184,7 +186,7 @@ impl WgClient {
         let mut stream = TcpStream::new(self.iface.clone());
         let port = js_sys::Math::random() * 1000.0;
         let port = port as u16;
-        let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
+        let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), 80);
         stream.connect(endpoint, port).unwrap_or_else(|e| {
             console_log!("{}", e);
             return
@@ -220,7 +222,7 @@ impl WgClient {
         {
             let port = js_sys::Math::random() * 1000.0;
             let port = port as u16;
-            let endpoint = smoltcp::wire::IpEndpoint::new(smoltcp::wire::IpAddress::v4(123, 123, 123, 2), 80);
+            let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), 80);
 
             // FIXME: throw exception instead of panic
             self.stream.borrow_mut().connect(endpoint, port).unwrap();
@@ -525,7 +527,7 @@ pub mod test {
     use super::*;
 
     pub(self) fn create_wg_client(secret: &str, peer: &str, url: &str) -> WgClient {
-        WgClient::new(secret, peer, url)
+        WgClient::new(secret, peer, url, "", "")
     }
 
     #[wasm_bindgen_test]
