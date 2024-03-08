@@ -12,7 +12,7 @@ use validator::{Validate, ValidationError};
 use crate::{
     error::Error,
     utils::{get_connection, web_block_unpacked},
-    AppState,
+    AppState, BridgeState,
 };
 
 #[derive(Deserialize, Serialize, Validate)]
@@ -34,6 +34,7 @@ struct WebClient {
     pub peer_address: IpNetwork,
     pub peer_port: u16,
     pub app_state: web::Data<AppState>,
+    pub bridge_state: web::Data<BridgeState>,
 }
 
 impl Actor for WebClient {
@@ -100,6 +101,7 @@ async fn start_ws(
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
     key_id: Query<WsQuery>,
+    bridge_state: web::Data<BridgeState>,
 ) -> Result<HttpResponse, actix_web::Error> {
     use db_connector::schema::wg_keys::dsl as wg_keys;
     use db_connector::schema::chargers::dsl as chargers;
@@ -161,6 +163,7 @@ async fn start_ws(
         app_state: state.clone(),
         peer_address,
         peer_port: keys.wg_port as u16,
+        bridge_state
     };
 
     let resp = ws::start(client, &req, stream);

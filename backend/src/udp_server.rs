@@ -1,7 +1,7 @@
 use std::{collections::{hash_map::Entry, HashMap}, net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket}, time::Instant};
 
 use actix_web::web;
-use boringtun::noise::{Tunn, TunnResult};
+use boringtun::noise::{errors::WireGuardError, Tunn, TunnResult};
 use db_connector::models::chargers::Charger;
 use db_connector::schema::chargers::dsl as chargers;
 use diesel::prelude::*;
@@ -116,7 +116,10 @@ fn run_server(state: web::Data<BridgeState>, sock: UdpSocket) {
                 },
                 TunnResult::Done => (),
                 TunnResult::Err(err) => {
-                    log::error!("Error while decrypting packet: {:?}", err);
+                    if let WireGuardError::InvalidMac = err {
+                        let map = state.web_client_map.lock().unwrap();
+                        let peer = map.entry()
+                    }
                 }
             }
         } else {
