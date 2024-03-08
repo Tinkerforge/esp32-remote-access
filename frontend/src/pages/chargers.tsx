@@ -49,6 +49,25 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         key_id: json.id,
                     }
                 }}>Connect</Button></td>
+                <td><Button onClick={async () => {
+                    const body = {
+                        charger: charger.id
+                    };
+                    const resp = await fetch(BACKEND + "/charger/remove", {
+                        method: "DELETE",
+                        credentials: "include",
+                        body: JSON.stringify(body),
+                        headers: {
+                            "Content-Type": "application/json"
+                        }
+                    });
+
+                    if (resp.status === 200) {
+                        const chargers = this.state.chargers.filter((c) => c.id !== charger.id);
+                        this.setState({chargers: chargers});
+                    }
+                }}
+                className="btn-danger">Remove</Button></td>
             </tr>
             list.push(entry);
         })
@@ -60,6 +79,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         <th>#</th>
                         <th>Charger Name</th>
                         <th>Charger Id</th>
+                        <th />
                         <th />
                     </tr>
                 </thead>
