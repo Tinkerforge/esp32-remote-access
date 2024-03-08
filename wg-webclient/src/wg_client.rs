@@ -149,7 +149,8 @@ impl WgClient {
 
         let pcap = device.get_pcap();
 
-        let ip = IpCidr::new(internal_ip.parse().unwrap(), 24);
+        let ip = &internal_ip[0..internal_ip.len() - 3];
+        let ip = IpCidr::new(ip.parse().unwrap(), 24);
         let iface = Rc::new(RefCell::new(Interface::new(device, ip)));
         let iface_cpy = iface.clone();
 
@@ -175,7 +176,7 @@ impl WgClient {
             current_request: Rc::new(RefCell::new(None)),
             request_queue: Rc::new(RefCell::new(VecDeque::new())),
             pcap,
-            internal_peer_ip: internal_peer_ip.to_string(),
+            internal_peer_ip: (&internal_peer_ip[0..internal_peer_ip.len() - 3]).to_string(),
         }
     }
 
