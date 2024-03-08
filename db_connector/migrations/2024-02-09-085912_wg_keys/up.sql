@@ -8,5 +8,6 @@ CREATE TABLE "wg_keys" (
   "charger_pub" VARCHAR NOT NULL,
   "web_private" VARCHAR NOT NULL,
   "web_address" INET NOT NULL,
-  "charger_address" INET NOT NULL
+  "charger_address" INET NOT NULL,
+  "wg_port" INT NOT NULL
 );

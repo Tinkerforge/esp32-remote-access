@@ -18,6 +18,7 @@ pub struct Keys {
     web_address: IpNetwork,
     #[schema(value_type = SchemaType::String)]
     charger_address: IpNetwork,
+    port: u16,
 }
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -188,6 +189,7 @@ async fn add_wg_key(
         web_private: keys.web_private,
         web_address: keys.web_address,
         charger_address: keys.charger_address,
+        wg_port: keys.port as i32,
     };
 
     match web::block(move || {
@@ -249,6 +251,7 @@ pub(crate) mod tests {
                 web_address: IpNetwork::V4(
                     Ipv4Network::new("123.123.123.122".parse().unwrap(), 24).unwrap(),
                 ),
+                port: 1234,
             })
         }
 
