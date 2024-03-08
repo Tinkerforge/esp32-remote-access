@@ -32,6 +32,7 @@ struct WebClient {
     pub key_id: uuid::Uuid,
     pub charger_id: String,
     pub peer_address: IpNetwork,
+    pub peer_port: u16,
     pub app_state: web::Data<AppState>,
 }
 
@@ -51,14 +52,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                         return
                     }
                 };
-                match sock.send_to(&msg, self.peer_address.ip().to_string()) {
+
+                let sock_addr = format!("{}:{}", self.peer_address.ip().to_string(), self.peer_port.to_string());
+                log::debug!("{}", sock_addr);
+                match sock.send_to(&msg, sock_addr) {
                     Ok(s) => {
                         if s < msg.len() {
                             log::error!("Sent incomplete message to charger '{}'", self.charger_id);
                         }
                     },
                     Err(_err) => {
-                        log::error!("Failed to send message to charger '{}'", self.charger_id);
+                        log::error!("Failed to send message to charger '{}': {}", self.charger_id, _err);
                     }
                 }
             }
@@ -68,7 +72,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
 
     fn finished(&mut self, _: &mut Self::Context) {
         use db_connector::schema::wg_keys::dsl::*;
-
+        log::debug!("Closed connection to charger '{}'", self.charger_id);
         let mut conn = match self.app_state.pool.get() {
             Ok(conn) => conn,
             Err(_err) => {
@@ -118,6 +122,7 @@ async fn start_ws(
         }
 
         if let Err(_err) = diesel::update(wg_keys::wg_keys)
+            .filter(wg_keys::id.eq(&key_id))
             .set(wg_keys::in_use.eq(true))
             .execute(&mut conn)
         {
@@ -155,9 +160,14 @@ async fn start_ws(
         charger_id: keys.charger_id,
         app_state: state.clone(),
         peer_address,
+        peer_port: keys.wg_port as u16,
     };
 
     let resp = ws::start(client, &req, stream);
+
+    if let Err(err) = &resp {
+        log::debug!("{:?}", err.to_string());
+    }
 
     resp
 }

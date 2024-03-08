@@ -3,7 +3,7 @@ import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } fro
 
 declare const self: DedicatedWorkerGlobalScope;
 
-const tunnel_url = "wss://" + self.location.hostname + ":8081"
+const tunnel_url = "wss://" + self.location.hostname + "/api/ws?key_id="
 let wgClient = undefined;
 self.postMessage("started");
 
@@ -58,7 +58,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
 
             case MessageType.Setup:
                 const setup_data = data.data as SetupMessage;
-                wgClient = new Client(setup_data.self_key, setup_data.peer_key, tunnel_url, setup_data.self_internal_ip, setup_data.peer_internal_ip);
+                wgClient = new Client(setup_data.self_key, setup_data.peer_key, tunnel_url + setup_data.key_id, setup_data.self_internal_ip, setup_data.peer_internal_ip);
                 self.postMessage("ready");
                 break;
         }

@@ -1,6 +1,7 @@
 import { Component } from "preact";
 import { BACKEND } from "../types";
 import { Button, Table } from "react-bootstrap";
+import { charger_info } from "../components/Frame";
 
 
 interface Charger {
@@ -24,7 +25,6 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
         fetch(BACKEND + "/charger/get_chargers", {
             credentials: "include"
         }).then(async (resp) => {
-            console.log("response", resp);
             this.setState({chargers: await resp.json()});
         });
     }
@@ -40,7 +40,14 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                     const resp = await fetch(BACKEND + "/charger/get_key?cid=" + charger.id, {
                         credentials: "include"
                     });
-                    console.log(resp);
+                    const json = await resp.json();
+                    charger_info.value = {
+                        self_key: json.web_private,
+                        self_internal_ip: json.web_address,
+                        peer_key: json.charger_pub,
+                        peer_internal_ip: json.charger_address,
+                        key_id: json.id,
+                    }
                 }}>Connect</Button></td>
             </tr>
             list.push(entry);

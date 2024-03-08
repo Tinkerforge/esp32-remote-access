@@ -8,6 +8,7 @@ export let charger_info = signal({
     peer_key: "",
     self_internal_ip: "",
     peer_internal_ip: "",
+    key_id: "",
 });
 
 export class Frame extends Component {

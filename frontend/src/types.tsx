@@ -31,6 +31,7 @@ export interface SetupMessage {
     peer_key: string,
     self_internal_ip: string,
     peer_internal_ip: string,
+    key_id: string,
 }
 
 export const BACKEND = import.meta.env.VITE_BACKEND_URL;
