@@ -1,10 +1,9 @@
-use std::{collections::HashMap, net::IpAddr, os::unix::net::SocketAddr, sync::Mutex};
+use std::{collections::HashMap, net::{SocketAddr, UdpSocket}, sync::Mutex};
 
 use actix::prelude::*;
-use actix_web::web::Bytes;
 use db_connector::Pool;
 use lettre::SmtpTransport;
-use udp_server::TunnData;
+use ws_udp_bridge::Message;
 
 pub mod error;
 pub mod middleware;
@@ -14,14 +13,10 @@ pub mod utils;
 pub mod ws_udp_bridge;
 pub mod udp_server;
 
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Message(pub Bytes);
-
 pub struct BridgeState {
     pub pool: Pool,
-    pub web_client_map: Mutex<HashMap<IpAddr, Recipient<Message>>>,
-    pub charger_map: Mutex<HashMap<SocketAddr, Vec<TunnData>>>,
+    pub web_client_map: Mutex<HashMap<SocketAddr, Recipient<Message>>>,
+    pub socket: UdpSocket,
 }
 
 pub struct AppState {
@@ -78,7 +73,7 @@ pub(crate) mod tests {
         let bridge_state = BridgeState {
             pool,
             web_client_map: Mutex::new(HashMap::new()),
-            charger_map: Mutex::new(HashMap::new())
+            socket: UdpSocket::bind("0.0.0.0:51820").unwrap()
         };
 
         let state = web::Data::new(state);

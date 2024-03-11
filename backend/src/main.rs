@@ -1,11 +1,21 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::HashMap, net::UdpSocket, sync::Mutex};
 
 pub use backend::*;
 
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use db_connector::{get_connection_pool, run_migrations};
+use db_connector::{get_connection_pool, run_migrations, Pool};
+use diesel::prelude::*;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
+
+fn reset_wg_keys(pool: &Pool) {
+    use db_connector::schema::wg_keys::dsl::*;
+
+    let mut conn = pool.get().unwrap();
+    diesel::update(wg_keys)
+        .set(in_use.eq(false))
+        .execute(&mut conn).unwrap();
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -22,6 +32,8 @@ async fn main() -> std::io::Result<()> {
     let pool = get_connection_pool();
     let mut conn = pool.get().expect("Failed to get connection from pool");
     run_migrations(&mut conn).expect("Failed to run migrations");
+
+    reset_wg_keys(&pool);
 
     let mail = std::env::var("MAIL_USER").expect("MAIL_USER must be set");
     let pass = std::env::var("MAIL_PASS").expect("MAIL_PASS must be set");
@@ -43,7 +55,7 @@ async fn main() -> std::io::Result<()> {
     let bridge_state = web::Data::new(BridgeState {
         pool,
         web_client_map: Mutex::new(HashMap::new()),
-        charger_map: Mutex::new(HashMap::new()),
+        socket: UdpSocket::bind("0.0.0.0:51820").unwrap(),
     });
 
     udp_server::start_server(bridge_state.clone()).unwrap();

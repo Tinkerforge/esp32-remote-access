@@ -1,6 +1,6 @@
-use std::{collections::{hash_map::Entry, HashMap}, net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket}, time::Instant};
+use std::{collections::{hash_map::Entry, HashMap}, net::{IpAddr, Ipv4Addr, SocketAddr}, time::Instant};
 
-use actix_web::web;
+use actix_web::web::{self, Bytes};
 use boringtun::noise::{errors::WireGuardError, Tunn, TunnResult};
 use db_connector::models::chargers::Charger;
 use db_connector::schema::chargers::dsl as chargers;
@@ -10,7 +10,7 @@ use rand::RngCore;
 use rand_core::OsRng;
 use base64::prelude::*;
 
-use crate::BridgeState;
+use crate::{ws_udp_bridge::Message, BridgeState};
 
 pub struct TunnData {
     tunn: Tunn,
@@ -70,12 +70,22 @@ fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr) -> anyhow::Resu
     })
 }
 
-fn run_server(state: web::Data<BridgeState>, sock: UdpSocket) {
+fn run_server(state: web::Data<BridgeState>) {
     let mut charger_map: HashMap<SocketAddr, TunnData> = HashMap::new();
     let charger_map = &mut charger_map;
     let mut buf = [0u8; 100000];
     loop {
-        if let Ok((s, addr)) = sock.recv_from(&mut buf) {
+        if let Ok((s, addr)) = state.socket.recv_from(&mut buf) {
+            {
+                let client_map = state.web_client_map.lock().unwrap();
+                if let Some(client) = client_map.get(&addr) {
+                    let payload = Bytes::copy_from_slice(&buf[0..s]);
+                    let msg = Message(payload);
+                    client.do_send(msg);
+                    continue;
+                }
+            }
+
             let tunn_data = match charger_map.entry(addr) {
                 Entry::Occupied(tunn) => tunn.into_mut(),
                 Entry::Vacant(v) => {
@@ -93,7 +103,7 @@ fn run_server(state: web::Data<BridgeState>, sock: UdpSocket) {
             let mut buf2 = vec![0u8; s + 32];
             match tunn_data.tunn.decapsulate(None, &buf[0..s], &mut buf2) {
                 TunnResult::WriteToNetwork(data) => {
-                    match sock.send_to(data, addr) {
+                    match state.socket.send_to(data, addr) {
                         Ok(s) => {
                             if s < data.len() {
                                 log::error!("Sent incomplete datagram to charger with ip '{}'", addr.to_string());
@@ -107,7 +117,6 @@ fn run_server(state: web::Data<BridgeState>, sock: UdpSocket) {
                 TunnResult::WriteToTunnelV4(data, dest) => {
                     if dest == tunn_data.self_ip {
                         tunn_data.last_seen = Instant::now();
-                        log::info!("Got data: {:?}", data);
                     }
                 },
                 // There is currently no need for IPv6 inside the Wireguard network.
@@ -117,8 +126,6 @@ fn run_server(state: web::Data<BridgeState>, sock: UdpSocket) {
                 TunnResult::Done => (),
                 TunnResult::Err(err) => {
                     if let WireGuardError::InvalidMac = err {
-                        let map = state.web_client_map.lock().unwrap();
-                        let peer = map.entry()
                     }
                 }
             }
@@ -129,9 +136,8 @@ fn run_server(state: web::Data<BridgeState>, sock: UdpSocket) {
 
 pub fn start_server(state: web::Data<BridgeState>) -> std::io::Result<()> {
     log::info!("Starting Wireguard server.");
-    let sock = UdpSocket::bind("0.0.0.0:51820")?;
     std::thread::spawn(move || {
-        run_server(state, sock)
+        run_server(state)
     });
 
     Ok(())

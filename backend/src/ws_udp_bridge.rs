@@ -1,12 +1,14 @@
 use actix::{Actor, StreamHandler};
+use actix::prelude::*;
+use actix_web::web::Bytes;
 use actix_web::{get, web, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use actix_web_validator::Query;
 use db_connector::models::{chargers::Charger, wg_keys::WgKey};
 use diesel::prelude::*;
-use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
-use std::{net::UdpSocket, str::FromStr};
+use std::net::SocketAddr;
+use std::str::FromStr;
 use validator::{Validate, ValidationError};
 
 use crate::{
@@ -28,17 +30,28 @@ fn validate_key_id(key_id: &str) -> Result<(), ValidationError> {
     }
 }
 
-struct WebClient {
+pub struct WebClient {
     pub key_id: uuid::Uuid,
     pub charger_id: String,
-    pub peer_address: IpNetwork,
-    pub peer_port: u16,
+    pub peer_sock_addr: SocketAddr,
     pub app_state: web::Data<AppState>,
     pub bridge_state: web::Data<BridgeState>,
 }
 
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Message(pub Bytes);
+
 impl Actor for WebClient {
     type Context = ws::WebsocketContext<Self>;
+}
+
+impl Handler<Message> for WebClient {
+    type Result = ();
+
+    fn handle(&mut self, msg: Message, ctx: &mut Self::Context) -> Self::Result {
+        ctx.binary(msg.0)
+    }
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
@@ -46,17 +59,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
         match item {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
             Ok(ws::Message::Binary(msg)) => {
-                let sock = match UdpSocket::bind("0.0.0.0:0") {
-                    Ok(s) => s,
-                    Err(err) => {
-                        log::error!("Failed to create sender socket: {}", err);
-                        return
-                    }
-                };
-
-                let sock_addr = format!("{}:{}", self.peer_address.ip().to_string(), self.peer_port.to_string());
-                log::debug!("{}", sock_addr);
-                match sock.send_to(&msg, sock_addr) {
+                match self.bridge_state.socket.send_to(&msg, self.peer_sock_addr) {
                     Ok(s) => {
                         if s < msg.len() {
                             log::error!("Sent incomplete message to charger '{}'", self.charger_id);
@@ -71,7 +74,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
         }
     }
 
-    fn finished(&mut self, _: &mut Self::Context) {
+    fn started(&mut self, ctx: &mut Self::Context) {
+        let mut client_map = self.bridge_state.web_client_map.lock().unwrap();
+        client_map.insert(self.peer_sock_addr, ctx.address().recipient::<Message>());
+    }
+
+    fn finished(&mut self, ctx: &mut Self::Context) {
         use db_connector::schema::wg_keys::dsl::*;
         log::debug!("Closed connection to charger '{}'", self.charger_id);
         let mut conn = match self.app_state.pool.get() {
@@ -82,6 +90,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
             }
         };
 
+        if let Ok(mut client_map) = self.bridge_state.web_client_map.lock() {
+            client_map.remove(&self.peer_sock_addr);
+        }
+
         match diesel::update(wg_keys)
             .filter(id.eq(self.key_id))
             .set(in_use.eq(false))
@@ -91,6 +103,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                 log::error!("Failed to release connection '{}' for charger '{}'", self.key_id.to_string(), self.charger_id);
             }
         }
+
+        ctx.stop();
     }
 }
 
@@ -157,12 +171,21 @@ async fn start_ws(
         }
     }).await?;
 
+    let peer_address = peer_address.to_string();
+    let sock_addr = format!("{}:{}", peer_address[0..(peer_address.len() - 3)].to_string(), keys.wg_port as u16);
+    let peer_sock_addr: SocketAddr = match sock_addr.parse() {
+        Ok(sock_addr) => sock_addr,
+        Err(err) => {
+            log::error!("Error while parsing socket_addr: {}", err);
+            return Err(Error::InternalError.into())
+        }
+    };
+
     let client = WebClient {
         key_id: keys.id,
         charger_id: keys.charger_id,
         app_state: state.clone(),
-        peer_address,
-        peer_port: keys.wg_port as u16,
+        peer_sock_addr,
         bridge_state
     };
 
