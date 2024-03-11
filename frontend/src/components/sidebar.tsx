@@ -22,6 +22,7 @@ export function Sidebar() {
                 <Nav.Link href="/frame" active={url === "/frame"}>Frame</Nav.Link>
                 <Nav.Link href="/user" active={url === "/user"}>User</Nav.Link>
                 <Nav.Link href="/chargers" active={url === "/chargers"}>Chargers</Nav.Link>
+                <Nav.Link href="/test" active={url === "/test"}>Test</Nav.Link>
                 <Nav.Link onClick={logout} >Logout</Nav.Link>
             </Nav>
         </div>

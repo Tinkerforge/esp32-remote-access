@@ -16,6 +16,7 @@ import Tab from "react-bootstrap/Tab";
 import * as cookie from "cookie";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { ChargerList } from './pages/chargers.js';
+import { Test } from './components/mgt_test.js';
 
 
 export function App() {
@@ -53,6 +54,7 @@ export function App() {
                             <Route path="/user" component={User} />
                             <Route path="/frame" component={FrameFunction} />
                             <Route path="/chargers" component={ChargerList} />
+                            <Route path="/test" component={Test} />
                             <Route default component={NotFound} />
                         </Router>
                     </main>
