@@ -79,7 +79,9 @@ async fn main() {
     let openapi = ApiDoc::openapi();
 
     HttpServer::new(move || {
-        App::new().wrap(Logger::default()).service(SwaggerUi::new("/{_:.*}").url("/api-docs/openapi.json", openapi.clone()))
+        App::new()
+            .wrap(Logger::default())
+            .service(SwaggerUi::new("/{_:.*}").url("/api-docs/openapi.json", openapi.clone()))
     })
     .bind((Ipv4Addr::UNSPECIFIED, 12345))
     .unwrap()

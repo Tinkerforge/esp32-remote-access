@@ -144,7 +144,7 @@ pub mod tests {
                 return self.token.as_ref().unwrap();
             }
             self.token = Some(login_user(&self.mail, None).await);
-            
+
             self.token.as_ref().unwrap()
         }
 

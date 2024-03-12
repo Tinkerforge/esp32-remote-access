@@ -8,7 +8,11 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
 
-use crate::{error::Error, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Serialize, Deserialize, Clone, Validate, ToSchema)]
 pub struct Keys {
@@ -41,7 +45,7 @@ pub struct AddChargerSchema {
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct AddChargerResponseSchema {
-    management_pub: String
+    management_pub: String,
 }
 
 fn validate_add_charger_schema(schema: &AddChargerSchema) -> Result<(), ValidationError> {
@@ -100,7 +104,7 @@ pub async fn add(
     }
 
     let resp = AddChargerResponseSchema {
-        management_pub: pub_key
+        management_pub: pub_key,
     };
 
     Ok(HttpResponse::Ok().json(resp))
@@ -271,8 +275,12 @@ pub(crate) mod tests {
                 id: name.to_string(),
                 name: name.to_string(),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
-                wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
             },
             keys,
         };
@@ -306,8 +314,12 @@ pub(crate) mod tests {
                 id: cid.clone(),
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
-                wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
             },
             keys,
         };
@@ -356,8 +368,12 @@ pub(crate) mod tests {
                 id: "ABC".to_string(),
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
-                wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
             },
             keys,
         };

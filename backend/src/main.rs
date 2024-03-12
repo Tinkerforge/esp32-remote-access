@@ -14,7 +14,8 @@ fn reset_wg_keys(pool: &Pool) {
     let mut conn = pool.get().unwrap();
     diesel::update(wg_keys)
         .set(in_use.eq(false))
-        .execute(&mut conn).unwrap();
+        .execute(&mut conn)
+        .unwrap();
 }
 
 #[actix_web::main]
@@ -38,7 +39,10 @@ async fn main() -> std::io::Result<()> {
     let mail = std::env::var("MAIL_USER").expect("MAIL_USER must be set");
     let pass = std::env::var("MAIL_PASS").expect("MAIL_PASS must be set");
     let relay = std::env::var("MAIL_RELAY").expect("MAIL_RELAY must be set");
-    let port: u16 = std::env::var("MAIL_RELAY_PORT").expect("MAIL_RELAY_PORT must be set").parse().unwrap();
+    let port: u16 = std::env::var("MAIL_RELAY_PORT")
+        .expect("MAIL_RELAY_PORT must be set")
+        .parse()
+        .unwrap();
     let mailer = SmtpTransport::starttls_relay(&relay)
         .unwrap()
         .port(port)

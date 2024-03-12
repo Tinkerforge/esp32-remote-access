@@ -1,7 +1,7 @@
 pub mod auth;
 pub mod charger;
-pub mod user;
 pub mod management;
+pub mod user;
 
 use actix_web::web::{self, scope};
 
@@ -12,7 +12,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.configure(auth::configure);
     cfg.configure(charger::configure);
 
-    let scope = scope("").wrap(JwtMiddleware)
+    let scope = scope("")
+        .wrap(JwtMiddleware)
         .service(management::management)
         .service(ws_udp_bridge::start_ws);
 

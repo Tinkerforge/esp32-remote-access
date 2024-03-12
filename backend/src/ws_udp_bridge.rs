@@ -1,5 +1,5 @@
-use actix::{Actor, StreamHandler};
 use actix::prelude::*;
+use actix::{Actor, StreamHandler};
 use actix_web::web::Bytes;
 use actix_web::{get, web, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
@@ -64,9 +64,13 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                         if s < msg.len() {
                             log::error!("Sent incomplete message to charger '{}'", self.charger_id);
                         }
-                    },
+                    }
                     Err(_err) => {
-                        log::error!("Failed to send message to charger '{}': {}", self.charger_id, _err);
+                        log::error!(
+                            "Failed to send message to charger '{}': {}",
+                            self.charger_id,
+                            _err
+                        );
                     }
                 }
             }
@@ -85,8 +89,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
         let mut conn = match self.app_state.pool.get() {
             Ok(conn) => conn,
             Err(_err) => {
-                log::error!("Failed to release connection '{}' for charger '{}'", self.key_id.to_string(), self.charger_id);
-                return
+                log::error!(
+                    "Failed to release connection '{}' for charger '{}'",
+                    self.key_id.to_string(),
+                    self.charger_id
+                );
+                return;
             }
         };
 
@@ -97,10 +105,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
         match diesel::update(wg_keys)
             .filter(id.eq(self.key_id))
             .set(in_use.eq(false))
-            .execute(&mut conn) {
+            .execute(&mut conn)
+        {
             Ok(_) => (),
             Err(_err) => {
-                log::error!("Failed to release connection '{}' for charger '{}'", self.key_id.to_string(), self.charger_id);
+                log::error!(
+                    "Failed to release connection '{}' for charger '{}'",
+                    self.key_id.to_string(),
+                    self.charger_id
+                );
             }
         }
 
@@ -117,8 +130,8 @@ async fn start_ws(
     key_id: Query<WsQuery>,
     bridge_state: web::Data<BridgeState>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    use db_connector::schema::wg_keys::dsl as wg_keys;
     use db_connector::schema::chargers::dsl as chargers;
+    use db_connector::schema::wg_keys::dsl as wg_keys;
 
     let mut conn = get_connection(&state)?;
     let keys: WgKey = web_block_unpacked(move || {
@@ -156,28 +169,33 @@ async fn start_ws(
     let mut conn = get_connection(&state)?;
     let charger = keys.charger_id.clone();
     let peer_address = web_block_unpacked(move || {
-        let charger: Charger = match chargers::chargers.find(charger).select(Charger::as_select()).get_result(&mut conn) {
+        let charger: Charger = match chargers::chargers
+            .find(charger)
+            .select(Charger::as_select())
+            .get_result(&mut conn)
+        {
             Ok(c) => c,
-            Err(_err) => {
-                return Err(Error::InternalError)
-            }
+            Err(_err) => return Err(Error::InternalError),
         };
 
         match charger.last_ip {
             Some(ip) => Ok(ip),
-            None => {
-                Err(Error::ChargerNotSeenYet)
-            }
+            None => Err(Error::ChargerNotSeenYet),
         }
-    }).await?;
+    })
+    .await?;
 
     let peer_address = peer_address.to_string();
-    let sock_addr = format!("{}:{}", peer_address[0..(peer_address.len() - 3)].to_string(), keys.wg_port as u16);
+    let sock_addr = format!(
+        "{}:{}",
+        peer_address[0..(peer_address.len() - 3)].to_string(),
+        keys.wg_port as u16
+    );
     let peer_sock_addr: SocketAddr = match sock_addr.parse() {
         Ok(sock_addr) => sock_addr,
         Err(err) => {
             log::error!("Error while parsing socket_addr: {}", err);
-            return Err(Error::InternalError.into())
+            return Err(Error::InternalError.into());
         }
     };
 
@@ -186,7 +204,7 @@ async fn start_ws(
         charger_id: keys.charger_id,
         app_state: state.clone(),
         peer_sock_addr,
-        bridge_state
+        bridge_state,
     };
 
     let resp = ws::start(client, &req, stream);

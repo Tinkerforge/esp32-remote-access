@@ -1,4 +1,8 @@
-use std::{collections::HashMap, net::{SocketAddr, UdpSocket}, sync::Mutex};
+use std::{
+    collections::HashMap,
+    net::{SocketAddr, UdpSocket},
+    sync::Mutex,
+};
 
 use actix::prelude::*;
 use db_connector::Pool;
@@ -9,9 +13,9 @@ pub mod error;
 pub mod middleware;
 pub mod models;
 pub mod routes;
+pub mod udp_server;
 pub mod utils;
 pub mod ws_udp_bridge;
-pub mod udp_server;
 
 pub struct BridgeState {
     pub pool: Pool,
@@ -73,7 +77,7 @@ pub(crate) mod tests {
         let bridge_state = BridgeState {
             pool,
             web_client_map: Mutex::new(HashMap::new()),
-            socket: UdpSocket::bind("0.0.0.0:51820").unwrap()
+            socket: UdpSocket::bind("0.0.0.0:51820").unwrap(),
         };
 
         let state = web::Data::new(state);
