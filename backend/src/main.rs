@@ -39,7 +39,7 @@ async fn main() -> std::io::Result<()> {
     let pass = std::env::var("MAIL_PASS").expect("MAIL_PASS must be set");
     let relay = std::env::var("MAIL_RELAY").expect("MAIL_RELAY must be set");
     let port: u16 = std::env::var("MAIL_RELAY_PORT").expect("MAIL_RELAY_PORT must be set").parse().unwrap();
-    let mailer = SmtpTransport::relay(&relay)
+    let mailer = SmtpTransport::starttls_relay(&relay)
         .unwrap()
         .port(port)
         .credentials(Credentials::new(mail, pass))
