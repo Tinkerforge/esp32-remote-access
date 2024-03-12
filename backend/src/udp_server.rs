@@ -92,7 +92,6 @@ fn run_server(state: web::Data<BridgeState>) {
                     let tunn_data = match create_tunn(&state, addr) {
                         Ok(tunn) => tunn,
                         Err(err) => {
-                            log::error!("Failed to create new Management connection: {}", err);
                             continue;
                         }
                     };
