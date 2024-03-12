@@ -1,4 +1,4 @@
-use std::{collections::{hash_map::Entry, HashMap}, net::{IpAddr, Ipv4Addr, SocketAddr}, time::Instant};
+use std::{collections::{hash_map::Entry, HashMap}, net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket}, time::Instant};
 
 use actix_web::web::{self, Bytes};
 use boringtun::noise::{errors::WireGuardError, Tunn, TunnResult};
@@ -70,6 +70,19 @@ fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr) -> anyhow::Resu
     })
 }
 
+fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
+    match socket.send_to(data, addr) {
+        Ok(s) => {
+            if s < data.len() {
+                log::error!("Sent incomplete datagram to charger with ip '{}'", addr.to_string());
+            }
+        },
+        Err(err) => {
+            log::error!("Failed to send datagram to charger with ip '{}': {}", addr.to_string(), err);
+        }
+    }
+}
+
 fn run_server(state: web::Data<BridgeState>) {
     let mut charger_map: HashMap<SocketAddr, TunnData> = HashMap::new();
     let charger_map = &mut charger_map;
@@ -91,7 +104,7 @@ fn run_server(state: web::Data<BridgeState>) {
                 Entry::Vacant(v) => {
                     let tunn_data = match create_tunn(&state, addr) {
                         Ok(tunn) => tunn,
-                        Err(err) => {
+                        Err(_err) => {
                             continue;
                         }
                     };
@@ -99,18 +112,14 @@ fn run_server(state: web::Data<BridgeState>) {
                 }
             };
 
-            let mut buf2 = vec![0u8; s + 32];
-            match tunn_data.tunn.decapsulate(None, &buf[0..s], &mut buf2) {
+            let mut dst = vec![0u8; s + 32];
+            match tunn_data.tunn.decapsulate(None, &buf[0..s], &mut dst) {
                 TunnResult::WriteToNetwork(data) => {
-                    match state.socket.send_to(data, addr) {
-                        Ok(s) => {
-                            if s < data.len() {
-                                log::error!("Sent incomplete datagram to charger with ip '{}'", addr.to_string());
-                            }
-                        },
-                        Err(err) => {
-                            log::error!("Failed to send datagram to charger with ip '{}': {}", addr.to_string(), err);
-                        }
+                    send_data(&state.socket, addr, data);
+                    let tmp = [0u8; 0];
+
+                    while let TunnResult::WriteToNetwork(data) = tunn_data.tunn.decapsulate(None, &tmp, &mut dst) {
+                        send_data(&state.socket, addr, data);
                     }
                 },
                 TunnResult::WriteToTunnelV4(data, dest) => {
