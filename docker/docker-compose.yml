@@ -1,20 +1,104 @@
 services:
   nginx:
-    build:
-      dockerfile: nginx/Dockerfile
+    image: nginx:1.25
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend-build:
+        condition: service_completed_successfully
+      certbot:
+        condition: service_completed_successfully
+    container_name: nginx
     ports:
       - "443:443"
     volumes:
+      - ./nginx/config:/etc/nginx/conf.d
+      - ./nginx/certs:/usr/share/nginx/certs
       - ../frontend/dist:/usr/share/nginx/html
 
-  postgres:
-    image: postgres
+  backend:
+    image: rust:1-bookworm
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    container_name: backend
     ports:
-      - "5432:5432"
+      - "51820:51820"
+    command: cargo run --release
+    working_dir: /app
+    volumes:
+      - ../backend:/app
+      - ../db_connector:/db_connector
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - MAIL_USER=${MAIL_USER}
+      - MAIL_PASS=${MAIL_PASS}
+      - MAIL_RELAY=${MAIL_RELAY}
+      - MAIL_RELAY_PORT=${MAIL_RELAY_PORT}
+      - FRONTEND_URL=${FRONTEND_URL}
+
+    healthcheck:
+      test: ["CMD", "curl", "backend:8081"]
+      interval: 20s
+      timeout: 30s
+      retries: 5
+      start_period: 5s
+
+  wg-webclient-builder:
+    container_name: wg-webclient-builder
+    restart: no
+    build:
+      dockerfile: wg-webclient-builder/Dockerfile
+    volumes:
+      - ../wg-webclient:/build
+
+  frontend-build:
+    image: node:21
+    restart: no
+    command:
+      - /bin/sh
+      - -c
+      - |
+        npm install
+        npm run build
+    depends_on:
+      wg-webclient-builder:
+        condition: service_completed_successfully
+    working_dir: /build
+    volumes:
+      - ../frontend:/build
+      - ../wg-webclient:/wg-webclient
+
+  postgres:
+    container_name: postgres
+    restart: always
+    image: postgres
     environment:
       - POSTGRES_PASSWORD=${PG_PASS}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}'"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   adminer:
+    restart: always
     image: adminer
     ports:
       - "8080:8080"
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    ports:
+      - 443:443
+    restart: no
+    volumes:
+      - ./nginx/certs:/etc/letsencrypt
+      - ./certbot-www:/var/www/certbot
+    entrypoint: certbot certonly -n --standalone --agree-tos --email ${EMAIL} -d ${SERVICEDOMAIN}  --dry-run
