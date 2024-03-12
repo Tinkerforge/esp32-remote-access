@@ -1,7 +1,8 @@
 import { Component } from "preact";
 import { BACKEND } from "../types";
 import { Button, Table } from "react-bootstrap";
-import { charger_info } from "../components/Frame";
+import { Frame, charger_info } from "../components/Frame";
+import { signal } from "@preact/signals";
 
 
 interface Charger {
@@ -12,6 +13,8 @@ interface Charger {
 interface ChargerListComponentState {
     chargers: Charger[]
 }
+
+const connected = signal(false);
 
 class ChargerListComponent extends Component<{}, ChargerListComponentState> {
 
@@ -48,6 +51,8 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         peer_internal_ip: json.charger_address,
                         key_id: json.id,
                     }
+
+                    connected.value = true;
                 }}>Connect</Button></td>
                 <td><Button onClick={async () => {
                     const body = {
@@ -92,7 +97,18 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
 }
 
 export function ChargerList() {
-    return <>
-        <ChargerListComponent />
-    </>
+
+    if (!connected.value) {
+        return <>
+            <ChargerListComponent />
+        </>
+    } else {
+        return <>
+            <Frame />
+            <Button variant="primary"
+                    onClick={() => {
+                        connected.value = false;
+                    }}>Close</Button>
+        </>
+    }
 }

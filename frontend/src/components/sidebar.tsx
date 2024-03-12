@@ -19,10 +19,8 @@ export function Sidebar() {
         <div class="collapse bg-light col-lg-2 col-md-3 d-md-block navbar-collapse sidebar">
             <Nav className="flex-column col-2">
                 <Nav.Link href='/' active={url === "/"}>Home</Nav.Link>
-                <Nav.Link href="/frame" active={url === "/frame"}>Frame</Nav.Link>
                 <Nav.Link href="/user" active={url === "/user"}>User</Nav.Link>
                 <Nav.Link href="/chargers" active={url === "/chargers"}>Chargers</Nav.Link>
-                <Nav.Link href="/test" active={url === "/test"}>Test</Nav.Link>
                 <Nav.Link onClick={logout} >Logout</Nav.Link>
             </Nav>
         </div>

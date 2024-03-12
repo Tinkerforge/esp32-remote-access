@@ -1,9 +1,9 @@
 import { Client } from "wg-webclient";
-import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } from "./types";
+import { BACKEND, FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } from "./types";
 
 declare const self: DedicatedWorkerGlobalScope;
 
-const tunnel_url = "wss://" + self.location.hostname + "/api/ws?key_id="
+const tunnel_url = import.meta.env.VITE_BACKEND_WS_URL + "/ws?key_id="
 let wgClient = undefined;
 self.postMessage("started");
 
