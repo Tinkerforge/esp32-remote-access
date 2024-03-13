@@ -28,74 +28,79 @@ enum Error {
     WireGuardError(WireGuardError),
 }
 
-fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr) -> anyhow::Result<TunnData> {
+fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr) -> anyhow::Result<Vec<TunnData>> {
     let mut conn = state.pool.get()?;
 
     let ip = IpNetwork::new(addr.ip(), 32)?;
-    let charger: Charger = chargers::chargers
+    let chargers: Vec<Charger> = chargers::chargers
         .filter(chargers::last_ip.eq(ip))
         .select(Charger::as_select())
-        .get_result(&mut conn)?;
+        .load(&mut conn)?;
 
-    let static_private: [u8; 32] = match BASE64_STANDARD
-        .decode(charger.management_private)?
-        .try_into()
-    {
-        Ok(v) => v,
-        Err(_) => {
+    let mut tunn_data = Vec::with_capacity(chargers.len());
+    for charger in chargers.into_iter() {
+        let static_private: [u8; 32] = match BASE64_STANDARD
+            .decode(charger.management_private)?
+            .try_into()
+        {
+            Ok(v) => v,
+            Err(_) => {
+                return Err(anyhow::Error::msg(
+                    "Somehow we got an invalid server private key in the database.",
+                ))
+            }
+        };
+        let peer_static_public: [u8; 32] = match BASE64_STANDARD.decode(charger.charger_pub)?.try_into()
+        {
+            Ok(v) => v,
+            Err(_) => {
+                return Err(anyhow::Error::msg(
+                    "Somehow we got an invalid charger public key in the database.",
+                ))
+            }
+        };
+
+        let static_private = boringtun::x25519::StaticSecret::from(static_private);
+        let peer_static_public = boringtun::x25519::PublicKey::from(peer_static_public);
+
+        // FIXME: we should add a ratelimiter here
+        let tunn = match boringtun::noise::Tunn::new(
+            static_private,
+            peer_static_public,
+            None,
+            None,
+            OsRng.next_u32(),
+            None,
+        ) {
+            Ok(tunn) => tunn,
+            Err(err) => return Err(anyhow::Error::msg(err)),
+        };
+
+        let self_ip = if let IpAddr::V4(ip) = charger.wg_server_ip.ip() {
+            ip
+        } else {
             return Err(anyhow::Error::msg(
-                "Somehow we got an invalid server private key in the database.",
-            ))
-        }
-    };
-    let peer_static_public: [u8; 32] = match BASE64_STANDARD.decode(charger.charger_pub)?.try_into()
-    {
-        Ok(v) => v,
-        Err(_) => {
+                "Somehow a IPv6 address got into the database",
+            ));
+        };
+
+        let peer_ip = if let IpAddr::V4(ip) = charger.wg_charger_ip.ip() {
+            ip
+        } else {
             return Err(anyhow::Error::msg(
-                "Somehow we got an invalid charger public key in the database.",
-            ))
-        }
-    };
+                "Somehow a IPv6 address got into the database",
+            ));
+        };
 
-    let static_private = boringtun::x25519::StaticSecret::from(static_private);
-    let peer_static_public = boringtun::x25519::PublicKey::from(peer_static_public);
+        tunn_data.push(TunnData {
+            tunn,
+            last_seen: Instant::now(),
+            self_ip,
+            peer_ip,
+        });
+    }
 
-    // FIXME: we should add a ratelimiter here
-    let tunn = match boringtun::noise::Tunn::new(
-        static_private,
-        peer_static_public,
-        None,
-        None,
-        OsRng.next_u32(),
-        None,
-    ) {
-        Ok(tunn) => tunn,
-        Err(err) => return Err(anyhow::Error::msg(err)),
-    };
-
-    let self_ip = if let IpAddr::V4(ip) = charger.wg_server_ip.ip() {
-        ip
-    } else {
-        return Err(anyhow::Error::msg(
-            "Somehow a IPv6 address got into the database",
-        ));
-    };
-
-    let peer_ip = if let IpAddr::V4(ip) = charger.wg_charger_ip.ip() {
-        ip
-    } else {
-        return Err(anyhow::Error::msg(
-            "Somehow a IPv6 address got into the database",
-        ));
-    };
-
-    Ok(TunnData {
-        tunn,
-        last_seen: Instant::now(),
-        self_ip,
-        peer_ip,
-    })
+    Ok(tunn_data)
 }
 
 fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
@@ -174,16 +179,27 @@ fn run_server(state: web::Data<BridgeState>) {
             let tunn_data = match charger_map.entry(addr) {
                 Entry::Occupied(tunn) => tunn.into_mut(),
                 Entry::Vacant(v) => {
-                    let mut tunn_data = match create_tunn(&state, addr) {
+                    let tunn_data = match create_tunn(&state, addr) {
                         Ok(tunn) => tunn,
                         Err(_err) => {
                             continue;
                         }
                     };
-                    if decrypt_packet(&mut tunn_data, &buf[0..s], &state.socket, addr).is_err() {
+
+                    let mut ret = None;
+                    for mut tunn_data in tunn_data.into_iter() {
+                        if decrypt_packet(&mut tunn_data, &buf[0..s], &state.socket, addr).is_err() {
+                            continue;
+                        }
+                        ret = Some(v.insert(tunn_data));
+                        break;
+                    }
+
+                    if let Some(tunn_data) = ret {
+                        tunn_data
+                    } else {
                         continue;
                     }
-                    v.insert(tunn_data)
                 }
             };
 
