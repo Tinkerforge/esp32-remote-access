@@ -23,6 +23,11 @@ pub struct TunnData {
     last_seen: Instant,
 }
 
+enum Error {
+    UnknownPeer,
+    WireGuardError(WireGuardError),
+}
+
 fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr) -> anyhow::Result<TunnData> {
     let mut conn = state.pool.get()?;
 
@@ -113,6 +118,43 @@ fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
     }
 }
 
+fn decrypt_packet(tunn_data: &mut TunnData, data: &[u8], socket: &UdpSocket, addr: SocketAddr) -> Result<Vec<u8>, Error> {
+    let mut dst = vec![0u8; data.len() + 32];
+    match tunn_data.tunn.decapsulate(None, data, &mut dst) {
+        TunnResult::WriteToNetwork(data) => {
+            send_data(socket, addr, data);
+            let tmp = [0u8; 0];
+
+            while let TunnResult::WriteToNetwork(data) =
+                tunn_data.tunn.decapsulate(None, &tmp, &mut dst)
+            {
+                send_data(socket, addr, data);
+            }
+            Ok(Vec::new())
+        }
+        TunnResult::WriteToTunnelV4(data, dest) => {
+            if dest == tunn_data.self_ip {
+                tunn_data.last_seen = Instant::now();
+            }
+
+            Ok(data.to_vec())
+        }
+        // There is currently no need for IPv6 inside the Wireguard network.
+        TunnResult::WriteToTunnelV6(_, _) => {
+            log::warn!("Someone with a valid key tried to connect to an IPv6 address");
+            Err(Error::UnknownPeer)
+        }
+        TunnResult::Done => Ok(Vec::new()),
+        TunnResult::Err(err) => {
+            if let WireGuardError::InvalidMac = err {
+                Err(Error::UnknownPeer)
+            } else {
+                Err(Error::WireGuardError(err))
+            }
+        },
+    }
+}
+
 fn run_server(state: web::Data<BridgeState>) {
     let mut charger_map: HashMap<SocketAddr, TunnData> = HashMap::new();
     let charger_map = &mut charger_map;
@@ -132,40 +174,20 @@ fn run_server(state: web::Data<BridgeState>) {
             let tunn_data = match charger_map.entry(addr) {
                 Entry::Occupied(tunn) => tunn.into_mut(),
                 Entry::Vacant(v) => {
-                    let tunn_data = match create_tunn(&state, addr) {
+                    let mut tunn_data = match create_tunn(&state, addr) {
                         Ok(tunn) => tunn,
                         Err(_err) => {
                             continue;
                         }
                     };
+                    if decrypt_packet(&mut tunn_data, &buf[0..s], &state.socket, addr).is_err() {
+                        continue;
+                    }
                     v.insert(tunn_data)
                 }
             };
 
-            let mut dst = vec![0u8; s + 32];
-            match tunn_data.tunn.decapsulate(None, &buf[0..s], &mut dst) {
-                TunnResult::WriteToNetwork(data) => {
-                    send_data(&state.socket, addr, data);
-                    let tmp = [0u8; 0];
-
-                    while let TunnResult::WriteToNetwork(data) =
-                        tunn_data.tunn.decapsulate(None, &tmp, &mut dst)
-                    {
-                        send_data(&state.socket, addr, data);
-                    }
-                }
-                TunnResult::WriteToTunnelV4(data, dest) => {
-                    if dest == tunn_data.self_ip {
-                        tunn_data.last_seen = Instant::now();
-                    }
-                }
-                // There is currently no need for IPv6 inside the Wireguard network.
-                TunnResult::WriteToTunnelV6(_, _) => {
-                    log::warn!("Someone with a valid key tried to connect to an IPv6 address");
-                }
-                TunnResult::Done => (),
-                TunnResult::Err(err) => if let WireGuardError::InvalidMac = err {},
-            }
+            let res = decrypt_packet(tunn_data, &buf[0..s], &state.socket, addr);
         } else {
         }
     }
