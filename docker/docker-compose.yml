@@ -44,7 +44,7 @@ services:
       test: ["CMD", "curl", "backend:8081"]
       interval: 20s
       timeout: 30s
-      retries: 5
+      retries: 20
       start_period: 5s
 
   wg-webclient-builder:
@@ -101,4 +101,4 @@ services:
     volumes:
       - ./nginx/certs:/etc/letsencrypt
       - ./certbot-www:/var/www/certbot
-    entrypoint: certbot certonly -n --standalone --agree-tos --email ${EMAIL} -d ${SERVICEDOMAIN}  --dry-run
+    entrypoint: certbot certonly -n --standalone --agree-tos --email ${EMAIL} -d ${SERVICEDOMAIN}
