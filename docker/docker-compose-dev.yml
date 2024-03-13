@@ -1,18 +1,16 @@
 services:
   nginx:
     image: nginx:1.25
-    restart: always
     container_name: nginx
     ports:
       - "443:443"
     volumes:
-      - ./nginx/config:/etc/nginx/conf.d
+      - ./nginx/dev-config:/etc/nginx/conf.d
       - ./nginx/certs:/usr/share/nginx/certs
       - ../frontend/dist:/usr/share/nginx/html
 
   postgres:
     container_name: postgres
-    restart: always
     image: postgres
     environment:
       - POSTGRES_PASSWORD=${PG_PASS}
@@ -27,7 +25,6 @@ services:
       retries: 5
 
   adminer:
-    restart: always
     image: adminer
     ports:
       - "8080:8080"
