@@ -1,12 +1,10 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
-    net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
-    time::Instant,
+    collections::{hash_map::Entry, HashMap}, net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket}, sync::{Arc, Mutex}, time::{Duration, Instant}
 };
 
 use actix_web::web::{self, Bytes};
 use base64::prelude::*;
-use boringtun::noise::{errors::WireGuardError, Tunn, TunnResult};
+use boringtun::noise::{errors::WireGuardError, rate_limiter::RateLimiter, Tunn, TunnResult};
 use db_connector::models::chargers::Charger;
 use db_connector::schema::chargers::dsl as chargers;
 use diesel::prelude::*;
@@ -18,11 +16,13 @@ use crate::{ws_udp_bridge::Message, BridgeState};
 
 pub struct TunnData {
     tunn: Tunn,
+    rate_limiter: Arc<RateLimiter>,
     self_ip: Ipv4Addr,
     peer_ip: Ipv4Addr,
     last_seen: Instant,
 }
 
+#[derive(Debug)]
 enum Error {
     UnknownPeer,
     WireGuardError(WireGuardError),
@@ -63,6 +63,8 @@ fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr) -> anyhow::Resu
         let static_private = boringtun::x25519::StaticSecret::from(static_private);
         let peer_static_public = boringtun::x25519::PublicKey::from(peer_static_public);
 
+        let rate_limiter = Arc::new(RateLimiter::new(&boringtun::x25519::PublicKey::from(&static_private), 10));
+
         // FIXME: we should add a ratelimiter here
         let tunn = match boringtun::noise::Tunn::new(
             static_private,
@@ -70,7 +72,7 @@ fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr) -> anyhow::Resu
             None,
             None,
             OsRng.next_u32(),
-            None,
+            Some(rate_limiter.clone()),
         ) {
             Ok(tunn) => tunn,
             Err(err) => return Err(anyhow::Error::msg(err)),
@@ -94,6 +96,7 @@ fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr) -> anyhow::Resu
 
         tunn_data.push(TunnData {
             tunn,
+            rate_limiter,
             last_seen: Instant::now(),
             self_ip,
             peer_ip,
@@ -142,6 +145,8 @@ fn decrypt_packet(tunn_data: &mut TunnData, data: &[u8], socket: &UdpSocket, add
                 tunn_data.last_seen = Instant::now();
             }
 
+            log::debug!("need to write to tunnel.");
+
             Ok(data.to_vec())
         }
         // There is currently no need for IPv6 inside the Wireguard network.
@@ -161,7 +166,9 @@ fn decrypt_packet(tunn_data: &mut TunnData, data: &[u8], socket: &UdpSocket, add
 }
 
 fn run_server(state: web::Data<BridgeState>) {
-    let mut charger_map: HashMap<SocketAddr, TunnData> = HashMap::new();
+    let mut charger_map: Arc<Mutex<HashMap<SocketAddr, TunnData>>> = Arc::new(Mutex::new(HashMap::new()));
+    start_rate_limiters_reset_thread(charger_map.clone());
+
     let charger_map = &mut charger_map;
     let mut buf = [0u8; 100000];
     loop {
@@ -176,6 +183,7 @@ fn run_server(state: web::Data<BridgeState>) {
                 }
             }
 
+            let mut charger_map = charger_map.lock().unwrap();
             let tunn_data = match charger_map.entry(addr) {
                 Entry::Occupied(tunn) => tunn.into_mut(),
                 Entry::Vacant(v) => {
@@ -203,10 +211,35 @@ fn run_server(state: web::Data<BridgeState>) {
                 }
             };
 
-            let res = decrypt_packet(tunn_data, &buf[0..s], &state.socket, addr);
+            let data = match decrypt_packet(tunn_data, &buf[0..s], &state.socket, addr) {
+                Ok(d) => d,
+                Err(_err) => {
+                    log::error!("Error while decrypting management packet from {}: {:?}", addr, _err);
+                    continue;
+                }
+            };
+
+            if !data.is_empty() {
+                log::debug!("Got message from {}: {} ", addr, std::str::from_utf8(&data).unwrap());
+            }
         } else {
         }
     }
+}
+
+/// Since boringtun doesnt reset the internal ratelimiter for us we need to do it manually.
+/// We can do this with a very low frequency since the management connection
+/// is always one to one and the esps keepalive is two minutes.
+fn start_rate_limiters_reset_thread(charger_map: Arc<Mutex<HashMap<SocketAddr, TunnData>>>) {
+    std::thread::spawn(move || {
+        loop {
+            let charger_map = charger_map.lock().unwrap();
+            for (_, charger) in charger_map.iter() {
+                charger.rate_limiter.reset_count();
+            }
+            std::thread::sleep(Duration::from_secs(60));
+        }
+    });
 }
 
 pub fn start_server(state: web::Data<BridgeState>) -> std::io::Result<()> {

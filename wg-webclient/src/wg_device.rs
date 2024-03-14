@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::Arc;
+use boringtun::noise::rate_limiter::RateLimiter;
 use pcap_file::pcapng::PcapNgWriter;
 use pcap_file::pcapng::blocks::interface_description::InterfaceDescriptionBlock;
 use smoltcp::phy::{self, DeviceCapabilities, Medium};
@@ -12,6 +14,7 @@ use boringtun::{
 };
 
 use crate::console_log;
+use crate::interval_handle::IntervalHandle;
 use web_sys::wasm_bindgen::{JsValue, JsCast};
 use web_sys::{WebSocket, MessageEvent};
 use web_sys::wasm_bindgen::closure::Closure;
@@ -34,6 +37,7 @@ pub struct WgTunDevice {
     rx: Rc<RefCell<VecDeque<Vec<u8>>>>,
     socket: Rc<WebSocket>,
     socket_state: Rc<RefCell<WsConnectionState>>,
+    _reset_rate_limiter_interval: Rc<IntervalHandle<JsValue>>,
 }
 
 impl WgTunDevice {
@@ -41,14 +45,21 @@ impl WgTunDevice {
      * Creates a new WgTunDevice and connects the underlaying Websocket
      */
     pub fn new(self_key: x25519::StaticSecret, peer: x25519::PublicKey, url: &str) -> Result<Self, JsValue> {
+        let rate_limiter = Arc::new(RateLimiter::new(&x25519::PublicKey::from(&self_key), 10));
+
         let tun = Tunn::new(
             self_key,
             peer,
             None,
             Some(4),
             OsRng.next_u32(),
-            None
+            Some(rate_limiter.clone()),
         );
+        let reset_rate_limiter = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
+            rate_limiter.reset_count();
+        });
+        let _reset_rate_limiter_interval = Rc::new(IntervalHandle::new(reset_rate_limiter, 10000));
+
 
         let tun = Rc::new(RefCell::new(tun));
         let rx = Rc::new(RefCell::new(VecDeque::new()));
@@ -281,6 +292,7 @@ impl WgTunDevice {
             rx,
             socket,
             socket_state,
+            _reset_rate_limiter_interval
         })
     }
 
