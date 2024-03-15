@@ -113,6 +113,8 @@ pub async fn login(
         .path("/")
         .max_age(actix_web::cookie::time::Duration::minutes(max_token_age))
         .http_only(false)
+        .same_site(actix_web::cookie::SameSite::None)
+        .secure(true)
         .finish();
 
     Ok(HttpResponse::Ok().cookie(cookie).body(""))
@@ -144,7 +146,7 @@ pub(crate) mod tests {
 
         let login_schema = LoginSchema {
             email: mail.to_string(),
-            password: password,
+            password,
         };
         let req = test::TestRequest::post()
             .uri("/login")
