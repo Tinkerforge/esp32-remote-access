@@ -200,12 +200,14 @@ fn run_server(state: web::Data<BridgeState>) {
                             continue;
                         }
                         ret = Some(v.insert(tunn_data));
+                        log::debug!("Management connection successfull to {}", addr);
                         break;
                     }
 
                     if let Some(tunn_data) = ret {
                         tunn_data
                     } else {
+                        log::debug!("Unknown connection from {}", addr);
                         continue;
                     }
                 }
