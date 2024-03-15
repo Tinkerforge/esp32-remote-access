@@ -170,7 +170,7 @@ fn run_server(state: web::Data<BridgeState>) {
     start_rate_limiters_reset_thread(charger_map.clone());
 
     let charger_map = &mut charger_map;
-    let mut buf = [0u8; 100000];
+    let mut buf = vec![0u8; 100000];
     loop {
         if let Ok((s, addr)) = state.socket.recv_from(&mut buf) {
             {
@@ -233,9 +233,11 @@ fn run_server(state: web::Data<BridgeState>) {
 fn start_rate_limiters_reset_thread(charger_map: Arc<Mutex<HashMap<SocketAddr, TunnData>>>) {
     std::thread::spawn(move || {
         loop {
-            let charger_map = charger_map.lock().unwrap();
-            for (_, charger) in charger_map.iter() {
-                charger.rate_limiter.reset_count();
+            {
+                let charger_map = charger_map.lock().unwrap();
+                for (_, charger) in charger_map.iter() {
+                    charger.rate_limiter.reset_count();
+                }
             }
             std::thread::sleep(Duration::from_secs(60));
         }
