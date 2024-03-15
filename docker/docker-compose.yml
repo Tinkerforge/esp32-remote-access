@@ -25,7 +25,7 @@ services:
         condition: service_healthy
     container_name: backend
     ports:
-      - "51820:51820"
+      - 51820:51820/udp
     command: cargo run --release
     working_dir: /app
     volumes:
