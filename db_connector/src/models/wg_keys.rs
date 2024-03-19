@@ -16,5 +16,5 @@ pub struct WgKey {
     pub web_private: String,
     pub web_address: IpNetwork,
     pub charger_address: IpNetwork,
-    pub wg_port: i32,
+    pub connection_no: i32,
 }

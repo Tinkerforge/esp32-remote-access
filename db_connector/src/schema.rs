@@ -48,7 +48,7 @@ diesel::table! {
         web_private -> Varchar,
         web_address -> Inet,
         charger_address -> Inet,
-        wg_port -> Int4,
+        connection_no -> Int4,
     }
 }
 
