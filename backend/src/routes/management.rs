@@ -16,7 +16,7 @@ use crate::{
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ManagementSchema {
-    id: String,
+    id: i32,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -145,7 +145,7 @@ mod tests {
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
         let charger = user2.add_random_charger().await;
-        user2.allow_user(&mail1, &charger).await;
+        user2.allow_user(&mail1, charger).await;
 
         let app = App::new()
             .configure(configure)

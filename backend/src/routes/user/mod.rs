@@ -77,6 +77,8 @@ pub async fn get_user(
 pub mod tests {
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
+    use rand::RngCore;
+    use rand_core::OsRng;
 
     use crate::routes::{
         auth::{
@@ -113,7 +115,7 @@ pub mod tests {
     #[derive(Debug)]
     pub struct TestUser {
         mail: String,
-        charger: Vec<String>,
+        charger: Vec<i32>,
         token: Option<String>,
     }
 
@@ -148,19 +150,19 @@ pub mod tests {
             self.token.as_ref().unwrap()
         }
 
-        pub async fn add_charger(&mut self, name: &str) {
-            add_test_charger(name, self.token.as_ref().unwrap()).await;
-            self.charger.push(name.to_string());
+        pub async fn add_charger(&mut self, id: i32) {
+            add_test_charger(id, self.token.as_ref().unwrap()).await;
+            self.charger.push(id);
         }
 
-        pub async fn add_random_charger(&mut self) -> String {
-            let charger = uuid::Uuid::new_v4().to_string();
-            self.add_charger(&charger).await;
+        pub async fn add_random_charger(&mut self) -> i32 {
+            let charger = OsRng.next_u32() as i32;
+            self.add_charger(charger).await;
 
             charger
         }
 
-        pub async fn allow_user(&mut self, user_mail: &str, charger_id: &str) {
+        pub async fn allow_user(&mut self, user_mail: &str, charger_id: i32) {
             let token = self.token.as_ref().expect("Test user must be logged in.");
             add_allowed_test_user(user_mail, charger_id, token).await;
         }
@@ -174,8 +176,8 @@ pub mod tests {
         fn drop(&mut self) {
             while let Some(charger) = self.charger.pop() {
                 remove_test_keys(&self.mail);
-                remove_allowed_test_users(&charger);
-                remove_test_charger(&charger);
+                remove_allowed_test_users(charger);
+                remove_test_charger(charger);
             }
             delete_user(&self.mail);
         }

@@ -28,7 +28,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 pub async fn charger_belongs_to_user(
     state: &web::Data<AppState>,
     uid: uuid::Uuid,
-    cid: String,
+    cid: i32,
 ) -> Result<bool, actix_web::Error> {
     use db_connector::schema::allowed_users::dsl::*;
 

@@ -12,10 +12,10 @@ use crate::{
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct DeleteChargerSchema {
-    charger: String,
+    charger: i32,
 }
 
-async fn delete_all_keys(cid: String, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
+async fn delete_all_keys(cid: i32, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
     use db_connector::schema::wg_keys::dsl::*;
 
     let mut conn = get_connection(state)?;
@@ -31,7 +31,7 @@ async fn delete_all_keys(cid: String, state: &web::Data<AppState>) -> Result<(),
 }
 
 async fn delete_all_allowed_users(
-    cid: String,
+    cid: i32,
     state: &web::Data<AppState>,
 ) -> Result<(), actix_web::Error> {
     use db_connector::schema::allowed_users::dsl::*;
@@ -91,6 +91,8 @@ pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::test_connection_pool;
+    use rand::RngCore;
+    use rand_core::OsRng;
 
     use crate::{
         middleware::jwt::JwtMiddleware,
@@ -113,7 +115,7 @@ pub(crate) mod tests {
             .unwrap();
     }
 
-    pub fn remove_allowed_test_users(cid: &str) {
+    pub fn remove_allowed_test_users(cid: i32) {
         use db_connector::schema::allowed_users::dsl::*;
 
         let pool = test_connection_pool();
@@ -123,7 +125,7 @@ pub(crate) mod tests {
             .unwrap();
     }
 
-    pub fn remove_test_charger(cid: &str) {
+    pub fn remove_test_charger(cid: i32) {
         use db_connector::schema::chargers::dsl::*;
 
         let pool = test_connection_pool();
@@ -143,11 +145,11 @@ pub(crate) mod tests {
 
         let mut user = TestUser::new("valid_delete_charger@test.invalid").await;
         let token = user.login().await;
-        let charger = "valid_delete_charger";
-        add_test_charger(charger, token).await;
+        let charger_id = OsRng.next_u32() as i32;
+        add_test_charger(charger_id, token).await;
 
         let schema = DeleteChargerSchema {
-            charger: charger.to_string(),
+            charger: charger_id,
         };
         let req = test::TestRequest::delete()
             .uri("/remove")
@@ -170,12 +172,12 @@ pub(crate) mod tests {
         let user1 = TestUser::new("valid_delete_charger1@test.invalid").await;
         let mut user2 = TestUser::new("valid_delete_charger2@test.invalid").await;
         let token = user2.login().await.to_owned();
-        let charger = "valid_delete_charger1";
+        let charger = OsRng.next_u32() as i32;
         add_test_charger(charger, &token).await;
         user2.allow_user(user1.get_mail(), charger).await;
 
         let body = DeleteChargerSchema {
-            charger: charger.to_string(),
+            charger: charger,
         };
         let req = test::TestRequest::delete()
             .uri("/remove")
@@ -196,14 +198,14 @@ pub(crate) mod tests {
 
         let mut user1 = TestUser::new("unowned_delete_charger1@test.invalid").await;
         let mut user2 = TestUser::new("unowned_delete_charger2@test.invalid").await;
-        let charger = "unowned_delete_charger";
+        let charger = OsRng.next_u32() as i32;
         user2.login().await;
         user2.add_charger(charger).await;
         user2.allow_user(user1.get_mail(), charger).await;
         let token = user1.login().await;
 
         let body = DeleteChargerSchema {
-            charger: charger.to_string(),
+            charger: charger,
         };
         let req = test::TestRequest::delete()
             .uri("/remove")
@@ -227,13 +229,13 @@ pub(crate) mod tests {
 
         let mut user1 = TestUser::new("not_allowed_delete_charger1@test.invalid").await;
         let mut user2 = TestUser::new("not_allowed_delete_charger2@test.invalid").await;
-        let charger = "not_allowed_delete_charger";
+        let charger = OsRng.next_u32() as i32;
         user2.login().await;
         user2.add_charger(charger).await;
         let token = user1.login().await;
 
         let body = DeleteChargerSchema {
-            charger: charger.to_string(),
+            charger: charger,
         };
         let req = test::TestRequest::delete()
             .uri("/remove")

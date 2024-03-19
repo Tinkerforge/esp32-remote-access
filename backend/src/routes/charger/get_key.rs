@@ -15,7 +15,7 @@ use crate::{
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetWgKeysSchema {
     id: String,
-    charger_id: String,
+    charger_id: i32,
     charger_pub: String,
     #[schema(value_type = SchemaType::String)]
     charger_address: IpNetwork,
@@ -26,7 +26,7 @@ pub struct GetWgKeysSchema {
 
 #[derive(Serialize, Deserialize)]
 pub struct GetWgKeysQuery {
-    cid: String,
+    cid: i32,
 }
 
 #[utoipa::path(
@@ -84,6 +84,8 @@ mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::test_connection_pool;
+    use rand::RngCore;
+    use rand_core::OsRng;
 
     use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
 
@@ -92,8 +94,8 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let charger = uuid::Uuid::new_v4().to_string();
-        user.add_charger(&charger).await;
+        let charger = OsRng.next_u32() as i32;
+        user.add_charger(charger).await;
 
         let app = App::new()
             .configure(configure)
@@ -117,8 +119,8 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let charger = uuid::Uuid::new_v4().to_string();
-        user.add_charger(&charger).await;
+        let charger = OsRng.next_u32() as i32;
+        user.add_charger(charger).await;
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();

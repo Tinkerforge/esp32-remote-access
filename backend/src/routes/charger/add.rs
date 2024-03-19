@@ -27,7 +27,7 @@ pub struct Keys {
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct ChargerSchema {
-    id: String,
+    id: i32,
     name: String,
     charger_pub: String,
     #[schema(value_type = SchemaType::String)]
@@ -176,7 +176,7 @@ async fn add_charger(
 }
 
 async fn add_wg_key(
-    cid: String,
+    cid: i32,
     uid: uuid::Uuid,
     keys: Keys,
     state: &web::Data<AppState>,
@@ -224,6 +224,7 @@ pub(crate) mod tests {
     use actix_web::{cookie::Cookie, test, App};
     use boringtun::x25519;
     use ipnetwork::Ipv4Network;
+    use rand::RngCore;
     use rand_core::OsRng;
 
     use crate::{
@@ -262,7 +263,7 @@ pub(crate) mod tests {
         unsafe { std::mem::transmute::<_, [Keys; 5]>(keys) }
     }
 
-    pub async fn add_test_charger(name: &str, token: &str) {
+    pub async fn add_test_charger(id: i32, token: &str) {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
@@ -272,8 +273,8 @@ pub(crate) mod tests {
         let keys = generate_keys();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
-                id: name.to_string(),
-                name: name.to_string(),
+                id: id,
+                name: uuid::Uuid::new_v4().to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -308,7 +309,7 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         let keys = generate_keys();
-        let cid = "ABC".to_string();
+        let cid = OsRng.next_u32() as i32;
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 id: cid.clone(),
@@ -333,8 +334,8 @@ pub(crate) mod tests {
 
         let resp = test::call_service(&app, req).await;
         remove_test_keys(mail);
-        remove_allowed_test_users(&cid);
-        remove_test_charger(&cid);
+        remove_allowed_test_users(cid);
+        remove_test_charger(cid);
         assert!(resp.status().is_success());
     }
 
@@ -365,7 +366,7 @@ pub(crate) mod tests {
         let keys = generate_keys();
         let schema = AddChargerSchema {
             charger: ChargerSchema {
-                id: "ABC".to_string(),
+                id: OsRng.next_u32() as i32,
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(

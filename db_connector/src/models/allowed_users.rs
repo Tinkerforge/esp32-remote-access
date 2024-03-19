@@ -9,6 +9,6 @@ use super::{users::User, chargers::Charger};
 pub struct AllowedUser {
     pub id: uuid::Uuid,
     pub user_id: uuid::Uuid,
-    pub charger_id: String,
+    pub charger_id: i32,
     pub is_owner: bool,
 }

@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct AllowUserSchema {
-    charger_id: String,
+    charger_id: i32,
     user_mail: String,
 }
 
@@ -37,7 +37,7 @@ pub async fn allow_user(
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::allowed_users::dsl::*;
 
-    if !charger_belongs_to_user(&state, uid.into(), allow_user.charger_id.clone()).await? {
+    if !charger_belongs_to_user(&state, uid.into(), allow_user.charger_id).await? {
         return Err(Error::UserIsNotOwner.into());
     }
 
@@ -47,7 +47,7 @@ pub async fn allow_user(
         let u = AllowedUser {
             id: uuid::Uuid::new_v4(),
             user_id: allowed_uuid,
-            charger_id: allow_user.charger_id.clone(),
+            charger_id: allow_user.charger_id,
             is_owner: false,
         };
 
@@ -68,10 +68,12 @@ pub async fn allow_user(
 pub mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
+    use rand::RngCore;
+    use rand_core::OsRng;
 
     use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
 
-    pub async fn add_allowed_test_user(user_mail: &str, charger_id: &str, token: &str) {
+    pub async fn add_allowed_test_user(user_mail: &str, charger_id: i32, token: &str) {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
@@ -79,7 +81,7 @@ pub mod tests {
         let app = test::init_service(app).await;
 
         let body = AllowUserSchema {
-            charger_id: charger_id.to_string(),
+            charger_id,
             user_mail: user_mail.to_string(),
         };
         let req = test::TestRequest::put()
@@ -99,7 +101,7 @@ pub mod tests {
         let _user2 = TestUser::new(mail2).await;
         let mut user1 = TestUser::new(mail1).await;
 
-        let charger = "allow_user_charger";
+        let charger = OsRng.next_u32() as i32;
         let token = user1.login().await.to_string();
         user1.add_charger(charger).await;
 
@@ -110,7 +112,7 @@ pub mod tests {
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
-            charger_id: charger.to_string(),
+            charger_id: charger,
             user_mail: mail2.to_string(),
         };
         let req = test::TestRequest::put()
@@ -130,7 +132,7 @@ pub mod tests {
 
         let mut user1 = TestUser::new(mail1).await;
 
-        let charger = "allow_user_charger";
+        let charger = OsRng.next_u32() as i32;
         let token = user1.login().await.to_string();
         user1.add_charger(charger).await;
 
@@ -141,7 +143,7 @@ pub mod tests {
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
-            charger_id: charger.to_string(),
+            charger_id: charger,
             user_mail: mail2.to_string(),
         };
         let req = test::TestRequest::put()

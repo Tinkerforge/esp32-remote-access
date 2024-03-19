@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetChargerSchema {
-    id: String,
+    id: i32,
     name: String,
 }
 
@@ -66,6 +66,8 @@ pub async fn get_chargers(
 #[cfg(test)]
 mod tests {
     use actix_web::{cookie::Cookie, test, App};
+    use rand::RngCore;
+    use rand_core::OsRng;
 
     use super::*;
     use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
@@ -73,24 +75,24 @@ mod tests {
     /// Test if only the chargers the user has access to will be returned.
     #[actix_web::test]
     async fn test_get_chargers() {
-        let mut owned_chargers: Vec<String> = Vec::new();
-        let mut accessable_chargers: Vec<String> = Vec::new();
+        let mut owned_chargers: Vec<i32> = Vec::new();
+        let mut accessable_chargers: Vec<i32> = Vec::new();
         let (mut user1, mail1) = TestUser::random().await;
         let (mut user2, _) = TestUser::random().await;
         user1.login().await;
         user2.login().await;
         for _ in 0..5 {
-            let uuid1 = uuid::Uuid::new_v4().to_string();
-            let uuid2 = uuid::Uuid::new_v4().to_string();
-            user1.add_charger(&uuid1).await;
-            user2.add_charger(&uuid2).await;
-            user2.allow_user(&mail1, &uuid2).await;
+            let uuid1 = OsRng.next_u32() as i32;
+            let uuid2 = OsRng.next_u32() as i32;
+            user1.add_charger(uuid1).await;
+            user2.add_charger(uuid2).await;
+            user2.allow_user(&mail1, uuid2).await;
             owned_chargers.push(uuid1);
             accessable_chargers.push(uuid2);
         }
         for _ in 0..5 {
-            let uuid = uuid::Uuid::new_v4().to_string();
-            user2.add_charger(&uuid).await;
+            let uuid = OsRng.next_u32() as i32;
+            user2.add_charger(uuid).await;
         }
 
         let app = App::new()

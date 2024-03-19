@@ -4,14 +4,14 @@ diesel::table! {
     allowed_users (id) {
         id -> Uuid,
         user_id -> Uuid,
-        charger_id -> Varchar,
+        charger_id -> Int4,
         is_owner -> Bool,
     }
 }
 
 diesel::table! {
     chargers (id) {
-        id -> Varchar,
+        id -> Int4,
         last_ip -> Nullable<Inet>,
         name -> Varchar,
         management_private -> Varchar,
@@ -42,7 +42,7 @@ diesel::table! {
     wg_keys (id) {
         id -> Uuid,
         user_id -> Uuid,
-        charger_id -> Varchar,
+        charger_id -> Int4,
         in_use -> Bool,
         charger_pub -> Varchar,
         web_private -> Varchar,

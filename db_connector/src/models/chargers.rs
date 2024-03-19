@@ -5,7 +5,7 @@ use ipnetwork::IpNetwork;
 #[diesel(table_name = crate::schema::chargers)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Charger {
-    pub id: String,
+    pub id: i32,
     pub name: String,
     pub last_ip: Option<IpNetwork>,
     pub management_private: String,

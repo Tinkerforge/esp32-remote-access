@@ -32,7 +32,7 @@ fn validate_key_id(key_id: &str) -> Result<(), ValidationError> {
 
 pub struct WebClient {
     pub key_id: uuid::Uuid,
-    pub charger_id: String,
+    pub charger_id: i32,
     pub peer_sock_addr: SocketAddr,
     pub app_state: web::Data<AppState>,
     pub bridge_state: web::Data<BridgeState>,
