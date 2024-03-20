@@ -158,6 +158,7 @@ pub(crate) mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         println!("{:?}", resp);
+        println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
     }
 
@@ -177,7 +178,7 @@ pub(crate) mod tests {
         user2.allow_user(user1.get_mail(), charger).await;
 
         let body = DeleteChargerSchema {
-            charger: charger,
+            charger,
         };
         let req = test::TestRequest::delete()
             .uri("/remove")
@@ -235,7 +236,7 @@ pub(crate) mod tests {
         let token = user1.login().await;
 
         let body = DeleteChargerSchema {
-            charger: charger,
+            charger,
         };
         let req = test::TestRequest::delete()
             .uri("/remove")
