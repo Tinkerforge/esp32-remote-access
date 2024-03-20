@@ -22,12 +22,12 @@ pub struct Keys {
     web_address: IpNetwork,
     #[schema(value_type = SchemaType::String)]
     charger_address: IpNetwork,
-    conn_no: u16,
+    connection_no: u16,
 }
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct ChargerSchema {
-    id: i32,
+    id: String,
     name: String,
     charger_pub: String,
     #[schema(value_type = SchemaType::String)]
@@ -55,6 +55,7 @@ fn validate_add_charger_schema(schema: &AddChargerSchema) -> Result<(), Validati
     }
 
     validate_wg_key(&schema.charger.charger_pub)?;
+    validate_charger_id(&schema.charger.id)?;
 
     Ok(())
 }
@@ -65,9 +66,23 @@ fn validate_wg_key(key: &str) -> Result<(), ValidationError> {
         Err(_) => return Err(ValidationError::new("Invalid base64 encoding.")),
     };
 
-    println!("key_len = {}", key.len());
     if key.len() != 32 {
         return Err(ValidationError::new("Data is no valid key"));
+    }
+
+    Ok(())
+}
+
+fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
+    let vec = match bs58::decode(id).with_alphabet(bs58::Alphabet::FLICKR).into_vec() {
+        Ok(v) => v,
+        Err(err) => {
+            return Err(ValidationError::new("Data is no valid base58"))
+        }
+    };
+
+    if vec.len() > 4 {
+        return Err(ValidationError::new("Data has wrong length"));
     }
 
     Ok(())
@@ -88,14 +103,23 @@ fn validate_wg_key(key: &str) -> Result<(), ValidationError> {
 #[post("/add")]
 pub async fn add(
     state: web::Data<AppState>,
-    charger: web::Json<AddChargerSchema>,
+    charger: actix_web_validator::Json<AddChargerSchema>,
     uid: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
-    let pub_key = add_charger(charger.charger.clone(), uid.clone().into(), &state).await?;
 
+    // uwrapping here is safe since it got checked in the validator.
+    let mut id_bytes = bs58::decode(&charger.charger.id).with_alphabet(bs58::Alphabet::FLICKR).into_vec().unwrap();
+    id_bytes.reverse();
+    let mut charger_id = [0u8; 4];
+    for (i, byte) in id_bytes.into_iter().enumerate() {
+        charger_id[i] = byte;
+    }
+    let charger_id = i32::from_le_bytes(charger_id);
+
+    let pub_key = add_charger(charger.charger.clone(), charger_id, uid.clone().into(), &state).await?;
     for keys in charger.keys.iter() {
         add_wg_key(
-            charger.charger.id.clone(),
+            charger_id,
             uid.clone().into(),
             keys.clone(),
             &state,
@@ -112,6 +136,7 @@ pub async fn add(
 
 async fn add_charger(
     charger: ChargerSchema,
+    charger_id: i32,
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> Result<String, actix_web::Error> {
@@ -121,7 +146,7 @@ async fn add_charger(
     let mut conn = get_connection(state)?;
     let pub_key = web_block_unpacked(move || {
         match chargers::chargers
-            .find(&charger.id)
+            .find(charger_id)
             .select(Charger::as_select())
             .get_result(&mut conn)
         {
@@ -136,7 +161,7 @@ async fn add_charger(
         let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
 
         let charger = Charger {
-            id: charger.id,
+            id: charger_id,
             name: charger.name,
             last_ip: None,
             charger_pub: charger.charger_pub,
@@ -193,7 +218,7 @@ async fn add_wg_key(
         web_private: keys.web_private,
         web_address: keys.web_address,
         charger_address: keys.charger_address,
-        connection_no: keys.conn_no as i32,
+        connection_no: keys.connection_no as i32,
     };
 
     match web::block(move || {
@@ -256,7 +281,7 @@ pub(crate) mod tests {
                 web_address: IpNetwork::V4(
                     Ipv4Network::new("123.123.123.122".parse().unwrap(), 24).unwrap(),
                 ),
-                conn_no: 1234,
+                connection_no: 1234,
             })
         }
 
@@ -270,10 +295,13 @@ pub(crate) mod tests {
             .service(add);
         let app = test::init_service(app).await;
 
+        println!("Id number: {}", id);
+        let id = bs58::encode(id.to_ne_bytes()).with_alphabet(bs58::Alphabet::FLICKR).into_string();
+        println!("id: {}", id);
         let keys = generate_keys();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
-                id: id,
+                id,
                 name: uuid::Uuid::new_v4().to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
@@ -292,8 +320,16 @@ pub(crate) mod tests {
             .set_json(charger)
             .to_request();
 
-        let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_success());
+        match test::try_call_service(&app, req).await {
+            Ok(resp) => {
+                println!("add test_charger returned: {}", resp.status());
+                println!("{:?}", resp.response().body());
+                assert!(resp.status().is_success());
+            },
+            Err(err) => {
+                panic!("add test charger returned errror: {}", err);
+            }
+        }
     }
 
     #[actix_web::test]
@@ -312,7 +348,7 @@ pub(crate) mod tests {
         let cid = OsRng.next_u32() as i32;
         let charger = AddChargerSchema {
             charger: ChargerSchema {
-                id: cid.clone(),
+                id: bs58::encode(cid.to_ne_bytes()).with_alphabet(bs58::Alphabet::FLICKR).into_string(),
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
@@ -366,7 +402,7 @@ pub(crate) mod tests {
         let keys = generate_keys();
         let schema = AddChargerSchema {
             charger: ChargerSchema {
-                id: OsRng.next_u32() as i32,
+                id: bs58::encode((OsRng.next_u32() as i32).to_le_bytes()).with_alphabet(bs58::Alphabet::FLICKR).into_string(),
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
