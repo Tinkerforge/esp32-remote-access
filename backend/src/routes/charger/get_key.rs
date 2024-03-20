@@ -33,7 +33,8 @@ pub struct GetWgKeysQuery {
     context_path = "/charger",
     responses(
         (status = 200, body = GetWgKeysSchema),
-        (status = 400, description = "Somehow got a valid jwt but the user does not exist.")
+        (status = 400, description = "Somehow got a valid jwt but the user does not exist."),
+        (status = 404, description = "All keys for this charger are currently in use")
     ),
     security(
         ("jwt" = [])
