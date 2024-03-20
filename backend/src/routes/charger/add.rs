@@ -76,7 +76,7 @@ fn validate_wg_key(key: &str) -> Result<(), ValidationError> {
 fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
     let vec = match bs58::decode(id).with_alphabet(bs58::Alphabet::FLICKR).into_vec() {
         Ok(v) => v,
-        Err(err) => {
+        Err(_) => {
             return Err(ValidationError::new("Data is no valid base58"))
         }
     };
