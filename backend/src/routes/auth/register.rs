@@ -211,7 +211,7 @@ pub(crate) mod tests {
             .expect("Error deleting verification");
         diesel::delete(users.filter(email.eq(mail.to_lowercase())))
             .execute(&mut conn)
-            .expect("Error deleting test tuser");
+            .expect("Error deleting test user");
     }
 
     fn user_exists(mail: &str) -> bool {
