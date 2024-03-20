@@ -3,6 +3,7 @@ import { BACKEND } from "../types";
 import { Button, Table } from "react-bootstrap";
 import { Frame, charger_info } from "../components/Frame";
 import { signal } from "@preact/signals";
+import * as Base58 from "base58";
 
 
 interface Charger {
@@ -38,7 +39,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
             const entry = <tr>
                 <td>{index}</td>
                 <td>{charger.name}</td>
-                <td>{charger.id}</td>
+                <td>{Base58.int_to_base58(charger.id)}</td>
                 <td><Button onClick={async () => {
                     const resp = await fetch(BACKEND + "/charger/get_key?cid=" + charger.id, {
                         credentials: "include"
