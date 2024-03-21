@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::UdpSocket, sync::Mutex};
+use std::{collections::{HashMap, HashSet}, net::UdpSocket, sync::{Arc, Mutex}};
 
 pub use backend::*;
 
@@ -59,6 +59,11 @@ async fn main() -> std::io::Result<()> {
     let bridge_state = web::Data::new(BridgeState {
         pool,
         web_client_map: Mutex::new(HashMap::new()),
+        undiscovered_clients: Mutex::new(HashMap::new()),
+        charger_management_map: Arc::new(Mutex::new(HashMap::new())),
+        charger_management_map_with_id: Mutex::new(HashMap::new()),
+        port_discovery: Mutex::new(HashSet::new()),
+        charger_remote_conn_map: Mutex::new(HashMap::new()),
         socket: UdpSocket::bind("0.0.0.0:51820").unwrap(),
     });
 

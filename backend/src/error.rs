@@ -33,6 +33,8 @@ pub enum Error {
     UserIsNotOwner,
     #[display(fmt = "Request does not contain a valid ip address")]
     NoValidIp,
+    #[display(fmt = "Charger is currently not connected to the server")]
+    ChargerDisconnected,
 }
 
 impl error::ResponseError for Error {
@@ -57,6 +59,7 @@ impl error::ResponseError for Error {
             Self::ChargerNotSeenYet => StatusCode::NOT_FOUND,
             Self::UserIsNotOwner => StatusCode::UNAUTHORIZED,
             Self::NoValidIp => StatusCode::BAD_REQUEST,
+            Self::ChargerDisconnected => StatusCode::BAD_GATEWAY
         }
     }
 }

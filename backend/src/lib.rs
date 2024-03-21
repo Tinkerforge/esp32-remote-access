@@ -1,12 +1,13 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     net::{SocketAddr, UdpSocket},
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 use actix::prelude::*;
 use db_connector::Pool;
 use lettre::SmtpTransport;
+use udp_server::{management::{ManagementResponse, RemoteConnMeta}, socket::ManagementSocket};
 use ws_udp_bridge::Message;
 
 pub mod error;
@@ -20,6 +21,11 @@ pub mod ws_udp_bridge;
 pub struct BridgeState {
     pub pool: Pool,
     pub web_client_map: Mutex<HashMap<SocketAddr, Recipient<Message>>>,
+    pub undiscovered_clients: Mutex<HashMap<RemoteConnMeta, Recipient<Message>>>,
+    pub charger_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
+    pub charger_management_map_with_id: Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>,
+    pub port_discovery: Mutex<HashSet<ManagementResponse>>,
+    pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub socket: UdpSocket,
 }
 
@@ -76,8 +82,13 @@ pub(crate) mod tests {
 
         let bridge_state = BridgeState {
             pool,
+            charger_management_map: Arc::new(Mutex::new(HashMap::new())),
+            charger_management_map_with_id: Mutex::new(HashMap::new()),
+            port_discovery: Mutex::new(HashSet::new()),
+            charger_remote_conn_map: Mutex::new(HashMap::new()),
+            undiscovered_clients: Mutex::new(HashMap::new()),
             web_client_map: Mutex::new(HashMap::new()),
-            socket: UdpSocket::bind("0.0.0.0:51820").unwrap(),
+            socket: UdpSocket::bind(("0", 0)).unwrap(),
         };
 
         let state = web::Data::new(state);
