@@ -194,7 +194,7 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
             };
 
             if data.len() == std::mem::size_of::<ManagementCommand>() {
-                let cmd: ManagementCommand = unsafe { std::mem::transmute(data) };
+                let cmd: ManagementCommand = unsafe { std::ptr::read(data.as_ptr() as *const _) };
                 log::debug!("Got management command {:?}", cmd);
             }
         } else {
