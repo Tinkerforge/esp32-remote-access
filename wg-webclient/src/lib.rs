@@ -27,6 +27,8 @@ pub mod tests {
     use smoltcp::{iface::{Config, Interface, SocketSet}, wire::{IpAddress, IpCidr}, socket::tcp::{self, Socket}, phy};
     use wasm_bindgen_test::*;
 
+    use crate::wg_device::IsUp;
+
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_worker);
 
     #[derive(Clone)]
@@ -41,6 +43,12 @@ pub mod tests {
                 rx,
                 tx,
             }
+        }
+    }
+
+    impl IsUp for LocalDevice {
+        fn is_up(&self) -> bool {
+            true
         }
     }
 

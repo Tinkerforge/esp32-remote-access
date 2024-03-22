@@ -107,6 +107,7 @@ struct WgClient {
 }
 
 enum RequestState {
+    Begin,
     Started,
     Connected,
     HandshakeDone,
@@ -220,16 +221,8 @@ impl WgClient {
             return format!("get_{}", id);
         }
 
-        {
-            let port = js_sys::Math::random() * 1000.0;
-            let port = port as u16;
-            let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), 80);
-
-            // FIXME: throw exception instead of panic
-            self.stream.borrow_mut().connect(endpoint, port).unwrap();
-        }
-
-        let state = Rc::new(RefCell::new(RequestState::Started));
+        let internal_peer_ip = self.internal_peer_ip.parse().unwrap();
+        let state = Rc::new(RefCell::new(RequestState::Begin));
         let state_cpy = state.clone();
         let stream_cpy = self.stream.clone();
 
@@ -250,11 +243,23 @@ impl WgClient {
         let self_cpy = self.clone();
 
         let req = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
+            if !stream_cpy.borrow().is_up() {
+                return
+            }
             let stream_cpy = stream_cpy.clone();
             let mut state = state_cpy.borrow_mut();
             let self_cpy = self_cpy.clone();
 
             match *state {
+                RequestState::Begin => {
+                    let port = js_sys::Math::random() * 1000.0;
+                    let port = port as u16;
+                    let endpoint = smoltcp::wire::IpEndpoint::new(internal_peer_ip, 80);
+
+                    // FIXME: throw exception instead of panic
+                    stream_cpy.borrow_mut().connect(endpoint, port).unwrap();
+                    *state = RequestState::Started;
+                },
                 RequestState::Started => {
                     let stream = stream_cpy.borrow_mut();
                     if stream.can_send() {

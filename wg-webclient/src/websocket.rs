@@ -9,21 +9,22 @@ use wasm_bindgen::{closure::Closure, JsValue};
 use crate::console_log;
 use crate::interval_handle::IntervalHandle;
 use crate::stream::TcpStream;
+use crate::wg_device::IsUp;
 
 struct ConnectingStruct<Device>
- where Device: smoltcp::phy::Device + Clone {
+ where Device: smoltcp::phy::Device + Clone + IsUp {
     stream: TcpStream<'static, Device>,
     _interval: IntervalHandle<JsValue>,
 }
 
 struct ConnectedStruct<Device>
- where Device: smoltcp::phy::Device + Clone {
+ where Device: smoltcp::phy::Device + Clone + IsUp {
     stream: Rc<RefCell<tungstenite::WebSocket<TcpStream<'static, Device>>>>,
     _interval: IntervalHandle<JsValue>,
 }
 
 enum WebsocketState<Device>
- where Device: smoltcp::phy::Device + Clone {
+ where Device: smoltcp::phy::Device + Clone + IsUp {
     Created,
     Connecting(ConnectingStruct<Device>),
     Connected(ConnectedStruct<Device>),
@@ -34,13 +35,13 @@ enum WebsocketState<Device>
     This struct manages the complete inner Websocket.
  */
 pub struct Websocket<Device>
- where Device: smoltcp::phy::Device + Clone {
+ where Device: smoltcp::phy::Device + Clone + IsUp {
     state: Rc<RefCell<WebsocketState<Device>>>,
     cb: Rc<RefCell<Option<js_sys::Function>>>,
 }
 
 impl<Device> Websocket<Device>
- where Device: smoltcp::phy::Device + 'static + Clone {
+ where Device: smoltcp::phy::Device + 'static + Clone + IsUp {
     /**
         Consumes the provided TcpStream, does the Websocket handshake and returns a Connected Websocket struct.
      */

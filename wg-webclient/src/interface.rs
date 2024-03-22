@@ -1,6 +1,6 @@
 use smoltcp::{iface::{SocketSet, Config, SocketHandle}, phy, wire::{IpCidr, IpListenEndpoint}, socket::tcp::{Socket, ListenError, ConnectError}};
 
-use crate::utils::now;
+use crate::{utils::now, wg_device::IsUp};
 
 
 /**
@@ -8,13 +8,13 @@ use crate::utils::now;
     multiple TcpStreams at once.
 */
 pub struct Interface<'a, Device>
-where Device: phy::Device {
+where Device: phy::Device + IsUp {
     device: Device,
     sockets: SocketSet<'a>,
     iface: smoltcp::iface::Interface,
 }
 
-impl<'a, Device: phy::Device> Interface<'a, Device> {
+impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
     pub fn new(device: Device, ip: IpCidr) -> Self {
         let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         let mut rng = [0u8; 8];
@@ -87,5 +87,9 @@ impl<'a, Device: phy::Device> Interface<'a, Device> {
         let socket = self.sockets.get_mut::<Socket>(handle);
         socket.connect(self.iface.context(), remote.into(), local.into())?;
         Ok(())
+    }
+
+    pub fn is_up(&self) -> bool {
+        self.device.is_up()
     }
 }

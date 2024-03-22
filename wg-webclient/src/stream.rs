@@ -1,6 +1,6 @@
 use std::{io::{Read, Write}, rc::Rc, cell::RefCell};
 use smoltcp::{iface::SocketHandle, phy::{self}, wire::IpListenEndpoint, socket::tcp::{self, ConnectError, RecvError, ListenError}};
-use crate::interface::Interface;
+use crate::{interface::Interface, wg_device::IsUp};
 
 /**
     This is an abstraction to be able to implement the std::io::Read and std::io::Write traits for
@@ -8,13 +8,13 @@ use crate::interface::Interface;
  */
 #[derive(Clone)]
 pub struct TcpStream<'a, Device>
-where Device: phy::Device + Clone {
+where Device: phy::Device + Clone + IsUp {
     iface: Rc<RefCell<Interface<'a, Device>>>,
     handle: SocketHandle,
     buf: Vec<u8>,
 }
 
-impl<'a, Device: phy::Device + Clone> TcpStream<'a, Device> {
+impl<'a, Device: phy::Device + Clone + IsUp> TcpStream<'a, Device> {
     pub fn new(iface: Rc<RefCell<Interface<'a, Device>>>) -> Self {
         let rx_buf = tcp::SocketBuffer::new(vec![0; 65535]);
 
@@ -89,9 +89,13 @@ impl<'a, Device: phy::Device + Clone> TcpStream<'a, Device> {
           U: Into<smoltcp::wire::IpListenEndpoint> {
             self.iface.borrow_mut().connect(remote, local, self.handle)
     }
+
+    pub fn is_up(&self) -> bool {
+        self.iface.borrow().is_up()
+    }
 }
 
-impl<Device: phy::Device + Clone> Write for TcpStream<'_, Device> {
+impl<Device: phy::Device + Clone + IsUp> Write for TcpStream<'_, Device> {
 
     #[inline]
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
@@ -114,7 +118,7 @@ impl<Device: phy::Device + Clone> Write for TcpStream<'_, Device> {
     }
 }
 
-impl<Device: phy::Device + Clone> Read for TcpStream<'_, Device> {
+impl<Device: phy::Device + Clone + IsUp> Read for TcpStream<'_, Device> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.iface.borrow_mut().poll();

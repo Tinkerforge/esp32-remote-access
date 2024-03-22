@@ -19,8 +19,8 @@ use web_sys::wasm_bindgen::{JsValue, JsCast};
 use web_sys::{WebSocket, MessageEvent};
 use web_sys::wasm_bindgen::closure::Closure;
 
-#[derive(PartialEq)]
-enum WsConnectionState {
+#[derive(PartialEq, Clone, Copy)]
+pub enum WsConnectionState {
     Connected,
     Disconnected,
 }
@@ -298,6 +298,16 @@ impl WgTunDevice {
 
     pub fn get_pcap(&self) -> Rc<RefCell<PcapNgWriter<Vec<u8>>>> {
         self.pcap.clone()
+    }
+}
+
+pub trait IsUp {
+    fn is_up(&self) -> bool;
+}
+
+impl IsUp for WgTunDevice {
+    fn is_up(&self) -> bool {
+        self.tun.borrow().time_since_last_handshake().is_some()
     }
 }
 
