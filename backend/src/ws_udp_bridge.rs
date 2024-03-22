@@ -161,6 +161,19 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
             }
         };
 
+        {
+            let command = ManagementCommand {
+                command_id: ManagementCommandId::Disconnect,
+                connection_no: self.conn_no,
+                connection_uuid: uuid::Uuid::new_v4().as_u128(),
+            };
+            let map = self.bridge_state.charger_management_map_with_id.lock().unwrap();
+            if let Some(sock) = map.get(&self.charger_id) {
+                let mut sock = sock.lock().unwrap();
+                sock.encrypt_and_send_slice(as_u8_slice(&command));
+            }
+        }
+
         match diesel::update(wg_keys)
             .filter(id.eq(self.key_id))
             .set(in_use.eq(false))
