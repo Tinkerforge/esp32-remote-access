@@ -1,4 +1,4 @@
-use std::{net::{Ipv4Addr, SocketAddr, UdpSocket}, sync::{Arc, Mutex}, time::Instant};
+use std::{net::{Ipv4Addr, SocketAddr, UdpSocket}, sync::{Arc, Mutex}, time::{Duration, Instant}};
 
 use boringtun::noise::{rate_limiter::RateLimiter, Tunn, TunnResult};
 use smoltcp::{iface::{self, Config, Interface, SocketHandle, SocketSet}, socket::udp};
@@ -6,13 +6,13 @@ use smoltcp::{iface::{self, Config, Interface, SocketHandle, SocketSet}, socket:
 use super::device::ManagementDevice;
 
 pub struct ManagementSocket {
+    charger_id: i32,
     sock_handle: SocketHandle,
     sockets: SocketSet<'static>,
     iface: iface::Interface,
     device: ManagementDevice,
     tunn: Arc<Mutex<Tunn>>,
     rate_limiter: Arc<RateLimiter>,
-    self_ip: Ipv4Addr,
     peer_ip: Ipv4Addr,
     remote_addr: SocketAddr,
     udp_socket: Arc<UdpSocket>,
@@ -20,7 +20,7 @@ pub struct ManagementSocket {
 }
 
 impl ManagementSocket {
-    pub fn new(self_ip: Ipv4Addr, peer_ip: Ipv4Addr, remote_addr: SocketAddr, tunn: Tunn, rate_limiter: Arc<RateLimiter>, udp_socket: Arc<UdpSocket>) -> Self {
+    pub fn new(self_ip: Ipv4Addr, peer_ip: Ipv4Addr, remote_addr: SocketAddr, tunn: Tunn, rate_limiter: Arc<RateLimiter>, udp_socket: Arc<UdpSocket>, charger_id: i32) -> Self {
         let tunn = Arc::new(Mutex::new(tunn));
 
         let mut device = ManagementDevice::new(udp_socket.clone(), tunn.clone(), remote_addr);
@@ -51,13 +51,13 @@ impl ManagementSocket {
         socket.bind(12345).unwrap();
 
         let management_sock = Self {
+            charger_id,
             sock_handle,
             sockets,
             iface: interface,
             device,
             tunn,
             rate_limiter,
-            self_ip,
             peer_ip,
             remote_addr,
             udp_socket,
@@ -126,12 +126,14 @@ impl ManagementSocket {
                 while let TunnResult::WriteToNetwork(data) = tunn.decapsulate(None, &Vec::new(), &mut dst) {
                     self.send_slice(data)?;
                 }
+                self.last_seen = Instant::now();
                 Ok(Vec::new())
             },
             TunnResult::WriteToTunnelV4(data, _) => {
                 drop(tunn);
                 self.device.push_packet(data.to_owned());
                 self.poll();
+                self.last_seen = Instant::now();
                 if let Some(data) = self.recv() {
                     Ok(data)
                 } else {
@@ -145,6 +147,7 @@ impl ManagementSocket {
                 Err(format!("{:?}", err))
             },
             TunnResult::Done => {
+                self.last_seen = Instant::now();
                 Ok(Vec::new())
             }
         }
@@ -152,5 +155,13 @@ impl ManagementSocket {
 
     pub fn reset_rate_limiter(&self) {
         self.rate_limiter.reset_count()
+    }
+
+    pub fn last_seen(&self) -> Duration {
+        self.last_seen.elapsed()
+    }
+
+    pub fn id(&self) -> i32 {
+        self.charger_id
     }
 }

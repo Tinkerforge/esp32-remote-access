@@ -3,14 +3,14 @@ use std::{collections::hash_map::Entry, net::{IpAddr, SocketAddr, UdpSocket}, sy
 use actix_web::web::{self, Bytes};
 use base64::prelude::*;
 use diesel::prelude::*;
-use boringtun::noise::{errors::WireGuardError, rate_limiter::RateLimiter, TunnResult};
+use boringtun::noise::{ rate_limiter::RateLimiter, TunnResult};
 use db_connector::models::chargers::Charger;
 use ipnetwork::IpNetwork;
 use rand::RngCore;
 use rand_core::OsRng;
 use threadpool::ThreadPool;
 
-use crate::{ws_udp_bridge::Message, BridgeState};
+use crate::{udp_server::management::ManagementCommandId, utils::as_u8_slice, ws_udp_bridge::Message, BridgeState};
 
 use super::{management::{try_port_discovery, ManagementCommand}, socket::ManagementSocket, start_rate_limiters_reset_thread};
 
@@ -18,7 +18,6 @@ use super::{management::{try_port_discovery, ManagementCommand}, socket::Managem
 #[derive(Debug)]
 enum Error {
     UnknownPeer,
-    WireGuardError(WireGuardError),
 }
 
 impl std::fmt::Display for Error {
@@ -106,7 +105,7 @@ fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr, data: &[u8]) ->
         };
 
         let udp_socket = state.socket.try_clone()?;
-        let socket = ManagementSocket::new(self_ip, peer_ip, addr, tunn, rate_limiter, Arc::new(udp_socket));
+        let socket = ManagementSocket::new(self_ip, peer_ip, addr, tunn, rate_limiter, Arc::new(udp_socket), charger.id);
         return Ok((charger.id, socket))
     }
 
@@ -134,7 +133,7 @@ pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
 }
 
 pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
-    start_rate_limiters_reset_thread(state.charger_management_map.clone());
+    start_rate_limiters_reset_thread(state.charger_management_map.clone(), state.charger_management_map_with_id.clone());
 
     let mut buf = vec![0u8; 65535];
     loop {
@@ -178,6 +177,18 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                         map.insert(id, tunn_data.clone());
                         v.insert(tunn_data.clone());
                         log::debug!("Took {} ms", now.elapsed().as_millis());
+                        let tunn = tunn_data.clone();
+                        thread_pool.execute(move || {
+                            let mut tunn = tunn.lock().unwrap();
+                            for i in 0..5 {
+                                let command = ManagementCommand {
+                                    command_id: ManagementCommandId::Disconnect,
+                                    connection_no: i,
+                                    connection_uuid: uuid::Uuid::new_v4().as_u128()
+                                };
+                                tunn.encrypt_and_send_slice(as_u8_slice(&command));
+                            }
+                        });
                         tunn_data
                     }
                 }

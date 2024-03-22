@@ -23,7 +23,7 @@ pub struct BridgeState {
     pub web_client_map: Mutex<HashMap<SocketAddr, Recipient<Message>>>,
     pub undiscovered_clients: Mutex<HashMap<RemoteConnMeta, Recipient<Message>>>,
     pub charger_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
-    pub charger_management_map_with_id: Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>,
+    pub charger_management_map_with_id: Arc<Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>>,
     pub port_discovery: Mutex<HashSet<ManagementResponse>>,
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub socket: UdpSocket,
@@ -83,7 +83,7 @@ pub(crate) mod tests {
         let bridge_state = BridgeState {
             pool,
             charger_management_map: Arc::new(Mutex::new(HashMap::new())),
-            charger_management_map_with_id: Mutex::new(HashMap::new()),
+            charger_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
             port_discovery: Mutex::new(HashSet::new()),
             charger_remote_conn_map: Mutex::new(HashMap::new()),
             undiscovered_clients: Mutex::new(HashMap::new()),
