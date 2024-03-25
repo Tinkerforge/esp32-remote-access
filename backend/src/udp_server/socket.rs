@@ -94,10 +94,8 @@ impl ManagementSocket {
 
     pub fn encrypt_and_send_slice(&mut self, data: &[u8]) {
         let socket = self.sockets.get_mut::<udp::Socket>(self.sock_handle);
-        log::error!("Socket can send: {}", socket.can_send());
         if socket.can_send() {
-            let ret = socket.send_slice(data, (self.peer_ip, 12345));
-            log::error!("{:?}", ret);
+            let _ = socket.send_slice(data, (self.peer_ip, 12345));
         }
         self.poll();
     }
