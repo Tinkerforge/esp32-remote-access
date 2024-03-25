@@ -17,16 +17,11 @@ services:
       - ./nginx/certs:/usr/share/nginx/certs
       - ../frontend/dist:/usr/share/nginx/html
 
-  backend:
+  backend-build:
     image: rust:1-bookworm
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-    container_name: backend
-    ports:
-      - 51820:51820/udp
-    command: cargo run --release
+    restart: no
+    container_name: backend-build
+    command: cargo build --release
     working_dir: /app
     volumes:
       - ../backend:/app
@@ -40,6 +35,30 @@ services:
       - MAIL_RELAY_PORT=${MAIL_RELAY_PORT}
       - FRONTEND_URL=${FRONTEND_URL}
 
+  backend:
+    image: rust:1-bookworm
+    restart: always
+    container_name: backend
+    command: ./target/release/backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend-build:
+        condition: service_completed_successfully
+    ports:
+      - 51820:51820/udp
+    working_dir: /app
+    volumes:
+      - ../backend:/app
+      - ../db_connector:/db_connector
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - MAIL_USER=${MAIL_USER}
+      - MAIL_PASS=${MAIL_PASS}
+      - MAIL_RELAY=${MAIL_RELAY}
+      - MAIL_RELAY_PORT=${MAIL_RELAY_PORT}
+      - FRONTEND_URL=${FRONTEND_URL}
     healthcheck:
       test: ["CMD", "curl", "backend:8081"]
       interval: 20s
