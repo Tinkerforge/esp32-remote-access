@@ -26,20 +26,12 @@ services:
     volumes:
       - ../backend:/app
       - ../db_connector:/db_connector
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - MAIL_USER=${MAIL_USER}
-      - MAIL_PASS=${MAIL_PASS}
-      - MAIL_RELAY=${MAIL_RELAY}
-      - MAIL_RELAY_PORT=${MAIL_RELAY_PORT}
-      - FRONTEND_URL=${FRONTEND_URL}
 
   backend:
     image: rust:1-bookworm
     restart: always
     container_name: backend
-    command: ./target/release/backend
+    command: ./backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,8 +41,7 @@ services:
       - 51820:51820/udp
     working_dir: /app
     volumes:
-      - ../backend:/app
-      - ../db_connector:/db_connector
+      - ../backend/target/release:/app
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
