@@ -177,9 +177,7 @@ pub(crate) mod tests {
         add_test_charger(charger, &token).await;
         user2.allow_user(user1.get_mail(), charger).await;
 
-        let body = DeleteChargerSchema {
-            charger,
-        };
+        let body = DeleteChargerSchema { charger };
         let req = test::TestRequest::delete()
             .uri("/remove")
             .cookie(Cookie::new("access_token", token))
@@ -205,9 +203,7 @@ pub(crate) mod tests {
         user2.allow_user(user1.get_mail(), charger).await;
         let token = user1.login().await;
 
-        let body = DeleteChargerSchema {
-            charger: charger,
-        };
+        let body = DeleteChargerSchema { charger: charger };
         let req = test::TestRequest::delete()
             .uri("/remove")
             .set_json(body)
@@ -235,9 +231,7 @@ pub(crate) mod tests {
         user2.add_charger(charger).await;
         let token = user1.login().await;
 
-        let body = DeleteChargerSchema {
-            charger,
-        };
+        let body = DeleteChargerSchema { charger };
         let req = test::TestRequest::delete()
             .uri("/remove")
             .set_json(body)

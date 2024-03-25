@@ -7,7 +7,10 @@ use std::{
 use actix::prelude::*;
 use db_connector::Pool;
 use lettre::SmtpTransport;
-use udp_server::{management::{ManagementResponse, RemoteConnMeta}, socket::ManagementSocket};
+use udp_server::{
+    management::{ManagementResponse, RemoteConnMeta},
+    socket::ManagementSocket,
+};
 use ws_udp_bridge::Message;
 
 pub mod error;

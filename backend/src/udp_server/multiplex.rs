@@ -1,19 +1,29 @@
-use std::{collections::hash_map::Entry, net::{IpAddr, SocketAddr, UdpSocket}, sync::{Arc, Mutex}};
+use std::{
+    collections::hash_map::Entry,
+    net::{IpAddr, SocketAddr, UdpSocket},
+    sync::{Arc, Mutex},
+};
 
 use actix_web::web::{self, Bytes};
 use base64::prelude::*;
-use diesel::prelude::*;
-use boringtun::noise::{ rate_limiter::RateLimiter, TunnResult};
+use boringtun::noise::{rate_limiter::RateLimiter, TunnResult};
 use db_connector::models::chargers::Charger;
+use diesel::prelude::*;
 use ipnetwork::IpNetwork;
 use rand::RngCore;
 use rand_core::OsRng;
 use threadpool::ThreadPool;
 
-use crate::{udp_server::management::ManagementCommandId, utils::as_u8_slice, ws_udp_bridge::Message, BridgeState};
+use crate::{
+    udp_server::management::ManagementCommandId, utils::as_u8_slice, ws_udp_bridge::Message,
+    BridgeState,
+};
 
-use super::{management::{try_port_discovery, ManagementCommand}, socket::ManagementSocket, start_rate_limiters_reset_thread};
-
+use super::{
+    management::{try_port_discovery, ManagementCommand},
+    socket::ManagementSocket,
+    start_rate_limiters_reset_thread,
+};
 
 #[derive(Debug)]
 enum Error {
@@ -26,11 +36,13 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {
+impl std::error::Error for Error {}
 
-}
-
-fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr, data: &[u8]) -> anyhow::Result<(i32, ManagementSocket)> {
+fn create_tunn(
+    state: &web::Data<BridgeState>,
+    addr: SocketAddr,
+    data: &[u8],
+) -> anyhow::Result<(i32, ManagementSocket)> {
     use db_connector::schema::chargers::dsl as chargers;
 
     let mut conn = state.pool.get()?;
@@ -54,20 +66,23 @@ fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr, data: &[u8]) ->
                 ))
             }
         };
-        let peer_static_public: [u8; 32] = match BASE64_STANDARD.decode(charger.charger_pub)?.try_into()
-        {
-            Ok(v) => v,
-            Err(_) => {
-                return Err(anyhow::Error::msg(
-                    "Somehow we got an invalid charger public key in the database.",
-                ))
-            }
-        };
+        let peer_static_public: [u8; 32] =
+            match BASE64_STANDARD.decode(charger.charger_pub)?.try_into() {
+                Ok(v) => v,
+                Err(_) => {
+                    return Err(anyhow::Error::msg(
+                        "Somehow we got an invalid charger public key in the database.",
+                    ))
+                }
+            };
 
         let static_private = boringtun::x25519::StaticSecret::from(static_private);
         let peer_static_public = boringtun::x25519::PublicKey::from(peer_static_public);
 
-        let rate_limiter = Arc::new(RateLimiter::new(&boringtun::x25519::PublicKey::from(&static_private), 10));
+        let rate_limiter = Arc::new(RateLimiter::new(
+            &boringtun::x25519::PublicKey::from(&static_private),
+            10,
+        ));
 
         let mut tunn = match boringtun::noise::Tunn::new(
             static_private,
@@ -84,8 +99,8 @@ fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr, data: &[u8]) ->
         match tunn.decapsulate(None, data, &mut dst) {
             TunnResult::WriteToNetwork(data) => {
                 send_data(&state.socket, addr, data);
-            },
-            _ => continue
+            }
+            _ => continue,
         }
 
         let self_ip = if let IpAddr::V4(ip) = charger.wg_server_ip.ip() {
@@ -105,8 +120,16 @@ fn create_tunn(state: &web::Data<BridgeState>, addr: SocketAddr, data: &[u8]) ->
         };
 
         let udp_socket = state.socket.try_clone()?;
-        let socket = ManagementSocket::new(self_ip, peer_ip, addr, tunn, rate_limiter, Arc::new(udp_socket), charger.id);
-        return Ok((charger.id, socket))
+        let socket = ManagementSocket::new(
+            self_ip,
+            peer_ip,
+            addr,
+            tunn,
+            rate_limiter,
+            Arc::new(udp_socket),
+            charger.id,
+        );
+        return Ok((charger.id, socket));
     }
 
     Err(anyhow::Error::new(Error::UnknownPeer))
@@ -133,7 +156,10 @@ pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
 }
 
 pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
-    start_rate_limiters_reset_thread(state.charger_management_map.clone(), state.charger_management_map_with_id.clone());
+    start_rate_limiters_reset_thread(
+        state.charger_management_map.clone(),
+        state.charger_management_map_with_id.clone(),
+    );
 
     let mut buf = vec![0u8; 65535];
     loop {
@@ -177,7 +203,7 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                                 let command = ManagementCommand {
                                     command_id: ManagementCommandId::Disconnect,
                                     connection_no: i,
-                                    connection_uuid: uuid::Uuid::new_v4().as_u128()
+                                    connection_uuid: uuid::Uuid::new_v4().as_u128(),
                                 };
                                 tunn.encrypt_and_send_slice(as_u8_slice(&command));
                             }
@@ -197,8 +223,7 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                 }
             };
 
-            if data.len() == std::mem::size_of::<ManagementCommand>() {
-            }
+            if data.len() == std::mem::size_of::<ManagementCommand>() {}
         } else {
         }
     }

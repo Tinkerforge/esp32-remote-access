@@ -11,7 +11,9 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use validator::{Validate, ValidationError};
 
-use crate::udp_server::management::{ManagementCommand, ManagementCommandId, ManagementResponse, RemoteConnMeta};
+use crate::udp_server::management::{
+    ManagementCommand, ManagementCommandId, ManagementResponse, RemoteConnMeta,
+};
 use crate::utils::as_u8_slice;
 use crate::{
     error::Error,
@@ -75,7 +77,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                             let addr = addr.to_owned();
                             self.peer_sock_addr = Some(addr);
                             addr
-                        },
+                        }
                         None => {
                             return;
                         }
@@ -104,15 +106,13 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
     fn started(&mut self, ctx: &mut Self::Context) {
         let meta = RemoteConnMeta {
             charger_id: self.charger_id.clone(),
-            conn_no: self.conn_no
+            conn_no: self.conn_no,
         };
 
         let peer_sock_addr = {
             let map = self.bridge_state.charger_remote_conn_map.lock().unwrap();
             match map.get(&meta) {
-                Some(addr) => {
-                    addr.to_owned()
-                },
+                Some(addr) => addr.to_owned(),
                 None => {
                     drop(map);
                     let mut map = self.bridge_state.undiscovered_clients.lock().unwrap();
@@ -146,7 +146,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
             Some(addr) => {
                 let mut map = self.bridge_state.web_client_map.lock().unwrap();
                 map.remove(&addr);
-            },
+            }
             None => {
                 let meta = RemoteConnMeta {
                     charger_id: self.charger_id.clone(),
@@ -167,7 +167,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                 connection_no: self.conn_no,
                 connection_uuid: uuid::Uuid::new_v4().as_u128(),
             };
-            let map = self.bridge_state.charger_management_map_with_id.lock().unwrap();
+            let map = self
+                .bridge_state
+                .charger_management_map_with_id
+                .lock()
+                .unwrap();
             if let Some(sock) = map.get(&self.charger_id) {
                 let mut sock = sock.lock().unwrap();
                 sock.encrypt_and_send_slice(as_u8_slice(&command));
@@ -250,21 +254,19 @@ async fn start_ws(
     let command = ManagementCommand {
         command_id: ManagementCommandId::Connect,
         connection_no: keys.connection_no,
-        connection_uuid: conn_uuid.as_u128()
+        connection_uuid: conn_uuid.as_u128(),
     };
     let response = ManagementResponse {
         charger_id: keys.charger_id,
         connection_no: keys.connection_no,
-        connection_uuid: conn_uuid.as_u128()
+        connection_uuid: conn_uuid.as_u128(),
     };
 
     let management_sock = {
         let map = bridge_state.charger_management_map_with_id.lock().unwrap();
         let management_sock = match map.get(&keys.charger_id) {
             Some(sock) => sock.clone(),
-            None => {
-                return Err(Error::ChargerDisconnected.into())
-            }
+            None => return Err(Error::ChargerDisconnected.into()),
         };
         management_sock
     };

@@ -1,10 +1,12 @@
-use std::{collections::VecDeque, net::{SocketAddr, UdpSocket}, sync::{Arc, Mutex}};
 use boringtun::noise::{Tunn, TunnResult};
 use smoltcp::phy::{self, DeviceCapabilities, Medium};
+use std::{
+    collections::VecDeque,
+    net::{SocketAddr, UdpSocket},
+    sync::{Arc, Mutex},
+};
 
 use super::multiplex::send_data;
-
-
 
 pub struct ManagementDevice {
     rx_buf: VecDeque<Vec<u8>>,
@@ -41,11 +43,12 @@ impl phy::Device for ManagementDevice {
         caps
     }
 
-    fn receive(&mut self, _timestamp: smoltcp::time::Instant) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
+    fn receive(
+        &mut self,
+        _timestamp: smoltcp::time::Instant,
+    ) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
         if let Some(buf) = self.rx_buf.pop_front() {
-            let rx = ManagementRxToken {
-                buf
-            };
+            let rx = ManagementRxToken { buf };
             let tx = ManagementTxToken {
                 socket: &self.socket,
                 tunn: self.tunn.clone(),
@@ -72,8 +75,9 @@ pub struct ManagementRxToken {
 
 impl phy::RxToken for ManagementRxToken {
     fn consume<R, F>(mut self, f: F) -> R
-        where
-            F: FnOnce(&mut [u8]) -> R {
+    where
+        F: FnOnce(&mut [u8]) -> R,
+    {
         f(&mut self.buf)
     }
 }
@@ -86,8 +90,9 @@ pub struct ManagementTxToken<'a> {
 
 impl<'a> phy::TxToken for ManagementTxToken<'a> {
     fn consume<R, F>(self, len: usize, f: F) -> R
-        where
-            F: FnOnce(&mut [u8]) -> R {
+    where
+        F: FnOnce(&mut [u8]) -> R,
+    {
         let mut buf = vec![0u8; len];
         let r = f(&mut buf);
 

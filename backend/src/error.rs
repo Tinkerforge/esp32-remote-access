@@ -59,7 +59,7 @@ impl error::ResponseError for Error {
             Self::ChargerNotSeenYet => StatusCode::NOT_FOUND,
             Self::UserIsNotOwner => StatusCode::UNAUTHORIZED,
             Self::NoValidIp => StatusCode::BAD_REQUEST,
-            Self::ChargerDisconnected => StatusCode::BAD_GATEWAY
+            Self::ChargerDisconnected => StatusCode::BAD_GATEWAY,
         }
     }
 }

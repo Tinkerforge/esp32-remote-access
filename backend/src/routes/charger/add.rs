@@ -74,11 +74,12 @@ fn validate_wg_key(key: &str) -> Result<(), ValidationError> {
 }
 
 fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
-    let vec = match bs58::decode(id).with_alphabet(bs58::Alphabet::FLICKR).into_vec() {
+    let vec = match bs58::decode(id)
+        .with_alphabet(bs58::Alphabet::FLICKR)
+        .into_vec()
+    {
         Ok(v) => v,
-        Err(_) => {
-            return Err(ValidationError::new("Data is no valid base58"))
-        }
+        Err(_) => return Err(ValidationError::new("Data is no valid base58")),
     };
 
     if vec.len() > 4 {
@@ -106,9 +107,11 @@ pub async fn add(
     charger: actix_web_validator::Json<AddChargerSchema>,
     uid: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
-
     // uwrapping here is safe since it got checked in the validator.
-    let mut id_bytes = bs58::decode(&charger.charger.id).with_alphabet(bs58::Alphabet::FLICKR).into_vec().unwrap();
+    let mut id_bytes = bs58::decode(&charger.charger.id)
+        .with_alphabet(bs58::Alphabet::FLICKR)
+        .into_vec()
+        .unwrap();
     id_bytes.reverse();
     let mut charger_id = [0u8; 4];
     for (i, byte) in id_bytes.into_iter().enumerate() {
@@ -116,15 +119,15 @@ pub async fn add(
     }
     let charger_id = i32::from_le_bytes(charger_id);
 
-    let pub_key = add_charger(charger.charger.clone(), charger_id, uid.clone().into(), &state).await?;
+    let pub_key = add_charger(
+        charger.charger.clone(),
+        charger_id,
+        uid.clone().into(),
+        &state,
+    )
+    .await?;
     for keys in charger.keys.iter() {
-        add_wg_key(
-            charger_id,
-            uid.clone().into(),
-            keys.clone(),
-            &state,
-        )
-        .await?;
+        add_wg_key(charger_id, uid.clone().into(), keys.clone(), &state).await?;
     }
 
     let resp = AddChargerResponseSchema {
@@ -296,7 +299,9 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         println!("Id number: {}", id);
-        let id = bs58::encode(id.to_ne_bytes()).with_alphabet(bs58::Alphabet::FLICKR).into_string();
+        let id = bs58::encode(id.to_ne_bytes())
+            .with_alphabet(bs58::Alphabet::FLICKR)
+            .into_string();
         println!("id: {}", id);
         let keys = generate_keys();
         let charger = AddChargerSchema {
@@ -325,7 +330,7 @@ pub(crate) mod tests {
                 println!("add test_charger returned: {}", resp.status());
                 println!("{:?}", resp.response().body());
                 assert!(resp.status().is_success());
-            },
+            }
             Err(err) => {
                 panic!("add test charger returned errror: {}", err);
             }
@@ -348,7 +353,9 @@ pub(crate) mod tests {
         let cid = OsRng.next_u32() as i32;
         let charger = AddChargerSchema {
             charger: ChargerSchema {
-                id: bs58::encode(cid.to_ne_bytes()).with_alphabet(bs58::Alphabet::FLICKR).into_string(),
+                id: bs58::encode(cid.to_ne_bytes())
+                    .with_alphabet(bs58::Alphabet::FLICKR)
+                    .into_string(),
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
@@ -402,7 +409,9 @@ pub(crate) mod tests {
         let keys = generate_keys();
         let schema = AddChargerSchema {
             charger: ChargerSchema {
-                id: bs58::encode((OsRng.next_u32() as i32).to_le_bytes()).with_alphabet(bs58::Alphabet::FLICKR).into_string(),
+                id: bs58::encode((OsRng.next_u32() as i32).to_le_bytes())
+                    .with_alphabet(bs58::Alphabet::FLICKR)
+                    .into_string(),
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(

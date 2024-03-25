@@ -4,8 +4,6 @@ use actix_web::web;
 
 use crate::BridgeState;
 
-
-
 #[derive(PartialEq, Hash, Eq, Debug)]
 pub struct RemoteConnMeta {
     pub charger_id: i32,
@@ -33,12 +31,12 @@ pub struct ManagementCommand {
 pub struct ManagementResponse {
     pub charger_id: i32,
     pub connection_no: i32,
-    pub connection_uuid: u128
+    pub connection_uuid: u128,
 }
 
 pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: SocketAddr) -> bool {
     if data.len() != ::core::mem::size_of::<ManagementResponse>() {
-        return false
+        return false;
     }
 
     let response: ManagementResponse = unsafe {
@@ -49,13 +47,13 @@ pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: Soc
     {
         let mut set = state.port_discovery.lock().unwrap();
         if !set.remove(&response) {
-            return false
+            return false;
         }
     }
 
     let meta = RemoteConnMeta {
         charger_id: response.charger_id,
-        conn_no: response.connection_no
+        conn_no: response.connection_no,
     };
 
     {

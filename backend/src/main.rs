@@ -1,4 +1,8 @@
-use std::{collections::{HashMap, HashSet}, net::UdpSocket, sync::{Arc, Mutex}};
+use std::{
+    collections::{HashMap, HashSet},
+    net::UdpSocket,
+    sync::{Arc, Mutex},
+};
 
 pub use backend::*;
 
