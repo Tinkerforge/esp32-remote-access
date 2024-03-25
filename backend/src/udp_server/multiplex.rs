@@ -138,8 +138,6 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
     let mut buf = vec![0u8; 65535];
     loop {
         if let Ok((s, addr)) = state.socket.recv_from(&mut buf) {
-            log::debug!("Packet from {}", addr);
-
             {
                 let client_map = state.web_client_map.lock().unwrap();
                 if let Some(client) = client_map.get(&addr) {
@@ -161,13 +159,9 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                 match charger_map.entry(addr) {
                     Entry::Occupied(tunn) => tunn.into_mut().clone(),
                     Entry::Vacant(v) => {
-                        log::debug!("Creating new charger entry");
-                        let now = Instant::now();
                         let (id, tunn_data) = match create_tunn(&state, addr, &buf[..s]) {
                             Ok(tunn) => tunn,
                             Err(_err) => {
-                                log::debug!("Creating new charger entry failed: {:?}", _err);
-                                log::debug!("Took {} ms", now.elapsed().as_millis());
                                 continue;
                             }
                         };
@@ -176,7 +170,6 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                         let mut map = state.charger_management_map_with_id.lock().unwrap();
                         map.insert(id, tunn_data.clone());
                         v.insert(tunn_data.clone());
-                        log::debug!("Took {} ms", now.elapsed().as_millis());
                         let tunn = tunn_data.clone();
                         thread_pool.execute(move || {
                             let mut tunn = tunn.lock().unwrap();
@@ -205,8 +198,6 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
             };
 
             if data.len() == std::mem::size_of::<ManagementCommand>() {
-                let cmd: ManagementCommand = unsafe { std::ptr::read(data.as_ptr() as *const _) };
-                log::debug!("Got management command {:?}", cmd);
             }
         } else {
         }

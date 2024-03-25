@@ -37,10 +37,7 @@ pub struct ManagementResponse {
 }
 
 pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: SocketAddr) -> bool {
-    log::debug!("In port discovery: ");
-    log::debug!("{}, {}", data.len(), ::core::mem::size_of::<ManagementResponse>());
     if data.len() != ::core::mem::size_of::<ManagementResponse>() {
-        log::debug!("invalid size");
         return false
     }
 
@@ -51,8 +48,6 @@ pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: Soc
 
     {
         let mut set = state.port_discovery.lock().unwrap();
-        log::debug!("{:?}", *set);
-        log::debug!("{:?}", response);
         if !set.remove(&response) {
             return false
         }
@@ -73,7 +68,6 @@ pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: Soc
 
     let mut map = state.charger_remote_conn_map.lock().unwrap();
     map.insert(meta, addr);
-    log::debug!("{:?}", *map);
 
     true
 }

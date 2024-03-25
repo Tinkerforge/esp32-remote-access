@@ -91,7 +91,7 @@ async fn create_ws_server(peer: Peer, udp_sock: Arc<UdpSocket>) -> anyhow::Resul
                         Message::Binary(data) => {
                             match futures::executor::block_on(udp_sock.send(&data)) {
                                 Ok(_) => (),
-                                Err(err)  => debug!("Failed to send to udp: {}", err)
+                                Err(err)  => error!("Failed to send to udp: {}", err)
                             }
                         },
                         _ => warn!("Unknown ws message received")
