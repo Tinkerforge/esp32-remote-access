@@ -1,14 +1,20 @@
-use smoltcp::{iface::{SocketSet, Config, SocketHandle}, phy, wire::{IpCidr, IpListenEndpoint}, socket::tcp::{Socket, ListenError, ConnectError}};
+use smoltcp::{
+    iface::{Config, SocketHandle, SocketSet},
+    phy,
+    socket::tcp::{ConnectError, ListenError, Socket},
+    wire::{IpCidr, IpListenEndpoint},
+};
 
 use crate::{utils::now, wg_device::IsUp};
-
 
 /**
     Creates an abstraction layer between smoltcp and this crates TcpStream to be able to have
     multiple TcpStreams at once.
 */
 pub struct Interface<'a, Device>
-where Device: phy::Device + IsUp {
+where
+    Device: phy::Device + IsUp,
+{
     device: Device,
     sockets: SocketSet<'a>,
     iface: smoltcp::iface::Interface,
@@ -53,7 +59,11 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
 
     // for testing
     #[allow(dead_code)]
-    pub fn listen<T: Into<IpListenEndpoint>>(&mut self, endpoint: T, handle: SocketHandle) -> Result<(), ListenError> {
+    pub fn listen<T: Into<IpListenEndpoint>>(
+        &mut self,
+        endpoint: T,
+        handle: SocketHandle,
+    ) -> Result<(), ListenError> {
         let socket = self.sockets.get_mut::<Socket>(handle);
         socket.listen(endpoint.into())?;
         Ok(())
@@ -66,7 +76,11 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
     }
 
     #[inline]
-    pub fn send_slice(&mut self, handle: SocketHandle, slice: &[u8]) -> Result<usize, smoltcp::socket::tcp::SendError> {
+    pub fn send_slice(
+        &mut self,
+        handle: SocketHandle,
+        slice: &[u8],
+    ) -> Result<usize, smoltcp::socket::tcp::SendError> {
         let socket = self.sockets.get_mut::<Socket>(handle);
         let sent = socket.send_slice(slice)?;
         self.poll();
@@ -74,16 +88,27 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
     }
 
     #[inline]
-    pub fn recv_slice(&mut self, handle: SocketHandle, slice: &mut [u8]) -> Result<usize, smoltcp::socket::tcp::RecvError> {
+    pub fn recv_slice(
+        &mut self,
+        handle: SocketHandle,
+        slice: &mut [u8],
+    ) -> Result<usize, smoltcp::socket::tcp::RecvError> {
         self.poll();
         let socket = self.sockets.get_mut::<Socket>(handle);
         let len = socket.recv_slice(slice)?;
         Ok(len)
     }
 
-    pub fn connect<T, U>(&mut self, remote: T, local: U, handle: SocketHandle) -> Result<(), ConnectError>
-    where T: Into<smoltcp::wire::IpEndpoint>,
-          U: Into<smoltcp::wire::IpListenEndpoint> {
+    pub fn connect<T, U>(
+        &mut self,
+        remote: T,
+        local: U,
+        handle: SocketHandle,
+    ) -> Result<(), ConnectError>
+    where
+        T: Into<smoltcp::wire::IpEndpoint>,
+        U: Into<smoltcp::wire::IpListenEndpoint>,
+    {
         let socket = self.sockets.get_mut::<Socket>(handle);
         socket.connect(self.iface.context(), remote.into(), local.into())?;
         Ok(())

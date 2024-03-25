@@ -1,12 +1,11 @@
-mod utils;
-pub mod wg_client;
-mod stream;
-mod wg_device;
 mod hyper_stream;
-mod interval_handle;
 mod interface;
+mod interval_handle;
+mod stream;
+mod utils;
 mod websocket;
-
+pub mod wg_client;
+mod wg_device;
 
 use wasm_bindgen::prelude::*;
 
@@ -22,9 +21,17 @@ macro_rules! console_log {
 
 #[cfg(test)]
 pub mod tests {
-    use std::{ sync::{Arc, Mutex}, collections::VecDeque};
+    use std::{
+        collections::VecDeque,
+        sync::{Arc, Mutex},
+    };
 
-    use smoltcp::{iface::{Config, Interface, SocketSet}, wire::{IpAddress, IpCidr}, socket::tcp::{self, Socket}, phy};
+    use smoltcp::{
+        iface::{Config, Interface, SocketSet},
+        phy,
+        socket::tcp::{self, Socket},
+        wire::{IpAddress, IpCidr},
+    };
     use wasm_bindgen_test::*;
 
     use crate::wg_device::IsUp;
@@ -39,10 +46,7 @@ pub mod tests {
 
     impl LocalDevice {
         pub fn new(rx: Arc<Mutex<VecDeque<Vec<u8>>>>, tx: Arc<Mutex<VecDeque<Vec<u8>>>>) -> Self {
-            Self {
-                rx,
-                tx,
-            }
+            Self { rx, tx }
         }
     }
 
@@ -63,10 +67,13 @@ pub mod tests {
             caps
         }
 
-        fn receive(&mut self, _: smoltcp::time::Instant) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
+        fn receive(
+            &mut self,
+            _: smoltcp::time::Instant,
+        ) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
             let mut rx = self.rx.lock().unwrap();
             if rx.is_empty() {
-                return None
+                return None;
             }
 
             Some((
@@ -92,7 +99,7 @@ pub mod tests {
 
     impl phy::RxToken for LocalRxToken {
         fn consume<R, F>(mut self, f: F) -> R
-            where
+        where
             F: FnOnce(&mut [u8]) -> R,
         {
             f(&mut self.buf[..])
@@ -105,7 +112,7 @@ pub mod tests {
 
     impl phy::TxToken for LocalTxToken {
         fn consume<R, F>(self, size: usize, f: F) -> R
-            where
+        where
             F: FnOnce(&mut [u8]) -> R,
         {
             let mut buf = vec![0u8; size];
@@ -122,7 +129,11 @@ pub mod tests {
         pub iface: Interface,
     }
 
-    fn create_local_socket<'a>(device_rx: Arc<Mutex<VecDeque<Vec<u8>>>>, device_tx: Arc<Mutex<VecDeque<Vec<u8>>>>, ip: (u8, u8, u8, u8)) -> SocketWrap<'a> {
+    fn create_local_socket<'a>(
+        device_rx: Arc<Mutex<VecDeque<Vec<u8>>>>,
+        device_tx: Arc<Mutex<VecDeque<Vec<u8>>>>,
+        ip: (u8, u8, u8, u8),
+    ) -> SocketWrap<'a> {
         let mut device = LocalDevice::new(device_rx, device_tx);
         let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         let mut rng = [0u8; 8];
@@ -134,7 +145,9 @@ pub mod tests {
 
         let mut iface = Interface::new(config, &mut device, now);
         iface.update_ip_addrs(|ip_addrs| {
-            ip_addrs.push(IpCidr::new(IpAddress::v4(ip.0, ip.1, ip.2, ip.3), 24)).unwrap();
+            ip_addrs
+                .push(IpCidr::new(IpAddress::v4(ip.0, ip.1, ip.2, ip.3), 24))
+                .unwrap();
         });
 
         let tcp_rx_buf = tcp::SocketBuffer::new(vec![0; 1500]);
@@ -148,7 +161,10 @@ pub mod tests {
         }
     }
 
-    fn create_two_local_sockets<'a>(buf1: Arc<Mutex<VecDeque<Vec<u8>>>>, buf2: Arc<Mutex<VecDeque<Vec<u8>>>>) -> (SocketWrap<'a>, SocketWrap<'a>) {
+    fn create_two_local_sockets<'a>(
+        buf1: Arc<Mutex<VecDeque<Vec<u8>>>>,
+        buf2: Arc<Mutex<VecDeque<Vec<u8>>>>,
+    ) -> (SocketWrap<'a>, SocketWrap<'a>) {
         (
             create_local_socket(buf1.clone(), buf2.clone(), (192, 168, 69, 1)),
             create_local_socket(buf2.clone(), buf1.clone(), (192, 168, 69, 2)),
@@ -181,7 +197,9 @@ pub mod tests {
                 addr: IpAddress::v4(192, 168, 69, 1),
                 port: 80,
             };
-            sock2.connect(socket2.iface.context(), endpoint, 80).unwrap();
+            sock2
+                .connect(socket2.iface.context(), endpoint, 80)
+                .unwrap();
         }
 
         let mut send = false;
@@ -209,6 +227,4 @@ pub mod tests {
             }
         }
     }
-
-
 }

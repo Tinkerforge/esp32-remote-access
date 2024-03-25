@@ -1,6 +1,12 @@
-
 use std::{cell::RefCell, collections::VecDeque, io::Read, rc::Rc, task::Poll};
 
+use crate::{
+    hyper_stream::HyperStream, interface::Interface, interval_handle::IntervalHandle,
+    stream::TcpStream, websocket::Websocket, wg_device::WgTunDevice,
+};
+use base64::Engine;
+use boringtun::x25519;
+use flate2::read::GzDecoder;
 use futures::{Future, FutureExt};
 use gloo_file::{File, ObjectUrl};
 use http_body_util::BodyExt;
@@ -10,11 +16,7 @@ use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::IpCidr;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{MessageEvent, CustomEvent};
-use crate::{hyper_stream::HyperStream, interface::Interface, interval_handle::IntervalHandle, stream::TcpStream, websocket::Websocket, wg_device::WgTunDevice};
-use base64::Engine;
-use boringtun::x25519;
-use flate2::read::GzDecoder;
+use web_sys::{CustomEvent, MessageEvent};
 
 use crate::console_log;
 
@@ -24,7 +26,10 @@ use crate::console_log;
  * Most function calls are simply passed to the wrapped object.
  */
 #[wasm_bindgen]
-pub struct Client(WgClient, Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)>>>>);
+pub struct Client(
+    WgClient,
+    Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)>>>>,
+);
 
 #[wasm_bindgen]
 impl Client {
@@ -32,8 +37,17 @@ impl Client {
      * Creates a new Client struct by also creating the wrapped objects.
      */
     #[wasm_bindgen(constructor)]
-    pub fn new(secret_str: &str, peer_str: &str, url: &str, internal_ip: &str, internap_peer_ip: &str) -> Self {
-        Self(WgClient::new(secret_str, peer_str, url, internal_ip, internap_peer_ip), Rc::new(RefCell::new(VecDeque::new())))
+    pub fn new(
+        secret_str: &str,
+        peer_str: &str,
+        url: &str,
+        internal_ip: &str,
+        internap_peer_ip: &str,
+    ) -> Self {
+        Self(
+            WgClient::new(secret_str, peer_str, url, internal_ip, internap_peer_ip),
+            Rc::new(RefCell::new(VecDeque::new())),
+        )
     }
 
     /**
@@ -58,7 +72,13 @@ impl Client {
             let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
             let mut options = web_sys::AddEventListenerOptions::new();
             options.once(true);
-            global.add_event_listener_with_callback_and_add_event_listener_options(id.as_str(), closure.as_ref().unchecked_ref(), &options).unwrap();
+            global
+                .add_event_listener_with_callback_and_add_event_listener_options(
+                    id.as_str(),
+                    closure.as_ref().unchecked_ref(),
+                    &options,
+                )
+                .unwrap();
             self.1.borrow_mut().push_back(closure);
         })
     }
@@ -70,7 +90,12 @@ impl Client {
 
     #[wasm_bindgen]
     pub fn on_message(&mut self, cb: js_sys::Function) {
-        self.0.websocket.as_ref().unwrap().borrow_mut().on_message(cb);
+        self.0
+            .websocket
+            .as_ref()
+            .unwrap()
+            .borrow_mut()
+            .on_message(cb);
     }
 
     #[wasm_bindgen]
@@ -103,7 +128,7 @@ struct WgClient {
     current_request: Rc<RefCell<Option<IntervalHandle<MessageEvent>>>>,
     request_queue: Rc<RefCell<VecDeque<Request>>>,
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
-    internal_peer_ip: String
+    internal_peer_ip: String,
 }
 
 enum RequestState {
@@ -121,7 +146,13 @@ impl WgClient {
     /**
      * Creates a new object.
      */
-    fn new(secret_str: &str, peer_str: &str, url: &str, internal_ip: &str, internal_peer_ip: &str) -> Self {
+    fn new(
+        secret_str: &str,
+        peer_str: &str,
+        url: &str,
+        internal_ip: &str,
+        internal_peer_ip: &str,
+    ) -> Self {
         console_error_panic_hook::set_once();
 
         let mut secret = [0u8; 32];
@@ -142,11 +173,7 @@ impl WgClient {
         let peer = x25519::PublicKey::from(peer);
 
         // same as above
-        let device = WgTunDevice::new(
-            self_key,
-            peer,
-            url
-        ).unwrap();
+        let device = WgTunDevice::new(self_key, peer, url).unwrap();
 
         let pcap = device.get_pcap();
 
@@ -164,10 +191,12 @@ impl WgClient {
         let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             iface_cpy.borrow_mut().poll();
         });
-        global.set_interval_with_callback_and_timeout_and_arguments_0(
-            closure.as_ref().unchecked_ref(),
-            0,
-        ).unwrap();
+        global
+            .set_interval_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                0,
+            )
+            .unwrap();
         closure.forget();
 
         Self {
@@ -191,19 +220,19 @@ impl WgClient {
         let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), 80);
         stream.connect(endpoint, port).unwrap_or_else(|e| {
             console_log!("{}", e);
-            return
+            return;
         });
         let websocket = Websocket::connect(stream).unwrap();
         self.websocket = Some(Rc::new(RefCell::new(websocket)));
     }
 
     /**
-      The function that actually does the http requests.
-      Since we must not block the thread while waiting for the response because it would also block
-      the underlaying network stack it starts a task with setTimeout that polls the so far received
-      response, fires a custom event when finished and either returns or proceeds with the next
-      request.
-     */
+     The function that actually does the http requests.
+     Since we must not block the thread while waiting for the response because it would also block
+     the underlaying network stack it starts a task with setTimeout that polls the so far received
+     response, fires a custom event when finished and either returns or proceeds with the next
+     request.
+    */
     fn fetch(&self, js_request: web_sys::Request, url: String, in_id: Option<f64>) -> String {
         let id;
         if let Some(in_id) = in_id {
@@ -216,7 +245,7 @@ impl WgClient {
             request_queue.push_back(Request {
                 id,
                 js_request,
-                url
+                url,
             });
             return format!("get_{}", id);
         }
@@ -233,7 +262,7 @@ impl WgClient {
         let request = Rc::new(RefCell::new(None));
         let resp = Rc::new(RefCell::new(None));
 
-        let result = Rc::new(RefCell::new(vec!{0u8; 0}));
+        let result = Rc::new(RefCell::new(vec![0u8; 0]));
 
         let url = Rc::new(url);
         let js_request = Rc::new(js_request);
@@ -244,7 +273,7 @@ impl WgClient {
 
         let req = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             if !stream_cpy.borrow().is_up() {
-                return
+                return;
             }
             let stream_cpy = stream_cpy.clone();
             let mut state = state_cpy.borrow_mut();
@@ -259,13 +288,13 @@ impl WgClient {
                     // FIXME: throw exception instead of panic
                     stream_cpy.borrow_mut().connect(endpoint, port).unwrap();
                     *state = RequestState::Started;
-                },
+                }
                 RequestState::Started => {
                     let stream = stream_cpy.borrow_mut();
                     if stream.can_send() {
                         *state = RequestState::Connected;
                     }
-                },
+                }
                 RequestState::Connected => {
                     let is_none = sender.borrow_mut().is_none();
 
@@ -278,13 +307,14 @@ impl WgClient {
                             let stream = HyperStream::new(stream_cpy.clone());
 
                             // FIXME: throw exception instead of panic
-                            let (sender, conn) = hyper::client::conn::http1::handshake(stream).await.unwrap();
+                            let (sender, conn) =
+                                hyper::client::conn::http1::handshake(stream).await.unwrap();
                             *sender_cpy.borrow_mut() = Some(sender);
                             *conn_cpy.borrow_mut() = Some(Box::pin(conn));
                             *state_cpy.borrow_mut() = RequestState::HandshakeDone;
                         });
                     }
-                },
+                }
                 RequestState::HandshakeDone => {
                     let js_request_cpy = js_request.clone();
                     let sender_cpy = sender.clone();
@@ -292,7 +322,9 @@ impl WgClient {
                     let state_cpy = state_cpy.clone();
                     let url_cpy = url.clone();
                     wasm_bindgen_futures::spawn_local(async move {
-                        let body = JsFuture::from(js_request_cpy.array_buffer().unwrap()).await.unwrap();
+                        let body = JsFuture::from(js_request_cpy.array_buffer().unwrap())
+                            .await
+                            .unwrap();
                         let body = js_sys::Uint8Array::new(&body).to_vec();
                         let method = match js_request_cpy.method().as_str() {
                             "GET" => hyper::Method::GET,
@@ -302,8 +334,7 @@ impl WgClient {
                             _ => panic!("unknown method: {}", js_request_cpy.method()),
                         };
 
-                        let mut req = http::Request::builder()
-                        .method(method);
+                        let mut req = http::Request::builder().method(method);
 
                         let headers = js_request_cpy.headers();
                         for key in js_sys::Object::keys(&headers).iter() {
@@ -316,10 +347,11 @@ impl WgClient {
                             req = req.header(key, value);
                         }
 
-                        let req = req.header("Content-Type", "application/json; charset=utf-8")
-                        .uri(url_cpy.as_str())
-                        .body(Box::new(Body::new(Bytes::copy_from_slice(&body))))
-                        .unwrap();
+                        let req = req
+                            .header("Content-Type", "application/json; charset=utf-8")
+                            .uri(url_cpy.as_str())
+                            .body(Box::new(Body::new(Bytes::copy_from_slice(&body))))
+                            .unwrap();
                         let mut sender = sender_cpy.borrow_mut();
                         let sender = sender.as_mut().unwrap();
                         let mut request = request_cpy.borrow_mut();
@@ -328,7 +360,7 @@ impl WgClient {
                         *state = RequestState::RequestSent;
                     });
                     *state = RequestState::SendingRequest;
-                },
+                }
                 RequestState::SendingRequest => (),
                 RequestState::RequestSent => {
                     let waker = futures::task::noop_waker();
@@ -339,7 +371,7 @@ impl WgClient {
                         Poll::Ready(Ok(response)) => {
                             *resp.borrow_mut() = Some(Box::pin(response));
                             *state = RequestState::StreamingBody;
-                        },
+                        }
                         // FIXME: throw exception instead of panic
                         Poll::Ready(Err(e)) => panic!("error: {}", e),
                         Poll::Pending => (),
@@ -352,7 +384,7 @@ impl WgClient {
                         Poll::Ready(Err(e)) => panic!("error: {}", e),
                         Poll::Pending => (),
                     };
-                },
+                }
                 RequestState::StreamingBody => {
                     let waker = futures::task::noop_waker();
                     let mut cx = std::task::Context::from_waker(&waker);
@@ -366,26 +398,27 @@ impl WgClient {
                                 let mut result = result.borrow_mut();
                                 result.extend_from_slice(chunk);
                             }
-                        },
+                        }
                         // FIXME: throw exception instead of panic
                         Poll::Ready(Some(Err(e))) => panic!("error: {}", e),
                         Poll::Ready(None) => {
                             console_log!("done");
                             *state = RequestState::Done;
                             let result = result.borrow_mut();
-                            let mut body = if let Some(encoding) = resp.headers().get("Content-Encoding") {
-                                if encoding == "gzip" {
-                                    let mut gz = GzDecoder::new(&result[..]);
-                                    let mut s = String::new();
-                                    gz.read_to_string(&mut s).unwrap();
-                                    s.as_bytes().to_vec()
+                            let mut body =
+                                if let Some(encoding) = resp.headers().get("Content-Encoding") {
+                                    if encoding == "gzip" {
+                                        let mut gz = GzDecoder::new(&result[..]);
+                                        let mut s = String::new();
+                                        gz.read_to_string(&mut s).unwrap();
+                                        s.as_bytes().to_vec()
+                                    } else {
+                                        // FIXME: handle other encodings and throw exception instead of panic
+                                        panic!("unknown encoding: {}", encoding.to_str().unwrap());
+                                    }
                                 } else {
-                                    // FIXME: handle other encodings and throw exception instead of panic
-                                    panic!("unknown encoding: {}", encoding.to_str().unwrap());
-                                }
-                            } else {
-                                result.clone()
-                            };
+                                    result.clone()
+                                };
 
                             let headers = web_sys::Headers::new().unwrap();
                             for (key, value) in resp.headers().iter() {
@@ -398,16 +431,25 @@ impl WgClient {
                             let mut response_init = web_sys::ResponseInit::new();
                             response_init.status(resp.status().as_u16());
                             response_init.headers(&headers);
-                            response_init.status_text(resp.status().canonical_reason().unwrap_or(""));
-                            let response = web_sys::Response::new_with_opt_u8_array_and_init(Some(&mut body[..]), &response_init).unwrap();
+                            response_init
+                                .status_text(resp.status().canonical_reason().unwrap_or(""));
+                            let response = web_sys::Response::new_with_opt_u8_array_and_init(
+                                Some(&mut body[..]),
+                                &response_init,
+                            )
+                            .unwrap();
                             let mut init = web_sys::CustomEventInit::new();
                             init.detail(&response.into());
-                            let event = web_sys::CustomEvent::new_with_event_init_dict(format!("get_{}", id).as_str(), &init).unwrap();
+                            let event = web_sys::CustomEvent::new_with_event_init_dict(
+                                format!("get_{}", id).as_str(),
+                                &init,
+                            )
+                            .unwrap();
 
                             let global = js_sys::global();
                             let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
                             global.dispatch_event(&event).unwrap();
-                        },
+                        }
                         Poll::Pending => (),
                     };
                     let mut conn = conn.borrow_mut();
@@ -420,7 +462,7 @@ impl WgClient {
                         Poll::Ready(Err(e)) => panic!("error: {}", e),
                         Poll::Pending => (),
                     };
-                },
+                }
                 _ => {
                     let mut stream = stream_cpy.borrow_mut();
                     stream.close();
@@ -435,16 +477,14 @@ impl WgClient {
                             self_cpy.fetch(next.js_request, next.url, Some(next.id));
                         })
                     }
-                },
+                }
             }
-
         });
         let interval = IntervalHandle::new(req, 0);
         *self.current_request.borrow_mut() = Some(interval);
 
         format!("get_{}", id)
     }
-
 
     // leaks memory, for debugging only!!!
     pub fn download_pcap_log(&self) {
@@ -483,7 +523,7 @@ impl WgClient {
 struct Request {
     pub id: f64,
     pub js_request: web_sys::Request,
-    pub url: String
+    pub url: String,
 }
 
 /**
@@ -502,10 +542,10 @@ impl hyper::body::Body for Body {
     type Error = DummyErr;
 
     fn poll_frame(
-            self: std::pin::Pin<&mut Self>,
-            _: &mut std::task::Context<'_>,
-        ) -> Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
-            Poll::Ready(Some(Ok(hyper::body::Frame::data(self.0.clone()))))
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
+        Poll::Ready(Some(Ok(hyper::body::Frame::data(self.0.clone()))))
     }
 
     fn size_hint(&self) -> hyper::body::SizeHint {
@@ -514,8 +554,8 @@ impl hyper::body::Body for Body {
 }
 
 /**
- This is a dummy error type that is never returned. It is needed because the Body trait needs an Error type.
- */
+This is a dummy error type that is never returned. It is needed because the Body trait needs an Error type.
+*/
 #[derive(Debug)]
 struct DummyErr;
 
@@ -529,8 +569,8 @@ impl std::fmt::Display for DummyErr {
 
 #[cfg(test)]
 pub mod test {
-    use wasm_bindgen_test::*;
     use super::*;
+    use wasm_bindgen_test::*;
 
     pub(self) fn create_wg_client(secret: &str, peer: &str, url: &str) -> WgClient {
         WgClient::new(secret, peer, url, "", "")
@@ -538,6 +578,10 @@ pub mod test {
 
     #[wasm_bindgen_test]
     fn test_create_wg_client() {
-        let _ = create_wg_client("EFHaYB4PvohMsO7VqxNQFyQhw6uKq6PD0FpjhZrCMkI=", "T1gy5yRSwYlSkjxAfnk/koNhlRyxsrFhdGW87LY1cxM=", "ws://localhost:8081");
+        let _ = create_wg_client(
+            "EFHaYB4PvohMsO7VqxNQFyQhw6uKq6PD0FpjhZrCMkI=",
+            "T1gy5yRSwYlSkjxAfnk/koNhlRyxsrFhdGW87LY1cxM=",
+            "ws://localhost:8081",
+        );
     }
 }

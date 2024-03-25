@@ -1,23 +1,23 @@
+use boringtun::noise::rate_limiter::RateLimiter;
+use boringtun::{
+    noise::{Tunn, TunnResult},
+    x25519,
+};
+use pcap_file::pcapng::blocks::interface_description::InterfaceDescriptionBlock;
+use pcap_file::pcapng::PcapNgWriter;
+use rand_core::{OsRng, RngCore};
+use smoltcp::phy::{self, DeviceCapabilities, Medium};
+use smoltcp::time::Instant;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
-use boringtun::noise::rate_limiter::RateLimiter;
-use pcap_file::pcapng::PcapNgWriter;
-use pcap_file::pcapng::blocks::interface_description::InterfaceDescriptionBlock;
-use smoltcp::phy::{self, DeviceCapabilities, Medium};
-use smoltcp::time::Instant;
-use rand_core::{OsRng, RngCore};
-use boringtun::{
-    noise::{Tunn, TunnResult},
-    x25519
-};
 
 use crate::console_log;
 use crate::interval_handle::IntervalHandle;
-use web_sys::wasm_bindgen::{JsValue, JsCast};
-use web_sys::{WebSocket, MessageEvent};
 use web_sys::wasm_bindgen::closure::Closure;
+use web_sys::wasm_bindgen::{JsCast, JsValue};
+use web_sys::{MessageEvent, WebSocket};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum WsConnectionState {
@@ -30,7 +30,7 @@ pub enum WsConnectionState {
  * This is done by encoding outgoing packets before sending them over Websocket
  * and decoding incoming packets from Websocket and storing them in a queue.
  */
- #[derive(Clone)]
+#[derive(Clone)]
 pub struct WgTunDevice {
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
     tun: Rc<RefCell<Tunn>>,
@@ -44,7 +44,11 @@ impl WgTunDevice {
     /**
      * Creates a new WgTunDevice and connects the underlaying Websocket
      */
-    pub fn new(self_key: x25519::StaticSecret, peer: x25519::PublicKey, url: &str) -> Result<Self, JsValue> {
+    pub fn new(
+        self_key: x25519::StaticSecret,
+        peer: x25519::PublicKey,
+        url: &str,
+    ) -> Result<Self, JsValue> {
         let rate_limiter = Arc::new(RateLimiter::new(&x25519::PublicKey::from(&self_key), 10));
 
         let tun = Tunn::new(
@@ -59,7 +63,6 @@ impl WgTunDevice {
             rate_limiter.reset_count();
         });
         let _reset_rate_limiter_interval = Rc::new(IntervalHandle::new(reset_rate_limiter, 10000));
-
 
         let tun = Rc::new(RefCell::new(tun));
         let rx = Rc::new(RefCell::new(VecDeque::new()));
@@ -82,8 +85,8 @@ impl WgTunDevice {
                 TunnResult::WriteToNetwork(d) => {
                     console_log!("Sending handshake initiation");
                     let _ = onopen_socket.send_with_u8_array(d);
-                },
-                _ => panic!("Unexpected TunnResult")
+                }
+                _ => panic!("Unexpected TunnResult"),
             }
         });
 
@@ -110,11 +113,11 @@ impl WgTunDevice {
         let message_tun = tun.clone();
         let onmessage = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
             let data = e.data();
-            let data = match data.dyn_into::<web_sys::Blob>(){
+            let data = match data.dyn_into::<web_sys::Blob>() {
                 Ok(blob) => blob,
                 Err(_) => {
                     console_log!("Not a blob");
-                    return
+                    return;
                 }
             };
 
@@ -130,7 +133,7 @@ impl WgTunDevice {
                     Ok(v) => v,
                     Err(_) => {
                         console_log!("Error reading file");
-                        return
+                        return;
                     }
                 };
                 let array = js_sys::Uint8Array::new(&value);
@@ -138,7 +141,7 @@ impl WgTunDevice {
                 let mut tun = message_tun.borrow_mut();
                 if data.is_empty() {
                     console_log!("Empty data");
-                    return
+                    return;
                 }
 
                 let mut buf = vec![0u8; data.len() + 32];
@@ -152,15 +155,18 @@ impl WgTunDevice {
                         };
 
                         let now = wasm_timer::SystemTime::now();
-                        let timestamp = now.duration_since(wasm_timer::SystemTime::UNIX_EPOCH).unwrap();
+                        let timestamp = now
+                            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                            .unwrap();
 
-                        let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                            interface_id: 0,
-                            timestamp,
-                            original_len: d.len() as u32,
-                            data: std::borrow::Cow::Borrowed(&d),
-                            options: vec![],
-                        };
+                        let packet =
+                            pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                                interface_id: 0,
+                                timestamp,
+                                original_len: d.len() as u32,
+                                data: std::borrow::Cow::Borrowed(&d),
+                                options: vec![],
+                            };
 
                         {
                             let mut message_pcap = message_pcap.borrow_mut();
@@ -178,22 +184,27 @@ impl WgTunDevice {
                          *
                          * From Tunn::decapsulate.
                          */
-                        while let TunnResult::WriteToNetwork(d) = tun.decapsulate(None, &[0u8; 0], &mut buf) {
+                        while let TunnResult::WriteToNetwork(d) =
+                            tun.decapsulate(None, &[0u8; 0], &mut buf)
+                        {
                             let interface = InterfaceDescriptionBlock {
                                 linktype: pcap_file::DataLink::IPV4,
                                 snaplen: 0,
                                 options: vec![],
                             };
                             let now = wasm_timer::SystemTime::now();
-                            let timestamp = now.duration_since(wasm_timer::SystemTime::UNIX_EPOCH).unwrap();
+                            let timestamp = now
+                                .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                                .unwrap();
 
-                            let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                                interface_id: 0,
-                                timestamp,
-                                original_len: d.len() as u32,
-                                data: std::borrow::Cow::Borrowed(&d),
-                                options: vec![],
-                            };
+                            let packet =
+                                pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                                    interface_id: 0,
+                                    timestamp,
+                                    original_len: d.len() as u32,
+                                    data: std::borrow::Cow::Borrowed(&d),
+                                    options: vec![],
+                                };
 
                             {
                                 let mut message_pcap = message_pcap.borrow_mut();
@@ -203,11 +214,11 @@ impl WgTunDevice {
                             let _ = message_socket.send_with_u8_array(d);
                         }
                         return;
-                    },
+                    }
                     TunnResult::Err(e) => {
                         console_log!("Error: {:?}", e);
-                        return
-                    },
+                        return;
+                    }
                     TunnResult::WriteToTunnelV4(d, _) => {
                         let interface = InterfaceDescriptionBlock {
                             linktype: pcap_file::DataLink::IPV4,
@@ -215,15 +226,18 @@ impl WgTunDevice {
                             options: vec![],
                         };
                         let now = wasm_timer::SystemTime::now();
-                        let timestamp = now.duration_since(wasm_timer::SystemTime::UNIX_EPOCH).unwrap();
+                        let timestamp = now
+                            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                            .unwrap();
 
-                        let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                            interface_id: 0,
-                            timestamp,
-                            original_len: d.len() as u32,
-                            data: std::borrow::Cow::Borrowed(&d),
-                            options: vec![],
-                        };
+                        let packet =
+                            pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                                interface_id: 0,
+                                timestamp,
+                                original_len: d.len() as u32,
+                                data: std::borrow::Cow::Borrowed(&d),
+                                options: vec![],
+                            };
 
                         {
                             let mut message_pcap = message_pcap.borrow_mut();
@@ -236,13 +250,13 @@ impl WgTunDevice {
                             TunnResult::WriteToNetwork(d) => {
                                 let _ = message_socket.send_with_u8_array(d);
                                 return;
-                            },
-                            _ => panic!("Unexpected TunnResult")
+                            }
+                            _ => panic!("Unexpected TunnResult"),
                         }
-                    },
+                    }
                     _ => {
                         console_log!("Unknown TunnResult");
-                        return
+                        return;
                     }
                 }
                 let interface = InterfaceDescriptionBlock {
@@ -251,7 +265,9 @@ impl WgTunDevice {
                     options: vec![],
                 };
                 let now = wasm_timer::SystemTime::now();
-                let timestamp = now.duration_since(wasm_timer::SystemTime::UNIX_EPOCH).unwrap();
+                let timestamp = now
+                    .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                    .unwrap();
 
                 let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
                     interface_id: 0,
@@ -274,7 +290,6 @@ impl WgTunDevice {
 
             // FIXME: need to get rid of this since it leaks memory
             loaded.forget();
-
         });
         socket.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
         socket.set_onopen(Some(onopen.as_ref().as_ref().unchecked_ref()));
@@ -292,7 +307,7 @@ impl WgTunDevice {
             rx,
             socket,
             socket_state,
-            _reset_rate_limiter_interval
+            _reset_rate_limiter_interval,
         })
     }
 
@@ -318,7 +333,7 @@ impl phy::Device for WgTunDevice {
     fn receive(&mut self, _: Instant) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
         let mut deque = self.rx.borrow_mut();
         if *self.socket_state.borrow_mut() != WsConnectionState::Connected || deque.is_empty() {
-            return None
+            return None;
         }
 
         Some((
@@ -336,7 +351,7 @@ impl phy::Device for WgTunDevice {
 
     fn transmit(&mut self, _: Instant) -> Option<Self::TxToken<'_>> {
         if (*self.socket_state.borrow_mut()) != WsConnectionState::Connected {
-            return None
+            return None;
         }
 
         Some(WgTunPhyTxToken {
@@ -360,7 +375,7 @@ pub struct WgTunPhyRxToken {
 
 impl phy::RxToken for WgTunPhyRxToken {
     fn consume<R, F>(mut self, f: F) -> R
-        where
+    where
         F: FnOnce(&mut [u8]) -> R,
     {
         f(&mut self.buf[..])
@@ -375,8 +390,8 @@ pub struct WgTunPhyTxToken {
 
 impl phy::TxToken for WgTunPhyTxToken {
     fn consume<R, F>(self, size: usize, f: F) -> R
-        where
-            F: FnOnce(&mut [u8]) -> R
+    where
+        F: FnOnce(&mut [u8]) -> R,
     {
         let mut buf = vec![0u8; size];
         let result = f(&mut buf[..]);
@@ -387,7 +402,9 @@ impl phy::TxToken for WgTunPhyTxToken {
             options: vec![],
         };
         let now = wasm_timer::SystemTime::now();
-        let timestamp = now.duration_since(wasm_timer::SystemTime::UNIX_EPOCH).unwrap();
+        let timestamp = now
+            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+            .unwrap();
 
         let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
             interface_id: 0,
@@ -409,14 +426,14 @@ impl phy::TxToken for WgTunPhyTxToken {
             TunnResult::Done => (),
             TunnResult::WriteToNetwork(d) => {
                 let _ = self.socket.send_with_u8_array(d);
-            },
+            }
             TunnResult::Err(e) => {
                 console_log!("Error in recv: {:?}", e);
-                return result
-            },
+                return result;
+            }
             _ => {
                 console_log!("Unknown TunnResult");
-                return result
+                return result;
             }
         }
 
@@ -426,15 +443,16 @@ impl phy::TxToken for WgTunPhyTxToken {
 
 #[cfg(test)]
 pub mod test {
-    use wasm_bindgen_test::*;
     use super::*;
+    use wasm_bindgen_test::*;
 
     fn create_wg_tun_device() -> WgTunDevice {
         WgTunDevice::new(
             x25519::StaticSecret::random_from_rng(rand_core::OsRng),
             x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng)),
-            "ws://localhost:8082"
-        ).unwrap()
+            "ws://localhost:8082",
+        )
+        .unwrap()
     }
 
     #[wasm_bindgen_test]
