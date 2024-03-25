@@ -6,7 +6,7 @@ use futures_util::{future::{self}, pin_mut, SinkExt};
 use tokio_native_tls::{native_tls::Identity, TlsAcceptor};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio_tungstenite::tungstenite::protocol::Message;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use simplelog::*;
 
 type Tx = UnboundedSender<Vec<u8>>;
