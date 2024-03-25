@@ -13,15 +13,15 @@ pub struct RemoteConnMeta {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ManagementCommandId {
     Connect,
     Disconnect,
     Ack,
 }
 
-#[repr(C)]
-#[derive(Debug, Clone)]
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
 pub struct ManagementCommand {
     pub command_id: ManagementCommandId,
     pub connection_no: i32,
@@ -29,7 +29,7 @@ pub struct ManagementCommand {
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
-#[repr(C)]
+#[repr(C, packed)]
 pub struct ManagementResponse {
     pub charger_id: i32,
     pub connection_no: i32,
@@ -38,6 +38,7 @@ pub struct ManagementResponse {
 
 pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: SocketAddr) -> bool {
     log::debug!("In port discovery: ");
+    log::debug!("{}, {}", data.len(), ::core::mem::size_of::<ManagementResponse>());
     if data.len() != ::core::mem::size_of::<ManagementResponse>() {
         log::debug!("invalid size");
         return false
