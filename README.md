@@ -42,5 +42,3 @@ docker: https://www.docker.com/get-started/
 1. Ensure that the host is accessible via a Fully Qualified Domain Name, otherwise creating a Lets Encrypt Certificate will fail.
 2. Fill in the needed variables in the env variables. All needed variables are listed inside the .env.example files.
 3. Start everything with ```docker compose up``` inside the ```docker``` directory.
-
-## License
