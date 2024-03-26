@@ -27,16 +27,16 @@ fn start_rate_limiters_reset_thread(
         {
             let mut charger_map = charger_map.lock().unwrap();
             let mut to_remove = Vec::with_capacity(charger_map.len());
-            for (id, charger) in charger_map.iter() {
+            for (addr, charger) in charger_map.iter() {
                 let charger = charger.lock().unwrap();
-                if charger.last_seen() > Duration::from_secs(10) {
-                    to_remove.push(id.to_owned());
+                if charger.last_seen() > Duration::from_secs(30) {
+                    to_remove.push(addr.to_owned());
                     continue;
                 }
                 charger.reset_rate_limiter();
             }
-            for id in to_remove.into_iter() {
-                let charger = charger_map.remove(&id).unwrap();
+            for addr in to_remove.into_iter() {
+                let charger = charger_map.remove(&addr).unwrap();
                 let charger = charger.lock().unwrap();
                 let mut map = charger_map_id.lock().unwrap();
                 map.remove(&charger.id());
