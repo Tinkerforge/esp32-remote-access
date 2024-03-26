@@ -88,7 +88,7 @@ fn create_tunn(
             static_private,
             peer_static_public,
             None,
-            None,
+            Some(5),
             OsRng.next_u32(),
             Some(rate_limiter.clone()),
         ) {
