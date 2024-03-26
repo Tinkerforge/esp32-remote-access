@@ -198,6 +198,7 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                         map.insert(id, tunn_data.clone());
                         v.insert(tunn_data.clone());
                         let tunn = tunn_data.clone();
+                        log::debug!("Adding management connection from {}", addr);
                         thread_pool.execute(move || {
                             let mut tunn = tunn.lock().unwrap();
                             for i in 0..5 {

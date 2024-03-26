@@ -1,7 +1,7 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     net::{SocketAddr, UdpSocket},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, time::Instant,
 };
 
 use actix::prelude::*;
@@ -27,7 +27,7 @@ pub struct BridgeState {
     pub undiscovered_clients: Mutex<HashMap<RemoteConnMeta, Recipient<Message>>>,
     pub charger_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
     pub charger_management_map_with_id: Arc<Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>>,
-    pub port_discovery: Mutex<HashSet<ManagementResponse>>,
+    pub port_discovery: Arc<Mutex<HashMap<ManagementResponse, Instant>>>,
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub socket: UdpSocket,
 }
@@ -87,7 +87,7 @@ pub(crate) mod tests {
             pool,
             charger_management_map: Arc::new(Mutex::new(HashMap::new())),
             charger_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
-            port_discovery: Mutex::new(HashSet::new()),
+            port_discovery: Arc::new(Mutex::new(HashMap::new())),
             charger_remote_conn_map: Mutex::new(HashMap::new()),
             undiscovered_clients: Mutex::new(HashMap::new()),
             web_client_map: Mutex::new(HashMap::new()),
