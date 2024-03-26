@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     net::UdpSocket,
     sync::{Arc, Mutex},
 };
@@ -66,7 +66,7 @@ async fn main() -> std::io::Result<()> {
         undiscovered_clients: Mutex::new(HashMap::new()),
         charger_management_map: Arc::new(Mutex::new(HashMap::new())),
         charger_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
-        port_discovery: Mutex::new(HashSet::new()),
+        port_discovery: Arc::new(Mutex::new(HashMap::new())),
         charger_remote_conn_map: Mutex::new(HashMap::new()),
         socket: UdpSocket::bind("0.0.0.0:51820").unwrap(),
     });

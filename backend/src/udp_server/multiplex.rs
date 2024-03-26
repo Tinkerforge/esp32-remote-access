@@ -159,6 +159,7 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
     start_rate_limiters_reset_thread(
         state.charger_management_map.clone(),
         state.charger_management_map_with_id.clone(),
+        state.port_discovery.clone(),
     );
 
     let mut buf = vec![0u8; 65535];

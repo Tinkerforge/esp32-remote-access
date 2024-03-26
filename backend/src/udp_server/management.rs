@@ -26,7 +26,7 @@ pub struct ManagementCommand {
     pub connection_uuid: u128,
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct ManagementResponse {
     pub charger_id: i32,
@@ -46,7 +46,7 @@ pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: Soc
 
     {
         let mut set = state.port_discovery.lock().unwrap();
-        if !set.remove(&response) {
+        if set.remove(&response).is_none() {
             return false;
         }
     }

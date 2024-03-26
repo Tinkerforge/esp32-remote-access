@@ -9,6 +9,7 @@ use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::time::Instant;
 use validator::{Validate, ValidationError};
 
 use crate::udp_server::management::{
@@ -275,7 +276,7 @@ async fn start_ws(
         let mut sock = management_sock.lock().unwrap();
         sock.encrypt_and_send_slice(as_u8_slice(&command));
         let mut set = bridge_state.port_discovery.lock().unwrap();
-        set.insert(response);
+        set.insert(response, Instant::now());
     }
 
     let resp = ws::start(client, &req, stream);

@@ -7,14 +7,14 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crate::{udp_server::multiplex::run_server, BridgeState};
 use actix_web::web;
 use threadpool::ThreadPool;
 
-use self::socket::ManagementSocket;
+use self::{management::ManagementResponse, socket::ManagementSocket};
 
 /// Since boringtun doesnt reset the internal ratelimiter for us we need to do it manually.
 /// We can do this with a very low frequency since the management connection
@@ -22,6 +22,7 @@ use self::socket::ManagementSocket;
 fn start_rate_limiters_reset_thread(
     charger_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
     charger_map_id: Arc<Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>>,
+    discovery_map: Arc<Mutex<HashMap<ManagementResponse, Instant>>>
 ) {
     std::thread::spawn(move || loop {
         {
@@ -40,6 +41,18 @@ fn start_rate_limiters_reset_thread(
                 let charger = charger.lock().unwrap();
                 let mut map = charger_map_id.lock().unwrap();
                 map.remove(&charger.id());
+            }
+        }
+        {
+            let mut map = discovery_map.lock().unwrap();
+            let mut to_remove = Vec::with_capacity(map.len());
+            for (cmd, created) in map.iter() {
+                if created.elapsed() > Duration::from_secs(30) {
+                    to_remove.push(cmd.to_owned());
+                }
+            }
+            for cmd in to_remove.iter() {
+                map.remove(cmd);
             }
         }
         std::thread::sleep(Duration::from_secs(10));
