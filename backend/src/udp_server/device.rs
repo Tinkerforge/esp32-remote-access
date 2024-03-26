@@ -93,12 +93,15 @@ impl<'a> phy::TxToken for ManagementTxToken<'a> {
     where
         F: FnOnce(&mut [u8]) -> R,
     {
+        log::debug!("Actually sending1: {}", len);
         let mut buf = vec![0u8; len];
         let r = f(&mut buf);
 
         let mut tunn = self.tunn.lock().unwrap();
-        let mut dst_buf = vec![0u8; len + 32];
-        if let TunnResult::WriteToNetwork(data) = tunn.encapsulate(&buf, &mut dst_buf) {
+        let mut dst_buf = vec![0u8; len + 148];
+        let res = tunn.encapsulate(&buf, &mut dst_buf);
+        log::debug!("res: {:?}", res);
+        if let TunnResult::WriteToNetwork(data) = res {
             send_data(self.socket, self.remote_addr, data);
         }
 
