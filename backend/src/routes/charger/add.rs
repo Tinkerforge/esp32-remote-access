@@ -183,6 +183,18 @@ async fn charger_exists(charger_id: i32, state: &web::Data<AppState>) -> actix_w
 }
 
 async fn update_charger(charger: ChargerSchema, charger_id: i32, state: &web::Data<AppState>) -> actix_web::Result<String> {
+    use db_connector::schema::wg_keys::dsl as wg_keys;
+
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        if let Err(_err) = diesel::delete(wg_keys::wg_keys)
+            .filter(wg_keys::charger_id.eq(charger_id))
+            .execute(&mut conn) {
+                return Err(Error::InternalError)
+            }
+
+        Ok(())
+    }).await?;
 
     let mut conn = get_connection(state)?;
     let pub_key = web_block_unpacked(move || {
@@ -317,6 +329,7 @@ pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test::{self, init_service}, App};
     use boringtun::x25519;
+    use db_connector::test_connection_pool;
     use ipnetwork::Ipv4Network;
     use rand::RngCore;
     use rand_core::OsRng;
@@ -452,9 +465,11 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_update_charger() {
+        use db_connector::schema::wg_keys::dsl as wg_keys;
+
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_owned();
-        let charger = user.add_random_charger().await;
+        let charger_id = user.add_random_charger().await;
 
         let app = App::new()
             .configure(configure)
@@ -465,7 +480,7 @@ pub(crate) mod tests {
         let keys = generate_keys();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
-                id: bs58::encode(charger.to_be_bytes())
+                id: bs58::encode(charger_id.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 name: "Test".to_string(),
@@ -490,6 +505,11 @@ pub(crate) mod tests {
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        let keys: Vec<WgKey> = wg_keys::wg_keys.filter(wg_keys::charger_id.eq(charger_id)).load(&mut conn).unwrap();
+        assert_eq!(keys.len(), 5);
     }
 
     #[actix_web::test]
