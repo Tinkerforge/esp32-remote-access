@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{put, web, HttpResponse, Responder};
 use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
 use diesel::{prelude::*, result::Error::NotFound};
@@ -28,9 +28,7 @@ use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
 
 use crate::{
-    error::Error,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
+    error::Error, routes::charger::charger_belongs_to_user, utils::{get_connection, web_block_unpacked}, AppState
 };
 
 #[derive(Serialize, Deserialize, Clone, Validate, ToSchema)]
@@ -113,14 +111,14 @@ fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
     context_path = "/charger",
     request_body = AddChargerSchema,
     responses(
-        (status = 200, description = "Adding the charger was successful.", body = AddChargerResponseSchema),
-        (status = 409, description = "The charger already exists.")
+        (status = 200, description = "Adding or updating the charger was successful.", body = AddChargerResponseSchema),
+        (status = 401, description = "The charger already exists with another owner"),
     ),
     security(
         ("jwt" = [])
     )
 )]
-#[post("/add")]
+#[put("/add")]
 pub async fn add(
     state: web::Data<AppState>,
     charger: actix_web_validator::Json<AddChargerSchema>,
@@ -138,15 +136,23 @@ pub async fn add(
     }
     let charger_id = i32::from_le_bytes(charger_id);
 
-    let pub_key = add_charger(
-        charger.charger.clone(),
-        charger_id,
-        uid.clone().into(),
-        &state,
-    )
-    .await?;
+    let pub_key = if charger_exists(charger_id, &state).await? {
+        if charger_belongs_to_user(&state, uid.clone().into(), charger_id).await? {
+            update_charger(charger.charger.clone(), charger_id, &state).await?
+        } else {
+            return Err(Error::UserIsNotOwner.into());
+        }
+    } else {
+        add_charger(
+            charger.charger.clone(),
+            charger_id,
+            uid.clone().into(),
+            &state,
+        ).await?
+    };
+
     for keys in charger.keys.iter() {
-        add_wg_key(charger_id, uid.clone().into(), keys.clone(), &state).await?;
+        add_wg_key(charger_id, uid.clone().into(), keys.to_owned(), &state).await?;
     }
 
     let resp = AddChargerResponseSchema {
@@ -154,6 +160,57 @@ pub async fn add(
     };
 
     Ok(HttpResponse::Ok().json(resp))
+}
+
+async fn charger_exists(charger_id: i32, state: &web::Data<AppState>) -> actix_web::Result<bool> {
+    use db_connector::schema::chargers::dsl as chargers;
+
+    let mut conn = get_connection(state)?;
+    let exists = web_block_unpacked(move || {
+        match chargers::chargers.find(charger_id)
+            .select(Charger::as_select())
+            .get_result(&mut conn) {
+                Ok(_) => Ok(true),
+                Err(NotFound) => Ok(false),
+                Err(_err) => {
+                    Err(Error::InternalError)
+                }
+            }
+    }).await?;
+
+
+    Ok(exists)
+}
+
+async fn update_charger(charger: ChargerSchema, charger_id: i32, state: &web::Data<AppState>) -> actix_web::Result<String> {
+
+    let mut conn = get_connection(state)?;
+    let pub_key = web_block_unpacked(move || {
+        let private_key = boringtun::x25519::StaticSecret::random_from_rng(OsRng);
+        let pub_key = boringtun::x25519::PublicKey::from(&private_key);
+        let private_key = BASE64_STANDARD.encode(private_key.as_bytes());
+        let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
+
+        let charger = Charger {
+            id: charger_id,
+            name: charger.name,
+            last_ip: None,
+            charger_pub: charger.charger_pub,
+            management_private: private_key,
+            wg_charger_ip: charger.wg_charger_ip,
+            wg_server_ip: charger.wg_server_ip,
+        };
+        match diesel::update(&charger)
+            .set(&charger)
+            .execute(&mut conn) {
+                Ok(_) => Ok(pub_key),
+                Err(_err) => {
+                    Err(Error::InternalError)
+                }
+            }
+    }).await?;
+
+    Ok(pub_key)
 }
 
 async fn add_charger(
@@ -167,16 +224,6 @@ async fn add_charger(
 
     let mut conn = get_connection(state)?;
     let pub_key = web_block_unpacked(move || {
-        match chargers::chargers
-            .find(charger_id)
-            .select(Charger::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(_) => return Err(Error::ChargerAlreadyExists),
-            Err(NotFound) => (),
-            Err(_err) => return Err(Error::InternalError),
-        }
-
         let private_key = boringtun::x25519::StaticSecret::random_from_rng(OsRng);
         let pub_key = boringtun::x25519::PublicKey::from(&private_key);
         let private_key = BASE64_STANDARD.encode(private_key.as_bytes());
@@ -268,7 +315,7 @@ pub(crate) mod tests {
     use std::{mem::MaybeUninit, net::Ipv4Addr};
 
     use super::*;
-    use actix_web::{cookie::Cookie, test, App};
+    use actix_web::{cookie::Cookie, test::{self, init_service}, App};
     use boringtun::x25519;
     use ipnetwork::Ipv4Network;
     use rand::RngCore;
@@ -284,7 +331,7 @@ pub(crate) mod tests {
             },
             charger::remove::tests::{
                 remove_allowed_test_users, remove_test_charger, remove_test_keys,
-            },
+            }, user::tests::TestUser,
         },
         tests::configure,
     };
@@ -388,7 +435,7 @@ pub(crate) mod tests {
         };
 
         let token = verify_and_login_user(mail).await;
-        let req = test::TestRequest::post()
+        let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
             .set_json(charger)
@@ -398,7 +445,95 @@ pub(crate) mod tests {
         remove_test_keys(mail);
         remove_allowed_test_users(cid);
         remove_test_charger(cid);
+        println!("{:?}", resp);
+        println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
+    }
+
+    #[actix_web::test]
+    async fn test_update_charger() {
+        let (mut user, _) = TestUser::random().await;
+        let token = user.login().await.to_owned();
+        let charger = user.add_random_charger().await;
+
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(add);
+        let app = init_service(app).await;
+
+        let keys = generate_keys();
+        let charger = AddChargerSchema {
+            charger: ChargerSchema {
+                id: bs58::encode(charger.to_be_bytes())
+                    .with_alphabet(bs58::Alphabet::FLICKR)
+                    .into_string(),
+                name: "Test".to_string(),
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+            },
+            keys,
+        };
+
+        let req = test::TestRequest::put()
+            .uri("/add")
+            .cookie(Cookie::new("access_token", token))
+            .set_json(charger)
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        println!("{:?}", resp);
+        println!("{:?}", resp.response().body());
+        assert!(resp.status().is_success());
+    }
+
+    #[actix_web::test]
+    async fn test_add_existing_charger() {
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
+        let charger = user.add_random_charger().await;
+        let (mut user2,  _) = TestUser::random().await;
+        let token = user2.login().await.to_owned();
+
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(add);
+        let app = init_service(app).await;
+
+        let keys = generate_keys();
+        let charger = AddChargerSchema {
+            charger: ChargerSchema {
+                id: bs58::encode(charger.to_be_bytes())
+                    .with_alphabet(bs58::Alphabet::FLICKR)
+                    .into_string(),
+                name: "Test".to_string(),
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+            },
+            keys,
+        };
+
+        let req = test::TestRequest::put()
+            .uri("/add")
+            .cookie(Cookie::new("access_token", token))
+            .set_json(charger)
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        println!("{:?}", resp);
+        println!("{:?}", resp.response().body());
+        assert_eq!(resp.status().as_u16(), 401);
     }
 
     #[actix_web::test]
