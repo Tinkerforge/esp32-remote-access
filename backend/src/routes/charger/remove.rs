@@ -107,6 +107,8 @@ pub async fn remove(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use core::panic;
+
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::test_connection_pool;
@@ -155,7 +157,7 @@ pub(crate) mod tests {
     }
 
     #[actix_web::test]
-    async fn test_valid_delete() {
+    async fn test_valid_remove() {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
@@ -175,14 +177,20 @@ pub(crate) mod tests {
             .cookie(Cookie::new("access_token", token))
             .set_json(schema)
             .to_request();
-        let resp = test::call_service(&app, req).await;
-        println!("{:?}", resp);
-        println!("{:?}", resp.response().body());
-        assert!(resp.status().is_success());
+        match test::try_call_service(&app, req).await {
+            Ok(resp) => {
+                println!("{:?}", resp);
+                println!("{:?}", resp.response().body());
+                assert!(resp.status().is_success());
+            },
+            Err(err) => {
+                panic!("test valid delete failed: {:?}", err);
+            }
+        }
     }
 
     #[actix_web::test]
-    async fn test_valid_delete_with_allowed_user() {
+    async fn test_valid_remove_with_allowed_user() {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
@@ -207,7 +215,7 @@ pub(crate) mod tests {
     }
 
     #[actix_web::test]
-    async fn test_unowned_charger_delete() {
+    async fn test_unowned_charger_remove() {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
@@ -222,7 +230,7 @@ pub(crate) mod tests {
         user2.allow_user(user1.get_mail(), charger).await;
         let token = user1.login().await;
 
-        let body = DeleteChargerSchema { charger: charger };
+        let body = DeleteChargerSchema { charger };
         let req = test::TestRequest::delete()
             .uri("/remove")
             .set_json(body)
@@ -236,7 +244,7 @@ pub(crate) mod tests {
     }
 
     #[actix_web::test]
-    async fn test_not_allowed_charger_delete() {
+    async fn test_not_allowed_charger_remove() {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
