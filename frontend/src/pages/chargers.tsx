@@ -26,12 +26,12 @@ import * as Base58 from "base58";
 
 
 interface Charger {
-    id: string,
+    id: number,
     name: string
 }
 
 interface ChargerListComponentState {
-    chargers: Charger[]
+    chargers: Charger[],
 }
 
 const connected = signal(false);
@@ -42,7 +42,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
         super();
 
         this.state = {
-            chargers: []
+            chargers: [],
         };
 
         fetch(BACKEND + "/charger/get_chargers", {
@@ -73,7 +73,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                     }
 
                     connected.value = true;
-                }}>Connect</Button></td>
+                }} variant="primary">Connect</Button></td>
                 <td><Button onClick={async () => {
                     const body = {
                         charger: charger.id
@@ -92,7 +92,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         this.setState({chargers: chargers});
                     }
                 }}
-                className="btn-danger">Remove</Button></td>
+                variant="danger">Remove</Button></td>
             </tr>
             list.push(entry);
         })
@@ -104,6 +104,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         <th>#</th>
                         <th>Charger Name</th>
                         <th>Charger Id</th>
+                        <th />
                         <th />
                         <th />
                     </tr>
