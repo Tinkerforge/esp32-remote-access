@@ -1,7 +1,7 @@
-use diesel::{associations::Identifiable, deserialize::Queryable, prelude::Insertable, Selectable};
+use diesel::{associations::Identifiable, deserialize::Queryable, prelude::Insertable, query_builder::AsChangeset, Selectable};
 use ipnetwork::IpNetwork;
 
-#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable)]
+#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, AsChangeset)]
 #[diesel(table_name = crate::schema::chargers)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Charger {
