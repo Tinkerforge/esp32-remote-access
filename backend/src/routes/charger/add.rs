@@ -318,7 +318,7 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         println!("Id number: {}", id);
-        let id = bs58::encode(id.to_ne_bytes())
+        let id = bs58::encode(id.to_be_bytes())
             .with_alphabet(bs58::Alphabet::FLICKR)
             .into_string();
         println!("id: {}", id);
@@ -338,7 +338,7 @@ pub(crate) mod tests {
             keys,
         };
 
-        let req = test::TestRequest::post()
+        let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
             .set_json(charger)
@@ -372,7 +372,7 @@ pub(crate) mod tests {
         let cid = OsRng.next_u32() as i32;
         let charger = AddChargerSchema {
             charger: ChargerSchema {
-                id: bs58::encode(cid.to_ne_bytes())
+                id: bs58::encode(cid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 name: "Test".to_string(),
