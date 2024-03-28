@@ -40,6 +40,7 @@ pub struct Keys {
     #[schema(value_type = SchemaType::String)]
     charger_address: IpNetwork,
     connection_no: u16,
+    salt: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -300,6 +301,7 @@ async fn add_wg_key(
         web_address: keys.web_address,
         charger_address: keys.charger_address,
         connection_no: keys.connection_no as i32,
+        salt: keys.salt,
     };
 
     match web::block(move || {
@@ -364,6 +366,7 @@ pub(crate) mod tests {
                     Ipv4Network::new("123.123.123.122".parse().unwrap(), 24).unwrap(),
                 ),
                 connection_no: 1234,
+                salt: uuid::Uuid::new_v4().to_string(),
             })
         }
 

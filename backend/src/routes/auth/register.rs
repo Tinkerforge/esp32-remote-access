@@ -40,6 +40,7 @@ pub struct RegisterSchema {
     pub email: String,
     #[validate(length(min = 12))]
     pub password: String,
+    pub salt: String,
 }
 
 pub fn hash_pass(password: &String) -> Result<String, String> {
@@ -127,6 +128,7 @@ pub async fn register(
         password: password_hash,
         email: user_mail,
         email_verified: false,
+        salt: data.salt.clone(),
     };
 
     let mut conn = get_connection(&state)?;
@@ -195,6 +197,7 @@ pub(crate) mod tests {
             name: "Test".to_string(),
             email: mail.to_string(),
             password: "TestTestTest".to_string(),
+            salt: uuid::Uuid::new_v4().to_string(),
         };
         let req = test::TestRequest::post()
             .uri("/register")
@@ -272,6 +275,7 @@ pub(crate) mod tests {
             name: "Test".to_string(),
             email: mail.to_string(),
             password: "Test".to_string(),
+            salt: uuid::Uuid::new_v4().to_string(),
         };
         let req = test::TestRequest::post()
             .uri("/register")
@@ -295,6 +299,7 @@ pub(crate) mod tests {
             name: "Test".to_string(),
             email: mail.to_string(),
             password: "TestTestTest".to_string(),
+            salt: uuid::Uuid::new_v4().to_string(),
         };
         let req = test::TestRequest::post()
             .uri("/register")
@@ -318,6 +323,7 @@ pub(crate) mod tests {
             name: "Te".to_string(),
             email: mail.to_string(),
             password: "TestTestTest".to_string(),
+            salt: uuid::Uuid::new_v4().to_string(),
         };
         let req = test::TestRequest::post()
             .uri("/register")
@@ -340,6 +346,7 @@ pub(crate) mod tests {
             name: "Test".to_string(),
             email: mail.to_string(),
             password: "TestTestTest".to_string(),
+            salt: uuid::Uuid::new_v4().to_string(),
         };
         let req = test::TestRequest::post()
             .uri("/register")
@@ -363,6 +370,7 @@ pub(crate) mod tests {
             name: "Test".to_string(),
             email: mail.clone(),
             password: "TestTestTest".to_string(),
+            salt: uuid::Uuid::new_v4().to_string(),
         };
         let req = test::TestRequest::post()
             .uri("/register")

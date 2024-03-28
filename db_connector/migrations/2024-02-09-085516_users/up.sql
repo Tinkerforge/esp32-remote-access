@@ -4,5 +4,6 @@ CREATE TABLE "users" (
   "name" VARCHAR NOT NULL,
   "email" VARCHAR NOT NULL,
   "password" VARCHAR NOT NULL,
-  "email_verified" BOOLEAN NOT NULL DEFAULT FALSE
+  "email_verified" BOOLEAN NOT NULL DEFAULT FALSE,
+  "salt" VARCHAR NOT NULL
 );

@@ -9,4 +9,5 @@ pub struct User {
     pub email: String,
     pub password: String,
     pub email_verified: bool,
+    pub salt: String,
 }
