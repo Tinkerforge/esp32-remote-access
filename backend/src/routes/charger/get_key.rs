@@ -22,7 +22,7 @@ use db_connector::models::wg_keys::WgKey;
 use diesel::{prelude::*, result::Error::NotFound};
 use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::{
     error::Error,
@@ -43,7 +43,7 @@ pub struct GetWgKeysSchema {
     web_address: IpNetwork,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, IntoParams)]
 pub struct GetWgKeysQuery {
     cid: i32,
 }
@@ -57,6 +57,9 @@ pub struct GetWgKeysQuery {
     ),
     security(
         ("jwt" = [])
+    ),
+    params(
+        GetWgKeysQuery
     )
 )]
 #[get("/get_key")]
