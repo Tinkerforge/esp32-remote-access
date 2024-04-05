@@ -135,15 +135,17 @@ pub mod tests {
     pub struct TestUser {
         mail: String,
         charger: Vec<i32>,
+        login_key: Vec<u8>,
         token: Option<String>,
     }
 
     impl TestUser {
         pub async fn new(mail: &str) -> Self {
-            create_user(mail).await;
+            let key = create_user(mail).await;
             fast_verify(mail);
             TestUser {
                 mail: mail.to_string(),
+                login_key: key,
                 charger: Vec::new(),
                 token: None,
             }
@@ -164,7 +166,7 @@ pub mod tests {
             if self.token.is_some() {
                 return self.token.as_ref().unwrap();
             }
-            self.token = Some(login_user(&self.mail, None).await);
+            self.token = Some(login_user(&self.mail, self.login_key.clone()).await);
 
             self.token.as_ref().unwrap()
         }

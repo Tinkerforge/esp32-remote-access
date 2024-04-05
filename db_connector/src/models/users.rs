@@ -7,7 +7,9 @@ pub struct User {
     pub id: uuid::Uuid,
     pub name: String,
     pub email: String,
-    pub password: String,
+    pub login_key: String,
     pub email_verified: bool,
-    pub salt: String,
+    pub secret: Vec<u8>,
+    pub secret_salt: Vec<u8>,
+    pub login_salt: Vec<u8>,
 }

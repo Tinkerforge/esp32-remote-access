@@ -22,6 +22,7 @@ use diesel::{
     r2d2::{ConnectionManager, PooledConnection},
     PgConnection,
 };
+use rand::Rng;
 
 use crate::{error::Error, AppState};
 
@@ -32,6 +33,11 @@ pub fn get_connection(
         Ok(conn) => Ok(conn),
         Err(_err) => Err(Error::InternalError.into()),
     }
+}
+
+pub fn generate_random_bytes() -> Vec<u8> {
+    let mut rng = rand::thread_rng();
+    (0..24).map(|_| rng.gen_range(0..255)).collect()
 }
 
 pub async fn web_block_unpacked<F, R>(f: F) -> Result<R, actix_web::Error>

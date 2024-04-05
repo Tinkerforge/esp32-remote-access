@@ -27,7 +27,7 @@ use crate::{
     error::Error,
     routes::auth::{
         login::{validate_password, FindBy},
-        register::hash_pass,
+        register::hash_key,
     },
     utils::get_connection,
     AppState,
@@ -35,9 +35,9 @@ use crate::{
 
 #[derive(Validate, Deserialize, Serialize, ToSchema)]
 pub struct PasswordUpdateSchema {
-    old_pass: String,
+    old_key: Vec<u8>,
     #[validate(length(min = 12))]
-    new_pass: String,
+    new_key: Vec<u8>,
 }
 
 /// Update the user password
@@ -61,9 +61,9 @@ pub async fn update_password(
     use db_connector::schema::users::dsl::*;
 
     let conn = get_connection(&state)?;
-    let _ = validate_password(&data.old_pass, FindBy::Uuid(uid.clone().into()), conn).await?;
+    let _ = validate_password(&data.old_key, FindBy::Uuid(uid.clone().into()), conn).await?;
 
-    let new_hash = match hash_pass(&data.new_pass) {
+    let new_hash = match hash_key(&data.new_key) {
         Ok(hash) => hash,
         Err(_err) => return Err(Error::InternalError.into()),
     };
@@ -71,7 +71,7 @@ pub async fn update_password(
     let mut conn = get_connection(&state)?;
     match web::block(move || {
         match diesel::update(users.find::<uuid::Uuid>(uid.into()))
-            .set(password.eq(new_hash))
+            .set(login_key.eq(new_hash))
             .execute(&mut conn)
         {
             Ok(_) => (),
@@ -101,14 +101,15 @@ mod tests {
             login::tests::{login_user, verify_and_login_user},
             register::tests::{create_user, delete_user},
         },
-        tests::configure,
+        tests::configure, utils::generate_random_bytes,
     };
 
     #[actix_web::test]
     async fn test_valid_password_update() {
         let mail = "valid_password_update@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
+        let token = verify_and_login_user(mail, key.clone()).await;
 
         let app = App::new()
             .configure(configure)
@@ -116,13 +117,12 @@ mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let new_pass = "TestTestTest1".to_string();
+        let new_key: Vec<u8> = generate_random_bytes();
         let data = PasswordUpdateSchema {
-            old_pass: "TestTestTest".to_string(),
-            new_pass: new_pass.clone(),
+            old_key: key,
+            new_key: new_key.clone(),
         };
 
-        let token = verify_and_login_user(mail).await;
         let req = test::TestRequest::put()
             .uri("/update_password")
             .cookie(Cookie::new("access_token", token))
@@ -131,14 +131,16 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        let _ = login_user(mail, Some(new_pass)).await;
+        let _ = login_user(mail, new_key).await;
     }
 
     #[actix_web::test]
     async fn test_invalid_old_password() {
         let mail = "invalid_password_update@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
+
+        let token = verify_and_login_user(mail, key).await;
 
         let app = App::new()
             .configure(configure)
@@ -146,13 +148,11 @@ mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let new_pass = "TestTestTest1".to_string();
+        let new_key = generate_random_bytes();
         let data = PasswordUpdateSchema {
-            old_pass: "TestTestTest2".to_string(),
-            new_pass: new_pass.clone(),
+            old_key: generate_random_bytes(),
+            new_key: new_key.clone(),
         };
-
-        let token = verify_and_login_user(mail).await;
         let req = test::TestRequest::put()
             .uri("/update_password")
             .cookie(Cookie::new("access_token", token))
@@ -164,7 +164,7 @@ mod tests {
         let pool = db_connector::test_connection_pool();
         let conn = pool.get().unwrap();
         assert!(
-            validate_password(&new_pass, FindBy::Email(mail.to_string()), conn)
+            validate_password(&new_key, FindBy::Email(mail.to_string()), conn)
                 .await
                 .is_err()
         );

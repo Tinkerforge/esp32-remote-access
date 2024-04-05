@@ -40,7 +40,6 @@ pub struct Keys {
     #[schema(value_type = SchemaType::String)]
     charger_address: IpNetwork,
     connection_no: u16,
-    salt: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -301,7 +300,6 @@ async fn add_wg_key(
         web_address: keys.web_address,
         charger_address: keys.charger_address,
         connection_no: keys.connection_no as i32,
-        salt: keys.salt,
     };
 
     match web::block(move || {
@@ -351,7 +349,7 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    fn generate_keys() -> [Keys; 5] {
+    fn generate_random_bytess() -> [Keys; 5] {
         let mut keys: [MaybeUninit<Keys>; 5] = unsafe { MaybeUninit::uninit().assume_init() };
         for key in keys.iter_mut() {
             let secret = x25519::StaticSecret::random_from_rng(OsRng);
@@ -366,7 +364,6 @@ pub(crate) mod tests {
                     Ipv4Network::new("123.123.123.122".parse().unwrap(), 24).unwrap(),
                 ),
                 connection_no: 1234,
-                salt: uuid::Uuid::new_v4().to_string(),
             })
         }
 
@@ -385,7 +382,7 @@ pub(crate) mod tests {
             .with_alphabet(bs58::Alphabet::FLICKR)
             .into_string();
         println!("id: {}", id);
-        let keys = generate_keys();
+        let keys = generate_random_bytess();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 id,
@@ -422,8 +419,9 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_valid_charger() {
         let mail = "valid_charger@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
+        let token = verify_and_login_user(mail, key).await;
 
         let app = App::new()
             .configure(configure)
@@ -431,7 +429,7 @@ pub(crate) mod tests {
             .service(add);
         let app = test::init_service(app).await;
 
-        let keys = generate_keys();
+        let keys = generate_random_bytess();
         let cid = OsRng.next_u32() as i32;
         let charger = AddChargerSchema {
             charger: ChargerSchema {
@@ -450,7 +448,6 @@ pub(crate) mod tests {
             keys,
         };
 
-        let token = verify_and_login_user(mail).await;
         let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
@@ -480,7 +477,7 @@ pub(crate) mod tests {
             .service(add);
         let app = init_service(app).await;
 
-        let keys = generate_keys();
+        let keys = generate_random_bytess();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 id: bs58::encode(charger_id.to_be_bytes())
@@ -529,7 +526,7 @@ pub(crate) mod tests {
             .service(add);
         let app = init_service(app).await;
 
-        let keys = generate_keys();
+        let keys = generate_random_bytess();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 id: bs58::encode(charger.to_be_bytes())
@@ -583,7 +580,7 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_validate_add_charger_schema() {
-        let keys = generate_keys();
+        let keys = generate_random_bytess();
         let schema = AddChargerSchema {
             charger: ChargerSchema {
                 id: bs58::encode((OsRng.next_u32() as i32).to_le_bytes())

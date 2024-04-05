@@ -26,9 +26,14 @@ diesel::table! {
         id -> Uuid,
         name -> Varchar,
         email -> Varchar,
-        password -> Varchar,
+        #[sql_name = "login-key"]
+        login_key -> Varchar,
         email_verified -> Bool,
-        salt -> Varchar,
+        secret -> Bytea,
+        #[sql_name = "secret-salt"]
+        secret_salt -> Bytea,
+        #[sql_name = "login-salt"]
+        login_salt -> Bytea,
     }
 }
 
@@ -44,7 +49,6 @@ diesel::table! {
         id -> Uuid,
         user_id -> Uuid,
         charger_id -> Int4,
-        salt -> Varchar,
         in_use -> Bool,
         charger_pub -> Varchar,
         web_private -> Varchar,

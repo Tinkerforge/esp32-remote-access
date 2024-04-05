@@ -108,7 +108,7 @@ mod tests {
     #[actix_web::test]
     async fn test_update_email() {
         let mail = "update_mail@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
         let update_mail = format!("t{}", mail);
         defer!(delete_user(&update_mail));
@@ -123,7 +123,7 @@ mod tests {
         let mut user = FilteredUser::from(user);
         user.email = update_mail.clone();
 
-        let token = verify_and_login_user(mail).await;
+        let token = verify_and_login_user(mail, key).await;
         let req = test::TestRequest::put()
             .uri("/update_user")
             .set_json(user)
@@ -139,7 +139,7 @@ mod tests {
     async fn test_existing_mail() {
         let mail = "update_mail_exists@test.invalid";
         let mail2 = "update_mail_exists2@test.invalid";
-        create_user(mail).await;
+        let key1 = create_user(mail).await;
         defer!(delete_user(mail));
         create_user(mail2).await;
         defer!(delete_user(mail2));
@@ -154,7 +154,7 @@ mod tests {
         let mut user = FilteredUser::from(user);
         user.email = mail2.to_string();
 
-        let token = verify_and_login_user(mail).await;
+        let token = verify_and_login_user(mail, key1).await;
         let req = test::TestRequest::put()
             .uri("/update_user")
             .set_json(user)

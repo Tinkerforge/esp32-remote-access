@@ -154,10 +154,10 @@ mod tests {
     #[actix_web::test]
     async fn test_valid_token_extractor() {
         let mail = "token@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
 
-        let token = verify_and_login_user(mail).await;
+        let token = verify_and_login_user(mail, key).await;
 
         let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
@@ -175,10 +175,10 @@ mod tests {
     #[actix_web::test]
     async fn test_valid_token_middleware() {
         let mail = "token_middleware@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
 
-        let token = verify_and_login_user(mail).await;
+        let token = verify_and_login_user(mail, key).await;
 
         let app = App::new()
             .configure(configure)

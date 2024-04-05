@@ -37,7 +37,7 @@ use crate::{error::Error, models::token_claims::TokenClaims, AppState};
 pub struct LoginSchema {
     #[validate(email)]
     pub email: String,
-    pub password: String,
+    pub login_key: Vec<u8>,
 }
 
 pub enum FindBy {
@@ -46,7 +46,7 @@ pub enum FindBy {
 }
 
 pub async fn validate_password(
-    pass: &str,
+    pass: &[u8],
     identifier: FindBy,
     mut conn: PooledConnection<ConnectionManager<PgConnection>>,
 ) -> Result<uuid::Uuid, actix_web::Error> {
@@ -75,12 +75,12 @@ pub async fn validate_password(
         return Err(Error::NotVerified.into());
     }
 
-    let password_hash = match PasswordHash::new(&user.password) {
+    let password_hash = match PasswordHash::new(&user.login_key) {
         Ok(hash) => hash,
         Err(_err) => return Err(Error::InternalError.into()),
     };
 
-    match Argon2::default().verify_password(pass.as_bytes(), &password_hash) {
+    match Argon2::default().verify_password(pass, &password_hash) {
         Ok(_) => Ok(user.id),
         Err(_err) => Err(Error::WrongCredentials.into()),
     }
@@ -106,7 +106,7 @@ pub async fn login(
     };
 
     let mail = data.email.to_lowercase();
-    let uuid = validate_password(&data.password, FindBy::Email(mail), conn).await?;
+    let uuid = validate_password(&data.login_key, FindBy::Email(mail), conn).await?;
 
     let max_token_age = 60;
 
@@ -153,19 +153,13 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub async fn login_user(mail: &str, password: Option<String>) -> String {
+    pub async fn login_user(mail: &str, login_key: Vec<u8>) -> String {
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
 
-        let password = if let Some(pass) = password {
-            pass
-        } else {
-            "TestTestTest".to_string()
-        };
-
         let login_schema = LoginSchema {
             email: mail.to_string(),
-            password,
+            login_key,
         };
         let req = test::TestRequest::post()
             .uri("/login")
@@ -187,25 +181,25 @@ pub(crate) mod tests {
         String::new()
     }
 
-    pub async fn verify_and_login_user(mail: &str) -> String {
+    pub async fn verify_and_login_user(mail: &str, login_key: Vec<u8>) -> String {
         fast_verify(mail);
 
-        login_user(mail, None).await
+        login_user(mail, login_key).await
     }
 
     #[actix_web::test]
     async fn test_valid_login() {
         let mail = "login@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
+        fast_verify(mail);
 
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
             email: mail.to_string(),
-            password: "TestTestTest".to_string(),
+            login_key: key,
         };
-        fast_verify(mail);
 
         let req = test::TestRequest::post()
             .uri("/login")
@@ -230,16 +224,16 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_invalid_email() {
         let mail = "invalid_mail@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
+        fast_verify(mail);
 
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
             email: "invalid@test.invalid".to_string(),
-            password: "TestTestTest".to_string(),
+            login_key: key,
         };
-        fast_verify(mail);
 
         let req = test::TestRequest::post()
             .uri("/login")
@@ -249,36 +243,6 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
 
         println!("{}", resp.status());
-        assert!(resp.status().is_client_error());
-
-        let body = test::read_body(resp).await;
-        let body = std::str::from_utf8(&body).unwrap();
-        assert_eq!(body, "Wrong username or password");
-    }
-
-    #[actix_web::test]
-    async fn test_invalid_password() {
-        let mail = "invalid_pass@test.invalid";
-        create_user(mail).await;
-        defer!(delete_user(mail));
-
-        let app = App::new().configure(configure).service(login);
-        let app = test::init_service(app).await;
-        let login_schema = LoginSchema {
-            email: "invalid_pass@test.invalid".to_string(),
-            password: "TestTestTest1".to_string(),
-        };
-        fast_verify(mail);
-
-        let req = test::TestRequest::post()
-            .uri("/login")
-            .insert_header(ContentType::json())
-            .set_json(login_schema)
-            .to_request();
-
-        let resp = test::call_service(&app, req).await;
-        println!("{}", resp.status());
-
         assert!(resp.status().is_client_error());
 
         let body = test::read_body(resp).await;
@@ -289,14 +253,14 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_unverified() {
         let mail = "unverified_login@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
 
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
             email: mail.to_string(),
-            password: "TestTestTest".to_string(),
+            login_key: key,
         };
 
         let req = test::TestRequest::post()

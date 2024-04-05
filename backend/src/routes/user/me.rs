@@ -77,7 +77,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_me() {
         let mail = "me@test.invalid";
-        create_user(mail).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
 
         let app = App::new()
@@ -86,7 +86,7 @@ pub(crate) mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let token = verify_and_login_user(mail).await;
+        let token = verify_and_login_user(mail, key).await;
         let req = test::TestRequest::get()
             .uri("/me")
             .cookie(Cookie::new("access_token", token))
