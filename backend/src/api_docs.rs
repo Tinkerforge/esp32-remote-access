@@ -73,6 +73,7 @@ async fn main() {
             routes::user::me::me,
             routes::user::update_password::update_password,
             routes::user::update_user::update_user,
+            routes::user::generate_salt::generate_salt,
             routes::management::management,
         ),
         components(schemas(

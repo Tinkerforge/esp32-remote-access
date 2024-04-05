@@ -20,6 +20,7 @@
 pub mod me;
 pub mod update_password;
 pub mod update_user;
+pub mod generate_salt;
 
 use crate::{
     error::Error,
@@ -36,6 +37,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .wrap(JwtMiddleware)
         .service(update_user::update_user)
         .service(update_password::update_password)
+        .service(generate_salt::generate_salt)
         .service(me::me);
     cfg.service(scope);
 }
