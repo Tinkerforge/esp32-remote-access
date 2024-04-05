@@ -6,6 +6,11 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+	resolve: {
+		alias: {
+			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js"
+		}
+	},
 	build: {
 		minify: false,
 	},
