@@ -22,6 +22,7 @@ pub mod update_password;
 pub mod update_user;
 pub mod generate_salt;
 pub mod get_login_salt;
+pub mod get_secret;
 
 use crate::{
     error::Error,
@@ -33,6 +34,7 @@ use actix_web::web::{self, ServiceConfig};
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound, ExpressionMethods};
 
+
 use super::auth::login::FindBy;
 
 pub fn configure(cfg: &mut ServiceConfig) {
@@ -41,6 +43,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .service(update_user::update_user)
         .service(update_password::update_password)
         .service(generate_salt::generate_salt)
+        .service(get_login_salt::get_login_salt)
         .service(me::me);
     cfg.service(scope);
 }
