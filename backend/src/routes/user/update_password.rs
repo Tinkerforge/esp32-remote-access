@@ -97,19 +97,20 @@ mod tests {
 
     use crate::{
         defer,
-        routes::auth::{
+        routes::{auth::{
             login::tests::{login_user, verify_and_login_user},
             register::tests::{create_user, delete_user},
-        },
+        }, user::tests::TestUser},
         tests::configure, utils::generate_random_bytes,
     };
 
     #[actix_web::test]
     async fn test_valid_password_update() {
         let mail = "valid_password_update@test.invalid";
-        let key = create_user(mail).await;
+        let username = "valid_password_update_user";
+        let key = create_user(mail,username).await;
         defer!(delete_user(mail));
-        let token = verify_and_login_user(mail, key.clone()).await;
+        let token = verify_and_login_user(username, key.clone()).await;
 
         let app = App::new()
             .configure(configure)
@@ -131,16 +132,13 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        let _ = login_user(mail, new_key).await;
+        let _ = login_user(username, new_key).await;
     }
 
     #[actix_web::test]
     async fn test_invalid_old_password() {
-        let mail = "invalid_password_update@test.invalid";
-        let key = create_user(mail).await;
-        defer!(delete_user(mail));
-
-        let token = verify_and_login_user(mail, key).await;
+        let (mut user, username) = TestUser::random().await;
+        let token = user.login().await;
 
         let app = App::new()
             .configure(configure)
@@ -164,7 +162,7 @@ mod tests {
         let pool = db_connector::test_connection_pool();
         let conn = pool.get().unwrap();
         assert!(
-            validate_password(&new_key, FindBy::Email(mail.to_string()), conn)
+            validate_password(&new_key, FindBy::Username(username), conn)
                 .await
                 .is_err()
         );

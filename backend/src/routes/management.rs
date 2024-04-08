@@ -159,12 +159,12 @@ mod tests {
 
     #[actix_web::test]
     async fn test_unowned_charger() {
-        let (mut user1, mail1) = TestUser::random().await;
+        let (mut user1, username) = TestUser::random().await;
         let token = user1.login().await.to_owned();
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
         let charger = user2.add_random_charger().await;
-        user2.allow_user(&mail1, charger).await;
+        user2.allow_user(&username, charger).await;
 
         let app = App::new()
             .configure(configure)

@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use crate::{error::Error, models::filtered_user::FilteredUser, utils::get_connection, AppState};
+use crate::{error::Error, models::filtered_user::FilteredUser, utils::{get_connection, web_block_unpacked}, AppState};
 use actix_web::{put, web, HttpResponse, Responder};
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound};
@@ -42,7 +42,7 @@ pub async fn update_user(
     use db_connector::schema::users::dsl::*;
 
     let mut conn = get_connection(&state)?;
-    match web::block(move || {
+    web_block_unpacked(move || {
         match users
             .filter(email.eq(&user.email))
             .select(User::as_select())
@@ -55,6 +55,18 @@ pub async fn update_user(
                 }
             }
             Err(_err) => return Err(Error::InternalError),
+        }
+
+        match users.filter(name.eq(&user.name))
+            .select(User::as_select())
+            .get_result(&mut conn) {
+                Err(NotFound) => (),
+                Ok(u) => {
+                    if u.id != uid.clone().into() {
+                        return Err(Error::UserAlreadyExists);
+                    }
+                }
+                Err(_err) => return Err(Error::InternalError),
         }
 
         match diesel::update(users.find::<uuid::Uuid>(uid.clone().into()))
@@ -76,15 +88,8 @@ pub async fn update_user(
         }
 
         Ok(())
-    })
-    .await
-    {
-        Ok(res) => match res {
-            Ok(()) => (),
-            Err(err) => return Err(err.into()),
-        },
-        Err(_err) => return Err(Error::InternalError.into()),
-    }
+    }).await?;
+
 
     Ok(HttpResponse::Ok())
 }
@@ -99,7 +104,7 @@ mod tests {
                 login::tests::verify_and_login_user,
                 register::tests::{create_user, delete_user},
             },
-            user::me::tests::get_test_user,
+            user::{me::tests::{get_test_user, get_test_user_by_email}, tests::TestUser},
         },
         tests::configure,
     };
@@ -108,7 +113,8 @@ mod tests {
     #[actix_web::test]
     async fn test_update_email() {
         let mail = "update_mail@test.invalid";
-        let key = create_user(mail).await;
+        let username = "update_mail_user";
+        let key = create_user(mail, username).await;
         defer!(delete_user(mail));
         let update_mail = format!("t{}", mail);
         defer!(delete_user(&update_mail));
@@ -119,11 +125,11 @@ mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let user = get_test_user(mail);
+        let user = get_test_user_by_email(mail);
         let mut user = FilteredUser::from(user);
         user.email = update_mail.clone();
 
-        let token = verify_and_login_user(mail, key).await;
+        let token = verify_and_login_user(username, key).await;
         let req = test::TestRequest::put()
             .uri("/update_user")
             .set_json(user)
@@ -132,29 +138,23 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        let _ = get_test_user(&update_mail);
+        let _ = get_test_user_by_email(&update_mail);
     }
 
     #[actix_web::test]
-    async fn test_existing_mail() {
-        let mail = "update_mail_exists@test.invalid";
-        let mail2 = "update_mail_exists2@test.invalid";
-        let key1 = create_user(mail).await;
-        defer!(delete_user(mail));
-        create_user(mail2).await;
-        defer!(delete_user(mail2));
-
+    async fn test_existing_username() {
+        let (mut user, username) = TestUser::random().await;
+        let (_user2, username2) = TestUser::random().await;
+        let token = user.login().await;
         let app = App::new()
             .configure(configure)
             .service(update_user)
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let user = get_test_user(mail);
+        let user = get_test_user(&username);
         let mut user = FilteredUser::from(user);
-        user.email = mail2.to_string();
-
-        let token = verify_and_login_user(mail, key1).await;
+        user.name = username2;
         let req = test::TestRequest::put()
             .uri("/update_user")
             .set_json(user)

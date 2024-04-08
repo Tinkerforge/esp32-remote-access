@@ -96,7 +96,7 @@ mod tests {
     async fn test_get_chargers() {
         let mut owned_chargers: Vec<i32> = Vec::new();
         let mut accessable_chargers: Vec<i32> = Vec::new();
-        let (mut user1, mail1) = TestUser::random().await;
+        let (mut user1, username) = TestUser::random().await;
         let (mut user2, _) = TestUser::random().await;
         user1.login().await;
         user2.login().await;
@@ -105,7 +105,7 @@ mod tests {
             let uuid2 = OsRng.next_u32() as i32;
             user1.add_charger(uuid1).await;
             user2.add_charger(uuid2).await;
-            user2.allow_user(&mail1, uuid2).await;
+            user2.allow_user(&username, uuid2).await;
             owned_chargers.push(uuid1);
             accessable_chargers.push(uuid2);
         }

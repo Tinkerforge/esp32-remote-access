@@ -127,18 +127,17 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn fast_verify(mail: &str) {
+    pub fn fast_verify(username: &str) {
         use db_connector::schema::users::dsl::*;
         use db_connector::schema::verification::dsl::verification;
 
-        println!("Fast verify for {}", mail);
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let verify = get_verify_id(&mut conn, mail);
+        let verify = get_verify_id(&mut conn, username);
         diesel::delete(verification.find(verify))
             .execute(&mut conn)
             .unwrap();
-        diesel::update(users.filter(email.eq(mail)))
+        diesel::update(users.filter(name.eq(username)))
             .set(email_verified.eq(true))
             .execute(&mut conn)
             .unwrap();
@@ -146,13 +145,13 @@ pub(crate) mod tests {
 
     fn get_verify_id(
         conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-        mail: &str,
+        username: &str,
     ) -> uuid::Uuid {
-        use db_connector::schema::users::dsl::{email, users};
+        use db_connector::schema::users::dsl::{name, users};
         use db_connector::schema::verification::dsl::*;
 
         let u: User = users
-            .filter(email.eq(mail))
+            .filter(name.eq(username))
             .select(User::as_select())
             .get_result(conn)
             .unwrap();
@@ -185,12 +184,13 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_valid_verify() {
         let mail = "valid_verify@test.invalid";
-        create_user(mail).await;
+        let username = "valid_verify_user";
+        create_user(mail, username).await;
         defer!(delete_user(mail));
 
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let verify_id = get_verify_id(&mut conn, mail);
+        let verify_id = get_verify_id(&mut conn, username);
 
         let app = App::new().configure(configure).service(super::verify);
         let app = test::init_service(app).await;
@@ -209,12 +209,13 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_invalid_verify() {
         let mail = "invalid_verify@test.invalid";
-        create_user(mail).await;
+        let username = "invalid_verify_user";
+        create_user(mail, username).await;
         defer!(delete_user(mail));
 
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let verify_id = get_verify_id(&mut conn, mail);
+        let verify_id = get_verify_id(&mut conn, username);
 
         let app = App::new().configure(configure).service(super::verify);
         let app = test::init_service(app).await;
@@ -232,12 +233,13 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_no_verify() {
         let mail = "no_verify@test.invalid";
-        create_user(mail).await;
+        let username = "no_verify_user";
+        create_user(mail, username).await;
         defer!(delete_user(mail));
 
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let verify_id = get_verify_id(&mut conn, mail);
+        let verify_id = get_verify_id(&mut conn, username);
 
         let app = App::new().configure(configure).service(super::verify);
         let app = test::init_service(app).await;

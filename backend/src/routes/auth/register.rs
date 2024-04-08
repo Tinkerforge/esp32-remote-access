@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::{error::Error, utils::get_connection, AppState};
+use crate::{error::Error, utils::{get_connection, web_block_unpacked}, AppState};
 
 #[derive(Debug, Deserialize, Serialize, Validate, Clone, ToSchema)]
 pub struct RegisterSchema {
@@ -102,21 +102,32 @@ pub async fn register(
 
     let user_mail = data.email.to_lowercase();
     let mail_cpy = user_mail.clone();
+    let username = data.name.clone();
 
-    let result = web::block(move || {
-        users
+    web_block_unpacked(move || {
+        match users
             .filter(email.eq(mail_cpy))
             .select(User::as_select())
-            .get_result(&mut conn)
-    })
-    .await
-    .unwrap();
+            .get_result(&mut conn) {
+                Ok(_) => return Err(Error::ChargerAlreadyExists),
+                Err(NotFound) => (),
+                Err(_err) => {
+                    return Err(Error::InternalError)
+                }
+            }
 
-    match result {
-        Err(NotFound) => (),
-        Ok(_result) => return Err(Error::UserAlreadyExists.into()),
-        Err(_err) => return Err(Error::InternalError.into()),
-    };
+        match users.filter(name.eq(username))
+            .select(User::as_select())
+            .get_result(&mut conn) {
+                Ok(_) => return Err(Error::ChargerAlreadyExists),
+                Err(NotFound) => (),
+                Err(_err) => {
+                    return Err(Error::InternalError)
+                }
+            }
+
+        Ok(())
+    }).await?;
 
     let key_hash = match hash_key(&data.login_key) {
         Ok(hash) => hash,
@@ -193,15 +204,15 @@ pub(crate) mod tests {
 
     use super::*;
 
-    pub async fn create_user(mail: &str) -> Vec<u8> {
-        let mut rng = rand::thread_rng();
+    pub async fn create_user(mail: &str, username: &str) -> Vec<u8> {
         // test with valid syntax
 
+        let mut rng = rand::thread_rng();
         let login_key: Vec<u8> = (0..24).map(|_| rng.gen_range(0..255)).collect();
         let app = App::new().configure(configure).service(register);
         let app = test::init_service(app).await;
         let user = RegisterSchema {
-            name: "Test".to_string(),
+            name: username.to_string(),
             email: mail.to_string(),
             login_key: login_key.clone(),
             login_salt: (0..24).map(|_| rng.gen_range(0..255)).collect(),
@@ -310,7 +321,7 @@ pub(crate) mod tests {
 
         let mail = "Test@test.invalid";
         let user = RegisterSchema {
-            name: "Test".to_string(),
+            name: "Te".to_string(),
             email: mail.to_string(),
             login_key: generate_random_bytes(),
             login_salt: generate_random_bytes(),

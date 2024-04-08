@@ -31,18 +31,18 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::{error::Error, models::token_claims::TokenClaims, AppState};
+use crate::{error::Error, models::token_claims::TokenClaims, utils::web_block_unpacked, AppState};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Validate, ToSchema)]
 pub struct LoginSchema {
-    #[validate(email)]
-    pub email: String,
+    pub username: String,
     pub login_key: Vec<u8>,
 }
 
 pub enum FindBy {
     Uuid(uuid::Uuid),
     Email(String),
+    Username(String),
 }
 
 pub async fn validate_password(
@@ -52,18 +52,27 @@ pub async fn validate_password(
 ) -> Result<uuid::Uuid, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
-    let result = web::block(move || match identifier {
-        FindBy::Email(mail) => users
-            .filter(email.eq(mail))
-            .select(User::as_select())
-            .get_result(&mut conn),
-        FindBy::Uuid(uid) => users
-            .find(uid)
-            .select(User::as_select())
-            .get_result(&mut conn),
+    let result = web_block_unpacked(move || match identifier {
+        FindBy::Email(mail) => {
+            Ok(users
+                .filter(email.eq(mail))
+                .select(User::as_select())
+                .get_result(&mut conn))
+        },
+        FindBy::Uuid(uid) => {
+            Ok(users
+                .find(uid)
+                .select(User::as_select())
+                .get_result(&mut conn))
+        },
+        FindBy::Username(username) => {
+            Ok(users
+                .filter(name.eq(username))
+                .select(User::as_select())
+                .get_result(&mut conn))
+        },
     })
-    .await
-    .unwrap();
+    .await?;
 
     let user: User = match result {
         Ok(data) => data,
@@ -105,8 +114,8 @@ pub async fn login(
         Err(_err) => return Err(Error::InternalError.into()),
     };
 
-    let mail = data.email.to_lowercase();
-    let uuid = validate_password(&data.login_key, FindBy::Email(mail), conn).await?;
+    let username = data.username.clone();
+    let uuid = validate_password(&data.login_key, FindBy::Username(username), conn).await?;
 
     let max_token_age = 60;
 
@@ -153,12 +162,12 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub async fn login_user(mail: &str, login_key: Vec<u8>) -> String {
+    pub async fn login_user(username: &str, login_key: Vec<u8>) -> String {
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
 
         let login_schema = LoginSchema {
-            email: mail.to_string(),
+            username: username.to_string(),
             login_key,
         };
         let req = test::TestRequest::post()
@@ -168,6 +177,8 @@ pub(crate) mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
 
+        println!("Resp in login_user: {}", resp.status());
+        println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
 
         let cookies = resp.response().cookies();
@@ -181,23 +192,24 @@ pub(crate) mod tests {
         String::new()
     }
 
-    pub async fn verify_and_login_user(mail: &str, login_key: Vec<u8>) -> String {
-        fast_verify(mail);
+    pub async fn verify_and_login_user(username: &str, login_key: Vec<u8>) -> String {
+        fast_verify(username);
 
-        login_user(mail, login_key).await
+        login_user(username, login_key).await
     }
 
     #[actix_web::test]
     async fn test_valid_login() {
         let mail = "login@test.invalid";
-        let key = create_user(mail).await;
+        let username = "login_user";
+        let key = create_user(mail, username).await;
         defer!(delete_user(mail));
-        fast_verify(mail);
+        fast_verify(username);
 
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
-            email: mail.to_string(),
+            username: username.to_string(),
             login_key: key,
         };
 
@@ -222,44 +234,16 @@ pub(crate) mod tests {
     }
 
     #[actix_web::test]
-    async fn test_invalid_email() {
-        let mail = "invalid_mail@test.invalid";
-        let key = create_user(mail).await;
-        defer!(delete_user(mail));
-        fast_verify(mail);
-
-        let app = App::new().configure(configure).service(login);
-        let app = test::init_service(app).await;
-        let login_schema = LoginSchema {
-            email: "invalid@test.invalid".to_string(),
-            login_key: key,
-        };
-
-        let req = test::TestRequest::post()
-            .uri("/login")
-            .insert_header(ContentType::json())
-            .set_json(login_schema)
-            .to_request();
-        let resp = test::call_service(&app, req).await;
-
-        println!("{}", resp.status());
-        assert!(resp.status().is_client_error());
-
-        let body = test::read_body(resp).await;
-        let body = std::str::from_utf8(&body).unwrap();
-        assert_eq!(body, "Wrong username or password");
-    }
-
-    #[actix_web::test]
     async fn test_unverified() {
         let mail = "unverified_login@test.invalid";
-        let key = create_user(mail).await;
+        let username = "unverified_username";
+        let key = create_user(mail, username).await;
         defer!(delete_user(mail));
 
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
-            email: mail.to_string(),
+            username: username.to_string(),
             login_key: key,
         };
 

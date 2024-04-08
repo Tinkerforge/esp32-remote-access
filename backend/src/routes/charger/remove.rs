@@ -124,10 +124,10 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn remove_test_keys(mail: &str) {
+    pub fn remove_test_keys(username: &str) {
         use db_connector::schema::wg_keys::dsl::*;
 
-        let uid = get_test_uuid(mail);
+        let uid = get_test_uuid(username);
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -164,7 +164,7 @@ pub(crate) mod tests {
             .service(remove);
         let app = test::init_service(app).await;
 
-        let mut user = TestUser::new("valid_delete_charger@test.invalid").await;
+        let (mut user, _) = TestUser::random().await;
         let token = user.login().await;
         let charger_id = OsRng.next_u32() as i32;
         add_test_charger(charger_id, token).await;
@@ -197,12 +197,12 @@ pub(crate) mod tests {
             .service(remove);
         let app = test::init_service(app).await;
 
-        let user1 = TestUser::new("valid_delete_charger1@test.invalid").await;
-        let mut user2 = TestUser::new("valid_delete_charger2@test.invalid").await;
+        let (_user, username) = TestUser::random().await;
+        let (mut user2, _) = TestUser::random().await;
         let token = user2.login().await.to_owned();
         let charger = OsRng.next_u32() as i32;
         add_test_charger(charger, &token).await;
-        user2.allow_user(user1.get_mail(), charger).await;
+        user2.allow_user(&username, charger).await;
 
         let body = DeleteChargerSchema { charger };
         let req = test::TestRequest::delete()
@@ -222,12 +222,12 @@ pub(crate) mod tests {
             .service(remove);
         let app = test::init_service(app).await;
 
-        let mut user1 = TestUser::new("unowned_delete_charger1@test.invalid").await;
-        let mut user2 = TestUser::new("unowned_delete_charger2@test.invalid").await;
+        let (mut user1, username) = TestUser::random().await;
+        let (mut user2, _) = TestUser::random().await;
         let charger = OsRng.next_u32() as i32;
         user2.login().await;
         user2.add_charger(charger).await;
-        user2.allow_user(user1.get_mail(), charger).await;
+        user2.allow_user(&username, charger).await;
         let token = user1.login().await;
 
         let body = DeleteChargerSchema { charger };
@@ -251,8 +251,8 @@ pub(crate) mod tests {
             .service(remove);
         let app = test::init_service(app).await;
 
-        let mut user1 = TestUser::new("not_allowed_delete_charger1@test.invalid").await;
-        let mut user2 = TestUser::new("not_allowed_delete_charger2@test.invalid").await;
+        let (mut user1, _) = TestUser::random().await;
+        let (mut user2, _) = TestUser::random().await;
         let charger = OsRng.next_u32() as i32;
         user2.login().await;
         user2.add_charger(charger).await;

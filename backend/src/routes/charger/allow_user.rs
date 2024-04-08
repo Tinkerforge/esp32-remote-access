@@ -25,7 +25,7 @@ use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    routes::{charger::charger_belongs_to_user, user::get_uuid_from_email},
+    routes::{auth::login::FindBy, charger::charger_belongs_to_user, user::get_uuid},
     utils::{get_connection, web_block_unpacked},
     AppState,
 };
@@ -33,7 +33,7 @@ use crate::{
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct AllowUserSchema {
     charger_id: i32,
-    user_mail: String,
+    username: String,
 }
 
 /// Give another user permission to access a charger owned by the user.
@@ -60,7 +60,7 @@ pub async fn allow_user(
         return Err(Error::UserIsNotOwner.into());
     }
 
-    let allowed_uuid = get_uuid_from_email(&state, allow_user.user_mail.clone()).await?;
+    let allowed_uuid = get_uuid(&state, FindBy::Username(allow_user.username.clone())).await?;
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         let u = AllowedUser {
@@ -92,7 +92,7 @@ pub mod tests {
 
     use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
 
-    pub async fn add_allowed_test_user(user_mail: &str, charger_id: i32, token: &str) {
+    pub async fn add_allowed_test_user(username: &str, charger_id: i32, token: &str) {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
@@ -101,7 +101,7 @@ pub mod tests {
 
         let body = AllowUserSchema {
             charger_id,
-            user_mail: user_mail.to_string(),
+            username: username.to_string(),
         };
         let req = test::TestRequest::put()
             .cookie(Cookie::new("access_token", token))
@@ -109,16 +109,15 @@ pub mod tests {
             .set_json(body)
             .to_request();
         let resp = test::call_service(&app, req).await;
+        println!("{}", resp.status());
+        println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
     }
 
     #[actix_web::test]
     async fn test_allow_users() {
-        let mail1 = "allow_user1@test.invalid";
-        let mail2 = "allow_user2@test.invalid";
-
-        let _user2 = TestUser::new(mail2).await;
-        let mut user1 = TestUser::new(mail1).await;
+        let _user2 = TestUser::random().await;
+        let (mut user1, username) = TestUser::random().await;
 
         let charger = OsRng.next_u32() as i32;
         let token = user1.login().await.to_string();
@@ -132,7 +131,7 @@ pub mod tests {
 
         let allow = AllowUserSchema {
             charger_id: charger,
-            user_mail: mail2.to_string(),
+            username,
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
@@ -146,14 +145,11 @@ pub mod tests {
 
     #[actix_web::test]
     async fn test_allow_users_non_existing() {
-        let mail1 = "allow_user_non_existing1@test.invalid";
-        let mail2 = "allow_user_non_existing2@test.invalid";
-
-        let mut user1 = TestUser::new(mail1).await;
+        let (mut user, _) = TestUser::random().await;
 
         let charger = OsRng.next_u32() as i32;
-        let token = user1.login().await.to_string();
-        user1.add_charger(charger).await;
+        let token = user.login().await.to_string();
+        user.add_charger(charger).await;
 
         let app = App::new()
             .configure(configure)
@@ -163,7 +159,7 @@ pub mod tests {
 
         let allow = AllowUserSchema {
             charger_id: charger,
-            user_mail: mail2.to_string(),
+            username: uuid::Uuid::new_v4().to_string(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")

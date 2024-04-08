@@ -128,11 +128,7 @@ fn validate_token(req: &HttpRequest) -> Result<(), Error> {
 mod tests {
     use super::*;
     use crate::{
-        defer,
-        routes::auth::{
-            login::tests::verify_and_login_user,
-            register::tests::{create_user, delete_user},
-        },
+        routes::user::tests::TestUser,
         tests::configure,
     };
     use actix_web::{cookie::Cookie, get, test, App, Responder};
@@ -153,11 +149,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_valid_token_extractor() {
-        let mail = "token@test.invalid";
-        let key = create_user(mail).await;
-        defer!(delete_user(mail));
-
-        let token = verify_and_login_user(mail, key).await;
+        let (mut user, _) = TestUser::random().await;
+        let token = user.login().await;
 
         let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
@@ -174,11 +167,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_valid_token_middleware() {
-        let mail = "token_middleware@test.invalid";
-        let key = create_user(mail).await;
-        defer!(delete_user(mail));
-
-        let token = verify_and_login_user(mail, key).await;
+        let (mut user, _) = TestUser::random().await;
+        let token = user.login().await;
 
         let app = App::new()
             .configure(configure)
@@ -198,9 +188,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_no_token_extractor() {
-        let mail = "no_token@test.invalid";
-        create_user(mail).await;
-        defer!(delete_user(mail));
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
 
         let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
@@ -213,9 +202,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_no_token_middleware() {
-        let mail = "no_token_middleware@test.invalid";
-        create_user(mail).await;
-        defer!(delete_user(mail));
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
 
         let app = App::new()
             .configure(configure)
@@ -231,9 +219,8 @@ mod tests {
 
     #[actix_web::test]
     async fn garbage_token() {
-        let mail = "garbage_token@test.invalid";
-        create_user(mail).await;
-        defer!(delete_user(mail));
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
 
         let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
@@ -255,9 +242,8 @@ mod tests {
 
     #[actix_web::test]
     async fn fake_token() {
-        let mail = "fake_token@test.invalid";
-        create_user(mail).await;
-        defer!(delete_user(mail));
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
 
         let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;

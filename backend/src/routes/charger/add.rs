@@ -335,13 +335,8 @@ pub(crate) mod tests {
     use rand_core::OsRng;
 
     use crate::{
-        defer,
         middleware::jwt::JwtMiddleware,
         routes::{
-            auth::{
-                login::tests::verify_and_login_user,
-                register::tests::{create_user, delete_user},
-            },
             charger::remove::tests::{
                 remove_allowed_test_users, remove_test_charger, remove_test_keys,
             }, user::tests::TestUser,
@@ -418,10 +413,8 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_valid_charger() {
-        let mail = "valid_charger@test.invalid";
-        let key = create_user(mail).await;
-        defer!(delete_user(mail));
-        let token = verify_and_login_user(mail, key).await;
+        let (mut user, username) = TestUser::random().await;
+        let token = user.login().await;
 
         let app = App::new()
             .configure(configure)
@@ -455,7 +448,7 @@ pub(crate) mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        remove_test_keys(mail);
+        remove_test_keys(&username);
         remove_allowed_test_users(cid);
         remove_test_charger(cid);
         println!("{:?}", resp);

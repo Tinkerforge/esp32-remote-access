@@ -62,7 +62,19 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn get_test_user(mail: &str) -> User {
+    pub fn get_test_user(username: &str) -> User {
+        use db_connector::schema::users::dsl::*;
+
+        let pool = db_connector::test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        users
+            .filter(name.eq(username))
+            .select(User::as_select())
+            .get_result(&mut conn)
+            .unwrap()
+    }
+
+    pub fn get_test_user_by_email(mail: &str) -> User {
         use db_connector::schema::users::dsl::*;
 
         let pool = db_connector::test_connection_pool();
@@ -77,7 +89,8 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_me() {
         let mail = "me@test.invalid";
-        let key = create_user(mail).await;
+        let username = "test_me_user";
+        let key = create_user(mail, username).await;
         defer!(delete_user(mail));
 
         let app = App::new()
@@ -86,7 +99,7 @@ pub(crate) mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let token = verify_and_login_user(mail, key).await;
+        let token = verify_and_login_user(username, key).await;
         let req = test::TestRequest::get()
             .uri("/me")
             .cookie(Cookie::new("access_token", token))
