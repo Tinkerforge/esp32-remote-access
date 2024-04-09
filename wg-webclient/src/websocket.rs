@@ -24,7 +24,7 @@ use crate::console_log;
 use crate::interval_handle::IntervalHandle;
 use crate::stream::TcpStream;
 use crate::wg_device::IsUp;
-use tungstenite::handshake::client::{generate_random_bytes, generate_request, Request};
+use tungstenite::handshake::client::{generate_key, generate_request, Request};
 use tungstenite::handshake::derive_accept_key;
 use tungstenite::handshake::machine::TryParse;
 use wasm_bindgen::{closure::Closure, JsValue};
@@ -74,7 +74,7 @@ where
        Consumes the provided TcpStream, does the Websocket handshake and returns a Connected Websocket struct.
     */
     pub fn connect(mut stream: TcpStream<'static, Device>) -> Result<Self, tungstenite::Error> {
-        let key = generate_random_bytes();
+        let key = generate_key();
         let request = Request::builder()
             .method("GET")
             .uri("/ws")
