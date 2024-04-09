@@ -74,6 +74,8 @@ async fn main() {
             routes::user::update_password::update_password,
             routes::user::update_user::update_user,
             routes::user::generate_salt::generate_salt,
+            routes::user::get_login_salt::get_login_salt,
+            routes::user::get_secret::get_secret,
             routes::management::management,
         ),
         components(schemas(
@@ -88,6 +90,7 @@ async fn main() {
             routes::charger::get_chargers::GetChargerSchema,
             routes::charger::get_key::GetWgKeysSchema,
             routes::user::update_password::PasswordUpdateSchema,
+            routes::user::get_secret::GetSecretResponse,
             routes::management::ManagementSchema,
             routes::management::ManagementResponseSchema,
             models::filtered_user::FilteredUser,
