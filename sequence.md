@@ -52,13 +52,13 @@ sequenceDiagram
     participant Charger
     participant Backend
 
-    Charger Frontend->>Backend: Request encrypted secret
-    Backend->>Charger Frontend: Respond with encrypted secret and salt for it
-    Note over Charger Frontend: Derive key with user password and salt and<br>decrypt secret with it.
-    Note left of Charger Frontend: Holds: <br> - decrypted secret <br> - secret-key
     Charger Frontend->>Backend: Request login-key-salt
     Backend->>Charger Frontend: Respond with login-key-salt
     Note over Charger Frontend: Derive login-key with user password and salt.
+    Note left of Charger Frontend: Holds: <br> - login-key
+    Charger Frontend->>Backend: Request encrypted secret
+    Backend->>Charger Frontend: Respond with encrypted secret and salt for it
+    Note over Charger Frontend: Derive key with user password and salt and<br>decrypt secret with it.
     Note over Charger Frontend: Generate WireGuard keys
     Note left of Charger Frontend: Holds: <br> - decrypted secret <br> - secret-key <br> - login-key <br> - unencrypted WireGuard keys
     Charger Frontend->>Charger: Save configuration containing<br>unencrypted secret, login key<br>and WireGuard keys
