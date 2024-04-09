@@ -13,7 +13,7 @@ pub struct GetSaltQuery {
 
 /// Get the salt needed to derive the login-key.
 #[utoipa::path(
-    context_path = "/user",
+    context_path = "/auth",
     responses(
         (status = 200, body = Vec<u32>),
         (status = 400, description = "User does not exist")

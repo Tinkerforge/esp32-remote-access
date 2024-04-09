@@ -23,12 +23,14 @@ pub mod login;
 pub mod logout;
 pub mod register;
 pub mod verify;
+pub mod get_login_salt;
 
 pub fn configure(cfg: &mut ServiceConfig) {
     let scope = web::scope("/auth")
         .service(register::register)
         .service(verify::verify)
         .service(logout::logout)
+        .service(get_login_salt::get_login_salt)
         .service(login::login);
     cfg.service(scope);
 }

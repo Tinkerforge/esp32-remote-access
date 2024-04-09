@@ -74,7 +74,7 @@ async fn main() {
             routes::user::update_password::update_password,
             routes::user::update_user::update_user,
             routes::user::generate_salt::generate_salt,
-            routes::user::get_login_salt::get_login_salt,
+            routes::auth::get_login_salt::get_login_salt,
             routes::user::get_secret::get_secret,
             routes::management::management,
         ),
