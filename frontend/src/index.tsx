@@ -34,48 +34,56 @@ import Tab from "react-bootstrap/Tab";
 import * as cookie from "cookie";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { ChargerList } from './pages/chargers.js';
+import { ErrorAlert } from './components/Alert.js';
 
 
 export function App() {
 
+    console.log("ErrorAlert:", ErrorAlert);
     const cookies = cookie.parse(document.cookie);
     if (!("access_token" in cookies)) {
-        return <Row fluid className="align-items-center vh-100">
-            <div class="d-flex col justify-content-center">
-                <Card className="p-3">
-                    <Tabs
-                        defaultActiveKey="login"
-                        id="login-register-tab"
-                        className="mb-3"
-                    >
-                        <Tab eventKey="login" title="Login">
-                            <Login />
-                        </Tab>
-                        <Tab eventKey="register" title="Register">
-                            <Register />
-                        </Tab>
-                    </Tabs>
-                </Card>
-            </div>
-        </Row>
+        return <>
+            <ErrorAlert/>
+            <Row fluid className="align-items-center vh-100">
+                <div class="d-flex col justify-content-center">
+                    <Card className="p-3">
+                        <Tabs
+                            defaultActiveKey="login"
+                            id="login-register-tab"
+                            className="mb-3"
+                        >
+                            <Tab eventKey="login" title="Login">
+                                <Login />
+                            </Tab>
+                            <Tab eventKey="register" title="Register">
+                                <Register />
+                            </Tab>
+                        </Tabs>
+                    </Card>
+                </div>
+            </Row>
+        </>
     }
 
     return (
-        <LocationProvider>
-            <Container fluid>
-                <Row>
-                    <Sidebar />
-                    <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
-                        <Router>
-                            <Route path="/" component={Home} />
-                            <Route path="/user" component={User} />
-                            <Route path="/chargers" component={ChargerList} />
-                            <Route default component={NotFound} />
-                        </Router>
-                    </main>
-                </Row>
-            </Container>
-        </LocationProvider>
+        <>
+            <ErrorAlert/>
+            <LocationProvider>
+                <Container fluid>
+                    <Row>
+                        <Sidebar />
+                        <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
+                            <Router>
+                                <Route path="/" component={Home} />
+                                <Route path="/user" component={User} />
+                                <Route path="/chargers" component={ChargerList} />
+                                <Route default component={NotFound} />
+                            </Router>
+                        </main>
+                    </Row>
+                </Container>
+            </LocationProvider>
+        </>
     );
 }
 
