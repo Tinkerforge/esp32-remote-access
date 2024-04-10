@@ -10,7 +10,7 @@ When ending the backend stores the Encrypted username, key, email, salts and sec
 sequenceDiagram
     Frontend->>Backend: Get salt request
     Backend->>Frontend: Sends newly generated salt
-    Note over Frontend: Also generates salt,<br>concatinates both salts,<br>derives a key with it and the password,<br>generates a secret and<br>encrypts the generated secret using the derived.
+    Note over Frontend: Also generates salt,<br>concatinates both salts,<br>derives a key with it and the password,<br>generates a secret and<br>encrypts the generated secret using the derived key.
     Note left of Frontend: Holds: <br> - unencrypted secret <br> - encrypted secret <br> - secret-key
     Frontend->>Backend: Get salt request
     Backend->>Frontend: Sends newly generated salt
@@ -20,7 +20,7 @@ sequenceDiagram
     Note over Backend: Encrypts the username, email and salts and <br> hashes the login-key.
     Note right of Backend: Saves <br> - encrypted username <br> - encrypted email <br> - encrypted login-salt <br> - encrypted secret-salt <br> - hashed login-key
     Backend->>Frontend: 201 Created
-    Note over Frontend: Prompts user to save the unencrypted first secret<br>as recovery fallback
+    Note over Frontend: Prompts user to save the unencrypted secret<br>as recovery fallback
 ```
 
 ### Login
@@ -67,8 +67,10 @@ sequenceDiagram
     Charger->>Backend: Request Login
     Note over Backend: Verify login
     Backend->>Charger: Respond with JWT cookie
-    Charger->>Backend: Send encrypted WireGuard keys
-    Note right of Backend: Saves: <br> - encrypted WireGuard keys
+    Charger->>Backend: Register charger
+    Note over Backend: Generates a login-key for that charger.
+    Note right of Backend: Saves: <br> - encrypted WireGuard keys <br> - charger-login-key
+    Backend->>Charger: Respond with charger-login-key
 ```
 
 ### Connect to charger
@@ -79,6 +81,8 @@ When ending no additional data is stored on the backend
 
 ```mermaid
 sequenceDiagram
+    Note over Frontend, Backend: Login
+
     Frontend->>Backend: Request encrypted secret
     Backend->>Frontend: Respond with encrypted secret and <br> salt for it
     Note over Frontend: Derive key from user password and <br> salt and decrypt secret.
@@ -97,6 +101,8 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
+    Note over Frontend, Backend: Login
+
     Frontend->>Backend: Request encrypted secret
     Backend->>Frontend: Respond with encrypted secret and <br> salt for it
     Note over Frontend: Derive secret-key from user password and <br> salt and decrypt secret.
