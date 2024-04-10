@@ -36,6 +36,7 @@ use crate::{error::Error, models::token_claims::TokenClaims, utils::web_block_un
 #[derive(Serialize, Deserialize, Clone, Debug, Validate, ToSchema)]
 pub struct LoginSchema {
     pub username: String,
+    #[schema(value_type = Vec<u32>)]
     pub login_key: Vec<u8>,
 }
 

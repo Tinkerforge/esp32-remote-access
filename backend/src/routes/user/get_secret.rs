@@ -8,8 +8,9 @@ use crate::{error::Error, utils::{get_connection, web_block_unpacked}, AppState}
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetSecretResponse {
-    #[schema(value_type = String, format = Binary)]
+    #[schema(value_type = Vec<u32>)]
     secret: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
     secret_salt: Vec<u8>
 }
 

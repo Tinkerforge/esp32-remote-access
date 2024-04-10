@@ -38,9 +38,13 @@ pub struct RegisterSchema {
     pub name: String,
     #[validate(email)]
     pub email: String,
+    #[schema(value_type = Vec<u32>)]
     pub login_key: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
     pub login_salt: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
     pub secret: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
     pub secret_salt: Vec<u8>,
 }
 
