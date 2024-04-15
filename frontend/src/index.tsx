@@ -38,8 +38,6 @@ import { ErrorAlert } from './components/Alert.js';
 
 
 export function App() {
-
-    console.log("ErrorAlert:", ErrorAlert);
     const cookies = cookie.parse(document.cookie);
     if (!("access_token" in cookies)) {
         return <>
