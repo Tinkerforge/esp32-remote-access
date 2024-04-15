@@ -45,6 +45,8 @@ pub struct RegisterSchema {
     #[schema(value_type = Vec<u32>)]
     pub secret: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
+    pub secret_iv: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
     pub secret_salt: Vec<u8>,
 }
 
@@ -145,6 +147,7 @@ pub async fn register(
         email: user_mail,
         email_verified: false,
         secret: data.secret.clone(),
+        secret_iv: data.secret_iv.clone(),
         login_salt: data.login_salt.clone(),
         secret_salt: data.secret_salt.clone(),
     };
@@ -221,6 +224,7 @@ pub(crate) mod tests {
             login_key: login_key.clone(),
             login_salt: (0..24).map(|_| rng.gen_range(0..255)).collect(),
             secret: (0..24).map(|_| rng.gen_range(0..255)).collect(),
+            secret_iv: (0..16).map(|_| rng.gen_range(0..255)).collect(),
             secret_salt: (0..24).map(|_| rng.gen_range(0..255)).collect(),
         };
         let req = test::TestRequest::post()
@@ -304,6 +308,7 @@ pub(crate) mod tests {
             login_key: generate_random_bytes(),
             login_salt: generate_random_bytes(),
             secret: generate_random_bytes(),
+            secret_iv: generate_random_bytes(),
             secret_salt: generate_random_bytes(),
         };
         let req = test::TestRequest::post()
@@ -330,6 +335,7 @@ pub(crate) mod tests {
             login_key: generate_random_bytes(),
             login_salt: generate_random_bytes(),
             secret: generate_random_bytes(),
+            secret_iv: generate_random_bytes(),
             secret_salt: generate_random_bytes(),
         };
         let req = test::TestRequest::post()
@@ -355,6 +361,7 @@ pub(crate) mod tests {
             login_key: generate_random_bytes(),
             login_salt: generate_random_bytes(),
             secret: generate_random_bytes(),
+            secret_iv: generate_random_bytes(),
             secret_salt: generate_random_bytes(),
         };
         let req = test::TestRequest::post()
@@ -381,6 +388,7 @@ pub(crate) mod tests {
             login_key: generate_random_bytes(),
             login_salt: generate_random_bytes(),
             secret: generate_random_bytes(),
+            secret_iv: generate_random_bytes(),
             secret_salt: generate_random_bytes(),
         };
         let req = test::TestRequest::post()

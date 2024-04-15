@@ -30,6 +30,7 @@ diesel::table! {
         login_key -> Varchar,
         email_verified -> Bool,
         secret -> Bytea,
+        secret_iv -> Bytea,
         #[sql_name = "secret-salt"]
         secret_salt -> Bytea,
         #[sql_name = "login-salt"]
