@@ -8,8 +8,25 @@ export async function get_salt() {
     if (resp.status !== 200) {
         throw `Failed to get new salt with ${resp.status}: ${await resp.text()}`;
     }
+    const json = await resp.text();
+    const data = JSON.parse(json);
+    console.log(data);
 
-    return new Uint8Array(await resp.arrayBuffer());
+    return new Uint8Array(data);
+}
+
+export async function get_salt_for_user(username: string) {
+    const resp = await fetch(`${BACKEND}/auth/get_login_salt?username=${username}`, {
+        method: "GET"
+    });
+    if (resp.status !== 200) {
+        throw `Failed to get login_salt for user ${username}: ${await resp.text()}`;
+    }
+    const json = await resp.text();
+    const data = JSON.parse(json);
+    console.log(data);
+
+    return new Uint8Array(data);
 }
 
 export async function generate_hash(pass: string, salt: Uint8Array | string, len?: number) {
