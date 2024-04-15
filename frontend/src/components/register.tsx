@@ -1,8 +1,9 @@
 import { Component } from "preact";
-import { Button, Form, FormGroup } from "react-bootstrap"
+import { Button, Form, FormGroup, Modal } from "react-bootstrap"
 import { BACKEND } from "../types";
 import { showAlert } from "./Alert";
 import { generate_hash, generate_random_bytes, get_salt } from "../utils";
+import { Base64 } from "js-base64";
 
 interface RegisterSchema {
     name: string,
@@ -19,6 +20,9 @@ interface RegisterState {
     password: string,
     name: string,
     email: string,
+    recovery_safed: boolean,
+    secret: Uint8Array,
+    show_modal: boolean,
 }
 
 export class Register extends Component<{}, RegisterState> {
@@ -29,6 +33,9 @@ export class Register extends Component<{}, RegisterState> {
             password: "",
             name: "",
             email: "",
+            recovery_safed: false,
+            secret: new Uint8Array(),
+            show_modal: false,
         }
     }
 
@@ -107,11 +114,54 @@ export class Register extends Component<{}, RegisterState> {
             const body = await resp.text();
             const text = `Failed with status ${resp.status}: ${body}`;
             showAlert(text, "danger");
+            return;
         }
+
+        this.setState({secret: secret, show_modal: true});
+
+    }
+
+    saveRecoveryData() {
+        const backupData = {
+            username: this.state.name,
+            secret: Base64.fromUint8Array(this.state.secret),
+        };
+
+        const backupString = JSON.stringify(backupData);
+        const file = new File([backupString], "RecpveryData", {
+            type: "text/plain"
+        });
+        const a = document.createElement("a");
+        const url = URL.createObjectURL(file);
+        a.href = url;
+        a.download = "RecoveryData";
+        document.body.appendChild(a);
+        a.click()
+
+        this.setState({recovery_safed: true});
     }
 
     render() {
+
         return (<>
+            <Modal show={this.state.show_modal} onHide={() => this.setState({show_modal: false})}>
+                <Modal.Dialog>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Safe recovery data</Modal.Title>
+                    </Modal.Header>
+
+                    <Modal.Body>
+                        <Button variant="primary" onClick={() => this.saveRecoveryData()}>Download Recovery Data</Button>
+                    </Modal.Body>
+
+                    <Modal.Footer>
+                        <Button variant={this.state.recovery_safed ? "primary" : "danger"} onClick={() => {
+                            this.setState({show_modal: false});
+                        }}>Close</Button>
+                    </Modal.Footer>
+                </Modal.Dialog>
+            </Modal>
+
             <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)}>
                 <Form.Group className="mb-3" controlId="registerName">
                     <Form.Label>Name</Form.Label>
