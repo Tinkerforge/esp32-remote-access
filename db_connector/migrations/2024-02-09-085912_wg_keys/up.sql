@@ -6,7 +6,8 @@ CREATE TABLE "wg_keys" (
   "charger_id" INT NOT NULL REFERENCES chargers(id),
   "in_use" BOOLEAN NOT NULL,
   "charger_pub" VARCHAR NOT NULL,
-  "web_private" VARCHAR NOT NULL,
+  "web_private" BYTEA NOT NULL,
+  "web_private_iv" BYTEA NOT NULL,
   "web_address" INET NOT NULL,
   "charger_address" INET NOT NULL,
   "connection_no" INT NOT NULL

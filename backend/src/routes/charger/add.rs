@@ -33,7 +33,10 @@ use crate::{
 
 #[derive(Serialize, Deserialize, Clone, Validate, ToSchema)]
 pub struct Keys {
-    web_private: String,
+    #[schema(value_type = Vec<u32>)]
+    web_private: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
+    web_private_iv: Vec<u8>,
     charger_public: String,
     #[schema(value_type = SchemaType::String)]
     web_address: IpNetwork,
@@ -68,7 +71,6 @@ pub struct AddChargerResponseSchema {
 fn validate_add_charger_schema(schema: &AddChargerSchema) -> Result<(), ValidationError> {
     for key in schema.keys.iter() {
         validate_wg_key(&key.charger_public)?;
-        validate_wg_key(&key.web_private)?;
     }
 
     validate_wg_key(&schema.charger.charger_pub)?;
@@ -297,6 +299,7 @@ async fn add_wg_key(
         in_use: false,
         charger_pub: keys.charger_public,
         web_private: keys.web_private,
+        web_private_iv: keys.web_private_iv,
         web_address: keys.web_address,
         charger_address: keys.charger_address,
         connection_no: keys.connection_no as i32,
@@ -341,16 +344,17 @@ pub(crate) mod tests {
                 remove_allowed_test_users, remove_test_charger, remove_test_keys,
             }, user::tests::TestUser,
         },
-        tests::configure,
+        tests::configure, utils::generate_random_bytes,
     };
 
-    fn generate_random_bytess() -> [Keys; 5] {
+    fn generate_random_keys() -> [Keys; 5] {
         let mut keys: [MaybeUninit<Keys>; 5] = unsafe { MaybeUninit::uninit().assume_init() };
         for key in keys.iter_mut() {
             let secret = x25519::StaticSecret::random_from_rng(OsRng);
             let public = x25519::PublicKey::from(&secret);
             *key = MaybeUninit::new(Keys {
-                web_private: BASE64_STANDARD.encode(secret),
+                web_private: generate_random_bytes(),
+                web_private_iv: generate_random_bytes(),
                 charger_public: BASE64_STANDARD.encode(public),
                 charger_address: IpNetwork::V4(
                     Ipv4Network::new("123.123.123.123".parse().unwrap(), 24).unwrap(),
@@ -377,7 +381,7 @@ pub(crate) mod tests {
             .with_alphabet(bs58::Alphabet::FLICKR)
             .into_string();
         println!("id: {}", id);
-        let keys = generate_random_bytess();
+        let keys = generate_random_keys();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 id,
@@ -422,7 +426,7 @@ pub(crate) mod tests {
             .service(add);
         let app = test::init_service(app).await;
 
-        let keys = generate_random_bytess();
+        let keys = generate_random_keys();
         let cid = OsRng.next_u32() as i32;
         let charger = AddChargerSchema {
             charger: ChargerSchema {
@@ -470,7 +474,7 @@ pub(crate) mod tests {
             .service(add);
         let app = init_service(app).await;
 
-        let keys = generate_random_bytess();
+        let keys = generate_random_keys();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 id: bs58::encode(charger_id.to_be_bytes())
@@ -519,7 +523,7 @@ pub(crate) mod tests {
             .service(add);
         let app = init_service(app).await;
 
-        let keys = generate_random_bytess();
+        let keys = generate_random_keys();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 id: bs58::encode(charger.to_be_bytes())
@@ -573,7 +577,7 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_validate_add_charger_schema() {
-        let keys = generate_random_bytess();
+        let keys = generate_random_keys();
         let schema = AddChargerSchema {
             charger: ChargerSchema {
                 id: bs58::encode((OsRng.next_u32() as i32).to_le_bytes())

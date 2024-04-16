@@ -88,7 +88,7 @@ async fn main() {
             routes::charger::allow_user::AllowUserSchema,
             routes::charger::remove::DeleteChargerSchema,
             routes::charger::get_chargers::GetChargerSchema,
-            routes::charger::get_key::GetWgKeysSchema,
+            routes::charger::get_key::GetWgKeysResponseSchema,
             routes::user::update_password::PasswordUpdateSchema,
             routes::user::get_secret::GetSecretResponse,
             routes::management::ManagementSchema,

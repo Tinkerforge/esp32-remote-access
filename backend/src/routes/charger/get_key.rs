@@ -32,13 +32,14 @@ use crate::{
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
-pub struct GetWgKeysSchema {
+pub struct GetWgKeysResponseSchema {
     id: String,
     charger_id: i32,
     charger_pub: String,
     #[schema(value_type = SchemaType::String)]
     charger_address: IpNetwork,
-    web_private: String,
+    #[schema(value_type = Vec<u32>)]
+    web_private: Vec<u8>,
     #[schema(value_type = SchemaType::String)]
     web_address: IpNetwork,
 }
@@ -88,7 +89,7 @@ pub async fn get_key(
     .await?;
 
     if let Some(key) = key {
-        let key = GetWgKeysSchema {
+        let key = GetWgKeysResponseSchema {
             id: key.id.to_string(),
             charger_id: key.charger_id,
             charger_pub: key.charger_pub,
@@ -131,7 +132,7 @@ mod tests {
             .cookie(Cookie::new("access_token", user.get_token()))
             .to_request();
 
-        let resp: GetWgKeysSchema = test::call_and_read_body_json(&app, req).await;
+        let resp: GetWgKeysResponseSchema = test::call_and_read_body_json(&app, req).await;
         assert_eq!(resp.charger_id, charger);
     }
 
