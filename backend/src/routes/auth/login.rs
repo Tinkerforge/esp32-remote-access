@@ -146,7 +146,9 @@ pub async fn login(
         .secure(true)
         .finish();
 
-    Ok(HttpResponse::Ok().cookie(cookie).body(""))
+    let cookie_string = format!("{}; Partitioned;", cookie.to_string());
+
+    Ok(HttpResponse::Ok().append_header(("Set-Cookie", cookie_string)).body(""))
 }
 
 #[cfg(test)]
