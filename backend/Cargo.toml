@@ -12,14 +12,16 @@ path = "src/api_docs.rs"
 
 [dependencies]
 actix-web = "4.5.1"
-dotenv = "0.15.0"
+actix-web-actors = "4.3.0"
+actix-web-validator = "5.0.1"
+actix = "0.13.3"
 
+dotenv = "0.15.0"
 db_connector = { path = "../db_connector" }
 serde = { version = "1.0.196", features = ["derive"] }
 argon2 = "0.5.3"
 diesel = { version = "2.1.4", features = ["postgres", "r2d2", "uuid", "network-address"] }
 uuid = { version = "1.7.0", features = ["v4"] }
-actix-web-validator = "5.0.1"
 validator = { version = "0.16.1", features = ["derive"] }
 chrono = "0.4.33"
 actix-cors = "0.7.0"
@@ -32,8 +34,6 @@ base64 = "0.22"
 ipnetwork = "0.20.0"
 utoipa = { version = "4.2.0", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "6.0.0", features = ["actix-web"] }
-actix-web-actors = "4.3.0"
-actix = "0.13.3"
 log = "0.4.20"
 boringtun = "0.6.0"
 rand_core = "0.6.4"
