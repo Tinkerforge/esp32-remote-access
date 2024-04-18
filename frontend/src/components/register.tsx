@@ -95,7 +95,7 @@ export class Register extends Component<{}, RegisterState> {
             email: this.state.email,
             login_key: [].slice.call(login_key),
             login_salt: [].slice.call(combined_login_salt),
-            secret: [].slice.call(encrypted_secret),
+            secret: [].slice.call(new Uint8Array(encrypted_secret)),
             secret_iv: [].slice.call(secret_iv),
             secret_salt: [].slice.call(combined_secret_salt),
         }
