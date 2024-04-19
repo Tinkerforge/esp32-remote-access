@@ -40,6 +40,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .wrap(JwtMiddleware)
         .service(update_user::update_user)
         .service(update_password::update_password)
+        .service(get_secret::get_secret)
         .service(me::me);
     cfg.service(scope);
 }
