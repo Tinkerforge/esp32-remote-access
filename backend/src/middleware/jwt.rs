@@ -20,7 +20,7 @@
 use actix_web::{
     dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform},
     error::{ErrorInternalServerError, ErrorUnauthorized},
-    http, web, Error, FromRequest, HttpMessage, HttpRequest,
+    web, Error, FromRequest, HttpMessage, HttpRequest,
 };
 use chrono::Utc;
 use futures_util::future::LocalBoxFuture;
@@ -28,6 +28,8 @@ use jsonwebtoken::{decode, DecodingKey, Validation};
 use std::future::{ready, Ready};
 
 use crate::{models::token_claims::TokenClaims, AppState};
+
+use super::get_token;
 
 pub struct JwtMiddleware;
 
@@ -89,22 +91,16 @@ where
 }
 
 fn validate_token(req: &HttpRequest) -> Result<(), Error> {
-    let token = req
-        .cookie("access_token")
-        .map(|c| c.value().to_string())
-        .or_else(|| {
-            req.headers()
-                .get(http::header::AUTHORIZATION)
-                .map(|h| h.to_str().unwrap().split_at(7).1.to_string())
-        });
-
-    if token.is_none() {
-        return Err(ErrorUnauthorized(""));
-    }
+    let token = match get_token(req, "access_token") {
+        Some(token) => token,
+        None => {
+            return Err(ErrorUnauthorized("Jwt-Token is missing"))
+        }
+    };
 
     let data = req.app_data::<web::Data<AppState>>().unwrap();
     let claims = match decode::<TokenClaims>(
-        &token.unwrap(),
+        &token,
         &DecodingKey::from_secret(data.jwt_secret.as_bytes()),
         &Validation::default(),
     ) {
