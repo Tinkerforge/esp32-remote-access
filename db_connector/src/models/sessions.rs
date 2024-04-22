@@ -6,6 +6,6 @@ use crate::models::users::User;
 #[diesel(belongs_to(User))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Session {
-    id: uuid::Uuid,
-    user_id: uuid::Uuid,
+    pub id: uuid::Uuid,
+    pub user_id: uuid::Uuid,
 }
