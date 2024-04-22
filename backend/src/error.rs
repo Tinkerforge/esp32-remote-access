@@ -54,6 +54,8 @@ pub enum Error {
     NoValidIp,
     #[display(fmt = "Charger is currently not connected to the server")]
     ChargerDisconnected,
+    #[display(fmt = "Not an active session")]
+    SessionDoesNotExist,
 }
 
 impl error::ResponseError for Error {
@@ -79,6 +81,7 @@ impl error::ResponseError for Error {
             Self::UserIsNotOwner => StatusCode::UNAUTHORIZED,
             Self::NoValidIp => StatusCode::BAD_REQUEST,
             Self::ChargerDisconnected => StatusCode::BAD_GATEWAY,
+            Self::SessionDoesNotExist => StatusCode::UNAUTHORIZED,
         }
     }
 }
