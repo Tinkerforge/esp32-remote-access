@@ -22,6 +22,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    sessions (id) {
+        id -> Uuid,
+        user_id -> Uuid,
+    }
+}
+
+diesel::table! {
     users (id) {
         id -> Uuid,
         name -> Varchar,
@@ -62,6 +69,7 @@ diesel::table! {
 
 diesel::joinable!(allowed_users -> chargers (charger_id));
 diesel::joinable!(allowed_users -> users (user_id));
+diesel::joinable!(sessions -> users (user_id));
 diesel::joinable!(verification -> users (user));
 diesel::joinable!(wg_keys -> chargers (charger_id));
 diesel::joinable!(wg_keys -> users (user_id));
@@ -69,6 +77,7 @@ diesel::joinable!(wg_keys -> users (user_id));
 diesel::allow_tables_to_appear_in_same_query!(
     allowed_users,
     chargers,
+    sessions,
     users,
     verification,
     wg_keys,
