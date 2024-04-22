@@ -22,6 +22,7 @@ use actix_web::{
     error::{ErrorInternalServerError, ErrorUnauthorized},
     http, web, Error, FromRequest, HttpMessage, HttpRequest,
 };
+use chrono::Utc;
 use futures_util::future::LocalBoxFuture;
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use std::future::{ready, Ready};
@@ -110,9 +111,14 @@ fn validate_token(req: &HttpRequest) -> Result<(), Error> {
         Ok(claims) => claims.claims,
         Err(_err) => {
             log::error!("Error while decoding token");
-            return Err(ErrorUnauthorized(""));
+            return Err(ErrorUnauthorized("Invalid jwt token"));
         }
     };
+
+    let now = Utc::now();
+    if now.timestamp() as usize > claims.exp {
+        return Err(ErrorUnauthorized("Jwt token expired"))
+    }
 
     let user_id = match uuid::Uuid::parse_str(claims.sub.as_str()) {
         Ok(id) => id,
@@ -277,6 +283,49 @@ mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_client_error());
+        assert_eq!(resp.status(), 401);
+    }
+
+    #[actix_web::test]
+    async fn expired_token() {
+        let (mut user, username) = TestUser::random().await;
+        user.login().await;
+
+        let app = App::new().configure(configure).wrap(JwtMiddleware).service(without_extractor);
+        let app = test::init_service(app).await;
+
+        let now = Utc::now();
+        let iat = now.timestamp() as usize - 300;
+        let exp = (now + Duration::minutes(1)).timestamp() as usize - 120;
+        let claims = TokenClaims {
+            iat,
+            exp,
+            sub: username,
+        };
+
+        let token = jsonwebtoken::encode(
+            &jsonwebtoken::Header::default(),
+            &claims,
+            &jsonwebtoken::EncodingKey::from_secret(std::env::var("JWT_SECRET").expect("JWT_SECRET must be set").as_bytes()),
+        )
+        .unwrap();
+
+
+        let req = test::TestRequest::get()
+            .uri("/hello")
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+
+        let resp = match test::try_call_service(&app, req).await {
+            Ok(r) => r,
+            Err(_err) => {
+                println!("Err: {:?}", _err);
+                return;
+            }
+        };
+
+        println!("{}", resp.status());
+        println!("{:?}", resp.response().body());
+        assert_eq!(resp.status(), 401);
     }
 }
