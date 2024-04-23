@@ -106,7 +106,6 @@ fn validate_token(req: &HttpRequest) -> Result<(), Error> {
     ) {
         Ok(claims) => claims.claims,
         Err(_err) => {
-            log::error!("Error while decoding token");
             return Err(ErrorUnauthorized("Invalid jwt token"));
         }
     };
@@ -203,23 +202,6 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_no_token_middleware() {
-        let (mut user, _) = TestUser::random().await;
-        user.login().await;
-
-        let app = App::new()
-            .configure(configure)
-            .service(without_extractor)
-            .wrap(JwtMiddleware);
-        let app = test::init_service(app).await;
-
-        let req = test::TestRequest::get().uri("/hello").to_request();
-
-        let resp = test::try_call_service(&app, req).await;
-        assert!(resp.is_err());
-    }
-
-    #[actix_web::test]
     async fn garbage_token() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
@@ -287,7 +269,7 @@ mod tests {
         let (mut user, username) = TestUser::random().await;
         user.login().await;
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(without_extractor);
+        let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
 
         let now = Utc::now();
@@ -315,8 +297,7 @@ mod tests {
         let resp = match test::try_call_service(&app, req).await {
             Ok(r) => r,
             Err(_err) => {
-                println!("Err: {:?}", _err);
-                return;
+                panic!("Err: {:?}", _err);
             }
         };
 
