@@ -6,9 +6,9 @@ use db_connector::models::{sessions::Session, users::User};
 use diesel::{prelude::*, result::Error::NotFound};
 use jsonwebtoken::{decode, DecodingKey, Validation};
 
-use crate::{error::Error, middleware::get_token, models::token_claims::TokenClaims, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{error::Error, middleware::get_token, models::token_claims::TokenClaims, routes::auth::login::create_session, utils::{get_connection, web_block_unpacked}, AppState};
 
-fn extract_session(token: String, jwt_secret: &str) -> actix_web::Result<(uuid::Uuid, usize)> {
+pub fn extract_session(token: String, jwt_secret: &str) -> actix_web::Result<(uuid::Uuid, usize)> {
     let claims = match decode::<TokenClaims>(
         &token,
         &DecodingKey::from_secret(jwt_secret.as_bytes()),
@@ -55,23 +55,9 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
         }
     }).await?;
 
-    let mut conn = get_connection(state)?;
-    println!("{}, {}, {}", exp, exp as i64, Utc::now().timestamp());
+    delete_session(session_id, state).await?;
     if exp < Utc::now().timestamp() as usize {
-        web_block_unpacked(move || {
-            use db_connector::schema::sessions::dsl::*;
-
-            match diesel::delete(sessions.find(session_id))
-                .execute(&mut conn) {
-                    Ok(_) => Ok(()),
-                    Err(_err) => {
-                        Err(Error::InternalError)
-                    }
-                }
-        }).await?;
         return Err(ErrorUnauthorized("Session expired"))
-    } else {
-        drop(conn);
     }
 
     let mut conn = get_connection(state)?;
@@ -89,6 +75,23 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
     }).await?;
 
     Ok(user)
+}
+
+pub async fn delete_session(session_id: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+    let mut conn = get_connection(state)?;
+
+    web_block_unpacked(move || {
+        use db_connector::schema::sessions::dsl::*;
+
+        match diesel::delete(sessions.find(session_id))
+            .execute(&mut conn) {
+                Ok(_) => Ok(()),
+                Err(_err) => {
+                    Err(Error::InternalError)
+                }
+            }
+    }).await?;
+    Ok(())
 }
 
 #[get("jwt_refresh")]
@@ -123,7 +126,9 @@ pub async fn jwt_refresh(req: HttpRequest, state: web::Data<AppState>) -> actix_
 
     let cookie_string = format!("{}; Partitioned;", cookie.to_string());
 
-    Ok(HttpResponse::Ok().append_header(("Set-Cookie", cookie_string)).body(""))
+    let refresh_cookie = create_session(&state, user.id).await?;
+
+    Ok(HttpResponse::Ok().append_header(("Set-Cookie", cookie_string)).append_header(("Set-Cookie", refresh_cookie)).body(""))
 }
 
 #[cfg(test)]
@@ -161,8 +166,11 @@ mod tests {
             if cookie.name() == "access_token" {
                 bitmap |= 1;
             }
+            if cookie.name() == "refresh_token" {
+                bitmap |= 2;
+            }
         }
-        assert_eq!(bitmap, 1);
+        assert_eq!(bitmap, 3);
     }
 
     #[actix_web::test]

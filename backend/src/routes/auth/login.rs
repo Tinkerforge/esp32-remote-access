@@ -155,7 +155,7 @@ pub async fn login(
     Ok(HttpResponse::Ok().append_header(("Set-Cookie", cookie_string)).append_header(("Set-Cookie", refresh_cookie)).body(""))
 }
 
-async fn create_session(state: &web::Data<AppState>, uid: uuid::Uuid) -> actix_web::Result<String> {
+pub async fn create_session(state: &web::Data<AppState>, uid: uuid::Uuid) -> actix_web::Result<String> {
     let session_id = uuid::Uuid::new_v4();
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
