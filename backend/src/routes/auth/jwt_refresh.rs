@@ -55,7 +55,7 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
         }
     }).await?;
 
-    delete_token(token_id, state).await?;
+    delete_refresh_token(token_id, state).await?;
     if exp < Utc::now().timestamp() as usize {
         return Err(ErrorUnauthorized("Session expired"))
     }
@@ -77,7 +77,7 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
     Ok(user)
 }
 
-pub async fn delete_token(token_id: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+pub async fn delete_refresh_token(token_id: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
     let mut conn = get_connection(state)?;
 
     web_block_unpacked(move || {
