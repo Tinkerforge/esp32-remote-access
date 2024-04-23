@@ -1,7 +1,6 @@
 use actix_web::{http, HttpRequest};
 
 pub mod jwt;
-pub mod jwt_refresh;
 
 pub fn get_token(req: &HttpRequest, name: &str) -> Option<String> {
     req

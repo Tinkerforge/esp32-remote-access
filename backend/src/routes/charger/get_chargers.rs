@@ -122,7 +122,7 @@ mod tests {
 
         let req = test::TestRequest::get()
             .uri("/get_chargers")
-            .cookie(Cookie::new("access_token", user1.get_token()))
+            .cookie(Cookie::new("access_token", user1.get_access_token()))
             .to_request();
         let resp: Vec<GetChargerSchema> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(resp.len(), 10);
@@ -141,7 +141,7 @@ mod tests {
 
         let req = test::TestRequest::get()
             .uri("/get_chargers")
-            .cookie(Cookie::new("access_token", user1.get_token()))
+            .cookie(Cookie::new("access_token", user1.get_access_token()))
             .to_request();
         let resp: Vec<GetChargerSchema> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(resp.len(), 0);

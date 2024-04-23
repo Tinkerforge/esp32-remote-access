@@ -125,7 +125,7 @@ pub async fn get_user(
 
 #[cfg(test)]
 pub mod tests {
-    use db_connector::{models::users::User, test_connection_pool};
+    use db_connector::{models:: users::User, test_connection_pool};
     use diesel::prelude::*;
     use rand::RngCore;
     use rand_core::OsRng;
@@ -168,7 +168,8 @@ pub mod tests {
         mail: String,
         charger: Vec<i32>,
         login_key: Vec<u8>,
-        token: Option<String>,
+        access_token: Option<String>,
+        refresh_token: Option<String>,
     }
 
     impl TestUser {
@@ -180,7 +181,8 @@ pub mod tests {
                 mail: mail.to_string(),
                 login_key: key,
                 charger: Vec::new(),
-                token: None,
+                access_token: None,
+                refresh_token: None,
             }
         }
 
@@ -191,21 +193,24 @@ pub mod tests {
             (user, uuid.to_string())
         }
 
-        pub fn get_token(&self) -> &str {
-            self.token.as_ref().unwrap()
+        pub fn get_access_token(&self) -> &str {
+            self.access_token.as_ref().unwrap()
         }
 
         pub async fn login(&mut self) -> &str {
-            if self.token.is_some() {
-                return self.token.as_ref().unwrap();
+            if self.access_token.is_some() {
+                return self.access_token.as_ref().unwrap();
             }
-            self.token = Some(login_user(&self.username, self.login_key.clone()).await);
+            let (access_token, refresh_token) = login_user(&self.username, self.login_key.clone()).await;
 
-            self.token.as_ref().unwrap()
+            self.access_token = Some(access_token);
+            self.refresh_token = Some(refresh_token);
+
+            self.access_token.as_ref().unwrap()
         }
 
         pub async fn add_charger(&mut self, id: i32) {
-            add_test_charger(id, self.token.as_ref().unwrap()).await;
+            add_test_charger(id, self.access_token.as_ref().unwrap()).await;
             self.charger.push(id);
         }
 
@@ -217,12 +222,16 @@ pub mod tests {
         }
 
         pub async fn allow_user(&mut self, username: &str, charger_id: i32) {
-            let token = self.token.as_ref().expect("Test user must be logged in.");
+            let token = self.access_token.as_ref().expect("Test user must be logged in.");
             add_allowed_test_user(username, charger_id, token).await;
         }
 
         pub fn get_mail(&self) -> &str {
             &self.mail
+        }
+
+        pub fn get_refresh_token(&mut self) -> &str {
+            self.refresh_token.as_ref().unwrap()
         }
     }
 

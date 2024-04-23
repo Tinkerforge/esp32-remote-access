@@ -110,7 +110,7 @@ mod tests {
         let username = "valid_password_update_user";
         let key = create_user(mail,username).await;
         defer!(delete_user(mail));
-        let token = verify_and_login_user(username, key.clone()).await;
+        let (token, _) = verify_and_login_user(username, key.clone()).await;
 
         let app = App::new()
             .configure(configure)

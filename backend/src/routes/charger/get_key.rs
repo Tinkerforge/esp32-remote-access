@@ -129,7 +129,7 @@ mod tests {
 
         let req = test::TestRequest::get()
             .uri(&format!("/get_key?cid={}", charger.clone()))
-            .cookie(Cookie::new("access_token", user.get_token()))
+            .cookie(Cookie::new("access_token", user.get_access_token()))
             .to_request();
 
         let resp: GetWgKeysResponseSchema = test::call_and_read_body_json(&app, req).await;
@@ -163,7 +163,7 @@ mod tests {
 
         let req = test::TestRequest::get()
             .uri(&format!("/get_key?cid={}", charger.clone()))
-            .cookie(Cookie::new("access_token", user.get_token()))
+            .cookie(Cookie::new("access_token", user.get_access_token()))
             .to_request();
 
         let resp = test::call_service(&app, req).await;

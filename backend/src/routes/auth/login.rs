@@ -21,7 +21,7 @@ use actix_web::{cookie::Cookie, post, web, HttpResponse, Responder};
 use actix_web_validator::Json;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use chrono::{Duration, Utc};
-use db_connector::models::users::User;
+use db_connector::models::{sessions::Session, users::User};
 use diesel::{
     prelude::*,
     r2d2::{ConnectionManager, PooledConnection},
@@ -31,7 +31,10 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::{error::Error, models::token_claims::TokenClaims, utils::web_block_unpacked, AppState};
+use crate::{error::Error, models::token_claims::TokenClaims, utils::{get_connection, web_block_unpacked}, AppState};
+
+pub const MAX_TOKEN_AGE: i64 = 6;
+const MAX_REFRESH_TOKEN_AGE: i64 = 7;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Validate, ToSchema)]
 pub struct LoginSchema {
@@ -147,8 +150,54 @@ pub async fn login(
         .finish();
 
     let cookie_string = format!("{}; Partitioned;", cookie.to_string());
+    let refresh_cookie = create_session(&state, uuid).await?;
 
-    Ok(HttpResponse::Ok().append_header(("Set-Cookie", cookie_string)).body(""))
+    Ok(HttpResponse::Ok().append_header(("Set-Cookie", cookie_string)).append_header(("Set-Cookie", refresh_cookie)).body(""))
+}
+
+async fn create_session(state: &web::Data<AppState>, uid: uuid::Uuid) -> actix_web::Result<String> {
+    let session_id = uuid::Uuid::new_v4();
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::sessions::dsl::*;
+
+        let session = Session {
+            id: session_id,
+            user_id: uid
+        };
+        match diesel::insert_into(sessions).values(&session).execute(&mut conn) {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError)
+        }
+    }).await?;
+
+    let now = Utc::now();
+    let iat = now.timestamp() as usize;
+    let exp = (now + Duration::days(MAX_REFRESH_TOKEN_AGE)).timestamp() as usize;
+    let claims = TokenClaims {
+        iat,
+        exp,
+        sub: session_id.to_string(),
+    };
+
+    let token = match jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &claims,
+        &jsonwebtoken::EncodingKey::from_secret(state.jwt_secret.as_ref()),
+    ) {
+        Ok(token) => token,
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
+
+    let cookie = Cookie::build("refresh_token", token)
+        .path("/")
+        .max_age(actix_web::cookie::time::Duration::days(MAX_REFRESH_TOKEN_AGE))
+        .http_only(false)
+        .same_site(actix_web::cookie::SameSite::None)
+        .secure(true)
+        .finish();
+
+    Ok(format!("{}; Partitioned;", cookie.to_string()))
 }
 
 #[cfg(test)]
@@ -165,7 +214,7 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub async fn login_user(username: &str, login_key: Vec<u8>) -> String {
+    pub async fn login_user(username: &str, login_key: Vec<u8>) -> (String, String) {
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
 
@@ -185,17 +234,24 @@ pub(crate) mod tests {
         assert!(resp.status().is_success());
 
         let cookies = resp.response().cookies();
+        let mut ret = (String::new(), String::new());
+        let mut bitmap = 0;
         for cookie in cookies {
             if cookie.name() == "access_token" {
-                return cookie.value().to_string();
+                bitmap |= 1;
+                ret.0 = cookie.value().to_owned();
+            }
+            if cookie.name() == "refresh_token" {
+                bitmap |= 2;
+                ret.1 = cookie.value().to_owned();
             }
         }
-        assert!(false);
+        assert_eq!(bitmap, 3);
 
-        String::new()
+        ret
     }
 
-    pub async fn verify_and_login_user(username: &str, login_key: Vec<u8>) -> String {
+    pub async fn verify_and_login_user(username: &str, login_key: Vec<u8>) -> (String, String) {
         fast_verify(username);
 
         login_user(username, login_key).await
@@ -226,14 +282,16 @@ pub(crate) mod tests {
         assert!(resp.status().is_success());
 
         let cookies = resp.response().cookies();
-        let mut valid = false;
+        let mut bitmap = 0;
         for cookie in cookies {
             if cookie.name() == "access_token" {
-                valid = true;
-                break;
+                bitmap |= 1;
+            }
+            if cookie.name() == "refresh_token" {
+                bitmap |= 2;
             }
         }
-        assert!(valid);
+        assert_eq!(bitmap, 3);
     }
 
     #[actix_web::test]
