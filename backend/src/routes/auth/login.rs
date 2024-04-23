@@ -192,7 +192,7 @@ async fn create_session(state: &web::Data<AppState>, uid: uuid::Uuid) -> actix_w
     let cookie = Cookie::build("refresh_token", token)
         .path("/")
         .max_age(actix_web::cookie::time::Duration::days(MAX_REFRESH_TOKEN_AGE))
-        .http_only(false)
+        .http_only(true)
         .same_site(actix_web::cookie::SameSite::None)
         .secure(true)
         .finish();
