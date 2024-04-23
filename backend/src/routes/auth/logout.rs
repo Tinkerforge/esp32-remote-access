@@ -18,9 +18,10 @@
  */
 
 use actix_web::{
-    cookie::{time::Duration, Cookie},
-    get, HttpResponse, Responder,
+    cookie::{time::Duration, Cookie}, get, HttpRequest, HttpResponse, Responder
 };
+
+use crate::middleware::get_token;
 
 /// Logout user
 #[utoipa::path(
@@ -30,7 +31,11 @@ use actix_web::{
     )
 )]
 #[get("/logout")]
-pub async fn logout() -> impl Responder {
+pub async fn logout(req: HttpRequest) -> impl Responder {
+    if let Some(token) = get_token(&req, "request_token") {
+        
+    }
+
     let cookie = Cookie::build("access_token", "")
         .path("/")
         .max_age(Duration::new(-1, 0))

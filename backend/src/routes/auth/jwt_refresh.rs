@@ -2,13 +2,13 @@ use std::str::FromStr;
 
 use actix_web::{cookie::Cookie, error::ErrorUnauthorized, get, web, HttpRequest, HttpResponse, Responder};
 use chrono::{Duration, Utc};
-use db_connector::models::{sessions::Session, users::User};
+use db_connector::models::{refresh_tokens::RefreshToken, users::User};
 use diesel::{prelude::*, result::Error::NotFound};
 use jsonwebtoken::{decode, DecodingKey, Validation};
 
-use crate::{error::Error, middleware::get_token, models::token_claims::TokenClaims, routes::auth::login::create_session, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{error::Error, middleware::get_token, models::token_claims::TokenClaims, routes::auth::login::create_refresh_token, utils::{get_connection, web_block_unpacked}, AppState};
 
-pub fn extract_session(token: String, jwt_secret: &str) -> actix_web::Result<(uuid::Uuid, usize)> {
+pub fn extract_token(token: String, jwt_secret: &str) -> actix_web::Result<(uuid::Uuid, usize)> {
     let claims = match decode::<TokenClaims>(
         &token,
         &DecodingKey::from_secret(jwt_secret.as_bytes()),
@@ -40,13 +40,13 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
 
     let state = req.app_data::<web::Data<AppState>>().unwrap();
 
-    let (session_id, exp) = extract_session(token, &state.jwt_secret)?;
+    let (token_id, exp) = extract_token(token, &state.jwt_secret)?;
 
     let mut conn = get_connection(state)?;
-    let session: Session = web_block_unpacked(move || {
-        use db_connector::schema::sessions::dsl::*;
+    let refresh_token: RefreshToken = web_block_unpacked(move || {
+        use db_connector::schema::refresh_tokens::dsl::*;
 
-        match sessions.find(&session_id).get_result(&mut conn) {
+        match refresh_tokens.find(&token_id).get_result(&mut conn) {
             Ok(session) => Ok(session),
             Err(NotFound) => Err(Error::SessionDoesNotExist),
             Err(_err) => {
@@ -55,7 +55,7 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
         }
     }).await?;
 
-    delete_session(session_id, state).await?;
+    delete_token(token_id, state).await?;
     if exp < Utc::now().timestamp() as usize {
         return Err(ErrorUnauthorized("Session expired"))
     }
@@ -64,7 +64,7 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
     let user: User = web_block_unpacked(move || {
         use db_connector::schema::users::dsl::*;
 
-        match users.find(session.user_id).get_result(&mut conn) {
+        match users.find(refresh_token.user_id).get_result(&mut conn) {
             Ok(user) => Ok(user),
             Err(NotFound) => Err(Error::UserDoesNotExist),
             Err(_err) => {
@@ -77,13 +77,13 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
     Ok(user)
 }
 
-pub async fn delete_session(session_id: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+pub async fn delete_token(token_id: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
     let mut conn = get_connection(state)?;
 
     web_block_unpacked(move || {
-        use db_connector::schema::sessions::dsl::*;
+        use db_connector::schema::refresh_tokens::dsl::*;
 
-        match diesel::delete(sessions.find(session_id))
+        match diesel::delete(refresh_tokens.find(token_id))
             .execute(&mut conn) {
                 Ok(_) => Ok(()),
                 Err(_err) => {
@@ -126,7 +126,7 @@ pub async fn jwt_refresh(req: HttpRequest, state: web::Data<AppState>) -> actix_
 
     let cookie_string = format!("{}; Partitioned;", cookie.to_string());
 
-    let refresh_cookie = create_session(&state, user.id).await?;
+    let refresh_cookie = create_refresh_token(&state, user.id).await?;
 
     Ok(HttpResponse::Ok().append_header(("Set-Cookie", cookie_string)).append_header(("Set-Cookie", refresh_cookie)).body(""))
 }

@@ -21,7 +21,7 @@ use actix_web::{cookie::Cookie, post, web, HttpResponse, Responder};
 use actix_web_validator::Json;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use chrono::{Duration, Utc};
-use db_connector::models::{sessions::Session, users::User};
+use db_connector::models::{refresh_tokens::RefreshToken, users::User};
 use diesel::{
     prelude::*,
     r2d2::{ConnectionManager, PooledConnection},
@@ -150,26 +150,14 @@ pub async fn login(
         .finish();
 
     let cookie_string = format!("{}; Partitioned;", cookie.to_string());
-    let refresh_cookie = create_session(&state, uuid).await?;
+    let refresh_cookie = create_refresh_token(&state, uuid).await?;
 
     Ok(HttpResponse::Ok().append_header(("Set-Cookie", cookie_string)).append_header(("Set-Cookie", refresh_cookie)).body(""))
 }
 
-pub async fn create_session(state: &web::Data<AppState>, uid: uuid::Uuid) -> actix_web::Result<String> {
+pub async fn create_refresh_token(state: &web::Data<AppState>, uid: uuid::Uuid) -> actix_web::Result<String> {
     let session_id = uuid::Uuid::new_v4();
     let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        use db_connector::schema::sessions::dsl::*;
-
-        let session = Session {
-            id: session_id,
-            user_id: uid
-        };
-        match diesel::insert_into(sessions).values(&session).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError)
-        }
-    }).await?;
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
@@ -179,6 +167,20 @@ pub async fn create_session(state: &web::Data<AppState>, uid: uuid::Uuid) -> act
         exp,
         sub: session_id.to_string(),
     };
+    web_block_unpacked(move || {
+        use db_connector::schema::refresh_tokens::dsl::*;
+
+        let token = RefreshToken {
+            id: session_id,
+            user_id: uid,
+            expiration: exp as i64,
+        };
+        match diesel::insert_into(refresh_tokens).values(&token).execute(&mut conn) {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError)
+        }
+    }).await?;
+
 
     let token = match jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),

@@ -243,7 +243,7 @@ pub(crate) mod tests {
     pub fn delete_user(mail: &str) {
         use db_connector::schema::users::dsl::*;
         use db_connector::schema::verification::dsl::*;
-        use db_connector::schema::sessions::dsl::*;
+        use db_connector::schema::refresh_tokens::dsl::*;
         use diesel::prelude::*;
 
         let pool = db_connector::test_connection_pool();
@@ -259,7 +259,7 @@ pub(crate) mod tests {
             return;
         };
 
-        diesel::delete(sessions.filter(user_id.eq(u.id))).execute(&mut conn).expect("Error deleting sessions");
+        diesel::delete(refresh_tokens.filter(user_id.eq(u.id))).execute(&mut conn).expect("Error deleting sessions");
         diesel::delete(verification.filter(user.eq(u.id)))
             .execute(&mut conn)
             .expect("Error deleting verification");

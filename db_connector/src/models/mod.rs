@@ -3,4 +3,4 @@ pub mod chargers;
 pub mod users;
 pub mod verification;
 pub mod wg_keys;
-pub mod sessions;
+pub mod refresh_tokens;
