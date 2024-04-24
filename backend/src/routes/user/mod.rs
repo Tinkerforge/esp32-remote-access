@@ -21,6 +21,7 @@ pub mod me;
 pub mod update_password;
 pub mod update_user;
 pub mod get_secret;
+pub mod logout;
 
 use crate::{
     error::Error,
@@ -41,6 +42,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .service(update_user::update_user)
         .service(update_password::update_password)
         .service(get_secret::get_secret)
+        .service(logout::logout)
         .service(me::me);
     cfg.service(scope);
 }
@@ -207,6 +209,10 @@ pub mod tests {
             self.refresh_token = Some(refresh_token);
 
             self.access_token.as_ref().unwrap()
+        }
+
+        pub async fn additional_login(&mut self) {
+            login_user(&self.username, self.login_key.clone()).await;
         }
 
         pub async fn add_charger(&mut self, id: i32) {

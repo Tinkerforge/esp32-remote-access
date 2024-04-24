@@ -82,7 +82,7 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         if let Err(err) = validate_token(req.request()) {
-            return Box::pin(async move { Err(err) });
+            return Box::pin(ready(Err(err)));
         }
 
         let fut = self.service.call(req);
@@ -269,7 +269,7 @@ mod tests {
         let (mut user, username) = TestUser::random().await;
         user.login().await;
 
-        let app = App::new().configure(configure).service(with_extractor);
+        let app = App::new().configure(configure).service(without_extractor).wrap(JwtMiddleware);
         let app = test::init_service(app).await;
 
         let now = Utc::now();
@@ -294,12 +294,7 @@ mod tests {
             .cookie(Cookie::new("access_token", token))
             .to_request();
 
-        let resp = match test::try_call_service(&app, req).await {
-            Ok(r) => r,
-            Err(_err) => {
-                panic!("Err: {:?}", _err);
-            }
-        };
+        let resp = crate::tests::call_service(&app, req).await;
 
         println!("{}", resp.status());
         println!("{:?}", resp.response().body());

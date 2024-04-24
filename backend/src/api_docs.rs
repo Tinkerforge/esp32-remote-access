@@ -62,7 +62,6 @@ async fn main() {
     #[openapi(
         paths(
             routes::auth::login::login,
-            routes::auth::logout::logout,
             routes::auth::register::register,
             routes::auth::verify::verify,
             routes::auth::generate_salt::generate_salt,
@@ -73,6 +72,7 @@ async fn main() {
             routes::charger::get_chargers::get_chargers,
             routes::charger::get_key::get_key,
             routes::user::me::me,
+            routes::user::logout::logout,
             routes::user::update_password::update_password,
             routes::user::update_user::update_user,
             routes::user::get_secret::get_secret,

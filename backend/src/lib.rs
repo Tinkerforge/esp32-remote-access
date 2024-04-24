@@ -61,7 +61,7 @@ pub struct AppState {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use actix_web::web::{self, ServiceConfig};
+    use actix_web::{body::BoxBody, dev::{Service, ServiceResponse}, test, web::{self, ServiceConfig}};
     use lettre::transport::smtp::authentication::Credentials;
 
     pub struct ScopeCall<F: FnMut()> {
@@ -82,6 +82,18 @@ pub(crate) mod tests {
                 },
             };
         };
+    }
+
+    pub async fn call_service<S, R, E>(app: &S, req: R) -> S::Response
+    where
+        S: Service<R, Response = ServiceResponse<BoxBody>, Error = E>,
+        E: std::fmt::Debug + Into<actix_web::Error> {
+        match test::try_call_service(app, req).await {
+            Ok(r) => r,
+            Err(_err) => {
+                ServiceResponse::from_err(_err, test::TestRequest::default().to_http_request())
+            }
+        }
     }
 
     pub fn configure(cfg: &mut ServiceConfig) {
