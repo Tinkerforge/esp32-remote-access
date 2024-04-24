@@ -45,6 +45,22 @@ impl Modify for JwtToken {
         )
     }
 }
+struct RefreshToken;
+
+impl Modify for RefreshToken {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.as_mut().unwrap();
+        components.add_security_scheme(
+            "refresh",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        )
+    }
+}
 
 /**
  * Start a server that hosts the api documentation.
@@ -58,6 +74,7 @@ async fn main() {
         ColorChoice::Auto,
     )])
     .unwrap();
+
     #[derive(OpenApi)]
     #[openapi(
         paths(
@@ -65,6 +82,7 @@ async fn main() {
             routes::auth::register::register,
             routes::auth::verify::verify,
             routes::auth::generate_salt::generate_salt,
+            routes::auth:: jwt_refresh::jwt_refresh,
             routes::auth::get_login_salt::get_login_salt,
             routes::charger::add::add,
             routes::charger::allow_user::allow_user,
@@ -95,7 +113,7 @@ async fn main() {
             routes::management::ManagementResponseSchema,
             models::filtered_user::FilteredUser,
         )),
-        modifiers(&JwtToken)
+        modifiers(&JwtToken, &RefreshToken)
     )]
     struct ApiDoc;
 

@@ -94,6 +94,17 @@ pub async fn delete_refresh_token(token_id: uuid::Uuid, state: &web::Data<AppSta
     Ok(())
 }
 
+/// Refresh the jwt-token. A valid refresh-token is needed.
+#[utoipa::path(
+    context_path = "/auth",
+    responses(
+        (status = 200),
+        (status = 401, description = "The refresh token was invalid", body = String)
+    ),
+    security(
+        ("refresh" = [])
+    )
+)]
 #[get("jwt_refresh")]
 pub async fn jwt_refresh(req: HttpRequest, state: web::Data<AppState>) -> actix_web::Result<impl Responder> {
     let user = validate_token(&req).await?;
