@@ -17,8 +17,7 @@ sequenceDiagram
     Note over Frontend: Also generates a second salt,<br>concatinates both salts and<br> derives a key from it and the password.
     Note left of Frontend: Holds: <br> - unencrypted secret <br> - encrypted secret <br> - secret-key <br> - login-key
     Frontend->>Backend: Send registration schema containing the encrypted secret,<br> login-key and both concatinated salts
-    Note over Backend: Encrypts the username, email and salts and <br> hashes the login-key.
-    Note right of Backend: Saves <br> - encrypted username <br> - encrypted email <br> - encrypted login-salt <br> - encrypted secret-salt <br> - hashed login-key
+    Note right of Backend: Saves <br> - username <br> - email <br> - login-salt <br> - secret-salt <br> - hashed login-key
     Backend->>Frontend: 201 Created
     Note over Frontend: Prompts user to save the unencrypted secret<br>as recovery fallback
 ```
@@ -32,12 +31,42 @@ When ending no additional data is stored on the backend and the frontend stores 
 ```mermaid
 sequenceDiagram
     Frontend->>Backend: Request salt for login-key
-    Note over Backend: Encrypts username from request,<br>searches for encrypted username in database and<br>decrypts key-salt.
     Backend->>Frontend: Send decrypted login-key-salt
     Note over Frontend: Derives login-key with salt.
     Frontend->>Backend: Send login with login-key
     Note over Backend: Verify login.
-    Backend->>Frontend: Respond with JWT cookie
+    Backend->>Frontend: Respond with JWT and refresh cookie
+    Note right of Backend: saves: <br> - refresh token
+```
+
+### Refresh Jwt Token
+```mermaid
+sequenceDiagram
+    Note over Frontend, Backend: Login
+    Frontend->>Backend: Sends refresh-token
+    Note over Backend: validate refresh-token
+    alt token is valid
+        Note right of Backend: deletes: <br> - old refresh-token <br> saves: <br> new refresh-token
+        Backend->>Frontend: Sends new Jwt and refresh-token
+    end
+    alt token is expired
+        Note right of Backend: deletes: <br> - refresh-token
+        Backend->> Frontend: Sends Error <br> (Could also send empty jwt and refresh-token)
+    end
+```
+### Logout
+
+```mermaid
+sequenceDiagram
+    Note over Frontend, Backend: Login
+    Frontend->>Backend: Send logout-request
+    alt logout current device
+        Note right of Backend: deletes: <br> - refresh token
+    end
+    alt logout all devices
+        Note right of Backend: deletes: <br> - all refresh tokens for that user
+    end
+    Backend->>Frontend: Send empty Jwt and refresh-token
 ```
 
 ### Add charger
@@ -52,9 +81,7 @@ sequenceDiagram
     participant Charger
     participant Backend
 
-    Charger Frontend->>Backend: Request login-key-salt
-    Backend->>Charger Frontend: Respond with login-key-salt
-    Note over Charger Frontend: Derive login-key with user password and salt.
+    Note over Charger Frontend, Backend: Login
     Note left of Charger Frontend: Holds: <br> - login-key
     Charger Frontend->>Backend: Request encrypted secret
     Backend->>Charger Frontend: Respond with encrypted secret and salt for it
@@ -154,5 +181,5 @@ sequenceDiagram
         Note over Frontend: Verifies recovery file and encrypt secret <br> contained in it.
         Frontend->>Backend: Send login-key, secret-key-salt, <br> encrypted secret
     end
-    Note over Backend: Saves: <br> - login-key <br> - secret-key-salt <br> - encrypted secret
+    Note right of Backend: Saves: <br> - login-key <br> - secret-key-salt <br> - encrypted secret
 ```
