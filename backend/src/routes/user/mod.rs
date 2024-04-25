@@ -215,16 +215,18 @@ pub mod tests {
             login_user(&self.username, self.login_key.clone()).await;
         }
 
-        pub async fn add_charger(&mut self, id: i32) {
-            add_test_charger(id, self.access_token.as_ref().unwrap()).await;
+        pub async fn add_charger(&mut self, id: i32) -> String {
+            let pass = add_test_charger(id, self.access_token.as_ref().unwrap()).await;
             self.charger.push(id);
+
+            pass
         }
 
-        pub async fn add_random_charger(&mut self) -> i32 {
+        pub async fn add_random_charger(&mut self) -> (i32, String) {
             let charger = OsRng.next_u32() as i32;
-            self.add_charger(charger).await;
+            let pass = self.add_charger(charger).await;
 
-            charger
+            (charger, pass)
         }
 
         pub async fn allow_user(&mut self, username: &str, charger_id: i32) {

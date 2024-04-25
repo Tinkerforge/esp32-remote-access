@@ -2,6 +2,7 @@
 
 CREATE TABLE "chargers" (
   "id" INT PRIMARY KEY,
+  "password" VARCHAR NOT NULL,
   "last_ip" INET,
   "name" VARCHAR NOT NULL,
   "management_private" VARCHAR NOT NULL,

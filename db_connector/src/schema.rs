@@ -12,6 +12,7 @@ diesel::table! {
 diesel::table! {
     chargers (id) {
         id -> Int4,
+        password -> Varchar,
         last_ip -> Nullable<Inet>,
         name -> Varchar,
         management_private -> Varchar,

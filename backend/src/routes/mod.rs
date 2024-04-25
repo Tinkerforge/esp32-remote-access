@@ -33,8 +33,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
     let scope = scope("")
         .wrap(JwtMiddleware)
-        .service(management::management)
         .service(ws_udp_bridge::start_ws);
-
     cfg.service(scope);
+    cfg.service(management::management);
 }

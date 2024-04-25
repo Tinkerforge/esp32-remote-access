@@ -6,6 +6,7 @@ use ipnetwork::IpNetwork;
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Charger {
     pub id: i32,
+    pub password: String,
     pub name: String,
     pub last_ip: Option<IpNetwork>,
     pub management_private: String,
