@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use actix_web::{error::ErrorUnauthorized, put, web, HttpResponse, Responder};
+use actix_web::{put, web, HttpResponse, Responder};
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
@@ -53,7 +53,6 @@ pub struct Keys {
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct ChargerSchema {
     id: String,
-    password: Option<String>,
     name: String,
     charger_pub: String,
     #[schema(value_type = SchemaType::String)]
@@ -147,17 +146,7 @@ pub async fn add(
 
     let (pub_key, password) = if charger_exists(charger_id, &state).await? {
         if charger_belongs_to_user(&state, uid.clone().into(), charger_id).await? {
-            let charger = get_charger_from_db(charger_id, &state).await?;
-
-            let password = match &charger_schema.charger.password {
-                Some(p) => p.clone(),
-                None => return Err(ErrorUnauthorized("Password is missing")),
-            };
-
-            if !password_matches(password.clone(), charger.password)? {
-                return Err(ErrorUnauthorized(""));
-            }
-            update_charger(charger_schema.charger.clone(), charger_id, password, &state).await?
+            update_charger(charger_schema.charger.clone(), charger_id, &state).await?
         } else {
             return Err(Error::UserIsNotOwner.into());
         }
@@ -240,7 +229,6 @@ pub fn password_matches(password: String, password_in_db: String) -> actix_web::
 async fn update_charger(
     charger: ChargerSchema,
     charger_id: i32,
-    password: String,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<(String, String)> {
     use db_connector::schema::wg_keys::dsl as wg_keys;
@@ -258,12 +246,7 @@ async fn update_charger(
     })
     .await?;
 
-    let password_cpy = password.clone();
-    let hash = web_block_unpacked(move || match hash_key(password_cpy.as_bytes()) {
-        Ok(p) => Ok(p),
-        Err(_err) => Err(Error::InternalError),
-    })
-    .await?;
+    let (password, hash) = generate_password().await?;
 
     let mut conn = get_connection(state)?;
     let pub_key = web_block_unpacked(move || {
@@ -476,7 +459,6 @@ pub(crate) mod tests {
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 id,
-                password: None,
                 name: uuid::Uuid::new_v4().to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
@@ -519,7 +501,6 @@ pub(crate) mod tests {
                 id: bs58::encode(cid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                password: None,
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
@@ -553,7 +534,7 @@ pub(crate) mod tests {
 
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_owned();
-        let (charger_id, pass) = user.add_random_charger().await;
+        let (charger_id, _) = user.add_random_charger().await;
 
         let app = App::new()
             .configure(configure)
@@ -567,7 +548,6 @@ pub(crate) mod tests {
                 id: bs58::encode(charger_id.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                password: Some(pass),
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
@@ -600,6 +580,52 @@ pub(crate) mod tests {
         assert_eq!(keys.len(), 5);
     }
 
+
+    #[actix_web::test]
+    async fn test_update_unowned_charger() {
+        let (mut user, username) = TestUser::random().await;
+        let token = user.login().await.to_owned();
+        let (mut user2, _) = TestUser::random().await;
+        user2.login().await;
+        let (charger_id, _) = user2.add_random_charger().await;
+        user2.allow_user(&username, charger_id).await;
+
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(add);
+        let app = init_service(app).await;
+
+        let keys = generate_random_keys();
+        let charger = AddChargerSchema {
+            charger: ChargerSchema {
+                id: bs58::encode(charger_id.to_be_bytes())
+                    .with_alphabet(bs58::Alphabet::FLICKR)
+                    .into_string(),
+                name: "Test".to_string(),
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+            },
+            keys,
+        };
+
+        let req = test::TestRequest::put()
+            .uri("/add")
+            .cookie(Cookie::new("access_token", token))
+            .set_json(charger)
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        println!("{:?}", resp);
+        println!("{:?}", resp.response().body());
+        assert_eq!(resp.status(), 401);
+    }
+
     #[actix_web::test]
     async fn test_add_existing_charger() {
         let (mut user, _) = TestUser::random().await;
@@ -620,7 +646,6 @@ pub(crate) mod tests {
                 id: bs58::encode(charger.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                password: None,
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
@@ -675,7 +700,6 @@ pub(crate) mod tests {
                 id: bs58::encode((OsRng.next_u32() as i32).to_le_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                password: None,
                 name: "Test".to_string(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
