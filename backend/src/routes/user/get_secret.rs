@@ -16,6 +16,8 @@ pub struct GetSecretResponse {
     secret: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
     secret_salt: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
+    secret_iv: Vec<u8>,
 }
 
 #[utoipa::path(
@@ -32,7 +34,7 @@ pub async fn get_secret(
     use db_connector::schema::users::dsl as users;
 
     let mut conn = get_connection(&state)?;
-    let (secret, secret_salt) = web_block_unpacked(move || {
+    let response: GetSecretResponse = web_block_unpacked(move || {
         let uid: uuid::Uuid = uid.into();
         let user: User = match users::users
             .find(uid)
@@ -43,14 +45,13 @@ pub async fn get_secret(
             Err(NotFound) => return Err(Error::UserDoesNotExist),
             Err(_err) => return Err(Error::InternalError),
         };
-        Ok((user.secret, user.secret_salt))
+        Ok(GetSecretResponse {
+            secret: user.secret,
+            secret_iv: user.secret_iv,
+            secret_salt: user.secret_salt,
+        })
     })
     .await?;
-
-    let response = GetSecretResponse {
-        secret,
-        secret_salt,
-    };
 
     Ok(HttpResponse::Ok().json(response))
 }
