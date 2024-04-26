@@ -20,12 +20,14 @@
 use std::{
     collections::HashMap,
     net::UdpSocket,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, time::Duration
 };
 
+use backend::utils::get_connection;
 pub use backend::*;
 
 use actix_web::{middleware::Logger, web, App, HttpServer};
+use chrono::Utc;
 use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
@@ -39,6 +41,22 @@ fn reset_wg_keys(pool: &Pool) {
         .set(in_use.eq(false))
         .execute(&mut conn)
         .unwrap();
+}
+
+fn cleanup_thread(state: web::Data<AppState>) {
+    loop {
+        use db_connector::schema::refresh_tokens::dsl::*;
+
+        let mut conn = match get_connection(&state) {
+            Ok(c) => c,
+            Err(_err) => {
+                continue;
+            }
+        };
+
+        diesel::delete(refresh_tokens.filter(expiration.lt(Utc::now().timestamp()))).execute(&mut conn).ok();
+        std::thread::sleep(Duration::from_secs(60));
+    }
 }
 
 #[actix_web::main]
@@ -89,6 +107,9 @@ async fn main() -> std::io::Result<()> {
         charger_remote_conn_map: Mutex::new(HashMap::new()),
         socket: UdpSocket::bind("0.0.0.0:51820").unwrap(),
     });
+
+    let state_cpy = state.clone();
+    std::thread::spawn(move || cleanup_thread(state_cpy));
 
     udp_server::start_server(bridge_state.clone()).unwrap();
 
