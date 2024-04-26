@@ -97,18 +97,22 @@ mod tests {
 
     use crate::{
         defer,
-        routes::{auth::{
-            login::tests::{login_user, verify_and_login_user},
-            register::tests::{create_user, delete_user},
-        }, user::tests::TestUser},
-        tests::configure, utils::generate_random_bytes,
+        routes::{
+            auth::{
+                login::tests::{login_user, verify_and_login_user},
+                register::tests::{create_user, delete_user},
+            },
+            user::tests::TestUser,
+        },
+        tests::configure,
+        utils::generate_random_bytes,
     };
 
     #[actix_web::test]
     async fn test_valid_password_update() {
         let mail = "valid_password_update@test.invalid";
         let username = "valid_password_update_user";
-        let key = create_user(mail,username).await;
+        let key = create_user(mail, username).await;
         defer!(delete_user(mail));
         let (token, _) = verify_and_login_user(username, key.clone()).await;
 

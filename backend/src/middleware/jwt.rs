@@ -93,9 +93,7 @@ where
 fn validate_token(req: &HttpRequest) -> Result<(), Error> {
     let token = match get_token(req, "access_token") {
         Some(token) => token,
-        None => {
-            return Err(ErrorUnauthorized("Jwt-Token is missing"))
-        }
+        None => return Err(ErrorUnauthorized("Jwt-Token is missing")),
     };
 
     let data = req.app_data::<web::Data<AppState>>().unwrap();
@@ -112,7 +110,7 @@ fn validate_token(req: &HttpRequest) -> Result<(), Error> {
 
     let now = Utc::now();
     if now.timestamp() as usize > claims.exp {
-        return Err(ErrorUnauthorized("Jwt token expired"))
+        return Err(ErrorUnauthorized("Jwt token expired"));
     }
 
     let user_id = match uuid::Uuid::parse_str(claims.sub.as_str()) {
@@ -128,10 +126,7 @@ fn validate_token(req: &HttpRequest) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        routes::user::tests::TestUser,
-        tests::configure,
-    };
+    use crate::{routes::user::tests::TestUser, tests::configure};
     use actix_web::{cookie::Cookie, get, test, App, Responder};
     use chrono::{Duration, Utc};
     use rand::{distributions::Alphanumeric, Rng};
@@ -269,7 +264,10 @@ mod tests {
         let (mut user, username) = TestUser::random().await;
         user.login().await;
 
-        let app = App::new().configure(configure).service(without_extractor).wrap(JwtMiddleware);
+        let app = App::new()
+            .configure(configure)
+            .service(without_extractor)
+            .wrap(JwtMiddleware);
         let app = test::init_service(app).await;
 
         let now = Utc::now();
@@ -284,10 +282,13 @@ mod tests {
         let token = jsonwebtoken::encode(
             &jsonwebtoken::Header::default(),
             &claims,
-            &jsonwebtoken::EncodingKey::from_secret(std::env::var("JWT_SECRET").expect("JWT_SECRET must be set").as_bytes()),
+            &jsonwebtoken::EncodingKey::from_secret(
+                std::env::var("JWT_SECRET")
+                    .expect("JWT_SECRET must be set")
+                    .as_bytes(),
+            ),
         )
         .unwrap();
-
 
         let req = test::TestRequest::get()
             .uri("/hello")

@@ -19,12 +19,12 @@
 
 use actix_web::web::{self, ServiceConfig};
 
+pub mod generate_salt;
+pub mod get_login_salt;
+pub mod jwt_refresh;
 pub mod login;
 pub mod register;
 pub mod verify;
-pub mod get_login_salt;
-pub mod generate_salt;
-pub mod jwt_refresh;
 
 pub fn configure(cfg: &mut ServiceConfig) {
     let scope = web::scope("/auth")

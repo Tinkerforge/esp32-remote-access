@@ -1,10 +1,14 @@
 use actix_web::{get, web, HttpResponse, Responder};
 use db_connector::models::users::User;
-use serde::Deserialize;
 use diesel::{prelude::*, result::Error::NotFound};
+use serde::Deserialize;
 use utoipa::IntoParams;
 
-use crate::{error::Error, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Deserialize, IntoParams)]
 pub struct GetSaltQuery {
@@ -25,22 +29,23 @@ pub struct GetSaltQuery {
 #[get("/get_login_salt")]
 pub async fn get_login_salt(
     state: web::Data<AppState>,
-    query: web::Query<GetSaltQuery>
+    query: web::Query<GetSaltQuery>,
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::users::dsl::*;
 
     let mut conn = get_connection(&state)?;
     let user: User = web_block_unpacked(move || {
-        match users.filter(name.eq(&query.username))
+        match users
+            .filter(name.eq(&query.username))
             .select(User::as_select())
-            .get_result(&mut conn) {
-                Ok(user) => Ok(user),
-                Err(NotFound) => Err(Error::UserDoesNotExist),
-                Err(_err) => {
-                    Err(Error::InternalError)
-                }
-            }
-    }).await?;
+            .get_result(&mut conn)
+        {
+            Ok(user) => Ok(user),
+            Err(NotFound) => Err(Error::UserDoesNotExist),
+            Err(_err) => Err(Error::InternalError),
+        }
+    })
+    .await?;
 
     Ok(HttpResponse::Ok().json(user.login_salt))
 }
@@ -65,7 +70,9 @@ mod tests {
         let app = App::new().configure(configure).service(get_login_salt);
         let app = test::init_service(app).await;
 
-        let req = test::TestRequest::get().uri(&format!("/get_login_salt?username={}", username)).to_request();
+        let req = test::TestRequest::get()
+            .uri(&format!("/get_login_salt?username={}", username))
+            .to_request();
         let resp = test::call_service(&app, req).await;
         println!("{}", resp.status());
         println!("{:?}", resp.response().body());
@@ -74,7 +81,11 @@ mod tests {
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
 
-        let user: User = users.filter(name.eq(username)).select(User::as_select()).get_result(&mut conn).unwrap();
+        let user: User = users
+            .filter(name.eq(username))
+            .select(User::as_select())
+            .get_result(&mut conn)
+            .unwrap();
         let resp: Vec<u8> = test::read_body_json(resp).await;
         assert_eq!(user.login_salt, resp);
     }

@@ -41,7 +41,7 @@ use self::{management::ManagementResponse, socket::ManagementSocket};
 fn start_rate_limiters_reset_thread(
     charger_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
     charger_map_id: Arc<Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>>,
-    discovery_map: Arc<Mutex<HashMap<ManagementResponse, Instant>>>
+    discovery_map: Arc<Mutex<HashMap<ManagementResponse, Instant>>>,
 ) {
     std::thread::spawn(move || loop {
         {

@@ -20,7 +20,8 @@
 use std::{
     collections::HashMap,
     net::UdpSocket,
-    sync::{Arc, Mutex}, time::Duration
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use backend::utils::get_connection;
@@ -54,7 +55,9 @@ fn cleanup_thread(state: web::Data<AppState>) {
             }
         };
 
-        diesel::delete(refresh_tokens.filter(expiration.lt(Utc::now().timestamp()))).execute(&mut conn).ok();
+        diesel::delete(refresh_tokens.filter(expiration.lt(Utc::now().timestamp())))
+            .execute(&mut conn)
+            .ok();
         std::thread::sleep(Duration::from_secs(60));
     }
 }

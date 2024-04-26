@@ -18,18 +18,28 @@
  */
 
 use actix_web::{
-    cookie::{time::Duration, Cookie}, get, web, HttpRequest, HttpResponse, Responder
+    cookie::{time::Duration, Cookie},
+    get, web, HttpRequest, HttpResponse, Responder,
 };
 use db_connector::models::refresh_tokens::RefreshToken;
 use diesel::{prelude::*, result::Error::NotFound};
 use serde::Deserialize;
 use utoipa::IntoParams;
 
-use crate::{error::Error, middleware::get_token, routes::{auth::jwt_refresh::{delete_refresh_token, extract_token}, user::get_user}, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    middleware::get_token,
+    routes::{
+        auth::jwt_refresh::{delete_refresh_token, extract_token},
+        user::get_user,
+    },
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Deserialize, IntoParams)]
 pub struct LogoutQuery {
-    logout_all: bool
+    logout_all: bool,
 }
 
 /// Logout user
@@ -46,7 +56,12 @@ pub struct LogoutQuery {
     )
 )]
 #[get("/logout")]
-pub async fn logout(req: HttpRequest, query: web::Query<LogoutQuery>, state: web::Data<AppState>, user_id: crate::models::uuid::Uuid) -> actix_web::Result<impl Responder> {
+pub async fn logout(
+    req: HttpRequest,
+    query: web::Query<LogoutQuery>,
+    state: web::Data<AppState>,
+    user_id: crate::models::uuid::Uuid,
+) -> actix_web::Result<impl Responder> {
     if query.logout_all {
         delete_all_refresh_tokens(user_id.into(), &state).await?;
     } else if let Some(token) = get_token(&req, "refresh_token") {
@@ -65,10 +80,16 @@ pub async fn logout(req: HttpRequest, query: web::Query<LogoutQuery>, state: web
         .http_only(true)
         .finish();
 
-    Ok(HttpResponse::Ok().cookie(access_token).cookie(refresh_token).body(""))
+    Ok(HttpResponse::Ok()
+        .cookie(access_token)
+        .cookie(refresh_token)
+        .body(""))
 }
 
-async fn delete_all_refresh_tokens(uid: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+async fn delete_all_refresh_tokens(
+    uid: uuid::Uuid,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<()> {
     let user = get_user(state, uid).await?;
 
     let mut conn = get_connection(state)?;
@@ -76,22 +97,29 @@ async fn delete_all_refresh_tokens(uid: uuid::Uuid, state: &web::Data<AppState>)
         match diesel::delete(RefreshToken::belonging_to(&user)).execute(&mut conn) {
             Ok(_) => Ok(()),
             Err(NotFound) => Ok(()),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{cookie::Cookie, test::{self, TestRequest}, App};
+    use actix_web::{
+        cookie::Cookie,
+        test::{self, TestRequest},
+        App,
+    };
     use db_connector::{models::refresh_tokens::RefreshToken, test_connection_pool};
     use diesel::prelude::*;
 
-    use crate::{middleware::jwt::JwtMiddleware, routes::user::{me::tests::get_test_user, tests::TestUser}, tests::configure};
+    use crate::{
+        middleware::jwt::JwtMiddleware,
+        routes::user::{me::tests::get_test_user, tests::TestUser},
+        tests::configure,
+    };
 
     use super::logout;
 
@@ -100,7 +128,11 @@ mod tests {
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         let user = get_test_user(username);
-        let tokens: Vec<RefreshToken> = refresh_tokens.filter(user_id.eq(user.id)).select(RefreshToken::as_select()).load(&mut conn).expect("Failed to load refresh tokens");
+        let tokens: Vec<RefreshToken> = refresh_tokens
+            .filter(user_id.eq(user.id))
+            .select(RefreshToken::as_select())
+            .load(&mut conn)
+            .expect("Failed to load refresh tokens");
 
         tokens
     }
@@ -111,7 +143,10 @@ mod tests {
         let token = user.login().await.to_owned();
         let refresh_token = user.get_refresh_token();
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(logout);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(logout);
         let app = test::init_service(app).await;
 
         let req = TestRequest::get()
@@ -130,7 +165,10 @@ mod tests {
         let refresh_token = user.get_refresh_token().to_owned();
         user.additional_login().await;
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(logout);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(logout);
         let app = test::init_service(app).await;
 
         let req = TestRequest::get()
@@ -149,7 +187,10 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(logout);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(logout);
         let app = test::init_service(app).await;
 
         let req = TestRequest::get()

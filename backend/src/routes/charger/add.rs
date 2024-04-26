@@ -30,7 +30,10 @@ use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
 
 use crate::{
-    error::Error, routes::{auth::register::hash_key, charger::charger_belongs_to_user}, utils::{get_connection, web_block_unpacked}, AppState
+    error::Error,
+    routes::{auth::register::hash_key, charger::charger_belongs_to_user},
+    utils::{get_connection, web_block_unpacked},
+    AppState,
 };
 
 #[derive(Serialize, Deserialize, Clone, Validate, ToSchema)]
@@ -148,13 +151,11 @@ pub async fn add(
 
             let password = match &charger_schema.charger.password {
                 Some(p) => p.clone(),
-                None => {
-                    return Err(ErrorUnauthorized("Password is missing"))
-                }
+                None => return Err(ErrorUnauthorized("Password is missing")),
             };
 
             if !password_matches(password.clone(), charger.password)? {
-                return Err(ErrorUnauthorized(""))
+                return Err(ErrorUnauthorized(""));
             }
             update_charger(charger_schema.charger.clone(), charger_id, password, &state).await?
         } else {
@@ -166,7 +167,8 @@ pub async fn add(
             charger_id,
             uid.clone().into(),
             &state,
-        ).await?
+        )
+        .await?
     };
 
     for keys in charger_schema.keys.iter() {
@@ -175,7 +177,7 @@ pub async fn add(
 
     let resp = AddChargerResponseSchema {
         management_pub: pub_key,
-        charger_password: password
+        charger_password: password,
     };
 
     Ok(HttpResponse::Ok().json(resp))
@@ -186,33 +188,41 @@ async fn charger_exists(charger_id: i32, state: &web::Data<AppState>) -> actix_w
 
     let mut conn = get_connection(state)?;
     let exists = web_block_unpacked(move || {
-        match chargers::chargers.find(charger_id)
+        match chargers::chargers
+            .find(charger_id)
             .select(Charger::as_select())
-            .get_result(&mut conn) {
-                Ok(_) => Ok(true),
-                Err(NotFound) => Ok(false),
-                Err(_err) => {
-                    Err(Error::InternalError)
-                }
-            }
-    }).await?;
-
+            .get_result(&mut conn)
+        {
+            Ok(_) => Ok(true),
+            Err(NotFound) => Ok(false),
+            Err(_err) => Err(Error::InternalError),
+        }
+    })
+    .await?;
 
     Ok(exists)
 }
 
-pub async fn get_charger_from_db(charger_id: i32, state: &web::Data<AppState>) -> actix_web::Result<Charger> {
+pub async fn get_charger_from_db(
+    charger_id: i32,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<Charger> {
     let mut conn = get_connection(state)?;
     let charger: Charger = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
 
-        match chargers.filter(id.eq(charger_id)).select(Charger::as_select()).get_result(&mut conn) {
+        match chargers
+            .filter(id.eq(charger_id))
+            .select(Charger::as_select())
+            .get_result(&mut conn)
+        {
             Ok(c) => Ok(c),
             Err(_err) => {
                 return Err(Error::InternalError);
             }
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(charger)
 }
@@ -220,39 +230,40 @@ pub async fn get_charger_from_db(charger_id: i32, state: &web::Data<AppState>) -
 pub fn password_matches(password: String, password_in_db: String) -> actix_web::Result<bool> {
     let password_hash = match PasswordHash::new(&password_in_db) {
         Ok(p) => p,
-        Err(_err) => {
-            return Err(Error::InternalError.into())
-        }
+        Err(_err) => return Err(Error::InternalError.into()),
     };
     let result = Argon2::default().verify_password(&password.as_bytes(), &password_hash);
 
     Ok(result.is_ok())
 }
 
-async fn update_charger(charger: ChargerSchema, charger_id: i32, password: String, state: &web::Data<AppState>) -> actix_web::Result<(String, String)> {
+async fn update_charger(
+    charger: ChargerSchema,
+    charger_id: i32,
+    password: String,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<(String, String)> {
     use db_connector::schema::wg_keys::dsl as wg_keys;
 
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         if let Err(_err) = diesel::delete(wg_keys::wg_keys)
             .filter(wg_keys::charger_id.eq(charger_id))
-            .execute(&mut conn) {
-                return Err(Error::InternalError)
-            }
+            .execute(&mut conn)
+        {
+            return Err(Error::InternalError);
+        }
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     let password_cpy = password.clone();
-    let hash = web_block_unpacked(move || {
-        match hash_key(password_cpy.as_bytes()) {
-            Ok(p) => Ok(p),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
-        }
-    }).await?;
-
+    let hash = web_block_unpacked(move || match hash_key(password_cpy.as_bytes()) {
+        Ok(p) => Ok(p),
+        Err(_err) => Err(Error::InternalError),
+    })
+    .await?;
 
     let mut conn = get_connection(state)?;
     let pub_key = web_block_unpacked(move || {
@@ -271,15 +282,12 @@ async fn update_charger(charger: ChargerSchema, charger_id: i32, password: Strin
             wg_charger_ip: charger.wg_charger_ip,
             wg_server_ip: charger.wg_server_ip,
         };
-        match diesel::update(&charger)
-            .set(&charger)
-            .execute(&mut conn) {
-                Ok(_) => Ok(pub_key),
-                Err(_err) => {
-                    Err(Error::InternalError)
-                }
-            }
-    }).await?;
+        match diesel::update(&charger).set(&charger).execute(&mut conn) {
+            Ok(_) => Ok(pub_key),
+            Err(_err) => Err(Error::InternalError),
+        }
+    })
+    .await?;
 
     Ok((pub_key, password))
 }
@@ -292,14 +300,11 @@ async fn generate_password() -> actix_web::Result<(String, String)> {
         .collect();
 
     let cpy = password.clone();
-    let hash = web_block_unpacked(move || {
-        match hash_key(cpy.as_bytes()) {
-            Ok(h) => Ok(h),
-            Err(_err) => {
-                return Err(Error::InternalError.into())
-            }
-        }
-    }).await?;
+    let hash = web_block_unpacked(move || match hash_key(cpy.as_bytes()) {
+        Ok(h) => Ok(h),
+        Err(_err) => return Err(Error::InternalError.into()),
+    })
+    .await?;
 
     Ok((password, hash))
 }
@@ -410,7 +415,11 @@ pub(crate) mod tests {
     use std::{mem::MaybeUninit, net::Ipv4Addr};
 
     use super::*;
-    use actix_web::{cookie::Cookie, test::{self, init_service}, App};
+    use actix_web::{
+        cookie::Cookie,
+        test::{self, init_service},
+        App,
+    };
     use boringtun::x25519;
     use db_connector::test_connection_pool;
     use ipnetwork::Ipv4Network;
@@ -422,9 +431,11 @@ pub(crate) mod tests {
         routes::{
             charger::remove::tests::{
                 remove_allowed_test_users, remove_test_charger, remove_test_keys,
-            }, user::tests::TestUser,
+            },
+            user::tests::TestUser,
         },
-        tests::configure, utils::generate_random_bytes,
+        tests::configure,
+        utils::generate_random_bytes,
     };
 
     fn generate_random_keys() -> [Keys; 5] {
@@ -582,7 +593,10 @@ pub(crate) mod tests {
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let keys: Vec<WgKey> = wg_keys::wg_keys.filter(wg_keys::charger_id.eq(charger_id)).load(&mut conn).unwrap();
+        let keys: Vec<WgKey> = wg_keys::wg_keys
+            .filter(wg_keys::charger_id.eq(charger_id))
+            .load(&mut conn)
+            .unwrap();
         assert_eq!(keys.len(), 5);
     }
 
@@ -591,7 +605,7 @@ pub(crate) mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
         let (charger, _) = user.add_random_charger().await;
-        let (mut user2,  _) = TestUser::random().await;
+        let (mut user2, _) = TestUser::random().await;
         let token = user2.login().await.to_owned();
 
         let app = App::new()

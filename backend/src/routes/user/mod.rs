@@ -17,11 +17,11 @@
  * Boston, MA 02111-1307, USA.
  */
 
+pub mod get_secret;
+pub mod logout;
 pub mod me;
 pub mod update_password;
 pub mod update_user;
-pub mod get_secret;
-pub mod logout;
 
 use crate::{
     error::Error,
@@ -32,7 +32,6 @@ use crate::{
 use actix_web::web::{self, ServiceConfig};
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound, ExpressionMethods};
-
 
 use super::auth::login::FindBy;
 
@@ -69,7 +68,7 @@ pub async fn get_uuid(
                     Err(NotFound) => return Err(Error::UserDoesNotExist),
                     Err(_err) => return Err(Error::InternalError),
                 }
-            },
+            }
             FindBy::Username(username) => {
                 match users
                     .filter(name.eq(username))
@@ -80,7 +79,7 @@ pub async fn get_uuid(
                     Err(NotFound) => return Err(Error::UserDoesNotExist),
                     Err(_err) => return Err(Error::InternalError),
                 }
-            },
+            }
             FindBy::Uuid(uuid) => {
                 match users
                     .find(uuid)
@@ -127,7 +126,7 @@ pub async fn get_user(
 
 #[cfg(test)]
 pub mod tests {
-    use db_connector::{models:: users::User, test_connection_pool};
+    use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
     use rand::RngCore;
     use rand_core::OsRng;
@@ -203,7 +202,8 @@ pub mod tests {
             if self.access_token.is_some() {
                 return self.access_token.as_ref().unwrap();
             }
-            let (access_token, refresh_token) = login_user(&self.username, self.login_key.clone()).await;
+            let (access_token, refresh_token) =
+                login_user(&self.username, self.login_key.clone()).await;
 
             self.access_token = Some(access_token);
             self.refresh_token = Some(refresh_token);
@@ -230,7 +230,10 @@ pub mod tests {
         }
 
         pub async fn allow_user(&mut self, username: &str, charger_id: i32) {
-            let token = self.access_token.as_ref().expect("Test user must be logged in.");
+            let token = self
+                .access_token
+                .as_ref()
+                .expect("Test user must be logged in.");
             add_allowed_test_user(username, charger_id, token).await;
         }
 

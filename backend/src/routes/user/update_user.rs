@@ -17,7 +17,12 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use crate::{error::Error, models::filtered_user::FilteredUser, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    models::filtered_user::FilteredUser,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 use actix_web::{put, web, HttpResponse, Responder};
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound};
@@ -57,16 +62,18 @@ pub async fn update_user(
             Err(_err) => return Err(Error::InternalError),
         }
 
-        match users.filter(name.eq(&user.name))
+        match users
+            .filter(name.eq(&user.name))
             .select(User::as_select())
-            .get_result(&mut conn) {
-                Err(NotFound) => (),
-                Ok(u) => {
-                    if u.id != uid.clone().into() {
-                        return Err(Error::UserAlreadyExists);
-                    }
+            .get_result(&mut conn)
+        {
+            Err(NotFound) => (),
+            Ok(u) => {
+                if u.id != uid.clone().into() {
+                    return Err(Error::UserAlreadyExists);
                 }
-                Err(_err) => return Err(Error::InternalError),
+            }
+            Err(_err) => return Err(Error::InternalError),
         }
 
         match diesel::update(users.find::<uuid::Uuid>(uid.clone().into()))
@@ -88,8 +95,8 @@ pub async fn update_user(
         }
 
         Ok(())
-    }).await?;
-
+    })
+    .await?;
 
     Ok(HttpResponse::Ok())
 }
@@ -104,7 +111,10 @@ mod tests {
                 login::tests::verify_and_login_user,
                 register::tests::{create_user, delete_user},
             },
-            user::{me::tests::{get_test_user, get_test_user_by_email}, tests::TestUser},
+            user::{
+                me::tests::{get_test_user, get_test_user_by_email},
+                tests::TestUser,
+            },
         },
         tests::configure,
     };

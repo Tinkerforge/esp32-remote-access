@@ -74,7 +74,7 @@ pub async fn management(
     let charger = get_charger_from_db(data.id, &state).await?;
 
     if !password_matches(data.password.clone(), charger.password)? {
-        return Err(ErrorUnauthorized(""))
+        return Err(ErrorUnauthorized(""));
     }
 
     let mut conn = get_connection(&state)?;
@@ -123,12 +123,13 @@ mod tests {
         user.login().await;
         let (charger, pass) = user.add_random_charger().await;
 
-        let app = App::new()
-            .configure(configure)
-            .service(management);
+        let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
-        let body = ManagementSchema { id: charger, password: pass };
+        let body = ManagementSchema {
+            id: charger,
+            password: pass,
+        };
         let req = test::TestRequest::put()
             .uri("/management")
             .append_header(("X-Forwarded-For", "123.123.123.3"))
@@ -148,12 +149,13 @@ mod tests {
         user.login().await;
         let (charger, _) = user.add_random_charger().await;
 
-        let app = App::new()
-            .configure(configure)
-            .service(management);
+        let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
-        let body = ManagementSchema { id: charger, password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32) };
+        let body = ManagementSchema {
+            id: charger,
+            password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
+        };
         let req = test::TestRequest::put()
             .uri("/management")
             .append_header(("X-Forwarded-For", "123.123.123.3"))

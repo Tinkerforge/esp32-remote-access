@@ -31,7 +31,12 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::{error::Error, models::token_claims::TokenClaims, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    models::token_claims::TokenClaims,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 pub const MAX_TOKEN_AGE: i64 = 6;
 const MAX_REFRESH_TOKEN_AGE: i64 = 7;
@@ -57,24 +62,18 @@ pub async fn validate_password(
     use db_connector::schema::users::dsl::*;
 
     let result = web_block_unpacked(move || match identifier {
-        FindBy::Email(mail) => {
-            Ok(users
-                .filter(email.eq(mail))
-                .select(User::as_select())
-                .get_result(&mut conn))
-        },
-        FindBy::Uuid(uid) => {
-            Ok(users
-                .find(uid)
-                .select(User::as_select())
-                .get_result(&mut conn))
-        },
-        FindBy::Username(username) => {
-            Ok(users
-                .filter(name.eq(username))
-                .select(User::as_select())
-                .get_result(&mut conn))
-        },
+        FindBy::Email(mail) => Ok(users
+            .filter(email.eq(mail))
+            .select(User::as_select())
+            .get_result(&mut conn)),
+        FindBy::Uuid(uid) => Ok(users
+            .find(uid)
+            .select(User::as_select())
+            .get_result(&mut conn)),
+        FindBy::Username(username) => Ok(users
+            .filter(name.eq(username))
+            .select(User::as_select())
+            .get_result(&mut conn)),
     })
     .await?;
 
@@ -152,10 +151,16 @@ pub async fn login(
     let cookie_string = format!("{}; Partitioned;", cookie.to_string());
     let refresh_cookie = create_refresh_token(&state, uuid).await?;
 
-    Ok(HttpResponse::Ok().append_header(("Set-Cookie", cookie_string)).append_header(("Set-Cookie", refresh_cookie)).body(""))
+    Ok(HttpResponse::Ok()
+        .append_header(("Set-Cookie", cookie_string))
+        .append_header(("Set-Cookie", refresh_cookie))
+        .body(""))
 }
 
-pub async fn create_refresh_token(state: &web::Data<AppState>, uid: uuid::Uuid) -> actix_web::Result<String> {
+pub async fn create_refresh_token(
+    state: &web::Data<AppState>,
+    uid: uuid::Uuid,
+) -> actix_web::Result<String> {
     let session_id = uuid::Uuid::new_v4();
     let mut conn = get_connection(state)?;
 
@@ -175,12 +180,15 @@ pub async fn create_refresh_token(state: &web::Data<AppState>, uid: uuid::Uuid) 
             user_id: uid,
             expiration: exp as i64,
         };
-        match diesel::insert_into(refresh_tokens).values(&token).execute(&mut conn) {
+        match diesel::insert_into(refresh_tokens)
+            .values(&token)
+            .execute(&mut conn)
+        {
             Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError)
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
-
+    })
+    .await?;
 
     let token = match jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),
@@ -193,7 +201,9 @@ pub async fn create_refresh_token(state: &web::Data<AppState>, uid: uuid::Uuid) 
 
     let cookie = Cookie::build("refresh_token", token)
         .path("/")
-        .max_age(actix_web::cookie::time::Duration::days(MAX_REFRESH_TOKEN_AGE))
+        .max_age(actix_web::cookie::time::Duration::days(
+            MAX_REFRESH_TOKEN_AGE,
+        ))
         .http_only(true)
         .same_site(actix_web::cookie::SameSite::None)
         .secure(true)

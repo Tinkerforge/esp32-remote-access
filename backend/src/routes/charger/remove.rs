@@ -182,7 +182,7 @@ pub(crate) mod tests {
                 println!("{:?}", resp);
                 println!("{:?}", resp.response().body());
                 assert!(resp.status().is_success());
-            },
+            }
             Err(err) => {
                 panic!("test valid delete failed: {:?}", err);
             }

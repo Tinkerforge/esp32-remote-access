@@ -30,7 +30,11 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::{error::Error, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Debug, Deserialize, Serialize, Validate, Clone, ToSchema)]
 pub struct RegisterSchema {
@@ -114,26 +118,26 @@ pub async fn register(
         match users
             .filter(email.eq(mail_cpy))
             .select(User::as_select())
-            .get_result(&mut conn) {
-                Ok(_) => return Err(Error::ChargerAlreadyExists),
-                Err(NotFound) => (),
-                Err(_err) => {
-                    return Err(Error::InternalError)
-                }
-            }
+            .get_result(&mut conn)
+        {
+            Ok(_) => return Err(Error::ChargerAlreadyExists),
+            Err(NotFound) => (),
+            Err(_err) => return Err(Error::InternalError),
+        }
 
-        match users.filter(name.eq(username))
+        match users
+            .filter(name.eq(username))
             .select(User::as_select())
-            .get_result(&mut conn) {
-                Ok(_) => return Err(Error::ChargerAlreadyExists),
-                Err(NotFound) => (),
-                Err(_err) => {
-                    return Err(Error::InternalError)
-                }
-            }
+            .get_result(&mut conn)
+        {
+            Ok(_) => return Err(Error::ChargerAlreadyExists),
+            Err(NotFound) => (),
+            Err(_err) => return Err(Error::InternalError),
+        }
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     let key_hash = match hash_key(&data.login_key) {
         Ok(hash) => hash,
@@ -241,9 +245,9 @@ pub(crate) mod tests {
     }
 
     pub fn delete_user(mail: &str) {
+        use db_connector::schema::refresh_tokens::dsl::*;
         use db_connector::schema::users::dsl::*;
         use db_connector::schema::verification::dsl::*;
-        use db_connector::schema::refresh_tokens::dsl::*;
         use diesel::prelude::*;
 
         let pool = db_connector::test_connection_pool();
@@ -259,7 +263,9 @@ pub(crate) mod tests {
             return;
         };
 
-        diesel::delete(refresh_tokens.filter(user_id.eq(u.id))).execute(&mut conn).expect("Error deleting sessions");
+        diesel::delete(refresh_tokens.filter(user_id.eq(u.id)))
+            .execute(&mut conn)
+            .expect("Error deleting sessions");
         diesel::delete(verification.filter(user.eq(u.id)))
             .execute(&mut conn)
             .expect("Error deleting verification");
