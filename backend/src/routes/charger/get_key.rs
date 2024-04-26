@@ -40,6 +40,8 @@ pub struct GetWgKeysResponseSchema {
     charger_address: IpNetwork,
     #[schema(value_type = Vec<u32>)]
     web_private: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
+    web_private_iv: Vec<u8>,
     #[schema(value_type = SchemaType::String)]
     web_address: IpNetwork,
 }
@@ -95,6 +97,7 @@ pub async fn get_key(
             charger_pub: key.charger_pub,
             charger_address: key.charger_address,
             web_private: key.web_private,
+            web_private_iv: key.web_private_iv,
             web_address: key.web_address,
         };
         Ok(HttpResponse::Ok().json(key))
