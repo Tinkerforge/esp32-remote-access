@@ -52,13 +52,10 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
     }
 
     async decrypt_keys(keys: any, secret_data: any) {
-        console.log("a");
         const crypto = window.crypto.subtle;
         const password = sessionStorage.getItem("password");
-        const secret_hash = await generate_hash(password, new Uint8Array(secret_data.secret_salt), 16);
-        console.log("a1");
+        const secret_hash = await generate_hash(password, new Uint8Array(secret_data.secret_salt), 32);
         const secret_key = await crypto.importKey("raw", secret_hash, {name: "AES-CBC"}, false, ["decrypt"]);
-        console.log("a2");
         const secret = await crypto.decrypt(
                 {
                     name: "AES-CBC",
@@ -67,19 +64,8 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                 secret_key,
                 new Uint8Array(secret_data.secret)
             );
-        console.log("a3", new Uint8Array(keys.web_private));
 
         const wg_decrypt_key = await crypto.importKey("raw", secret, {name: "AES-CBC"}, false, ["decrypt"]);
-        console.log("a4");
-
-        console.log("secret", new Uint8Array(secret));
-        console.log("iv", secret_data.secret_iv);
-        console.log("key", secret_hash);
-
-        const prefixed_data = new Uint8Array(keys.web_private.length + 16);
-        prefixed_data.set(new Uint8Array(secret_data.secret_iv));
-        prefixed_data.set(new Uint8Array(keys.web_private), 16);
-
         const web_private = await crypto.decrypt(
             {
                 name: "AES-CBC",
@@ -88,13 +74,8 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
             wg_decrypt_key,
             new Uint8Array(keys.web_private)
         )
-        console.log("a5");
-
-        console.log(new Uint8Array(keys.web_private));
         const decoder = new TextDecoder();
         const web_private_string = decoder.decode(web_private);
-
-        console.log(web_private_string);
 
         return web_private_string;
     }

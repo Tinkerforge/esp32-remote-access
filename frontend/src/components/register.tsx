@@ -55,12 +55,12 @@ export class Register extends Component<{}, RegisterState> {
         }
 
         const this_secret_salt = generate_random_bytes(24);
-        const secret = generate_random_bytes(16);
+        const secret = generate_random_bytes(32);
 
         const combined_secret_salt = new Uint8Array(secret_salt.length + this_secret_salt.length);
         combined_secret_salt.set(secret_salt);
         combined_secret_salt.set(this_secret_salt, secret_salt.length);
-        const secret_hash = await generate_hash(this.state.password, combined_secret_salt, 16);
+        const secret_hash = await generate_hash(this.state.password, combined_secret_salt, 32);
 
         const crypto = window.crypto.subtle;
         const key = await crypto.importKey("raw", secret_hash, {name: "AES-CBC"}, false, ["encrypt"]);
