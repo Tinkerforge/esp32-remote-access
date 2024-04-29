@@ -32,7 +32,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::console_log;
+use crate::{console_log, pcap_logging_enabled};
 use crate::interval_handle::IntervalHandle;
 use web_sys::wasm_bindgen::closure::Closure;
 use web_sys::wasm_bindgen::{JsCast, JsValue};
@@ -167,30 +167,32 @@ impl WgTunDevice {
                 match tun.decapsulate(None, &data, &mut buf) {
                     TunnResult::Done => (),
                     TunnResult::WriteToNetwork(d) => {
-                        let interface = InterfaceDescriptionBlock {
-                            linktype: pcap_file::DataLink::IPV4,
-                            snaplen: 0,
-                            options: vec![],
-                        };
-
-                        let now = wasm_timer::SystemTime::now();
-                        let timestamp = now
-                            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                            .unwrap();
-
-                        let packet =
-                            pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                                interface_id: 0,
-                                timestamp,
-                                original_len: d.len() as u32,
-                                data: std::borrow::Cow::Borrowed(&d),
+                        if pcap_logging_enabled() {
+                            let interface = InterfaceDescriptionBlock {
+                                linktype: pcap_file::DataLink::IPV4,
+                                snaplen: 0,
                                 options: vec![],
                             };
 
-                        {
-                            let mut message_pcap = message_pcap.borrow_mut();
-                            message_pcap.write_pcapng_block(interface).unwrap();
-                            message_pcap.write_pcapng_block(packet).unwrap();
+                            let now = wasm_timer::SystemTime::now();
+                            let timestamp = now
+                                .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                                .unwrap();
+
+                            let packet =
+                                pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                                    interface_id: 0,
+                                    timestamp,
+                                    original_len: d.len() as u32,
+                                    data: std::borrow::Cow::Borrowed(&d),
+                                    options: vec![],
+                                };
+
+                            {
+                                let mut message_pcap = message_pcap.borrow_mut();
+                                message_pcap.write_pcapng_block(interface).unwrap();
+                                message_pcap.write_pcapng_block(packet).unwrap();
+                            }
                         }
 
                         let _ = message_socket.send_with_u8_array(d);
@@ -206,6 +208,42 @@ impl WgTunDevice {
                         while let TunnResult::WriteToNetwork(d) =
                             tun.decapsulate(None, &[0u8; 0], &mut buf)
                         {
+                            if pcap_logging_enabled() {
+                                let interface = InterfaceDescriptionBlock {
+                                    linktype: pcap_file::DataLink::IPV4,
+                                    snaplen: 0,
+                                    options: vec![],
+                                };
+                                let now = wasm_timer::SystemTime::now();
+                                let timestamp = now
+                                    .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                                    .unwrap();
+
+                                let packet =
+                                    pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                                        interface_id: 0,
+                                        timestamp,
+                                        original_len: d.len() as u32,
+                                        data: std::borrow::Cow::Borrowed(&d),
+                                        options: vec![],
+                                    };
+
+                                {
+                                    let mut message_pcap = message_pcap.borrow_mut();
+                                    message_pcap.write_pcapng_block(interface).unwrap();
+                                    message_pcap.write_pcapng_block(packet).unwrap();
+                                }
+                            }
+                            let _ = message_socket.send_with_u8_array(d);
+                        }
+                        return;
+                    }
+                    TunnResult::Err(e) => {
+                        console_log!("Error: {:?}", e);
+                        return;
+                    }
+                    TunnResult::WriteToTunnelV4(d, _) => {
+                        if pcap_logging_enabled() {
                             let interface = InterfaceDescriptionBlock {
                                 linktype: pcap_file::DataLink::IPV4,
                                 snaplen: 0,
@@ -230,38 +268,6 @@ impl WgTunDevice {
                                 message_pcap.write_pcapng_block(interface).unwrap();
                                 message_pcap.write_pcapng_block(packet).unwrap();
                             }
-                            let _ = message_socket.send_with_u8_array(d);
-                        }
-                        return;
-                    }
-                    TunnResult::Err(e) => {
-                        console_log!("Error: {:?}", e);
-                        return;
-                    }
-                    TunnResult::WriteToTunnelV4(d, _) => {
-                        let interface = InterfaceDescriptionBlock {
-                            linktype: pcap_file::DataLink::IPV4,
-                            snaplen: 0,
-                            options: vec![],
-                        };
-                        let now = wasm_timer::SystemTime::now();
-                        let timestamp = now
-                            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                            .unwrap();
-
-                        let packet =
-                            pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                                interface_id: 0,
-                                timestamp,
-                                original_len: d.len() as u32,
-                                data: std::borrow::Cow::Borrowed(&d),
-                                options: vec![],
-                            };
-
-                        {
-                            let mut message_pcap = message_pcap.borrow_mut();
-                            message_pcap.write_pcapng_block(interface).unwrap();
-                            message_pcap.write_pcapng_block(packet).unwrap();
                         }
                         (*message_vec.borrow_mut()).push_back(d.to_vec());
                         let mut buf = vec![0u8; data.len() + 32];
@@ -278,28 +284,30 @@ impl WgTunDevice {
                         return;
                     }
                 }
-                let interface = InterfaceDescriptionBlock {
-                    linktype: pcap_file::DataLink::IPV4,
-                    snaplen: 0,
-                    options: vec![],
-                };
-                let now = wasm_timer::SystemTime::now();
-                let timestamp = now
-                    .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                    .unwrap();
+                if pcap_logging_enabled() {
+                    let interface = InterfaceDescriptionBlock {
+                        linktype: pcap_file::DataLink::IPV4,
+                        snaplen: 0,
+                        options: vec![],
+                    };
+                    let now = wasm_timer::SystemTime::now();
+                    let timestamp = now
+                        .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                        .unwrap();
 
-                let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                    interface_id: 0,
-                    timestamp,
-                    original_len: buf.len() as u32,
-                    data: std::borrow::Cow::Borrowed(&buf),
-                    options: vec![],
-                };
+                    let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                        interface_id: 0,
+                        timestamp,
+                        original_len: buf.len() as u32,
+                        data: std::borrow::Cow::Borrowed(&buf),
+                        options: vec![],
+                    };
 
-                {
-                    let mut message_pcap = message_pcap.borrow_mut();
-                    message_pcap.write_pcapng_block(interface).unwrap();
-                    message_pcap.write_pcapng_block(packet).unwrap();
+                    {
+                        let mut message_pcap = message_pcap.borrow_mut();
+                        message_pcap.write_pcapng_block(interface).unwrap();
+                        message_pcap.write_pcapng_block(packet).unwrap();
+                    }
                 }
                 (*message_vec.borrow_mut()).push_back(buf.to_vec());
             });
@@ -415,28 +423,30 @@ impl phy::TxToken for WgTunPhyTxToken {
         let mut buf = vec![0u8; size];
         let result = f(&mut buf[..]);
 
-        let interface = InterfaceDescriptionBlock {
-            linktype: pcap_file::DataLink::IPV4,
-            snaplen: 0,
-            options: vec![],
-        };
-        let now = wasm_timer::SystemTime::now();
-        let timestamp = now
-            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-            .unwrap();
+        if pcap_logging_enabled() {
+            let interface = InterfaceDescriptionBlock {
+                linktype: pcap_file::DataLink::IPV4,
+                snaplen: 0,
+                options: vec![],
+            };
+            let now = wasm_timer::SystemTime::now();
+            let timestamp = now
+                .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                .unwrap();
 
-        let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-            interface_id: 0,
-            timestamp,
-            original_len: buf.len() as u32,
-            data: std::borrow::Cow::Borrowed(&buf),
-            options: vec![],
-        };
+            let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                interface_id: 0,
+                timestamp,
+                original_len: buf.len() as u32,
+                data: std::borrow::Cow::Borrowed(&buf),
+                options: vec![],
+            };
 
-        {
-            let mut message_pcap = self.pcap.borrow_mut();
-            message_pcap.write_pcapng_block(interface).unwrap();
-            message_pcap.write_pcapng_block(packet).unwrap();
+            {
+                let mut message_pcap = self.pcap.borrow_mut();
+                message_pcap.write_pcapng_block(interface).unwrap();
+                message_pcap.write_pcapng_block(packet).unwrap();
+            }
         }
 
         let mut tun = self.tun.borrow_mut();

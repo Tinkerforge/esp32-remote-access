@@ -7,6 +7,8 @@ mod websocket;
 pub mod wg_client;
 mod wg_device;
 
+use std::sync::{Mutex, OnceLock};
+
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -17,6 +19,24 @@ extern "C" {
 #[macro_export]
 macro_rules! console_log {
     ($($t:tt)*) => (crate::utils::log(&format_args!($($t)*).to_string()))
+}
+
+#[wasm_bindgen]
+pub fn set_pcap_logging(enabled: bool) {
+    let mtx = pcap_logging_variable();
+    let mut guard = mtx.lock().unwrap();
+    *guard = enabled;
+}
+
+pub fn pcap_logging_variable() -> &'static Mutex<bool> {
+    static ENABLED: OnceLock<Mutex<bool>> = OnceLock::new();
+    ENABLED.get_or_init(|| Mutex::new(false))
+}
+
+pub fn pcap_logging_enabled() -> bool {
+    let mtx = pcap_logging_variable();
+    let enabled = mtx.lock().unwrap();
+    enabled.to_owned()
 }
 
 #[cfg(test)]
