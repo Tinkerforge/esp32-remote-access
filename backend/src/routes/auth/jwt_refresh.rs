@@ -111,7 +111,7 @@ pub async fn delete_refresh_token(
         ("refresh" = [])
     )
 )]
-#[get("jwt_refresh")]
+#[get("/jwt_refresh")]
 pub async fn jwt_refresh(
     req: HttpRequest,
     state: web::Data<AppState>,
@@ -120,7 +120,7 @@ pub async fn jwt_refresh(
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = (now + Duration::minutes(super::login::MAX_TOKEN_AGE)).timestamp() as usize;
+    let exp = (now + Duration::minutes(super::login::MAX_TOKEN_AGE_MINUTES)).timestamp() as usize;
     let claims = TokenClaims {
         iat,
         exp,
@@ -139,7 +139,7 @@ pub async fn jwt_refresh(
     let cookie = Cookie::build("access_token", token)
         .path("/")
         .max_age(actix_web::cookie::time::Duration::minutes(
-            super::login::MAX_TOKEN_AGE,
+            super::login::MAX_TOKEN_AGE_MINUTES,
         ))
         .http_only(false)
         .same_site(actix_web::cookie::SameSite::None)

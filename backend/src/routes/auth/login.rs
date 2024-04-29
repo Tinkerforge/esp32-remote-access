@@ -38,8 +38,8 @@ use crate::{
     AppState,
 };
 
-pub const MAX_TOKEN_AGE: i64 = 6;
-const MAX_REFRESH_TOKEN_AGE: i64 = 7;
+pub const MAX_TOKEN_AGE_MINUTES: i64 = 6;
+const MAX_REFRESH_TOKEN_AGE_DAYS: i64 = 7;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Validate, ToSchema)]
 pub struct LoginSchema {
@@ -120,11 +120,9 @@ pub async fn login(
     let username = data.username.clone();
     let uuid = validate_password(&data.login_key, FindBy::Username(username), conn).await?;
 
-    let max_token_age = 60;
-
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = (now + Duration::minutes(max_token_age)).timestamp() as usize;
+    let exp = (now + Duration::minutes(MAX_TOKEN_AGE_MINUTES)).timestamp() as usize;
     let claims = TokenClaims {
         iat,
         exp,
@@ -142,7 +140,7 @@ pub async fn login(
 
     let cookie = Cookie::build("access_token", token)
         .path("/")
-        .max_age(actix_web::cookie::time::Duration::minutes(max_token_age))
+        .max_age(actix_web::cookie::time::Duration::minutes(MAX_TOKEN_AGE_MINUTES))
         .http_only(false)
         .same_site(actix_web::cookie::SameSite::None)
         .secure(true)
@@ -166,7 +164,7 @@ pub async fn create_refresh_token(
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = (now + Duration::days(MAX_REFRESH_TOKEN_AGE)).timestamp() as usize;
+    let exp = (now + Duration::days(MAX_REFRESH_TOKEN_AGE_DAYS)).timestamp() as usize;
     let claims = TokenClaims {
         iat,
         exp,
@@ -202,7 +200,7 @@ pub async fn create_refresh_token(
     let cookie = Cookie::build("refresh_token", token)
         .path("/")
         .max_age(actix_web::cookie::time::Duration::days(
-            MAX_REFRESH_TOKEN_AGE,
+            MAX_REFRESH_TOKEN_AGE_DAYS,
         ))
         .http_only(true)
         .same_site(actix_web::cookie::SameSite::None)
