@@ -32,6 +32,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .service(verify::verify)
         .service(get_login_salt::get_login_salt)
         .service(generate_salt::generate_salt)
+        .service(jwt_refresh::jwt_refresh)
         .service(login::login);
     cfg.service(scope);
 }
