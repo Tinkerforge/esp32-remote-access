@@ -79,6 +79,10 @@ export class Frame extends Component {
         });
     }
 
+    componentWillUnmount() {
+        this.worker.terminate();
+    }
+
     render() {
         return (
             <div class="home">
