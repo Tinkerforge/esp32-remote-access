@@ -56,6 +56,7 @@ export class Login extends Component<{}, LoginState> {
         });
 
         if (resp.status === 200) {
+            sessionStorage.setItem("password", this.state.password);
             window.location.reload()
         } else {
             const body = await resp.text();

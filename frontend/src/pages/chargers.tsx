@@ -23,7 +23,7 @@ import { Button, Table } from "react-bootstrap";
 import { Frame, charger_info } from "../components/Frame";
 import { signal } from "@preact/signals";
 import * as Base58 from "base58";
-
+import { generate_hash } from "../utils";
 
 interface Charger {
     id: number,
@@ -37,7 +37,6 @@ interface ChargerListComponentState {
 const connected = signal(false);
 
 class ChargerListComponent extends Component<{}, ChargerListComponentState> {
-
     constructor() {
         super();
 
@@ -52,6 +51,54 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
         });
     }
 
+    async decrypt_keys(keys: any, secret_data: any) {
+        console.log("a");
+        const crypto = window.crypto.subtle;
+        const password = sessionStorage.getItem("password");
+        const secret_hash = await generate_hash(password, new Uint8Array(secret_data.secret_salt), 16);
+        console.log("a1");
+        const secret_key = await crypto.importKey("raw", secret_hash, {name: "AES-CBC"}, false, ["decrypt"]);
+        console.log("a2");
+        const secret = await crypto.decrypt(
+                {
+                    name: "AES-CBC",
+                    iv: new Uint8Array(secret_data.secret_iv)
+                },
+                secret_key,
+                new Uint8Array(secret_data.secret)
+            );
+        console.log("a3", new Uint8Array(keys.web_private));
+
+        const wg_decrypt_key = await crypto.importKey("raw", secret, {name: "AES-CBC"}, false, ["decrypt"]);
+        console.log("a4");
+
+        console.log("secret", new Uint8Array(secret));
+        console.log("iv", secret_data.secret_iv);
+        console.log("key", secret_hash);
+
+        const prefixed_data = new Uint8Array(keys.web_private.length + 16);
+        prefixed_data.set(new Uint8Array(secret_data.secret_iv));
+        prefixed_data.set(new Uint8Array(keys.web_private), 16);
+
+        const web_private = await crypto.decrypt(
+            {
+                name: "AES-CBC",
+                iv: new Uint8Array(keys.web_private_iv)
+            },
+            wg_decrypt_key,
+            new Uint8Array(keys.web_private)
+        )
+        console.log("a5");
+
+        console.log(new Uint8Array(keys.web_private));
+        const decoder = new TextDecoder();
+        const web_private_string = decoder.decode(web_private);
+
+        console.log(web_private_string);
+
+        return web_private_string;
+    }
+
     render() {
         const list = [];
         this.state.chargers.forEach((charger, index) => {
@@ -60,17 +107,27 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                 <td>{charger.name}</td>
                 <td>{Base58.int_to_base58(charger.id)}</td>
                 <td><Button onClick={async () => {
+
+                    const get_secret_resp = await fetch(BACKEND + "/user/get_secret", {
+                        credentials: "include"
+                    });
+
                     const resp = await fetch(BACKEND + "/charger/get_key?cid=" + charger.id, {
                         credentials: "include"
                     });
                     const json = await resp.json();
+
+                    const web_private = await this.decrypt_keys(json, await get_secret_resp.json());
+
                     charger_info.value = {
-                        self_key: json.web_private,
+                        self_key: web_private,
                         self_internal_ip: json.web_address,
                         peer_key: json.charger_pub,
                         peer_internal_ip: json.charger_address,
                         key_id: json.id,
                     }
+
+                    console.log(charger_info.value);
 
                     connected.value = true;
                 }} variant="primary">Connect</Button></td>
