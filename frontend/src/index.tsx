@@ -52,13 +52,12 @@ async function refresh_access_token() {
     }
 }
 
+refresh_access_token();
+setTimeout(async () => {
+    await refresh_access_token();
+}, 1000 * 60 * 5);
 
 export function App() {
-    refresh_access_token();
-    setTimeout(async () => {
-        await refresh_access_token();
-    }, 1000 * 60 * 5);
-
     switch (loggedIn.value) {
         case AppState.Loading:
             return <>
