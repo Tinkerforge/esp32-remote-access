@@ -35,9 +35,16 @@ use crate::{
 
 #[derive(Validate, Deserialize, Serialize, ToSchema)]
 pub struct PasswordUpdateSchema {
-    old_key: Vec<u8>,
-    #[validate(length(min = 12))]
-    new_key: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
+    old_login_key: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
+    new_login_key: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
+    new_secret_iv: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
+    new_secret_salt: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
+    new_encrypted_secret: Vec<u8>,
 }
 
 /// Update the user password
@@ -61,9 +68,9 @@ pub async fn update_password(
     use db_connector::schema::users::dsl::*;
 
     let conn = get_connection(&state)?;
-    let _ = validate_password(&data.old_key, FindBy::Uuid(uid.clone().into()), conn).await?;
+    let _ = validate_password(&data.old_login_key, FindBy::Uuid(uid.clone().into()), conn).await?;
 
-    let new_hash = match hash_key(&data.new_key) {
+    let new_hash = match hash_key(&data.new_login_key) {
         Ok(hash) => hash,
         Err(_err) => return Err(Error::InternalError.into()),
     };
@@ -71,7 +78,7 @@ pub async fn update_password(
     let mut conn = get_connection(&state)?;
     match web::block(move || {
         match diesel::update(users.find::<uuid::Uuid>(uid.into()))
-            .set(login_key.eq(new_hash))
+            .set((login_key.eq(new_hash), secret_iv.eq(&data.new_secret_iv), secret.eq(&data.new_encrypted_secret), secret_salt.eq(&data.new_secret_salt)))
             .execute(&mut conn)
         {
             Ok(_) => (),
@@ -124,8 +131,11 @@ mod tests {
 
         let new_key: Vec<u8> = generate_random_bytes();
         let data = PasswordUpdateSchema {
-            old_key: key,
-            new_key: new_key.clone(),
+            old_login_key: key,
+            new_login_key: new_key.clone(),
+            new_secret_iv: generate_random_bytes(),
+            new_secret_salt: generate_random_bytes(),
+            new_encrypted_secret: generate_random_bytes(),
         };
 
         let req = test::TestRequest::put()
@@ -152,8 +162,11 @@ mod tests {
 
         let new_key = generate_random_bytes();
         let data = PasswordUpdateSchema {
-            old_key: generate_random_bytes(),
-            new_key: new_key.clone(),
+            old_login_key: generate_random_bytes(),
+            new_login_key: new_key.clone(),
+            new_secret_iv: generate_random_bytes(),
+            new_secret_salt: generate_random_bytes(),
+            new_encrypted_secret: generate_random_bytes(),
         };
         let req = test::TestRequest::put()
             .uri("/update_password")
