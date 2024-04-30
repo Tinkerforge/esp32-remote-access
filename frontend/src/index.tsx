@@ -31,58 +31,85 @@ import Row from "react-bootstrap/Row";
 import Card from "react-bootstrap/Card";
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
-import * as cookie from "cookie";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { ChargerList } from './pages/chargers.js';
 import { ErrorAlert } from './components/Alert.js';
+import { BACKEND } from './types.js';
+import { AppState, loggedIn } from './utils.js';
+import { Spinner } from 'react-bootstrap';
+
+
+async function refresh_access_token() {
+    const resp = await fetch(BACKEND + "/auth/jwt_refresh", {
+        method: "GET",
+        credentials: "include"
+    });
+
+    if (resp.status == 200) {
+        loggedIn.value = AppState.LoggedIn;
+    } else {
+        loggedIn.value = AppState.LoggedOut;
+    }
+}
 
 
 export function App() {
-    const cookies = cookie.parse(document.cookie);
-    if (!("access_token" in cookies)) {
-        return <>
-            <ErrorAlert/>
-            <Row fluid className="align-items-center vh-100">
-                <div class="d-flex col justify-content-center">
-                    <Card className="p-3">
-                        <Tabs
-                            defaultActiveKey="login"
-                            id="login-register-tab"
-                            className="mb-3"
-                        >
-                            <Tab eventKey="login" title="Login">
-                                <Login />
-                            </Tab>
-                            <Tab eventKey="register" title="Register">
-                                <Register />
-                            </Tab>
-                        </Tabs>
-                    </Card>
-                </div>
-            </Row>
-        </>
-    }
+    refresh_access_token();
+    setTimeout(async () => {
+        await refresh_access_token();
+    }, 1000 * 60 * 5);
 
-    return (
-        <>
-            <ErrorAlert/>
-            <LocationProvider>
-                <Container fluid>
-                    <Row>
-                        <Sidebar />
-                        <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
-                            <Router>
-                                <Route path="/" component={Home} />
-                                <Route path="/user" component={User} />
-                                <Route path="/chargers" component={ChargerList} />
-                                <Route default component={NotFound} />
-                            </Router>
-                        </main>
-                    </Row>
-                </Container>
-            </LocationProvider>
-        </>
-    );
+    switch (loggedIn.value) {
+        case AppState.Loading:
+            return <>
+                <Spinner animation='border' variant='primary'/>
+            </>
+
+        case AppState.LoggedOut:
+            return <>
+                <ErrorAlert/>
+                <Row fluid className="align-items-center vh-100">
+                    <div class="d-flex col justify-content-center">
+                        <Card className="p-3">
+                            <Tabs
+                                defaultActiveKey="login"
+                                id="login-register-tab"
+                                className="mb-3"
+                            >
+                                <Tab eventKey="login" title="Login">
+                                    <Login />
+                                </Tab>
+                                <Tab eventKey="register" title="Register">
+                                    <Register />
+                                </Tab>
+                            </Tabs>
+                        </Card>
+                    </div>
+                </Row>
+            </>
+
+        case AppState.LoggedIn:
+            return (
+                <>
+                    <ErrorAlert/>
+                    <LocationProvider>
+                        <Container fluid>
+                            <Row>
+                                <Sidebar />
+                                <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
+                                    <Router>
+                                        <Route path="/" component={Home} />
+                                        <Route path="/user" component={User} />
+                                        <Route path="/chargers" component={ChargerList} />
+                                        <Route default component={NotFound} />
+                                    </Router>
+                                </main>
+                            </Row>
+                        </Container>
+                    </LocationProvider>
+                </>
+            );
+    }
 }
 
 render(<App />, document.getElementById('app'));

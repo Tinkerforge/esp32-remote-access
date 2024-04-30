@@ -1,3 +1,4 @@
+import { signal } from "@preact/signals";
 import { BACKEND } from "./types";
 import { hash, ArgonType } from "argon2-browser";
 
@@ -50,3 +51,11 @@ export function generate_random_bytes(len: number) {
 
     return arr;
 }
+
+export enum AppState {
+    Loading,
+    LoggedIn,
+    LoggedOut,
+}
+
+export const loggedIn = signal(AppState.Loading);
