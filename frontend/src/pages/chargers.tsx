@@ -24,6 +24,7 @@ import { Frame, charger_info } from "../components/Frame";
 import { signal } from "@preact/signals";
 import * as Base58 from "base58";
 import { generate_hash } from "../utils";
+import sodium from "libsodium-wrappers";
 
 interface Charger {
     id: number,
@@ -65,15 +66,9 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                 new Uint8Array(secret_data.secret)
             );
 
-        const wg_decrypt_key = await crypto.importKey("raw", secret, {name: "AES-CBC"}, false, ["decrypt"]);
-        const web_private = await crypto.decrypt(
-            {
-                name: "AES-CBC",
-                iv: new Uint8Array(keys.web_private_iv)
-            },
-            wg_decrypt_key,
-            new Uint8Array(keys.web_private)
-        )
+        const public_key = sodium.crypto_scalarmult_base(new Uint8Array(secret));
+        const web_private = sodium.crypto_box_seal_open(new Uint8Array(keys.web_private), public_key, new Uint8Array(secret));
+
         const decoder = new TextDecoder();
         const web_private_string = decoder.decode(web_private);
 

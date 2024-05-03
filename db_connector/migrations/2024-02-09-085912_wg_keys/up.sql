@@ -7,7 +7,7 @@ CREATE TABLE "wg_keys" (
   "in_use" BOOLEAN NOT NULL,
   "charger_pub" VARCHAR NOT NULL,
   "web_private" BYTEA NOT NULL,
-  "web_private_iv" BYTEA NOT NULL,
+  "web_private_nonce" BYTEA NOT NULL,
   "web_address" INET NOT NULL,
   "charger_address" INET NOT NULL,
   "connection_no" INT NOT NULL

@@ -4,6 +4,7 @@ import { BACKEND } from "../types";
 import { showAlert } from "./Alert";
 import { generate_hash, generate_random_bytes, get_salt } from "../utils";
 import { Base64 } from "js-base64";
+import sodium from "libsodium-wrappers";
 
 interface RegisterSchema {
     name: string,
@@ -55,15 +56,16 @@ export class Register extends Component<{}, RegisterState> {
         }
 
         const this_secret_salt = generate_random_bytes(24);
-        const secret = generate_random_bytes(32);
 
         const combined_secret_salt = new Uint8Array(secret_salt.length + this_secret_salt.length);
         combined_secret_salt.set(secret_salt);
         combined_secret_salt.set(this_secret_salt, secret_salt.length);
         const secret_hash = await generate_hash(this.state.password, combined_secret_salt, 32);
 
+        const keypair = sodium.crypto_box_keypair();
+
         const crypto = window.crypto.subtle;
-        const key = await crypto.importKey("raw", secret_hash, {name: "AES-CBC"}, false, ["encrypt"]);
+        const secret_key = await crypto.importKey("raw", secret_hash, {name: "AES-CBC"}, false, ["encrypt"]);
 
         const secret_iv = generate_random_bytes(16);
         const encrypted_secret = await crypto.encrypt(
@@ -71,8 +73,8 @@ export class Register extends Component<{}, RegisterState> {
                 name: "AES-CBC",
                 iv: secret_iv
             },
-            key,
-            secret
+            secret_key,
+            keypair.privateKey
         );
 
         let login_salt: Uint8Array;
@@ -117,7 +119,7 @@ export class Register extends Component<{}, RegisterState> {
             return;
         }
 
-        this.setState({secret: secret, show_modal: true});
+        this.setState({secret: new Uint8Array(encrypted_secret), show_modal: true});
 
     }
 

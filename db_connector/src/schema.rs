@@ -62,7 +62,7 @@ diesel::table! {
         in_use -> Bool,
         charger_pub -> Varchar,
         web_private -> Bytea,
-        web_private_iv -> Bytea,
+        web_private_nonce -> Bytea,
         web_address -> Inet,
         charger_address -> Inet,
         connection_no -> Int4,

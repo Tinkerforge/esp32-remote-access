@@ -52,6 +52,15 @@ export function generate_random_bytes(len: number) {
     return arr;
 }
 
+export function concat_salts(salt1: Uint8Array) {
+    const salt2 = generate_random_bytes(24);
+    const concat = new Uint8Array(salt1.length + salt2.length);
+    concat.set(salt1);
+    concat.set(salt2, salt1.length);
+
+    return concat;
+}
+
 export enum AppState {
     Loading,
     LoggedIn,

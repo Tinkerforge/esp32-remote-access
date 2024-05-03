@@ -41,7 +41,7 @@ pub struct Keys {
     #[schema(value_type = Vec<u32>)]
     web_private: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
-    web_private_iv: Vec<u8>,
+    web_private_nonce: Vec<u8>,
     charger_public: String,
     #[schema(value_type = SchemaType::String)]
     web_address: IpNetwork,
@@ -367,7 +367,7 @@ async fn add_wg_key(
         in_use: false,
         charger_pub: keys.charger_public,
         web_private: keys.web_private,
-        web_private_iv: keys.web_private_iv,
+        web_private_nonce: keys.web_private_nonce,
         web_address: keys.web_address,
         charger_address: keys.charger_address,
         connection_no: keys.connection_no as i32,
@@ -428,7 +428,7 @@ pub(crate) mod tests {
             let public = x25519::PublicKey::from(&secret);
             *key = MaybeUninit::new(Keys {
                 web_private: generate_random_bytes(),
-                web_private_iv: generate_random_bytes(),
+                web_private_nonce: generate_random_bytes(),
                 charger_public: BASE64_STANDARD.encode(public),
                 charger_address: IpNetwork::V4(
                     Ipv4Network::new("123.123.123.123".parse().unwrap(), 24).unwrap(),
