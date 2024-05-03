@@ -12,7 +12,7 @@ use crate::{
 
 #[derive(Deserialize, IntoParams)]
 pub struct GetSaltQuery {
-    username: String,
+    email: String,
 }
 
 /// Get the salt needed to derive the login-key.
@@ -36,7 +36,7 @@ pub async fn get_login_salt(
     let mut conn = get_connection(&state)?;
     let user: User = web_block_unpacked(move || {
         match users
-            .filter(name.eq(&query.username))
+            .filter(email.eq(&query.email))
             .select(User::as_select())
             .get_result(&mut conn)
         {
@@ -65,13 +65,14 @@ mod tests {
         use db_connector::schema::users::dsl::*;
 
         let (mut user, username) = TestUser::random().await;
+        let mail = user.get_mail().to_owned();
         user.login().await;
 
         let app = App::new().configure(configure).service(get_login_salt);
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/get_login_salt?username={}", username))
+            .uri(&format!("/get_login_salt?email={}", mail))
             .to_request();
         let resp = test::call_service(&app, req).await;
         println!("{}", resp.status());

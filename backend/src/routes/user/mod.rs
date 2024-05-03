@@ -176,7 +176,7 @@ pub mod tests {
     impl TestUser {
         pub async fn new(mail: &str, username: &str) -> Self {
             let key = create_user(mail, username).await;
-            fast_verify(username);
+            fast_verify(mail);
             TestUser {
                 username: username.to_string(),
                 mail: mail.to_string(),
@@ -203,7 +203,7 @@ pub mod tests {
                 return self.access_token.as_ref().unwrap();
             }
             let (access_token, refresh_token) =
-                login_user(&self.username, self.login_key.clone()).await;
+                login_user(&self.mail, self.login_key.clone()).await;
 
             self.access_token = Some(access_token);
             self.refresh_token = Some(refresh_token);
@@ -212,7 +212,7 @@ pub mod tests {
         }
 
         pub async fn additional_login(&mut self) {
-            login_user(&self.username, self.login_key.clone()).await;
+            login_user(&self.mail, self.login_key.clone()).await;
         }
 
         pub async fn add_charger(&mut self, id: i32) -> String {
@@ -229,12 +229,12 @@ pub mod tests {
             (charger, pass)
         }
 
-        pub async fn allow_user(&mut self, username: &str, charger_id: i32) {
+        pub async fn allow_user(&mut self, email: &str, charger_id: i32) {
             let token = self
                 .access_token
                 .as_ref()
                 .expect("Test user must be logged in.");
-            add_allowed_test_user(username, charger_id, token).await;
+            add_allowed_test_user(email, charger_id, token).await;
         }
 
         pub fn get_mail(&self) -> &str {

@@ -99,7 +99,7 @@ pub(crate) mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let (token, _) = verify_and_login_user(username, key).await;
+        let (token, _) = verify_and_login_user(mail, key).await;
         let req = test::TestRequest::get()
             .uri("/me")
             .cookie(Cookie::new("access_token", token))

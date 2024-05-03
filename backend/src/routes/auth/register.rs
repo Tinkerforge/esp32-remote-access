@@ -112,7 +112,6 @@ pub async fn register(
 
     let user_mail = data.email.to_lowercase();
     let mail_cpy = user_mail.clone();
-    let username = data.name.clone();
 
     web_block_unpacked(move || {
         match users
@@ -120,17 +119,7 @@ pub async fn register(
             .select(User::as_select())
             .get_result(&mut conn)
         {
-            Ok(_) => return Err(Error::ChargerAlreadyExists),
-            Err(NotFound) => (),
-            Err(_err) => return Err(Error::InternalError),
-        }
-
-        match users
-            .filter(name.eq(username))
-            .select(User::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(_) => return Err(Error::ChargerAlreadyExists),
+            Ok(_) => return Err(Error::UserAlreadyExists),
             Err(NotFound) => (),
             Err(_err) => return Err(Error::InternalError),
         }

@@ -6,12 +6,12 @@ import { showAlert } from "./Alert";
 import { generate_hash, get_salt_for_user } from "../utils";
 
 interface LoginSchema {
-    username: string,
+    email: string,
     login_key: number[],
 }
 
 interface LoginState {
-    username: string,
+    email: string,
     password: string,
 }
 
@@ -19,7 +19,7 @@ export class Login extends Component<{}, LoginState> {
     constructor() {
         super();
         this.state = {
-            username: "",
+            email: "",
             password: "",
         }
     }
@@ -33,7 +33,7 @@ export class Login extends Component<{}, LoginState> {
 
         let login_salt: Uint8Array;
         try {
-            login_salt = await get_salt_for_user(this.state.username);
+            login_salt = await get_salt_for_user(this.state.email);
         } catch (e) {
             showAlert(e, "danger");
             return;
@@ -42,7 +42,7 @@ export class Login extends Component<{}, LoginState> {
         const login_key = await generate_hash(this.state.password, login_salt);
 
         const login_schema: LoginSchema = {
-            username: this.state.username,
+            email: this.state.email,
             login_key: [].slice.call(login_key)
         };
 
@@ -69,9 +69,9 @@ export class Login extends Component<{}, LoginState> {
         return(<>
             <Form onSubmit={async (e: SubmitEvent) => this.onSubmit(e)}>
                 <Form.Group className="mb-3" controlId="loginEmail">
-                    <Form.Label>Username</Form.Label>
-                    <Form.Control type="text" placeholder="Username" value={this.state.username} onChange={(e) => {
-                        this.setState({username: (e.target as HTMLInputElement).value});
+                    <Form.Label>Email</Form.Label>
+                    <Form.Control type="text" placeholder="Email" value={this.state.email} onChange={(e) => {
+                        this.setState({email: (e.target as HTMLInputElement).value});
                     }} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="loginPassword" >

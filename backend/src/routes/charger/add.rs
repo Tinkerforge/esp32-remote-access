@@ -583,12 +583,14 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_update_unowned_charger() {
-        let (mut user, username) = TestUser::random().await;
+        let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_owned();
+        let email = user.get_mail().to_owned();
+
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
         let (charger_id, _) = user2.add_random_charger().await;
-        user2.allow_user(&username, charger_id).await;
+        user2.allow_user(&email, charger_id).await;
 
         let app = App::new()
             .configure(configure)

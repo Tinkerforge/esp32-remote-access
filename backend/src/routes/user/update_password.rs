@@ -121,7 +121,7 @@ mod tests {
         let username = "valid_password_update_user";
         let key = create_user(mail, username).await;
         defer!(delete_user(mail));
-        let (token, _) = verify_and_login_user(username, key.clone()).await;
+        let (token, _) = verify_and_login_user(mail, key.clone()).await;
 
         let app = App::new()
             .configure(configure)
@@ -146,7 +146,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        let _ = login_user(username, new_key).await;
+        let _ = login_user(mail, new_key).await;
     }
 
     #[actix_web::test]

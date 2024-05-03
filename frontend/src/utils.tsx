@@ -16,12 +16,12 @@ export async function get_salt() {
     return new Uint8Array(data);
 }
 
-export async function get_salt_for_user(username: string) {
-    const resp = await fetch(`${BACKEND}/auth/get_login_salt?username=${username}`, {
+export async function get_salt_for_user(email: string) {
+    const resp = await fetch(`${BACKEND}/auth/get_login_salt?email=${email}`, {
         method: "GET"
     });
     if (resp.status !== 200) {
-        throw `Failed to get login_salt for user ${username}: ${await resp.text()}`;
+        throw `Failed to get login_salt for user ${email}: ${await resp.text()}`;
     }
     const json = await resp.text();
     const data = JSON.parse(json);

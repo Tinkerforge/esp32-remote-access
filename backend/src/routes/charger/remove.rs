@@ -197,12 +197,13 @@ pub(crate) mod tests {
             .service(remove);
         let app = test::init_service(app).await;
 
-        let (_user, username) = TestUser::random().await;
+        let (user1, _) = TestUser::random().await;
+        let email = user1.get_mail().to_owned();
         let (mut user2, _) = TestUser::random().await;
         let token = user2.login().await.to_owned();
         let charger = OsRng.next_u32() as i32;
         add_test_charger(charger, &token).await;
-        user2.allow_user(&username, charger).await;
+        user2.allow_user(&email, charger).await;
 
         let body = DeleteChargerSchema { charger };
         let req = test::TestRequest::delete()
@@ -222,12 +223,13 @@ pub(crate) mod tests {
             .service(remove);
         let app = test::init_service(app).await;
 
-        let (mut user1, username) = TestUser::random().await;
+        let (mut user1, _) = TestUser::random().await;
+        let email = user1.get_mail().to_owned();
         let (mut user2, _) = TestUser::random().await;
         let charger = OsRng.next_u32() as i32;
         user2.login().await;
         user2.add_charger(charger).await;
-        user2.allow_user(&username, charger).await;
+        user2.allow_user(&email, charger).await;
         let token = user1.login().await;
 
         let body = DeleteChargerSchema { charger };

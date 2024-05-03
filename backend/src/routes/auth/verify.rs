@@ -127,17 +127,17 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn fast_verify(username: &str) {
+    pub fn fast_verify(mail: &str) {
         use db_connector::schema::users::dsl::*;
         use db_connector::schema::verification::dsl::verification;
 
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let verify = get_verify_id(&mut conn, username);
+        let verify = get_verify_id(&mut conn, mail);
         diesel::delete(verification.find(verify))
             .execute(&mut conn)
             .unwrap();
-        diesel::update(users.filter(name.eq(username)))
+        diesel::update(users.filter(email.eq(mail)))
             .set(email_verified.eq(true))
             .execute(&mut conn)
             .unwrap();
@@ -145,13 +145,15 @@ pub(crate) mod tests {
 
     fn get_verify_id(
         conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-        username: &str,
+        mail: &str,
     ) -> uuid::Uuid {
-        use db_connector::schema::users::dsl::{name, users};
+        use db_connector::schema::users::dsl::{email, users};
         use db_connector::schema::verification::dsl::*;
 
+        println!("mail: {}", mail);
+
         let u: User = users
-            .filter(name.eq(username))
+            .filter(email.eq(mail))
             .select(User::as_select())
             .get_result(conn)
             .unwrap();
@@ -190,7 +192,7 @@ pub(crate) mod tests {
 
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let verify_id = get_verify_id(&mut conn, username);
+        let verify_id = get_verify_id(&mut conn, mail);
 
         let app = App::new().configure(configure).service(super::verify);
         let app = test::init_service(app).await;
@@ -215,7 +217,7 @@ pub(crate) mod tests {
 
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let verify_id = get_verify_id(&mut conn, username);
+        let verify_id = get_verify_id(&mut conn, mail);
 
         let app = App::new().configure(configure).service(super::verify);
         let app = test::init_service(app).await;
@@ -239,7 +241,7 @@ pub(crate) mod tests {
 
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let verify_id = get_verify_id(&mut conn, username);
+        let verify_id = get_verify_id(&mut conn, mail);
 
         let app = App::new().configure(configure).service(super::verify);
         let app = test::init_service(app).await;

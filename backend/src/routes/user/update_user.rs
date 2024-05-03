@@ -139,7 +139,7 @@ mod tests {
         let mut user = FilteredUser::from(user);
         user.email = update_mail.clone();
 
-        let (token, _) = verify_and_login_user(username, key).await;
+        let (token, _) = verify_and_login_user(mail, key).await;
         let req = test::TestRequest::put()
             .uri("/update_user")
             .set_json(user)

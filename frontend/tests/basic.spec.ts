@@ -9,10 +9,17 @@ test('has title', async ({ page }) => {
 
 async function login(page: Page) {
   await page.goto('https://192.168.1.44/');
-  await page.getByPlaceholder('Username').click();
-  await page.getByPlaceholder('Username').fill(process.env.TEST_USER);
-  await page.getByRole('textbox', { name: 'Password' }).fill(process.env.TEST_PASSWORD);
-  await page.getByRole('button', { name: 'Login' }).click();
+  await page.getByRole('textbox', { name: 'Email' }).click();
+  await page.getByRole('textbox', { name: 'Email' }).fill('frederic@tinkerforge.com');
+  await page.getByRole('textbox', { name: 'Email' }).press('Tab');
+  await page.getByRole('textbox', { name: 'Password' }).fill('Test1234567890');
+  await Promise.all([
+    page.waitForResponse((resp) => {
+      expect(resp.status()).toBe(200);
+      return resp.url().includes("/api/auth/login")
+    }, {timeout: 1000}),
+    page.getByRole('button', { name: 'Login' }).click()
+  ]);
 }
 
 test('login', async ({ page }) => {

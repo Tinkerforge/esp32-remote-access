@@ -43,7 +43,7 @@ const MAX_REFRESH_TOKEN_AGE_DAYS: i64 = 7;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Validate, ToSchema)]
 pub struct LoginSchema {
-    pub username: String,
+    pub email: String,
     #[schema(value_type = Vec<u32>)]
     pub login_key: Vec<u8>,
 }
@@ -117,8 +117,8 @@ pub async fn login(
         Err(_err) => return Err(Error::InternalError.into()),
     };
 
-    let username = data.username.clone();
-    let uuid = validate_password(&data.login_key, FindBy::Username(username), conn).await?;
+    let email = data.email.clone();
+    let uuid = validate_password(&data.login_key, FindBy::Email(email), conn).await?;
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
@@ -224,12 +224,12 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub async fn login_user(username: &str, login_key: Vec<u8>) -> (String, String) {
+    pub async fn login_user(email: &str, login_key: Vec<u8>) -> (String, String) {
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
 
         let login_schema = LoginSchema {
-            username: username.to_string(),
+            email: email.to_string(),
             login_key,
         };
         let req = test::TestRequest::post()
@@ -261,10 +261,10 @@ pub(crate) mod tests {
         ret
     }
 
-    pub async fn verify_and_login_user(username: &str, login_key: Vec<u8>) -> (String, String) {
-        fast_verify(username);
+    pub async fn verify_and_login_user(email: &str, login_key: Vec<u8>) -> (String, String) {
+        fast_verify(email);
 
-        login_user(username, login_key).await
+        login_user(email, login_key).await
     }
 
     #[actix_web::test]
@@ -273,12 +273,12 @@ pub(crate) mod tests {
         let username = "login_user";
         let key = create_user(mail, username).await;
         defer!(delete_user(mail));
-        fast_verify(username);
+        fast_verify(mail);
 
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
-            username: username.to_string(),
+            email: mail.to_string(),
             login_key: key,
         };
 
@@ -314,7 +314,7 @@ pub(crate) mod tests {
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
         let login_schema = LoginSchema {
-            username: username.to_string(),
+            email: mail.to_string(),
             login_key: key,
         };
 

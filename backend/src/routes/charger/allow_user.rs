@@ -33,7 +33,7 @@ use crate::{
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct AllowUserSchema {
     charger_id: i32,
-    username: String,
+    email: String,
 }
 
 /// Give another user permission to access a charger owned by the user.
@@ -60,7 +60,7 @@ pub async fn allow_user(
         return Err(Error::UserIsNotOwner.into());
     }
 
-    let allowed_uuid = get_uuid(&state, FindBy::Username(allow_user.username.clone())).await?;
+    let allowed_uuid = get_uuid(&state, FindBy::Email(allow_user.email.clone())).await?;
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         let u = AllowedUser {
@@ -92,7 +92,7 @@ pub mod tests {
 
     use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
 
-    pub async fn add_allowed_test_user(username: &str, charger_id: i32, token: &str) {
+    pub async fn add_allowed_test_user(email: &str, charger_id: i32, token: &str) {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
@@ -101,7 +101,7 @@ pub mod tests {
 
         let body = AllowUserSchema {
             charger_id,
-            username: username.to_string(),
+            email: email.to_string(),
         };
         let req = test::TestRequest::put()
             .cookie(Cookie::new("access_token", token))
@@ -117,7 +117,8 @@ pub mod tests {
     #[actix_web::test]
     async fn test_allow_users() {
         let _user2 = TestUser::random().await;
-        let (mut user1, username) = TestUser::random().await;
+        let (mut user1, _) = TestUser::random().await;
+        let email = user1.get_mail().to_string();
 
         let charger = OsRng.next_u32() as i32;
         let token = user1.login().await.to_string();
@@ -131,7 +132,7 @@ pub mod tests {
 
         let allow = AllowUserSchema {
             charger_id: charger,
-            username,
+            email,
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
@@ -159,7 +160,7 @@ pub mod tests {
 
         let allow = AllowUserSchema {
             charger_id: charger,
-            username: uuid::Uuid::new_v4().to_string(),
+            email: uuid::Uuid::new_v4().to_string(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
