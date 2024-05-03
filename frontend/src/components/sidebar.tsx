@@ -8,8 +8,8 @@ export function Sidebar() {
     const logout = async (e: Event) => {
         e.preventDefault();
 
-        await fetch(BACKEND + "/auth/logout", {
-            credentials: "include"
+        await fetch(BACKEND + "/user/logout?logout_all=true", {
+            credentials: "include",
         });
 
         window.location.reload();
