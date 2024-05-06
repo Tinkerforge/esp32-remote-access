@@ -14,7 +14,7 @@ sequenceDiagram
     Note over Backend: Generates salt1
     Backend->>Frontend: Sends salt1
     Note right of Backend: Holds: <br> - salt1
-    Note over Frontend: Generates salt2. <br> secret-salt = salt1 + salt2 <br> secret-key = argon2(password, secret-salt) <br> Generates-secret <br> encrypted-secret = AES-CBC(secret, secret-key)
+    Note over Frontend: Generates salt2. <br> secret-salt = salt1 + salt2 <br> secret-key = argon2(password, secret-salt) <br> Generates-secret <br> encrypted-secret = libsodium.secret_box(secret, secret-key)
 
     Note left of Frontend: Holds: <br> - username <br> -email <br> - password <br> - unencrypted-secret <br> - encrypted-secret <br> - secret-key <br> - secret-salt
 
@@ -117,8 +117,8 @@ sequenceDiagram
     Note left of Charger Frontend: Holds: <br> - encrypted secret <br> - secret-key <br> - login-key <br> - WireGuard-keys
 
     Charger Frontend->>Charger: Send encrypted-secret, secret-key, <br> Wireguard-keys, login-key
-    Note over Charger: secret = AES-CBC.decrypt(encrypted-secret, secret-key)
-    Note over Charger: encrypted-WireGuard-keys = AES-CBC.encrypt(WireGuard-keys, secret)
+    Note over Charger: secret = libsodium.secret_box_open(encrypted-secret, secret-key)
+    Note over Charger: encrypted-WireGuard-keys = libsodium.sealed_box(WireGuard-keys, secret)
 
     Note left of Charger: Saves: <br> - WireGuard keys
 
@@ -171,14 +171,14 @@ sequenceDiagram
     Backend->>Frontend: Respond with encrypted-secret and <br> secret-salt
 
     Note over Frontend: secret-key = argon2(password, secret-salt)
-    Note over Frontend: secret = AES-CBC.decrypt(encrypted-secret, secret-key)
+    Note over Frontend: secret = libsodium.secret_box_open(encrypted-secret, secret-key)
 
     Note left of Frontend: Holds: <br> - secret
 
     Frontend->>Backend: Request encrypted WireGuard key
     Backend->>Frontend: Response with one of the unused <br> encrypted WireGuard keys
 
-    Note over Frontend: WireGuard-keys = AES-CBC.decrypt(encrypted-WireGuard-keys, secret)
+    Note over Frontend: WireGuard-keys = libsodium.sealed_box_open(encrypted-WireGuard-keys, secret)
 
     Note left of Frontend: Holds: <br> - secret <br> - WireGuard-keys
 
@@ -199,7 +199,7 @@ sequenceDiagram
     Backend->>Frontend: Respond with encrypted-secret and <br> secret-salt
 
     Note over Frontend: secret-key = argon2(password, secret-salt)
-    Note over Frontend: secret = AES-CBC.decrypt(encrypted-secret, secret-key)
+    Note over Frontend: secret = libsodium.secret_box_open(encrypted-secret, secret-key)
 
     Note left of Frontend: Holds: <br> - secret
 
@@ -230,7 +230,7 @@ sequenceDiagram
 
     Note left of Frontend: Holds: <br> - secret <br> - new-secret-key <br> - login-key <br> - new-login-key
 
-    Note over Frontend: encrypted-secret = AES-CBC.encrypt(secret, secret-key)
+    Note over Frontend: encrypted-secret = libsodium.secret_box(secret, secret-key)
 
     Frontend->>Backend: Send encrypted-secret, new-secret-salt, login-key, <br> new-login-key, new-login-salt
 
@@ -275,7 +275,7 @@ sequenceDiagram
 
     alt user does not provide recovery file
         Note over Frontend: Generate new-secret
-        Note over Frontend: encrypted-new-secret = AES-CBC.encrypt(new-secret, secret-key)
+        Note over Frontend: encrypted-new-secret = libsodium.secret_box(new-secret, secret-key)
 
         Frontend->>Backend: Send login-key, login-salt, secret-salt, <br> encrypted-secret, temporary-password and <br> note that the secret changed
 
@@ -285,7 +285,7 @@ sequenceDiagram
 
     alt user provides recovery file
         Note over Frontend: Verifies recovery file and extract secret
-        Note over Frontend: ecrypted-secret = AES-CBC.encrypt(secret, secret-key)
+        Note over Frontend: ecrypted-secret = libsodium.secret_box(secret, secret-key)
         Frontend->>Backend: Send login-key, login-salt, secret-salt, <br> encrypted secret
 
         Note over Backend: login-key.contains(salt3) && <br> secret-key.contains(salt1)
