@@ -23,6 +23,8 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import { useState } from "preact/hooks";
 import { BACKEND } from "../types";
+import { concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
+import sodium from "libsodium-wrappers";
 
 
 interface UserState {
@@ -35,6 +37,8 @@ interface State {
     isDirty: boolean
     user: UserState
 }
+
+let email = "";
 
 class UserComponent extends Component<{}, State> {
     constructor() {
@@ -56,6 +60,7 @@ class UserComponent extends Component<{}, State> {
         }).then(async (r) => {
             if (r.status === 200) {
                 const user: UserState = await r.json();
+                email = user.email;
                 this.setState({user: user, isDirty: false});
             } else {
                 console.log("Got answer:", r);
@@ -115,9 +120,52 @@ export function User() {
     const submit = async (e: SubmitEvent) => {
         e.preventDefault();
 
+        const secret_resp = await fetch(BACKEND + "/user/get_secret", {
+            method: "GET",
+            credentials: "include",
+        })
+
+        const crypto = window.crypto.subtle;
+
+        const {
+            secret,
+            secret_nonce,
+            secret_salt
+        } = await secret_resp.json();
+
+        const secret_key = await generate_hash(currentPassword, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
+
+        console.log("secret", secret_key);
+        console.log("iv", new Uint8Array(secret_nonce));
+        console.log("encrypted_secret", new Uint8Array(secret));
+
+        const decrypted_secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret), new Uint8Array(secret_nonce), secret_key);
+
+        console.log("decrypted secret: ", decrypted_secret);
+
+        const salt1 = await get_salt();
+        const new_secret_salt = concat_salts(salt1);
+        const new_secret_key = await generate_hash(newPassword, new_secret_salt, sodium.crypto_secretbox_KEYBYTES);
+
+        const new_secret_nonce = generate_random_bytes(sodium.crypto_secretbox_NONCEBYTES);
+        const new_encrypted_secret = sodium.crypto_secretbox_easy(decrypted_secret, new_secret_nonce, new_secret_key);
+
+        const login_salt = await get_salt_for_user(email);
+        const login_key = await generate_hash(currentPassword, login_salt);
+
+        const salt3 = await get_salt();
+        const new_login_salt = concat_salts(salt3);
+        const new_login_key = await generate_hash(newPassword, new_login_salt);
+
+        console.log("new_encrypted_secret:", new_encrypted_secret);
+
         const payload = {
-            old_pass: currentPassword,
-            new_pass: newPassword
+            old_login_key: [].slice.call(login_key),
+            new_login_key: [].slice.call(new_login_key),
+            new_login_salt: [].slice.call(new_login_salt),
+            new_secret_nonce: [].slice.call(new_secret_nonce),
+            new_secret_salt: [].slice.call(new_secret_salt),
+            new_encrypted_secret: [].slice.call(new Uint8Array(new_encrypted_secret)),
         };
 
         const resp = await fetch(BACKEND + "/user/update_password", {
