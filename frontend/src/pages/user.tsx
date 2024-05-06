@@ -25,6 +25,7 @@ import { useState } from "preact/hooks";
 import { BACKEND } from "../types";
 import { concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
+import { logout } from "../components/sidebar";
 
 
 interface UserState {
@@ -168,6 +169,7 @@ export function User() {
             body: JSON.stringify(payload)
         });
         if (resp.status === 200) {
+            logout(e);
             handleClose();
         }
     };

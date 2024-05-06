@@ -2,10 +2,7 @@ import { useLocation } from "preact-iso";
 import Nav from "react-bootstrap/Nav";
 import { BACKEND } from "../types";
 
-export function Sidebar() {
-    const { url } = useLocation();
-
-    const logout = async (e: Event) => {
+export async function logout (e: Event) {
         e.preventDefault();
 
         await fetch(BACKEND + "/user/logout?logout_all=true", {
@@ -14,6 +11,9 @@ export function Sidebar() {
 
         window.location.reload();
     }
+
+export function Sidebar() {
+    const { url } = useLocation();
 
     return (
         <div class="collapse bg-light col-lg-2 col-md-3 d-md-block navbar-collapse sidebar">
