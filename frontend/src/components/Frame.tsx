@@ -88,7 +88,6 @@ export class Frame extends Component {
             <div class="home">
                 <iframe height={600} width={1048} id="interface"></iframe>
                 <button onClick={() => {
-                    console.log("trigger download");
                     this.worker.postMessage("download");
                 }}>Download Pcap log</button>
             </div>

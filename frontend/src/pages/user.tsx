@@ -134,14 +134,7 @@ export function User() {
         } = await secret_resp.json();
 
         const secret_key = await generate_hash(currentPassword, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
-
-        console.log("secret", secret_key);
-        console.log("iv", new Uint8Array(secret_nonce));
-        console.log("encrypted_secret", new Uint8Array(secret));
-
         const decrypted_secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret), new Uint8Array(secret_nonce), secret_key);
-
-        console.log("decrypted secret: ", decrypted_secret);
 
         const salt1 = await get_salt();
         const new_secret_salt = concat_salts(salt1);
@@ -156,8 +149,6 @@ export function User() {
         const salt3 = await get_salt();
         const new_login_salt = concat_salts(salt3);
         const new_login_key = await generate_hash(newPassword, new_login_salt);
-
-        console.log("new_encrypted_secret:", new_encrypted_secret);
 
         const payload = {
             old_login_key: [].slice.call(login_key),

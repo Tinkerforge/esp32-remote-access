@@ -11,7 +11,6 @@ export async function get_salt() {
     }
     const json = await resp.text();
     const data = JSON.parse(json);
-    console.log(data);
 
     return new Uint8Array(data);
 }
@@ -25,7 +24,6 @@ export async function get_salt_for_user(email: string) {
     }
     const json = await resp.text();
     const data = JSON.parse(json);
-    console.log(data);
 
     return new Uint8Array(data);
 }

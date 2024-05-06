@@ -94,8 +94,6 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         key_id: json.id,
                     }
 
-                    console.log(charger_info.value);
-
                     connected.value = true;
                 }} variant="primary">Connect</Button></td>
                 <td><Button onClick={async () => {
