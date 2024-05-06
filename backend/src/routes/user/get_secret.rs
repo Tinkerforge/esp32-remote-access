@@ -17,7 +17,7 @@ pub struct GetSecretResponse {
     #[schema(value_type = Vec<u32>)]
     secret_salt: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
-    secret_iv: Vec<u8>,
+    secret_nonce: Vec<u8>,
 }
 
 #[utoipa::path(
@@ -47,7 +47,7 @@ pub async fn get_secret(
         };
         Ok(GetSecretResponse {
             secret: user.secret,
-            secret_iv: user.secret_iv,
+            secret_nonce: user.secret_nonce,
             secret_salt: user.secret_salt,
         })
     })

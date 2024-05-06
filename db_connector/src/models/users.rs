@@ -10,7 +10,7 @@ pub struct User {
     pub login_key: String,
     pub email_verified: bool,
     pub secret: Vec<u8>,
-    pub secret_iv: Vec<u8>,
+    pub secret_nonce: Vec<u8>,
     pub secret_salt: Vec<u8>,
     pub login_salt: Vec<u8>,
 }

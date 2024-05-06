@@ -12,7 +12,7 @@ interface RegisterSchema {
     login_key: number[],
     login_salt: number[],
     secret: number[],
-    secret_iv: number[],
+    secret_nonce: number[],
     secret_salt: number[],
 }
 
@@ -60,22 +60,12 @@ export class Register extends Component<{}, RegisterState> {
         const combined_secret_salt = new Uint8Array(secret_salt.length + this_secret_salt.length);
         combined_secret_salt.set(secret_salt);
         combined_secret_salt.set(this_secret_salt, secret_salt.length);
-        const secret_hash = await generate_hash(this.state.password, combined_secret_salt, 32);
+        const secret_key = await generate_hash(this.state.password, combined_secret_salt, sodium.crypto_secretbox_KEYBYTES);
 
         const keypair = sodium.crypto_box_keypair();
 
-        const crypto = window.crypto.subtle;
-        const secret_key = await crypto.importKey("raw", secret_hash, {name: "AES-CBC"}, false, ["encrypt"]);
-
-        const secret_iv = generate_random_bytes(16);
-        const encrypted_secret = await crypto.encrypt(
-            {
-                name: "AES-CBC",
-                iv: secret_iv
-            },
-            secret_key,
-            keypair.privateKey
-        );
+        const secret_nonce = generate_random_bytes(sodium.crypto_secretbox_NONCEBYTES);
+        const encrypted_secret = sodium.crypto_secretbox_easy(keypair.privateKey, secret_nonce, secret_key);
 
         let login_salt: Uint8Array;
         try {
@@ -98,7 +88,7 @@ export class Register extends Component<{}, RegisterState> {
             login_key: [].slice.call(login_key),
             login_salt: [].slice.call(combined_login_salt),
             secret: [].slice.call(new Uint8Array(encrypted_secret)),
-            secret_iv: [].slice.call(secret_iv),
+            secret_nonce: [].slice.call(secret_nonce),
             secret_salt: [].slice.call(combined_secret_salt),
         }
 

@@ -53,18 +53,9 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
     }
 
     async decrypt_keys(keys: any, secret_data: any) {
-        const crypto = window.crypto.subtle;
         const password = sessionStorage.getItem("password");
-        const secret_hash = await generate_hash(password, new Uint8Array(secret_data.secret_salt), 32);
-        const secret_key = await crypto.importKey("raw", secret_hash, {name: "AES-CBC"}, false, ["decrypt"]);
-        const secret = await crypto.decrypt(
-                {
-                    name: "AES-CBC",
-                    iv: new Uint8Array(secret_data.secret_iv)
-                },
-                secret_key,
-                new Uint8Array(secret_data.secret)
-            );
+        const secret_key = await generate_hash(password, new Uint8Array(secret_data.secret_salt), sodium.crypto_secretbox_KEYBYTES);
+        const secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret_data.secret), new Uint8Array(secret_data.secret_nonce), secret_key);
 
         const public_key = sodium.crypto_scalarmult_base(new Uint8Array(secret));
         const web_private = sodium.crypto_box_seal_open(new Uint8Array(keys.web_private), public_key, new Uint8Array(secret));

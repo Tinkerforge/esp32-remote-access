@@ -40,7 +40,7 @@ pub struct PasswordUpdateSchema {
     #[schema(value_type = Vec<u32>)]
     new_login_key: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
-    new_secret_iv: Vec<u8>,
+    new_secret_nonce: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
     new_secret_salt: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
@@ -78,7 +78,7 @@ pub async fn update_password(
     let mut conn = get_connection(&state)?;
     match web::block(move || {
         match diesel::update(users.find::<uuid::Uuid>(uid.into()))
-            .set((login_key.eq(new_hash), secret_iv.eq(&data.new_secret_iv), secret.eq(&data.new_encrypted_secret), secret_salt.eq(&data.new_secret_salt)))
+            .set((login_key.eq(new_hash), secret_nonce.eq(&data.new_secret_nonce), secret.eq(&data.new_encrypted_secret), secret_salt.eq(&data.new_secret_salt)))
             .execute(&mut conn)
         {
             Ok(_) => (),
@@ -133,7 +133,7 @@ mod tests {
         let data = PasswordUpdateSchema {
             old_login_key: key,
             new_login_key: new_key.clone(),
-            new_secret_iv: generate_random_bytes(),
+            new_secret_nonce: generate_random_bytes(),
             new_secret_salt: generate_random_bytes(),
             new_encrypted_secret: generate_random_bytes(),
         };
@@ -164,7 +164,7 @@ mod tests {
         let data = PasswordUpdateSchema {
             old_login_key: generate_random_bytes(),
             new_login_key: new_key.clone(),
-            new_secret_iv: generate_random_bytes(),
+            new_secret_nonce: generate_random_bytes(),
             new_secret_salt: generate_random_bytes(),
             new_encrypted_secret: generate_random_bytes(),
         };

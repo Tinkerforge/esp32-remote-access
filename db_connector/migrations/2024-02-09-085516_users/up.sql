@@ -6,7 +6,7 @@ CREATE TABLE "users" (
   "login-key" VARCHAR NOT NULL,
   "email_verified" BOOLEAN NOT NULL DEFAULT FALSE,
   "secret" BYTEA NOT NULL,
-  "secret_iv" BYTEA NOT NULL,
+  "secret_nonce" BYTEA NOT NULL,
   "secret-salt" BYTEA NOT NULL,
   "login-salt" BYTEA NOT NULL
 );
