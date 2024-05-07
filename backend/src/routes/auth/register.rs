@@ -23,6 +23,7 @@ use argon2::{
     password_hash::{rand_core::OsRng, SaltString},
     Argon2, PasswordHasher,
 };
+use askama::Template;
 use db_connector::models::{users::User, verification::Verification};
 use diesel::{prelude::*, result::Error::NotFound};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
@@ -35,6 +36,13 @@ use crate::{
     utils::{get_connection, web_block_unpacked},
     AppState,
 };
+
+#[derive(Template)]
+#[template(path = "register.html")]
+struct RegisterTemplate<'a> {
+    name: &'a str,
+    link: &'a str,
+}
 
 #[derive(Debug, Deserialize, Serialize, Validate, Clone, ToSchema)]
 pub struct RegisterSchema {
@@ -67,21 +75,34 @@ pub fn hash_key(key: &[u8]) -> Result<String, String> {
 // This is shown as unused in vscode since vscode assumes you have tests enabled.
 #[allow(unused)]
 fn send_verification_mail(
+    name: String,
     id: Verification,
     email: String,
     mailer: SmtpTransport,
     frontend_url: String,
 ) -> Result<(), actix_web::Error> {
+    let link = format!(
+        "{}/api/auth/verify?id={}",
+        frontend_url,
+        id.id.to_string()
+    );
+    let template = RegisterTemplate {
+        name: &name,
+        link: &link
+    };
+    let body = match template.render() {
+        Ok(body) => body,
+        Err(_err) => {
+            return Err(Error::InternalError.into())
+        }
+    };
+
     let email = Message::builder()
         .from("Warp <warp@tinkerforge.com>".parse().unwrap())
         .to(email.parse().unwrap())
         .subject("Verify email")
-        .header(ContentType::TEXT_PLAIN)
-        .body(format!(
-            "{}/api/auth/verify?id={}",
-            frontend_url,
-            id.id.to_string()
-        ))
+        .header(ContentType::TEXT_HTML)
+        .body(body)
         .unwrap();
 
     match mailer.send(&email) {
@@ -157,7 +178,7 @@ pub async fn register(
         #[allow(unused)]
         let mail = user_insert.email.clone();
 
-        let user_insert = diesel::insert_into(users)
+        let user_insert_result = diesel::insert_into(users)
             .values(&user_insert)
             .execute(&mut conn);
         match diesel::insert_into(verification)
@@ -172,6 +193,7 @@ pub async fn register(
         #[cfg(not(test))]
         std::thread::spawn(move || {
             send_verification_mail(
+                user_insert.name,
                 verify,
                 mail,
                 state.mailer.clone(),
@@ -180,7 +202,7 @@ pub async fn register(
             .ok();
         });
 
-        user_insert
+        user_insert_result
     })
     .await
     {
