@@ -46,6 +46,7 @@ bs58 = "0.5.1"
 askama = "0.12.1"
 
 [dev-dependencies]
+libsodium-sys-stable = "1.20.4"
 
 [profile.release]
 opt-level = 3

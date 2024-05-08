@@ -13,11 +13,11 @@ use crate::{
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetSecretResponse {
     #[schema(value_type = Vec<u32>)]
-    secret: Vec<u8>,
+    pub secret: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
-    secret_salt: Vec<u8>,
+    pub secret_salt: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
-    secret_nonce: Vec<u8>,
+    pub secret_nonce: Vec<u8>,
 }
 
 #[utoipa::path(
@@ -57,7 +57,7 @@ pub async fn get_secret(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::{
         middleware::jwt::JwtMiddleware,
         routes::user::{
@@ -67,9 +67,23 @@ mod tests {
         tests::configure,
     };
 
-    use actix_web::{cookie::Cookie, test, App};
+    use actix_web::{cookie::Cookie, test::{self, TestRequest}, App};
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
+
+    pub async fn get_test_secret(access_token: &str) -> GetSecretResponse {
+        let app = App::new().configure(configure).wrap(JwtMiddleware).service(get_secret);
+        let app = test::init_service(app).await;
+
+        let req = TestRequest::get()
+            .uri("/get_secret")
+            .cookie(Cookie::new("access_token", access_token))
+            .to_request();
+
+        let resp = test::call_and_read_body_json(&app, req).await;
+
+        resp
+    }
 
     #[actix_web::test]
     async fn test_get_secret() {

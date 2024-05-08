@@ -51,14 +51,26 @@ pub async fn get_login_salt(
 }
 
 #[cfg(test)]
-mod tests {
-    use actix_web::{test, App};
+pub mod tests {
+    use actix_web::{test::{self, TestRequest}, App};
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
 
     use crate::{routes::user::tests::TestUser, tests::configure};
 
     use super::get_login_salt;
+
+    pub async fn get_test_login_salt(mail: &str) -> Vec<u8> {
+        let app = App::new().configure(configure).service(get_login_salt);
+        let app = test::init_service(app).await;
+
+        let req = TestRequest::get()
+            .uri(&format!("/get_login_salt?email={}", mail))
+            .to_request();
+        let resp = test::call_and_read_body_json(&app, req).await;
+
+        resp
+    }
 
     #[actix_web::test]
     async fn test_get_login_salt() {

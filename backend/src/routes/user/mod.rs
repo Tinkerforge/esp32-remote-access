@@ -126,23 +126,25 @@ pub async fn get_user(
 
 #[cfg(test)]
 pub mod tests {
+    use actix_web::{http::header::ContentType, test, App};
+    use argon2::{
+        password_hash::SaltString, Argon2, Params, PasswordHasher};
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
-    use rand::RngCore;
+    use libsodium_sys::{crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy};
+    use rand::{Rng, RngCore};
     use rand_core::OsRng;
 
-    use crate::routes::{
+    use crate::{routes::{
         auth::{
-            login::tests::login_user,
-            register::tests::{create_user, delete_user},
-            verify::tests::fast_verify,
+            get_login_salt::tests::get_test_login_salt, login::tests::login_user, register::{register, tests::delete_user, RegisterSchema}, verify::tests::fast_verify
         },
         charger::{
             add::tests::add_test_charger,
             allow_user::tests::add_allowed_test_user,
             remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
         },
-    };
+    }, tests::configure};
 
     // Get the uuid for an test user.
     pub fn get_test_uuid(mail: &str) -> uuid::Uuid {
@@ -161,24 +163,71 @@ pub mod tests {
 
     /**
     * Struct for testing with users.
-      When using multiple instances create them in the opposite order they need to destroyed in.
+      When using multiple instances create them in the opposite order they need to be destroyed in.
     */
     #[derive(Debug)]
     pub struct TestUser {
-        mail: String,
-        charger: Vec<i32>,
-        login_key: Vec<u8>,
-        access_token: Option<String>,
-        refresh_token: Option<String>,
+        pub mail: String,
+        pub charger: Vec<i32>,
+        pub password: Vec<u8>,
+        pub access_token: Option<String>,
+        pub refresh_token: Option<String>,
+    }
+
+    pub fn hash_test_key(password: &[u8], salt: &[u8], len: Option<usize>) -> Vec<u8> {
+        let len = len.unwrap_or(24);
+        let params = Params::new(19 * 1024, 2, 1, Some(len)).unwrap();
+        let argon2 = Argon2::default();
+        let salt = SaltString::encode_b64(salt).unwrap();
+        let hash = argon2.hash_password_customized(password, None, None, params, &salt).unwrap();
+
+        hash.hash.unwrap().as_bytes().to_owned()
+    }
+
+    pub fn generate_random_bytes_len(len: usize) -> Vec<u8> {
+        let mut rng = rand::thread_rng();
+        (0..len).map(|_| rng.gen_range(0..255)).collect()
     }
 
     impl TestUser {
         pub async fn new(mail: &str) -> Self {
-            let key = create_user(mail).await;
+            let login_salt = generate_random_bytes_len(48);
+            let secret_salt = generate_random_bytes_len(48);
+            let password = generate_random_bytes_len(48);
+            let secret = generate_random_bytes_len(crypto_box_SECRETKEYBYTES as usize);
+            let login_key = hash_test_key(&password, &login_salt, None);
+            let secret_key = hash_test_key(&password, &secret_salt, Some(crypto_secretbox_KEYBYTES as usize));
+            let secret_nonce = generate_random_bytes_len(crypto_secretbox_NONCEBYTES as usize);
+            let mut encrypted_secret = vec![0u8; (crypto_secretbox_MACBYTES + crypto_box_SECRETKEYBYTES) as usize];
+            unsafe {
+                crypto_secretbox_easy(encrypted_secret.as_mut_ptr(), secret.as_ptr(), crypto_box_SECRETKEYBYTES as u64, secret_nonce.as_ptr(), secret_key.as_ptr());
+            };
+
+            let app = App::new().configure(configure).service(register);
+            let app = test::init_service(app).await;
+            let user = RegisterSchema {
+                name: mail.to_string(),
+                email: mail.to_string(),
+                login_key,
+                login_salt,
+                secret: encrypted_secret,
+                secret_nonce,
+                secret_salt,
+            };
+            let req = test::TestRequest::post()
+                .uri("/register")
+                .insert_header(ContentType::json())
+                .set_json(user)
+                .to_request();
+            let resp = test::call_service(&app, req).await;
+            println!("{}", resp.status());
+            assert!(resp.status().is_success());
+            println!("Created user");
+
             fast_verify(mail);
             TestUser {
                 mail: mail.to_string(),
-                login_key: key,
+                password,
                 charger: Vec::new(),
                 access_token: None,
                 refresh_token: None,
@@ -200,8 +249,11 @@ pub mod tests {
             if self.access_token.is_some() {
                 return self.access_token.as_ref().unwrap();
             }
+            let login_salt = get_test_login_salt(&self.mail).await;
+            let login_key = hash_test_key(&self.password, &login_salt, None);
+
             let (access_token, refresh_token) =
-                login_user(&self.mail, self.login_key.clone()).await;
+                login_user(&self.mail, login_key).await;
 
             self.access_token = Some(access_token);
             self.refresh_token = Some(refresh_token);
@@ -210,7 +262,9 @@ pub mod tests {
         }
 
         pub async fn additional_login(&mut self) {
-            login_user(&self.mail, self.login_key.clone()).await;
+            let login_salt = get_test_login_salt(&self.mail).await;
+            let login_key = hash_test_key(&self.password, &login_salt, None);
+            login_user(&self.mail, login_key).await;
         }
 
         pub async fn add_charger(&mut self, id: i32) -> String {

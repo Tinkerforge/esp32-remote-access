@@ -103,15 +103,12 @@ pub async fn update_password(
 mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
+    use libsodium_sys::{crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy, crypto_secretbox_open_easy};
 
     use crate::{
-        defer,
         routes::{
-            auth::{
-                login::tests::{login_user, verify_and_login_user},
-                register::tests::{create_user, delete_user},
-            },
-            user::tests::TestUser,
+            auth::get_login_salt::tests::get_test_login_salt,
+            user::{get_secret::tests::get_test_secret, tests::{generate_random_bytes_len, hash_test_key, TestUser}},
         },
         tests::configure,
         utils::generate_random_bytes,
@@ -119,10 +116,28 @@ mod tests {
 
     #[actix_web::test]
     async fn test_valid_password_update() {
-        let mail = "valid_password_update@test.invalid";
-        let key = create_user(mail).await;
-        defer!(delete_user(mail));
-        let (token, _) = verify_and_login_user(mail, key.clone()).await;
+        let (mut user, mail) = TestUser::random().await;
+        let token = user.login().await.to_owned();
+
+        let login_salt = get_test_login_salt(&mail).await;
+        let login_key = hash_test_key(&user.password, &login_salt, None);
+        let secret_data = get_test_secret(&token).await;
+        let secret_key = hash_test_key(&user.password, &secret_data.secret_salt, Some(crypto_secretbox_KEYBYTES as usize));
+        let mut secret = vec![0u8; crypto_box_SECRETKEYBYTES as usize];
+        unsafe {
+            crypto_secretbox_open_easy(secret.as_mut_ptr(), secret_data.secret.as_ptr(), secret_data.secret.len() as u64, secret_data.secret_nonce.as_ptr(), secret_key.as_ptr());
+        }
+
+        let new_password = generate_random_bytes_len(48);
+        let new_login_salt = generate_random_bytes_len(48);
+        let new_secret_salt = generate_random_bytes_len(48);
+        let new_secret_nonce = generate_random_bytes_len(crypto_secretbox_NONCEBYTES as usize);
+        let new_login_key = hash_test_key(&new_password, &new_login_salt, None);
+        let new_secret_key = hash_test_key(&new_password, &new_secret_salt, Some(crypto_secretbox_KEYBYTES as usize));
+        let mut new_encrypted_secret = vec![0u8; (crypto_secretbox_MACBYTES + crypto_secretbox_KEYBYTES) as usize];
+        unsafe {
+            crypto_secretbox_easy(new_encrypted_secret.as_mut_ptr(), secret.as_ptr(), crypto_box_SECRETKEYBYTES as u64, new_secret_nonce.as_ptr(), new_secret_key.as_ptr());
+        }
 
         let app = App::new()
             .configure(configure)
@@ -130,14 +145,13 @@ mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let new_key: Vec<u8> = generate_random_bytes();
         let data = PasswordUpdateSchema {
-            old_login_key: key,
-            new_login_key: new_key.clone(),
-            new_login_salt: generate_random_bytes(),
-            new_secret_nonce: generate_random_bytes(),
-            new_secret_salt: generate_random_bytes(),
-            new_encrypted_secret: generate_random_bytes(),
+            old_login_key: login_key,
+            new_login_key,
+            new_login_salt,
+            new_secret_nonce,
+            new_secret_salt,
+            new_encrypted_secret,
         };
 
         let req = test::TestRequest::put()
@@ -147,8 +161,8 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
-
-        let _ = login_user(mail, new_key).await;
+        user.password = new_password;
+        let _ = user.additional_login().await;
     }
 
     #[actix_web::test]
