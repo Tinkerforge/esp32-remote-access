@@ -186,8 +186,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_valid_verify() {
         let mail = "valid_verify@test.invalid";
-        let username = "valid_verify_user";
-        create_user(mail, username).await;
+        create_user(mail).await;
         defer!(delete_user(mail));
 
         let pool = db_connector::test_connection_pool();
@@ -211,8 +210,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_invalid_verify() {
         let mail = "invalid_verify@test.invalid";
-        let username = "invalid_verify_user";
-        create_user(mail, username).await;
+        create_user(mail).await;
         defer!(delete_user(mail));
 
         let pool = db_connector::test_connection_pool();
@@ -235,8 +233,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_no_verify() {
         let mail = "no_verify@test.invalid";
-        let username = "no_verify_user";
-        create_user(mail, username).await;
+        create_user(mail).await;
         defer!(delete_user(mail));
 
         let pool = db_connector::test_connection_pool();

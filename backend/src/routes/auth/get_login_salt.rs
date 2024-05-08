@@ -64,8 +64,7 @@ mod tests {
     async fn test_get_login_salt() {
         use db_connector::schema::users::dsl::*;
 
-        let (mut user, username) = TestUser::random().await;
-        let mail = user.get_mail().to_owned();
+        let (mut user, mail) = TestUser::random().await;
         user.login().await;
 
         let app = App::new().configure(configure).service(get_login_salt);
@@ -83,7 +82,7 @@ mod tests {
         let mut conn = pool.get().unwrap();
 
         let user: User = users
-            .filter(name.eq(username))
+            .filter(email.eq(mail))
             .select(User::as_select())
             .get_result(&mut conn)
             .unwrap();

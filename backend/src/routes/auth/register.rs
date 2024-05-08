@@ -226,7 +226,7 @@ pub(crate) mod tests {
 
     use super::*;
 
-    pub async fn create_user(mail: &str, username: &str) -> Vec<u8> {
+    pub async fn create_user(mail: &str) -> Vec<u8> {
         // test with valid syntax
 
         let mut rng = rand::thread_rng();
@@ -234,7 +234,7 @@ pub(crate) mod tests {
         let app = App::new().configure(configure).service(register);
         let app = test::init_service(app).await;
         let user = RegisterSchema {
-            name: username.to_string(),
+            name: mail.to_string(),
             email: mail.to_string(),
             login_key: login_key.clone(),
             login_salt: (0..24).map(|_| rng.gen_range(0..255)).collect(),

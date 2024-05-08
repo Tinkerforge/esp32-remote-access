@@ -270,8 +270,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_valid_login() {
         let mail = "login@test.invalid";
-        let username = "login_user";
-        let key = create_user(mail, username).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
         fast_verify(mail);
 
@@ -307,8 +306,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_unverified() {
         let mail = "unverified_login@test.invalid";
-        let username = "unverified_username";
-        let key = create_user(mail, username).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
 
         let app = App::new().configure(configure).service(login);

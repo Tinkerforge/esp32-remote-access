@@ -145,13 +145,13 @@ pub mod tests {
     };
 
     // Get the uuid for an test user.
-    pub fn get_test_uuid(username: &str) -> uuid::Uuid {
+    pub fn get_test_uuid(mail: &str) -> uuid::Uuid {
         use db_connector::schema::users::dsl::*;
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         let user: User = users
-            .filter(name.eq(username))
+            .filter(email.eq(mail))
             .select(User::as_select())
             .get_result(&mut conn)
             .unwrap();
@@ -165,7 +165,6 @@ pub mod tests {
     */
     #[derive(Debug)]
     pub struct TestUser {
-        username: String,
         mail: String,
         charger: Vec<i32>,
         login_key: Vec<u8>,
@@ -174,11 +173,10 @@ pub mod tests {
     }
 
     impl TestUser {
-        pub async fn new(mail: &str, username: &str) -> Self {
-            let key = create_user(mail, username).await;
+        pub async fn new(mail: &str) -> Self {
+            let key = create_user(mail).await;
             fast_verify(mail);
             TestUser {
-                username: username.to_string(),
                 mail: mail.to_string(),
                 login_key: key,
                 charger: Vec::new(),
@@ -190,8 +188,8 @@ pub mod tests {
         pub async fn random() -> (Self, String) {
             let uuid = uuid::Uuid::new_v4().to_string();
             let mail = format!("{}@test.invalid", uuid);
-            let user = Self::new(&mail, &uuid.to_string()).await;
-            (user, uuid.to_string())
+            let user = Self::new(&mail).await;
+            (user, mail)
         }
 
         pub fn get_access_token(&self) -> &str {
@@ -249,7 +247,7 @@ pub mod tests {
     impl Drop for TestUser {
         fn drop(&mut self) {
             while let Some(charger) = self.charger.pop() {
-                remove_test_keys(&self.username);
+                remove_test_keys(&self.mail);
                 remove_allowed_test_users(charger);
                 remove_test_charger(charger);
             }

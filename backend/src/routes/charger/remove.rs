@@ -124,10 +124,10 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn remove_test_keys(username: &str) {
+    pub fn remove_test_keys(mail: &str) {
         use db_connector::schema::wg_keys::dsl::*;
 
-        let uid = get_test_uuid(username);
+        let uid = get_test_uuid(mail);
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();

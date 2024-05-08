@@ -74,7 +74,7 @@ mod tests {
     #[actix_web::test]
     async fn test_get_secret() {
         use db_connector::schema::users::dsl::*;
-        let (mut user, username) = TestUser::random().await;
+        let (mut user, mail) = TestUser::random().await;
         let token = user.login().await.to_owned();
 
         let app = App::new()
@@ -93,7 +93,7 @@ mod tests {
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         let user: User = users
-            .filter(name.eq(username))
+            .filter(email.eq(mail))
             .select(User::as_select())
             .get_result(&mut conn)
             .unwrap();
@@ -105,7 +105,7 @@ mod tests {
     #[actix_web::test]
     async fn test_two_existing_users() {
         use db_connector::schema::users::dsl::*;
-        let (mut user, username) = TestUser::random().await;
+        let (mut user, mail) = TestUser::random().await;
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
         let token = user.login().await.to_owned();
@@ -126,7 +126,7 @@ mod tests {
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         let user: User = users
-            .filter(name.eq(username))
+            .filter(email.eq(mail))
             .select(User::as_select())
             .get_result(&mut conn)
             .unwrap();

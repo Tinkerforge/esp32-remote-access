@@ -62,20 +62,6 @@ pub async fn update_user(
             Err(_err) => return Err(Error::InternalError),
         }
 
-        match users
-            .filter(name.eq(&user.name))
-            .select(User::as_select())
-            .get_result(&mut conn)
-        {
-            Err(NotFound) => (),
-            Ok(u) => {
-                if u.id != uid.clone().into() {
-                    return Err(Error::UserAlreadyExists);
-                }
-            }
-            Err(_err) => return Err(Error::InternalError),
-        }
-
         match diesel::update(users.find::<uuid::Uuid>(uid.clone().into()))
             .set(email.eq(&user.email))
             .execute(&mut conn)
@@ -123,8 +109,7 @@ mod tests {
     #[actix_web::test]
     async fn test_update_email() {
         let mail = "update_mail@test.invalid";
-        let username = "update_mail_user";
-        let key = create_user(mail, username).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
         let update_mail = format!("t{}", mail);
         defer!(delete_user(&update_mail));
@@ -152,9 +137,9 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_existing_username() {
-        let (mut user, username) = TestUser::random().await;
-        let (_user2, username2) = TestUser::random().await;
+    async fn test_existing_email() {
+        let (mut user, mail) = TestUser::random().await;
+        let (_user2, mail2) = TestUser::random().await;
         let token = user.login().await;
         let app = App::new()
             .configure(configure)
@@ -162,9 +147,9 @@ mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let user = get_test_user(&username);
+        let user = get_test_user(&mail);
         let mut user = FilteredUser::from(user);
-        user.name = username2;
+        user.email = mail2;
         let req = test::TestRequest::put()
             .uri("/update_user")
             .set_json(user)

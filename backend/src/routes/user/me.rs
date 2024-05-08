@@ -62,13 +62,13 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn get_test_user(username: &str) -> User {
+    pub fn get_test_user(mail: &str) -> User {
         use db_connector::schema::users::dsl::*;
 
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
         users
-            .filter(name.eq(username))
+            .filter(email.eq(mail))
             .select(User::as_select())
             .get_result(&mut conn)
             .unwrap()
@@ -89,8 +89,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_me() {
         let mail = "me@test.invalid";
-        let username = "test_me_user";
-        let key = create_user(mail, username).await;
+        let key = create_user(mail).await;
         defer!(delete_user(mail));
 
         let app = App::new()

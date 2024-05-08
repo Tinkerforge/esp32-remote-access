@@ -485,7 +485,7 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_valid_charger() {
-        let (mut user, username) = TestUser::random().await;
+        let (mut user, mail) = TestUser::random().await;
         let token = user.login().await;
 
         let app = App::new()
@@ -520,7 +520,7 @@ pub(crate) mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        remove_test_keys(&username);
+        remove_test_keys(&mail);
         remove_allowed_test_users(cid);
         remove_test_charger(cid);
         println!("{:?}", resp);

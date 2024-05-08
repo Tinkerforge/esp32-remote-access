@@ -123,11 +123,11 @@ mod tests {
 
     use super::logout;
 
-    fn get_tokens(username: &str) -> Vec<RefreshToken> {
+    fn get_tokens(mail: &str) -> Vec<RefreshToken> {
         use db_connector::schema::refresh_tokens::dsl::*;
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let user = get_test_user(username);
+        let user = get_test_user(mail);
         let tokens: Vec<RefreshToken> = refresh_tokens
             .filter(user_id.eq(user.id))
             .select(RefreshToken::as_select())
@@ -160,7 +160,7 @@ mod tests {
 
     #[actix_web::test]
     async fn logout_all() {
-        let (mut user, username) = TestUser::random().await;
+        let (mut user, mail) = TestUser::random().await;
         let token = user.login().await.to_owned();
         let refresh_token = user.get_refresh_token().to_owned();
         user.additional_login().await;
@@ -179,7 +179,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
 
-        assert_eq!(get_tokens(&username).len(), 0);
+        assert_eq!(get_tokens(&mail).len(), 0);
     }
 
     #[actix_web::test]
