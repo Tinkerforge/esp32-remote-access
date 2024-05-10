@@ -84,6 +84,8 @@ async fn main() {
             routes::auth::generate_salt::generate_salt,
             routes::auth:: jwt_refresh::jwt_refresh,
             routes::auth::get_login_salt::get_login_salt,
+            routes::auth::recovery::recovery,
+            routes::auth::start_recovery::start_recovery,
             routes::charger::add::add,
             routes::charger::allow_user::allow_user,
             routes::charger::remove::remove,
@@ -99,6 +101,7 @@ async fn main() {
         components(schemas(
             routes::auth::login::LoginSchema,
             routes::auth::register::RegisterSchema,
+            routes::auth::recovery::RecoverySchema,
             routes::charger::add::AddChargerSchema,
             routes::charger::add::ChargerSchema,
             routes::charger::add::Keys,

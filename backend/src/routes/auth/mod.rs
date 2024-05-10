@@ -25,6 +25,8 @@ pub mod jwt_refresh;
 pub mod login;
 pub mod register;
 pub mod verify;
+pub mod start_recovery;
+pub mod recovery;
 
 pub fn configure(cfg: &mut ServiceConfig) {
     let scope = web::scope("/auth")
@@ -33,6 +35,8 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .service(get_login_salt::get_login_salt)
         .service(generate_salt::generate_salt)
         .service(jwt_refresh::jwt_refresh)
+        .service(start_recovery::start_recovery)
+        .service(recovery::recovery)
         .service(login::login);
     cfg.service(scope);
 }

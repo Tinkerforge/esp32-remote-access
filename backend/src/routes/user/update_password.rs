@@ -125,7 +125,9 @@ mod tests {
         let secret_key = hash_test_key(&user.password, &secret_data.secret_salt, Some(crypto_secretbox_KEYBYTES as usize));
         let mut secret = vec![0u8; crypto_box_SECRETKEYBYTES as usize];
         unsafe {
-            crypto_secretbox_open_easy(secret.as_mut_ptr(), secret_data.secret.as_ptr(), secret_data.secret.len() as u64, secret_data.secret_nonce.as_ptr(), secret_key.as_ptr());
+            if crypto_secretbox_open_easy(secret.as_mut_ptr(), secret_data.secret.as_ptr(), secret_data.secret.len() as u64, secret_data.secret_nonce.as_ptr(), secret_key.as_ptr()) != 0 {
+                panic!("Decrypting secret failed.");
+            }
         }
 
         let new_password = generate_random_bytes_len(48);
@@ -136,7 +138,9 @@ mod tests {
         let new_secret_key = hash_test_key(&new_password, &new_secret_salt, Some(crypto_secretbox_KEYBYTES as usize));
         let mut new_encrypted_secret = vec![0u8; (crypto_secretbox_MACBYTES + crypto_secretbox_KEYBYTES) as usize];
         unsafe {
-            crypto_secretbox_easy(new_encrypted_secret.as_mut_ptr(), secret.as_ptr(), crypto_box_SECRETKEYBYTES as u64, new_secret_nonce.as_ptr(), new_secret_key.as_ptr());
+            if crypto_secretbox_easy(new_encrypted_secret.as_mut_ptr(), secret.as_ptr(), crypto_box_SECRETKEYBYTES as u64, new_secret_nonce.as_ptr(), new_secret_key.as_ptr()) != 0 {
+                panic!("Encrypted secret failed.");
+            }
         }
 
         let app = App::new()

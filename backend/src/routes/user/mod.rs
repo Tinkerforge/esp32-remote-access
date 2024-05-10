@@ -190,17 +190,19 @@ pub mod tests {
     }
 
     impl TestUser {
-        pub async fn new(mail: &str) -> Self {
+        pub async fn new(mail: &str, secret: Option<Vec<u8>>) -> Self {
             let login_salt = generate_random_bytes_len(48);
             let secret_salt = generate_random_bytes_len(48);
             let password = generate_random_bytes_len(48);
-            let secret = generate_random_bytes_len(crypto_box_SECRETKEYBYTES as usize);
+            let secret = secret.unwrap_or(generate_random_bytes_len(crypto_box_SECRETKEYBYTES as usize));
             let login_key = hash_test_key(&password, &login_salt, None);
             let secret_key = hash_test_key(&password, &secret_salt, Some(crypto_secretbox_KEYBYTES as usize));
             let secret_nonce = generate_random_bytes_len(crypto_secretbox_NONCEBYTES as usize);
             let mut encrypted_secret = vec![0u8; (crypto_secretbox_MACBYTES + crypto_box_SECRETKEYBYTES) as usize];
             unsafe {
-                crypto_secretbox_easy(encrypted_secret.as_mut_ptr(), secret.as_ptr(), crypto_box_SECRETKEYBYTES as u64, secret_nonce.as_ptr(), secret_key.as_ptr());
+                if crypto_secretbox_easy(encrypted_secret.as_mut_ptr(), secret.as_ptr(), crypto_box_SECRETKEYBYTES as u64, secret_nonce.as_ptr(), secret_key.as_ptr()) != 0 {
+                    panic!("Encrypting secret failed.");
+                }
             };
 
             let app = App::new().configure(configure).service(register);
@@ -237,7 +239,14 @@ pub mod tests {
         pub async fn random() -> (Self, String) {
             let uuid = uuid::Uuid::new_v4().to_string();
             let mail = format!("{}@test.invalid", uuid);
-            let user = Self::new(&mail).await;
+            let user = Self::new(&mail, None).await;
+            (user, mail)
+        }
+
+        pub async fn random_with_secret(secret: Vec<u8>) -> (Self, String) {
+            let uuid = uuid::Uuid::new_v4().to_string();
+            let mail = format!("{}@test.invalid", uuid);
+            let user = Self::new(&mail, Some(secret)).await;
             (user, mail)
         }
 
