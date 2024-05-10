@@ -4,6 +4,7 @@ import Form from "react-bootstrap/Form";
 import { BACKEND } from "../types";
 import { showAlert } from "./Alert";
 import { generate_hash, get_salt_for_user } from "../utils";
+import { Modal } from "react-bootstrap";
 
 interface LoginSchema {
     email: string,
@@ -13,6 +14,7 @@ interface LoginSchema {
 interface LoginState {
     email: string,
     password: string,
+    show_modal: boolean,
 }
 
 export class Login extends Component<{}, LoginState> {
@@ -21,6 +23,7 @@ export class Login extends Component<{}, LoginState> {
         this.state = {
             email: "",
             password: "",
+            show_modal: false,
         }
     }
 
@@ -67,6 +70,43 @@ export class Login extends Component<{}, LoginState> {
 
     render() {
         return(<>
+            <Modal show={this.state.show_modal} onHide={() => this.setState({show_modal: false})}>
+                <Modal.Dialog>
+                    <Modal.Header closeButton>
+                        <Modal.Title>
+                            Request Password Recovery
+                        </Modal.Title>
+                    </Modal.Header>
+                    <Form onSubmit={async (e: SubmitEvent) => {
+                        e.preventDefault();
+                        const resp = await fetch(`${BACKEND}/auth/start_recovery?email=${this.state.email}`);
+                        if (resp.status != 200) {
+                            showAlert(`Failed to start recovery with status ${resp.status}: ${await resp.text()}`, "danger");
+                        } else {
+                            showAlert(`You will receive an email in the next couple of minutes`, "success", "Success");
+                            this.setState({show_modal: false});
+                        }
+                    }}>
+                        <Modal.Body>
+                            <Form.Group className="mb-3" controlId="startRecoveryEmail">
+                                <Form.Label>Email</Form.Label>
+                                <Form.Control type="text" placeholder="Email" value={this.state.email} onChange={(e) => {
+                                    this.setState({email: (e.target as HTMLInputElement).value});
+                                }} />
+                            </Form.Group>
+                        </Modal.Body>
+                        <Modal.Footer>
+                            <Button variant="primary" type="submit">
+                                Send recovery email
+                            </Button>
+                            <Button variant="secondary" type="button" onClick={() => this.setState({show_modal: false})}>
+                                Close
+                            </Button>
+                        </Modal.Footer>
+                    </Form>
+                </Modal.Dialog>
+            </Modal>
+
             <Form onSubmit={async (e: SubmitEvent) => this.onSubmit(e)}>
                 <Form.Group className="mb-3" controlId="loginEmail">
                     <Form.Label>Email</Form.Label>
@@ -83,6 +123,10 @@ export class Login extends Component<{}, LoginState> {
                 <Button variant="primary" type="submit">
                     Login
                 </Button>
+                <a href="" onClick={(e) => {
+                    e.preventDefault();
+                    this.setState({show_modal: true});
+                }}>start recovery</a>
             </Form>
         </>)
     }
