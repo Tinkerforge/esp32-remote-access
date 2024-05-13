@@ -116,7 +116,23 @@ pub async fn jwt_refresh(
     req: HttpRequest,
     state: web::Data<AppState>,
 ) -> actix_web::Result<impl Responder> {
-    let user = validate_token(&req).await?;
+    let user = match validate_token(&req).await {
+        Ok(u) => u,
+        Err(err) => {
+            let access_token = Cookie::build("access_token", "")
+                .path("/")
+                .max_age(actix_web::cookie::time::Duration::new(-1, 0))
+                .http_only(true)
+                .finish();
+            let refresh_token = Cookie::build("refresh_token", "")
+                .path("/")
+                .max_age(actix_web::cookie::time::Duration::new(-1, 0))
+                .http_only(true)
+                .finish();
+
+            return Ok(HttpResponse::Unauthorized().cookie(access_token).cookie(refresh_token).body(err.to_string()))
+        }
+    };
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
