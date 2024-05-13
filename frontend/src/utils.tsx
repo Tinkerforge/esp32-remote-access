@@ -63,6 +63,7 @@ export enum AppState {
     Loading,
     LoggedIn,
     LoggedOut,
+    Recovery,
 }
 
 export const loggedIn = signal(AppState.Loading);

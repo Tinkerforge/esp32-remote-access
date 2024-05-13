@@ -37,9 +37,15 @@ import { ErrorAlert } from './components/Alert.js';
 import { BACKEND } from './types.js';
 import { AppState, loggedIn } from './utils.js';
 import { Spinner } from 'react-bootstrap';
+import { Recovery } from './pages/recovery.js';
 
 
 async function refresh_access_token() {
+    if (window.location.pathname == "/recovery") {
+        loggedIn.value = AppState.Recovery;
+        return;
+    }
+
     const resp = await fetch(BACKEND + "/auth/jwt_refresh", {
         method: "GET",
         credentials: "include"
@@ -94,7 +100,7 @@ export function App() {
                     <LocationProvider>
                         <Container fluid>
                             <Row>
-                                <Sidebar />
+                            <Sidebar />
                                 <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
                                     <Router>
                                         <Route path="/" component={Home} />
@@ -108,6 +114,22 @@ export function App() {
                     </LocationProvider>
                 </>
             );
+        case AppState.Recovery:
+            return (<>
+                <ErrorAlert/>
+                <LocationProvider>
+                    <Container fluid>
+                        <Row>
+                            <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
+                                <Router>
+                                    <Route path="/recovery" component={Recovery} />
+                                    <Route default component={NotFound} />
+                                </Router>
+                            </main>
+                        </Row>
+                    </Container>
+                </LocationProvider>
+            </>);
     }
 }
 

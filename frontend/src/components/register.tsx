@@ -22,6 +22,7 @@ interface RegisterState {
     name: string,
     email: string,
     recovery_safed: boolean,
+    encrypted_secret: Uint8Array,
     secret: Uint8Array,
     show_modal: boolean,
 }
@@ -35,6 +36,7 @@ export class Register extends Component<{}, RegisterState> {
             name: "",
             email: "",
             recovery_safed: false,
+            encrypted_secret: new Uint8Array(),
             secret: new Uint8Array(),
             show_modal: false,
         }
@@ -109,14 +111,17 @@ export class Register extends Component<{}, RegisterState> {
             return;
         }
 
-        this.setState({secret: new Uint8Array(encrypted_secret), show_modal: true});
+        this.setState({encrypted_secret: new Uint8Array(encrypted_secret), show_modal: true, secret: keypair.privateKey});
 
     }
 
-    saveRecoveryData() {
+    async saveRecoveryData() {
+        const secret_b64 = Base64.fromUint8Array(this.state.secret);
+        const hash = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(this.state.email + secret_b64));
         const backupData = {
-            username: this.state.name,
-            secret: Base64.fromUint8Array(this.state.secret),
+            email: this.state.email,
+            secret: secret_b64,
+            hash: Base64.fromUint8Array(new Uint8Array(hash)),
         };
 
         const backupString = JSON.stringify(backupData);
