@@ -59,11 +59,15 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
 
         const public_key = sodium.crypto_scalarmult_base(new Uint8Array(secret));
         const web_private = sodium.crypto_box_seal_open(new Uint8Array(keys.web_private), public_key, new Uint8Array(secret));
-
         const decoder = new TextDecoder();
         const web_private_string = decoder.decode(web_private);
+        const psk = sodium.crypto_box_seal_open(new Uint8Array(keys.psk), public_key, new Uint8Array(secret));
+        const psk_string = decoder.decode(psk);
 
-        return web_private_string;
+        return {
+            web_private_string: web_private_string,
+            psk: psk_string
+        };
     }
 
     render() {
@@ -84,10 +88,11 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                     });
                     const json = await resp.json();
 
-                    const web_private = await this.decrypt_keys(json, await get_secret_resp.json());
+                    const ret = await this.decrypt_keys(json, await get_secret_resp.json());
 
                     charger_info.value = {
-                        self_key: web_private,
+                        self_key: ret.web_private_string,
+                        psk: ret.psk,
                         self_internal_ip: json.web_address,
                         peer_key: json.charger_pub,
                         peer_internal_ip: json.charger_address,

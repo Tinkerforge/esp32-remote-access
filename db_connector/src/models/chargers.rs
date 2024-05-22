@@ -12,5 +12,6 @@ pub struct Charger {
     pub management_private: String,
     pub charger_pub: String,
     pub wg_charger_ip: IpNetwork,
+    pub psk: String,
     pub wg_server_ip: IpNetwork,
 }

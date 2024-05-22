@@ -66,6 +66,7 @@ impl WgTunDevice {
     pub fn new(
         self_key: x25519::StaticSecret,
         peer: x25519::PublicKey,
+        psk: [u8; 32],
         url: &str,
     ) -> Result<Self, JsValue> {
         let rate_limiter = Arc::new(RateLimiter::new(&x25519::PublicKey::from(&self_key), 10));
@@ -73,7 +74,7 @@ impl WgTunDevice {
         let tun = Tunn::new(
             self_key,
             peer,
-            None,
+            Some(psk),
             Some(4),
             OsRng.next_u32(),
             Some(rate_limiter.clone()),
@@ -479,6 +480,7 @@ pub mod test {
         WgTunDevice::new(
             x25519::StaticSecret::random_from_rng(rand_core::OsRng),
             x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng)),
+            [0u8; 32],
             "ws://localhost:8082",
         )
         .unwrap()

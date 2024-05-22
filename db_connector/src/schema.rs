@@ -17,6 +17,7 @@ diesel::table! {
         name -> Varchar,
         management_private -> Varchar,
         charger_pub -> Varchar,
+        psk -> Varchar,
         wg_charger_ip -> Inet,
         wg_server_ip -> Inet,
     }
@@ -70,7 +71,7 @@ diesel::table! {
         in_use -> Bool,
         charger_pub -> Varchar,
         web_private -> Bytea,
-        web_private_nonce -> Bytea,
+        psk -> Bytea,
         web_address -> Inet,
         charger_address -> Inet,
         connection_no -> Int4,

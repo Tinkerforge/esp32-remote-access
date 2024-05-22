@@ -6,6 +6,7 @@ import Worker from '../worker?worker'
 export let charger_info = signal({
     self_key: "",
     peer_key: "",
+    psk: "",
     self_internal_ip: "",
     peer_internal_ip: "",
     key_id: "",

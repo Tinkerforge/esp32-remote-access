@@ -14,7 +14,7 @@ pub struct WgKey {
     pub in_use: bool,
     pub charger_pub: String,
     pub web_private: Vec<u8>,
-    pub web_private_nonce: Vec<u8>,
+    pub psk: Vec<u8>,
     pub web_address: IpNetwork,
     pub charger_address: IpNetwork,
     pub connection_no: i32,

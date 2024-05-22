@@ -59,12 +59,13 @@ impl Client {
     pub fn new(
         secret_str: &str,
         peer_str: &str,
+        psk: &str,
         url: &str,
         internal_ip: &str,
         internap_peer_ip: &str,
     ) -> Self {
         Self(
-            WgClient::new(secret_str, peer_str, url, internal_ip, internap_peer_ip),
+            WgClient::new(secret_str, peer_str, psk, url, internal_ip, internap_peer_ip),
             Rc::new(RefCell::new(VecDeque::new())),
         )
     }
@@ -168,31 +169,29 @@ impl WgClient {
     fn new(
         secret_str: &str,
         peer_str: &str,
+        psk: &str,
         url: &str,
         internal_ip: &str,
         internal_peer_ip: &str,
     ) -> Self {
         console_error_panic_hook::set_once();
 
-        let mut secret = [0u8; 32];
         let engine = base64::engine::general_purpose::STANDARD;
 
         // decoding secret and peer public key should fail very noticably. So either panic or throw exception
         let secret_vec = engine.decode(secret_str).unwrap();
-        for (i, b) in secret_vec.iter().enumerate() {
-            secret[i] = *b;
-        }
+        let secret: [u8; 32] = secret_vec.try_into().unwrap();
 
-        let mut peer = [0u8; 32];
         let peer_vec = engine.decode(peer_str).unwrap();
-        for (i, b) in peer_vec.iter().enumerate() {
-            peer[i] = *b;
-        }
+        let peer: [u8; 32] = peer_vec.try_into().unwrap();
+
         let self_key = x25519::StaticSecret::from(secret);
         let peer = x25519::PublicKey::from(peer);
+        let psk = engine.decode(psk).unwrap();
+        let psk: [u8; 32] = psk.try_into().unwrap();
 
         // same as above
-        let device = WgTunDevice::new(self_key, peer, url).unwrap();
+        let device = WgTunDevice::new(self_key, peer, psk, url).unwrap();
 
         let pcap = device.get_pcap();
 
@@ -591,8 +590,8 @@ pub mod test {
     use super::*;
     use wasm_bindgen_test::*;
 
-    pub(self) fn create_wg_client(secret: &str, peer: &str, url: &str) -> WgClient {
-        WgClient::new(secret, peer, url, "", "")
+    pub(self) fn create_wg_client(secret: &str, peer: &str, psk: &str, url: &str) -> WgClient {
+        WgClient::new(secret, peer, psk, url, "", "")
     }
 
     #[wasm_bindgen_test]
@@ -600,6 +599,7 @@ pub mod test {
         let _ = create_wg_client(
             "EFHaYB4PvohMsO7VqxNQFyQhw6uKq6PD0FpjhZrCMkI=",
             "T1gy5yRSwYlSkjxAfnk/koNhlRyxsrFhdGW87LY1cxM=",
+            "j4UDcamPDK+Cp0c2UT14sQPf4CQYE5DEQ52W5Mu4AmM=",
             "ws://localhost:8081",
         );
     }

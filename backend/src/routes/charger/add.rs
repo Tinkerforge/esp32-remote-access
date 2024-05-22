@@ -41,7 +41,7 @@ pub struct Keys {
     #[schema(value_type = Vec<u32>)]
     web_private: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
-    web_private_nonce: Vec<u8>,
+    psk: Vec<u8>,
     charger_public: String,
     #[schema(value_type = SchemaType::String)]
     web_address: IpNetwork,
@@ -59,6 +59,7 @@ pub struct ChargerSchema {
     wg_charger_ip: IpNetwork,
     #[schema(value_type = SchemaType::String)]
     wg_server_ip: IpNetwork,
+    psk: String,
 }
 
 #[derive(Serialize, Deserialize, Validate, ToSchema)]
@@ -206,6 +207,7 @@ pub async fn get_charger_from_db(
             .get_result(&mut conn)
         {
             Ok(c) => Ok(c),
+            Err(NotFound) => Err(Error::WrongCredentials),
             Err(_err) => {
                 return Err(Error::InternalError);
             }
@@ -264,6 +266,7 @@ async fn update_charger(
             management_private: private_key,
             wg_charger_ip: charger.wg_charger_ip,
             wg_server_ip: charger.wg_server_ip,
+            psk: charger.psk,
         };
         match diesel::update(&charger).set(&charger).execute(&mut conn) {
             Ok(_) => Ok(pub_key),
@@ -319,6 +322,7 @@ async fn add_charger(
             management_private: private_key,
             wg_charger_ip: charger.wg_charger_ip,
             wg_server_ip: charger.wg_server_ip,
+            psk: charger.psk,
         };
 
         match diesel::insert_into(chargers::chargers)
@@ -367,7 +371,7 @@ async fn add_wg_key(
         in_use: false,
         charger_pub: keys.charger_public,
         web_private: keys.web_private,
-        web_private_nonce: keys.web_private_nonce,
+        psk: keys.psk,
         web_address: keys.web_address,
         charger_address: keys.charger_address,
         connection_no: keys.connection_no as i32,
@@ -428,7 +432,7 @@ pub(crate) mod tests {
             let public = x25519::PublicKey::from(&secret);
             *key = MaybeUninit::new(Keys {
                 web_private: generate_random_bytes(),
-                web_private_nonce: generate_random_bytes(),
+                psk: generate_random_bytes(),
                 charger_public: BASE64_STANDARD.encode(public),
                 charger_address: IpNetwork::V4(
                     Ipv4Network::new("123.123.123.123".parse().unwrap(), 24).unwrap(),
@@ -467,6 +471,7 @@ pub(crate) mod tests {
                 wg_server_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
                 ),
+                psk: String::new(),
             },
             keys,
         };
@@ -509,6 +514,7 @@ pub(crate) mod tests {
                 wg_server_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
                 ),
+                psk: String::new(),
             },
             keys,
         };
@@ -556,6 +562,7 @@ pub(crate) mod tests {
                 wg_server_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
                 ),
+                psk: String::new(),
             },
             keys,
         };
@@ -612,6 +619,7 @@ pub(crate) mod tests {
                 wg_server_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
                 ),
+                psk: String::new(),
             },
             keys,
         };
@@ -656,6 +664,7 @@ pub(crate) mod tests {
                 wg_server_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
                 ),
+                psk: String::new(),
             },
             keys,
         };
@@ -710,6 +719,7 @@ pub(crate) mod tests {
                 wg_server_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
                 ),
+                psk: String::new(),
             },
             keys,
         };

@@ -38,6 +38,7 @@ use super::charger::add::password_matches;
 pub struct ManagementSchema {
     id: i32,
     password: String,
+    port: i16,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -80,7 +81,10 @@ pub async fn management(
     let mut conn = get_connection(&state)?;
     let ip: IpNetwork = match ip.parse() {
         Ok(ip) => ip,
-        Err(_err) => return Err(Error::InternalError.into()),
+        Err(_err) => {
+            log::error!("Error while parsing ip: {}", _err);
+            return Err(Error::InternalError.into())
+        },
     };
 
     web_block_unpacked(move || {
@@ -90,7 +94,10 @@ pub async fn management(
             .execute(&mut conn)
         {
             Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+            Err(_err) => {
+                log::error!("Error while updating charger: {}", _err);
+                return Err(Error::InternalError.into())
+            },
         }
     })
     .await?;
@@ -129,6 +136,7 @@ mod tests {
         let body = ManagementSchema {
             id: charger,
             password: pass,
+            port: 0,
         };
         let req = test::TestRequest::put()
             .uri("/management")
@@ -155,6 +163,7 @@ mod tests {
         let body = ManagementSchema {
             id: charger,
             password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
+            port: 0,
         };
         let req = test::TestRequest::put()
             .uri("/management")

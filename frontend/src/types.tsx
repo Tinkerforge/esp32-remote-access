@@ -29,6 +29,7 @@ export interface ResponseMessage {
 export interface SetupMessage {
     self_key: string,
     peer_key: string,
+    psk: string,
     self_internal_ip: string,
     peer_internal_ip: string,
     key_id: string,
