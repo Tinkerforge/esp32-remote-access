@@ -67,12 +67,19 @@ pub mod tests {
         tests::configure,
     };
 
-    use actix_web::{cookie::Cookie, test::{self, TestRequest}, App};
+    use actix_web::{
+        cookie::Cookie,
+        test::{self, TestRequest},
+        App,
+    };
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
 
     pub async fn get_test_secret(access_token: &str) -> GetSecretResponse {
-        let app = App::new().configure(configure).wrap(JwtMiddleware).service(get_secret);
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(get_secret);
         let app = test::init_service(app).await;
 
         let req = TestRequest::get()

@@ -587,7 +587,6 @@ pub(crate) mod tests {
         assert_eq!(keys.len(), 5);
     }
 
-
     #[actix_web::test]
     async fn test_update_unowned_charger() {
         let (mut user, _) = TestUser::random().await;

@@ -106,9 +106,7 @@ fn create_tunn(
         let psk = BASE64_STANDARD.decode(charger.psk)?;
         let psk = match psk.try_into() {
             Ok(psk) => psk,
-            Err(_err) => {
-                return Err(anyhow::Error::msg("Database is corrupted"))
-            }
+            Err(_err) => return Err(anyhow::Error::msg("Database is corrupted")),
         };
 
         let mut tunn = match boringtun::noise::Tunn::new(

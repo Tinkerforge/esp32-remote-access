@@ -130,7 +130,10 @@ pub async fn jwt_refresh(
                 .http_only(true)
                 .finish();
 
-            return Ok(HttpResponse::Unauthorized().cookie(access_token).cookie(refresh_token).body(err.to_string()))
+            return Ok(HttpResponse::Unauthorized()
+                .cookie(access_token)
+                .cookie(refresh_token)
+                .body(err.to_string()));
         }
     };
 

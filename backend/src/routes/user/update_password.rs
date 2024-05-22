@@ -80,7 +80,13 @@ pub async fn update_password(
     let mut conn = get_connection(&state)?;
     match web::block(move || {
         match diesel::update(users.find::<uuid::Uuid>(uid.into()))
-            .set((login_key.eq(new_hash), secret_nonce.eq(&data.new_secret_nonce), secret.eq(&data.new_encrypted_secret), secret_salt.eq(&data.new_secret_salt), login_salt.eq(&data.new_login_salt)))
+            .set((
+                login_key.eq(new_hash),
+                secret_nonce.eq(&data.new_secret_nonce),
+                secret.eq(&data.new_encrypted_secret),
+                secret_salt.eq(&data.new_secret_salt),
+                login_salt.eq(&data.new_login_salt),
+            ))
             .execute(&mut conn)
         {
             Ok(_) => (),
@@ -103,12 +109,18 @@ pub async fn update_password(
 mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
-    use libsodium_sys::{crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy, crypto_secretbox_open_easy};
+    use libsodium_sys::{
+        crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES,
+        crypto_secretbox_NONCEBYTES, crypto_secretbox_easy, crypto_secretbox_open_easy,
+    };
 
     use crate::{
         routes::{
             auth::get_login_salt::tests::get_test_login_salt,
-            user::{get_secret::tests::get_test_secret, tests::{generate_random_bytes_len, hash_test_key, TestUser}},
+            user::{
+                get_secret::tests::get_test_secret,
+                tests::{generate_random_bytes_len, hash_test_key, TestUser},
+            },
         },
         tests::configure,
         utils::generate_random_bytes,
@@ -122,10 +134,21 @@ mod tests {
         let login_salt = get_test_login_salt(&mail).await;
         let login_key = hash_test_key(&user.password, &login_salt, None);
         let secret_data = get_test_secret(&token).await;
-        let secret_key = hash_test_key(&user.password, &secret_data.secret_salt, Some(crypto_secretbox_KEYBYTES as usize));
+        let secret_key = hash_test_key(
+            &user.password,
+            &secret_data.secret_salt,
+            Some(crypto_secretbox_KEYBYTES as usize),
+        );
         let mut secret = vec![0u8; crypto_box_SECRETKEYBYTES as usize];
         unsafe {
-            if crypto_secretbox_open_easy(secret.as_mut_ptr(), secret_data.secret.as_ptr(), secret_data.secret.len() as u64, secret_data.secret_nonce.as_ptr(), secret_key.as_ptr()) != 0 {
+            if crypto_secretbox_open_easy(
+                secret.as_mut_ptr(),
+                secret_data.secret.as_ptr(),
+                secret_data.secret.len() as u64,
+                secret_data.secret_nonce.as_ptr(),
+                secret_key.as_ptr(),
+            ) != 0
+            {
                 panic!("Decrypting secret failed.");
             }
         }
@@ -135,10 +158,22 @@ mod tests {
         let new_secret_salt = generate_random_bytes_len(48);
         let new_secret_nonce = generate_random_bytes_len(crypto_secretbox_NONCEBYTES as usize);
         let new_login_key = hash_test_key(&new_password, &new_login_salt, None);
-        let new_secret_key = hash_test_key(&new_password, &new_secret_salt, Some(crypto_secretbox_KEYBYTES as usize));
-        let mut new_encrypted_secret = vec![0u8; (crypto_secretbox_MACBYTES + crypto_secretbox_KEYBYTES) as usize];
+        let new_secret_key = hash_test_key(
+            &new_password,
+            &new_secret_salt,
+            Some(crypto_secretbox_KEYBYTES as usize),
+        );
+        let mut new_encrypted_secret =
+            vec![0u8; (crypto_secretbox_MACBYTES + crypto_secretbox_KEYBYTES) as usize];
         unsafe {
-            if crypto_secretbox_easy(new_encrypted_secret.as_mut_ptr(), secret.as_ptr(), crypto_box_SECRETKEYBYTES as u64, new_secret_nonce.as_ptr(), new_secret_key.as_ptr()) != 0 {
+            if crypto_secretbox_easy(
+                new_encrypted_secret.as_mut_ptr(),
+                secret.as_ptr(),
+                crypto_box_SECRETKEYBYTES as u64,
+                new_secret_nonce.as_ptr(),
+                new_secret_key.as_ptr(),
+            ) != 0
+            {
                 panic!("Encrypted secret failed.");
             }
         }
@@ -199,10 +234,8 @@ mod tests {
 
         let pool = db_connector::test_connection_pool();
         let conn = pool.get().unwrap();
-        assert!(
-            validate_password(&new_key, FindBy::Email(mail), conn)
-                .await
-                .is_err()
-        );
+        assert!(validate_password(&new_key, FindBy::Email(mail), conn)
+            .await
+            .is_err());
     }
 }

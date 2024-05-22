@@ -1,17 +1,22 @@
 use actix_web::{get, web, HttpResponse, Responder};
 use askama::Template;
 use db_connector::models::recovery_tokens::RecoveryToken;
+use diesel::prelude::*;
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 use serde::Deserialize;
 use utoipa::IntoParams;
 use uuid::Uuid;
-use diesel::prelude::*;
 
-use crate::{error::Error, routes::user::{get_user, get_uuid}, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    routes::user::{get_user, get_uuid},
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Deserialize, IntoParams)]
 struct StartRecoveryQuery {
-    email: String
+    email: String,
 }
 
 #[derive(Template)]
@@ -27,7 +32,7 @@ fn send_email(
     token_id: Uuid,
     email: String,
     mailer: SmtpTransport,
-    frontend_url: String
+    frontend_url: String,
 ) -> actix_web::Result<()> {
     let link = format!("{}/recovery?token={}", frontend_url, token_id);
     let template = StartRecoveryTemplate {
@@ -36,9 +41,7 @@ fn send_email(
     };
     let body = match template.render() {
         Ok(b) => b,
-        Err(_err) => {
-            return Err(Error::InternalError.into())
-        }
+        Err(_err) => return Err(Error::InternalError.into()),
     };
 
     let mail = Message::builder()
@@ -52,13 +55,12 @@ fn send_email(
         Ok(_) => log::debug!("Send password recovery mail was successful."),
         Err(err) => {
             log::error!("Failed to send: {}", err);
-            return Err(Error::InternalError.into())
+            return Err(Error::InternalError.into());
         }
     }
 
     Ok(())
 }
-
 
 /// Start the process of account recovery.
 #[utoipa::path(
@@ -72,8 +74,15 @@ fn send_email(
     )
 )]
 #[get("/start_recovery")]
-pub async fn start_recovery(query: web::Query<StartRecoveryQuery>, state: web::Data<AppState>) -> actix_web::Result<impl Responder> {
-    let user_id = get_uuid(&state, crate::routes::auth::login::FindBy::Email(query.email.clone())).await?;
+pub async fn start_recovery(
+    query: web::Query<StartRecoveryQuery>,
+    state: web::Data<AppState>,
+) -> actix_web::Result<impl Responder> {
+    let user_id = get_uuid(
+        &state,
+        crate::routes::auth::login::FindBy::Email(query.email.clone()),
+    )
+    .await?;
 
     #[allow(unused)]
     let user = get_user(&state, user_id).await?;
@@ -82,7 +91,7 @@ pub async fn start_recovery(query: web::Query<StartRecoveryQuery>, state: web::D
     let token = RecoveryToken {
         id: token_id,
         user_id,
-        created: chrono::Utc::now().timestamp()
+        created: chrono::Utc::now().timestamp(),
     };
 
     let mut conn = get_connection(&state)?;
@@ -91,17 +100,24 @@ pub async fn start_recovery(query: web::Query<StartRecoveryQuery>, state: web::D
 
         match diesel::insert_into(recovery_tokens)
             .values(token)
-            .execute(&mut conn) {
-                Ok(_) => Ok(()),
-                Err(_err) => {
-                    Err(Error::InternalError)
-                }
-            }
-    }).await?;
+            .execute(&mut conn)
+        {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError),
+        }
+    })
+    .await?;
 
     #[cfg(not(test))]
     std::thread::spawn(move || {
-        send_email(user.name, token_id, user.email, state.mailer.clone(), state.frontend_url.clone()).ok();
+        send_email(
+            user.name,
+            token_id,
+            user.email,
+            state.mailer.clone(),
+            state.frontend_url.clone(),
+        )
+        .ok();
     });
 
     Ok(HttpResponse::Ok())
@@ -109,12 +125,18 @@ pub async fn start_recovery(query: web::Query<StartRecoveryQuery>, state: web::D
 
 #[cfg(test)]
 pub mod tests {
-    use actix_web::{test::{self, TestRequest}, App};
+    use actix_web::{
+        test::{self, TestRequest},
+        App,
+    };
     use db_connector::{models::recovery_tokens::RecoveryToken, test_connection_pool};
     use diesel::prelude::*;
     use uuid::Uuid;
 
-    use crate::{routes::user::tests::{get_test_uuid, TestUser}, tests::configure};
+    use crate::{
+        routes::user::tests::{get_test_uuid, TestUser},
+        tests::configure,
+    };
 
     use super::start_recovery;
 
@@ -130,11 +152,14 @@ pub mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
 
-
         let uid = get_test_uuid(&mail);
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let token: RecoveryToken = recovery_tokens.filter(user_id.eq(uid)).select(RecoveryToken::as_select()).get_result(&mut conn).unwrap();
+        let token: RecoveryToken = recovery_tokens
+            .filter(user_id.eq(uid))
+            .select(RecoveryToken::as_select())
+            .get_result(&mut conn)
+            .unwrap();
 
         token.id
     }
@@ -154,11 +179,16 @@ pub mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
 
-
         let uid = get_test_uuid(&mail);
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let token: RecoveryToken = recovery_tokens.filter(user_id.eq(uid)).select(RecoveryToken::as_select()).get_result(&mut conn).unwrap();
-        diesel::delete(recovery_tokens.find(token.id)).execute(&mut conn).unwrap();
+        let token: RecoveryToken = recovery_tokens
+            .filter(user_id.eq(uid))
+            .select(RecoveryToken::as_select())
+            .get_result(&mut conn)
+            .unwrap();
+        diesel::delete(recovery_tokens.find(token.id))
+            .execute(&mut conn)
+            .unwrap();
     }
 }

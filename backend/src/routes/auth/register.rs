@@ -81,20 +81,14 @@ fn send_verification_mail(
     mailer: SmtpTransport,
     frontend_url: String,
 ) -> Result<(), actix_web::Error> {
-    let link = format!(
-        "{}/api/auth/verify?id={}",
-        frontend_url,
-        id.id.to_string()
-    );
+    let link = format!("{}/api/auth/verify?id={}", frontend_url, id.id.to_string());
     let template = RegisterTemplate {
         name: &name,
-        link: &link
+        link: &link,
     };
     let body = match template.render() {
         Ok(body) => body,
-        Err(_err) => {
-            return Err(Error::InternalError.into())
-        }
+        Err(_err) => return Err(Error::InternalError.into()),
     };
 
     let email = Message::builder()

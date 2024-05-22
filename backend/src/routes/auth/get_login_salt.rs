@@ -52,7 +52,10 @@ pub async fn get_login_salt(
 
 #[cfg(test)]
 pub mod tests {
-    use actix_web::{test::{self, TestRequest}, App};
+    use actix_web::{
+        test::{self, TestRequest},
+        App,
+    };
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
 

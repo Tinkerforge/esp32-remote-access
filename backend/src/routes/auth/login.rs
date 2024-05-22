@@ -140,7 +140,9 @@ pub async fn login(
 
     let cookie = Cookie::build("access_token", token)
         .path("/")
-        .max_age(actix_web::cookie::time::Duration::minutes(MAX_TOKEN_AGE_MINUTES))
+        .max_age(actix_web::cookie::time::Duration::minutes(
+            MAX_TOKEN_AGE_MINUTES,
+        ))
         .http_only(false)
         .same_site(actix_web::cookie::SameSite::None)
         .secure(true)

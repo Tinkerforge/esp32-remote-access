@@ -83,8 +83,8 @@ pub async fn management(
         Ok(ip) => ip,
         Err(_err) => {
             log::error!("Error while parsing ip: {}", _err);
-            return Err(Error::InternalError.into())
-        },
+            return Err(Error::InternalError.into());
+        }
     };
 
     web_block_unpacked(move || {
@@ -96,8 +96,8 @@ pub async fn management(
             Ok(_) => Ok(()),
             Err(_err) => {
                 log::error!("Error while updating charger: {}", _err);
-                return Err(Error::InternalError.into())
-            },
+                return Err(Error::InternalError.into());
+            }
         }
     })
     .await?;

@@ -23,10 +23,10 @@ pub mod generate_salt;
 pub mod get_login_salt;
 pub mod jwt_refresh;
 pub mod login;
-pub mod register;
-pub mod verify;
-pub mod start_recovery;
 pub mod recovery;
+pub mod register;
+pub mod start_recovery;
+pub mod verify;
 
 pub fn configure(cfg: &mut ServiceConfig) {
     let scope = web::scope("/auth")
