@@ -149,6 +149,7 @@ struct WgClient {
     request_queue: Rc<RefCell<VecDeque<Request>>>,
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
     internal_peer_ip: String,
+    _polling_interval: Rc<IntervalHandle<MessageEvent>>,
 }
 
 enum RequestState {
@@ -204,18 +205,10 @@ impl WgClient {
 
         let stream = Rc::new(RefCell::new(stream));
 
-        let global = js_sys::global();
-        let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
         let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             iface_cpy.borrow_mut().poll();
         });
-        global
-            .set_interval_with_callback_and_timeout_and_arguments_0(
-                closure.as_ref().unchecked_ref(),
-                0,
-            )
-            .unwrap();
-        closure.forget();
+        let polling_interval = Rc::new(IntervalHandle::new(closure, 0));
 
         Self {
             stream,
@@ -225,6 +218,7 @@ impl WgClient {
             request_queue: Rc::new(RefCell::new(VecDeque::new())),
             pcap,
             internal_peer_ip: (&internal_peer_ip[0..internal_peer_ip.len() - 3]).to_string(),
+            _polling_interval: polling_interval,
         }
     }
 
