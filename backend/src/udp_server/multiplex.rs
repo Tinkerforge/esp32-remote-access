@@ -34,7 +34,7 @@ use rand_core::OsRng;
 use threadpool::ThreadPool;
 
 use crate::{
-    udp_server::management::ManagementCommandId, utils::as_u8_slice, ws_udp_bridge::Message,
+    udp_server::management::{ManagementCommandId, ManagementCommandPacket, ManagementPacketHeader}, utils::as_u8_slice, ws_udp_bridge::Message,
     BridgeState,
 };
 
@@ -232,7 +232,20 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                                     connection_no: i,
                                     connection_uuid: uuid::Uuid::new_v4().as_u128(),
                                 };
-                                tunn.encrypt_and_send_slice(as_u8_slice(&command));
+                                let header = ManagementPacketHeader {
+                                    magic: 0x1234,
+                                    length: std::mem::size_of::<ManagementCommand>() as u16,
+                                    seq_number: 0,
+                                    version: 1,
+                                    p_type: 0x00
+                                };
+
+                                let packet = ManagementCommandPacket {
+                                    header,
+                                    command
+                                };
+
+                                tunn.encrypt_and_send_slice(as_u8_slice(&packet));
                             }
                         });
                         tunn_data

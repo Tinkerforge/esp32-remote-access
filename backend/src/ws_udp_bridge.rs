@@ -32,7 +32,7 @@ use std::time::Instant;
 use validator::{Validate, ValidationError};
 
 use crate::udp_server::management::{
-    ManagementCommand, ManagementCommandId, ManagementResponse, RemoteConnMeta,
+    ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacketHeader, ManagementResponse, RemoteConnMeta
 };
 use crate::utils::as_u8_slice;
 use crate::{
@@ -282,6 +282,21 @@ async fn start_ws(
         connection_uuid: conn_uuid.as_u128(),
     };
 
+    let header = ManagementPacketHeader {
+        magic: 0x1234,
+        length: std::mem::size_of::<ManagementCommand>() as u16,
+        seq_number: 0,
+        version: 1,
+        p_type: 0x00
+    };
+
+    let packet = ManagementCommandPacket {
+        header,
+        command
+    };
+
+    log::info!("packet size: {}", std::mem::size_of::<ManagementCommand>() as u16);
+
     let management_sock = {
         let map = bridge_state.charger_management_map_with_id.lock().unwrap();
         let management_sock = match map.get(&keys.charger_id) {
@@ -293,7 +308,7 @@ async fn start_ws(
 
     {
         let mut sock = management_sock.lock().unwrap();
-        sock.encrypt_and_send_slice(as_u8_slice(&command));
+        sock.encrypt_and_send_slice(as_u8_slice(&packet));
         let mut set = bridge_state.port_discovery.lock().unwrap();
         set.insert(response, Instant::now());
     }
