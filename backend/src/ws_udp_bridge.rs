@@ -187,6 +187,18 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                 connection_no: self.conn_no,
                 connection_uuid: uuid::Uuid::new_v4().as_u128(),
             };
+            let header = ManagementPacketHeader {
+                magic: 0x1234,
+                length: std::mem::size_of::<ManagementCommand>() as u16,
+                seq_number: 0,
+                version: 1,
+                p_type: 0x00
+            };
+
+            let packet = ManagementCommandPacket {
+                header,
+                command
+            };
             let map = self
                 .bridge_state
                 .charger_management_map_with_id
@@ -194,7 +206,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                 .unwrap();
             if let Some(sock) = map.get(&self.charger_id) {
                 let mut sock = sock.lock().unwrap();
-                sock.encrypt_and_send_slice(as_u8_slice(&command));
+                sock.encrypt_and_send_slice(as_u8_slice(&packet));
             }
         }
 
@@ -294,8 +306,6 @@ async fn start_ws(
         header,
         command
     };
-
-    log::info!("packet size: {}", std::mem::size_of::<ManagementCommand>() as u16);
 
     let management_sock = {
         let map = bridge_state.charger_management_map_with_id.lock().unwrap();
