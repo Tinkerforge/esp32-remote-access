@@ -27,13 +27,20 @@ use crate::{
     error::Error,
     routes::user::get_user,
     utils::{get_connection, web_block_unpacked},
-    AppState,
+    AppState, BridgeState,
 };
+
+#[derive(Serialize, Deserialize)]
+enum ChargerStatus {
+    Disconnected = 0,
+    Connected = 1,
+}
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetChargerSchema {
     id: i32,
     name: String,
+    status: ChargerStatus
 }
 
 /// Get all chargers that the current user has access to.
@@ -51,6 +58,7 @@ pub struct GetChargerSchema {
 pub async fn get_chargers(
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
+    bridge_state: web::Data<BridgeState>,
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::allowed_users::dsl as allowed_users;
     use db_connector::schema::chargers::dsl as chargers;
@@ -71,11 +79,21 @@ pub async fn get_chargers(
     })
     .await?;
 
+    let charger_map = bridge_state.charger_management_map_with_id.lock().unwrap();
     let charger = charger
         .into_iter()
-        .map(|c| GetChargerSchema {
-            id: c.id,
-            name: c.name,
+        .map(|c| {
+            let status = if charger_map.contains_key(&c.id) {
+                ChargerStatus::Connected
+            } else {
+                ChargerStatus::Disconnected
+            };
+
+            GetChargerSchema {
+                id: c.id,
+                name: c.name,
+                status,
+            }
         })
         .collect::<Vec<GetChargerSchema>>();
 

@@ -28,7 +28,8 @@ import sodium from "libsodium-wrappers";
 
 interface Charger {
     id: number,
-    name: string
+    name: string,
+    status: string,
 }
 
 interface ChargerListComponentState {
@@ -77,6 +78,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                 <td>{index}</td>
                 <td>{charger.name}</td>
                 <td>{Base58.int_to_base58(charger.id)}</td>
+                <td>{charger.status}</td>
                 <td><Button onClick={async () => {
 
                     const get_secret_resp = await fetch(BACKEND + "/user/get_secret", {
@@ -131,6 +133,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         <th>#</th>
                         <th>Charger Name</th>
                         <th>Charger Id</th>
+                        <th>Status</th>
                         <th />
                         <th />
                         <th />
