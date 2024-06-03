@@ -34,12 +34,11 @@ use rand_core::OsRng;
 use threadpool::ThreadPool;
 
 use crate::{
-    udp_server::management::{ManagementCommandId, ManagementCommandPacket, ManagementPacketHeader}, utils::as_u8_slice, ws_udp_bridge::Message,
-    BridgeState,
+    udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacketHeader}, utils::as_u8_slice, ws_udp_bridge::Message, BridgeState
 };
 
 use super::{
-    management::{try_port_discovery, ManagementCommand},
+    management::try_port_discovery,
     socket::ManagementSocket,
     start_rate_limiters_reset_thread,
 };

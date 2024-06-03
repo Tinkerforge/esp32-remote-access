@@ -31,9 +31,8 @@ use std::str::FromStr;
 use std::time::Instant;
 use validator::{Validate, ValidationError};
 
-use crate::udp_server::management::{
-    ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacketHeader, ManagementResponse, RemoteConnMeta
-};
+use crate::udp_server::management::RemoteConnMeta;
+use crate::udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacketHeader, ManagementResponse};
 use crate::utils::as_u8_slice;
 use crate::{
     error::Error,

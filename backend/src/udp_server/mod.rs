@@ -21,6 +21,7 @@ pub mod device;
 pub mod management;
 mod multiplex;
 pub mod socket;
+pub mod packet;
 
 use std::{
     collections::HashMap,
@@ -31,9 +32,10 @@ use std::{
 
 use crate::{udp_server::multiplex::run_server, BridgeState};
 use actix_web::web;
+use packet::ManagementResponse;
 use threadpool::ThreadPool;
 
-use self::{management::ManagementResponse, socket::ManagementSocket};
+use self::socket::ManagementSocket;
 
 /// Since boringtun doesnt reset the internal ratelimiter for us we need to do it manually.
 /// We can do this with a very low frequency since the management connection
