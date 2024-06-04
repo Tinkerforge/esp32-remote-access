@@ -32,8 +32,7 @@ use std::time::Instant;
 use validator::{Validate, ValidationError};
 
 use crate::udp_server::management::RemoteConnMeta;
-use crate::udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacketHeader, ManagementResponse};
-use crate::utils::as_u8_slice;
+use crate::udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket, ManagementPacketHeader, ManagementResponse};
 use crate::{
     error::Error,
     utils::{get_connection, web_block_unpacked},
@@ -205,7 +204,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                 .unwrap();
             if let Some(sock) = map.get(&self.charger_id) {
                 let mut sock = sock.lock().unwrap();
-                sock.encrypt_and_send_slice(as_u8_slice(&packet));
+                sock.send_packet(ManagementPacket::CommandPacket(packet));
             }
         }
 
@@ -317,7 +316,7 @@ async fn start_ws(
 
     {
         let mut sock = management_sock.lock().unwrap();
-        sock.encrypt_and_send_slice(as_u8_slice(&packet));
+        sock.send_packet(ManagementPacket::CommandPacket(packet));
         let mut set = bridge_state.port_discovery.lock().unwrap();
         set.insert(response, Instant::now());
     }

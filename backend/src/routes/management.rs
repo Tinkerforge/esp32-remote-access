@@ -29,7 +29,7 @@ use crate::{
     error::Error,
     routes::charger::add::get_charger_from_db,
     utils::{get_connection, web_block_unpacked},
-    AppState,
+    AppState, BridgeState,
 };
 
 use super::charger::add::password_matches;
@@ -60,6 +60,7 @@ pub async fn management(
     req: HttpRequest,
     state: web::Data<AppState>,
     data: web::Json<ManagementSchema>,
+    bridge_state: web::Data<BridgeState>,
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::chargers::dsl as chargers;
 
@@ -86,6 +87,14 @@ pub async fn management(
             return Err(Error::InternalError.into());
         }
     };
+
+    {
+        let charger_map = bridge_state.charger_management_map_with_id.lock().unwrap();
+        if let Some(c) = charger_map.get(&data.id) {
+            let mut charger = c.lock().unwrap();
+            charger.reset_out_sequence();
+        }
+    }
 
     web_block_unpacked(move || {
         match diesel::update(chargers::chargers)

@@ -31,6 +31,7 @@ use actix_web::{middleware::Logger, web, App, HttpServer};
 use chrono::Utc;
 use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
+use ipnetwork::IpNetwork;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 
@@ -77,6 +78,11 @@ async fn main() -> std::io::Result<()> {
     let pool = get_connection_pool();
     let mut conn = pool.get().expect("Failed to get connection from pool");
     run_migrations(&mut conn).expect("Failed to run migrations");
+    let mut conn = pool.get().unwrap();
+    {
+        use db_connector::schema::chargers::dsl::*;
+        diesel::update(chargers).set(last_ip.eq::<Option<IpNetwork>>(None)).execute(&mut conn).unwrap();
+    }
 
     reset_wg_keys(&pool);
 

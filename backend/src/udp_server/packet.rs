@@ -1,3 +1,4 @@
+use crate::utils::as_u8_slice;
 
 
 #[repr(C)]
@@ -42,4 +43,25 @@ pub struct ManagementResponse {
     pub charger_id: i32,
     pub connection_no: i32,
     pub connection_uuid: u128,
+}
+
+pub enum ManagementPacket {
+    CommandPacket(ManagementCommandPacket),
+}
+
+impl ManagementPacket {
+    pub fn as_bytes(&mut self) -> &[u8] {
+        as_u8_slice(self)
+    }
+
+    fn get_header(&mut self) -> &mut ManagementPacketHeader {
+        match self {
+            Self::CommandPacket(p) => &mut p.header
+        }
+    }
+
+    pub fn set_seq_num(&mut self, num: u16) {
+        let header = self.get_header();
+        header.seq_number = num;
+    }
 }

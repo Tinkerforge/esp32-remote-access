@@ -29,7 +29,7 @@ use smoltcp::{
     socket::udp,
 };
 
-use super::device::ManagementDevice;
+use super::{device::ManagementDevice, packet::ManagementPacket};
 
 pub struct ManagementSocket {
     charger_id: i32,
@@ -43,6 +43,7 @@ pub struct ManagementSocket {
     remote_addr: SocketAddr,
     udp_socket: Arc<UdpSocket>,
     last_seen: Instant,
+    out_sequence: u16,
 }
 
 impl ManagementSocket {
@@ -93,6 +94,7 @@ impl ManagementSocket {
             remote_addr,
             udp_socket,
             last_seen: Instant::now(),
+            out_sequence: 1,
         };
         management_sock
     }
@@ -119,6 +121,16 @@ impl ManagementSocket {
         } else {
             None
         }
+    }
+
+    pub fn reset_out_sequence(&mut self) {
+        self.out_sequence = 1;
+    }
+
+    pub fn send_packet(&mut self, mut packet: ManagementPacket) {
+        packet.set_seq_num(self.out_sequence);
+        self.out_sequence += 1;
+        self.encrypt_and_send_slice(packet.as_bytes());
     }
 
     pub fn encrypt_and_send_slice(&mut self, data: &[u8]) {
