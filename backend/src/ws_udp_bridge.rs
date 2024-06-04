@@ -26,13 +26,16 @@ use actix_web_validator::Query;
 use db_connector::models::wg_keys::WgKey;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use validator::{Validate, ValidationError};
 
 use crate::udp_server::management::RemoteConnMeta;
 use crate::udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket, ManagementPacketHeader, ManagementResponse};
+use crate::udp_server::socket::ManagementSocket;
 use crate::{
     error::Error,
     utils::{get_connection, web_block_unpacked},
@@ -227,6 +230,39 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
     }
 }
 
+pub fn open_connection(conn_no: i32, charger_id: i32, management_sock: Arc<Mutex<ManagementSocket>>, port_discovery: Arc<Mutex<HashMap<ManagementResponse, Instant>>>) -> Result<(), Error> {
+    let conn_uuid = uuid::Uuid::new_v4();
+    let command = ManagementCommand {
+        command_id: ManagementCommandId::Connect,
+        connection_no: conn_no,
+        connection_uuid: conn_uuid.as_u128(),
+    };
+    let response = ManagementResponse {
+        charger_id,
+        connection_no: conn_no,
+        connection_uuid: conn_uuid.as_u128(),
+    };
+
+    let header = ManagementPacketHeader {
+        magic: 0x1234,
+        length: std::mem::size_of::<ManagementCommand>() as u16,
+        seq_number: 0,
+        version: 1,
+        p_type: 0x00
+    };
+
+    let packet = ManagementCommandPacket {
+        header,
+        command
+    };
+    let mut sock = management_sock.lock().unwrap();
+    sock.send_packet(ManagementPacket::CommandPacket(packet));
+    let mut set = port_discovery.lock().unwrap();
+    set.insert(response, Instant::now());
+
+    Ok(())
+}
+
 #[get("/ws")]
 async fn start_ws(
     req: HttpRequest,
@@ -280,31 +316,6 @@ async fn start_ws(
         bridge_state: bridge_state.clone(),
     };
 
-    let conn_uuid = uuid::Uuid::new_v4();
-    let command = ManagementCommand {
-        command_id: ManagementCommandId::Connect,
-        connection_no: keys.connection_no,
-        connection_uuid: conn_uuid.as_u128(),
-    };
-    let response = ManagementResponse {
-        charger_id: keys.charger_id,
-        connection_no: keys.connection_no,
-        connection_uuid: conn_uuid.as_u128(),
-    };
-
-    let header = ManagementPacketHeader {
-        magic: 0x1234,
-        length: std::mem::size_of::<ManagementCommand>() as u16,
-        seq_number: 0,
-        version: 1,
-        p_type: 0x00
-    };
-
-    let packet = ManagementCommandPacket {
-        header,
-        command
-    };
-
     let management_sock = {
         let map = bridge_state.charger_management_map_with_id.lock().unwrap();
         let management_sock = match map.get(&keys.charger_id) {
@@ -314,12 +325,7 @@ async fn start_ws(
         management_sock
     };
 
-    {
-        let mut sock = management_sock.lock().unwrap();
-        sock.send_packet(ManagementPacket::CommandPacket(packet));
-        let mut set = bridge_state.port_discovery.lock().unwrap();
-        set.insert(response, Instant::now());
-    }
+    open_connection(keys.connection_no, keys.charger_id, management_sock, bridge_state.port_discovery.clone())?;
 
     let resp = ws::start(client, &req, stream);
 
