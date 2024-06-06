@@ -34,13 +34,16 @@ use rand_core::OsRng;
 use threadpool::ThreadPool;
 
 use crate::{
-    udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket, ManagementPacketHeader}, ws_udp_bridge::Message, BridgeState
+    udp_server::packet::{
+        ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
+        ManagementPacketHeader,
+    },
+    ws_udp_bridge::Message,
+    BridgeState,
 };
 
 use super::{
-    management::try_port_discovery,
-    socket::ManagementSocket,
-    start_rate_limiters_reset_thread,
+    management::try_port_discovery, socket::ManagementSocket, start_rate_limiters_reset_thread,
 };
 
 #[derive(Debug)]
@@ -233,13 +236,10 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                                     length: std::mem::size_of::<ManagementCommand>() as u16,
                                     seq_number: 0,
                                     version: 1,
-                                    p_type: 0x00
+                                    p_type: 0x00,
                                 };
 
-                                let packet = ManagementCommandPacket {
-                                    header,
-                                    command
-                                };
+                                let packet = ManagementCommandPacket { header, command };
 
                                 tunn.send_packet(ManagementPacket::CommandPacket(packet));
                             }

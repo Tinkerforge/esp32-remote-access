@@ -1,6 +1,5 @@
 use crate::utils::as_u8_slice;
 
-
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub enum ManagementCommandId {
@@ -56,7 +55,7 @@ impl ManagementPacket {
 
     fn get_header(&mut self) -> &mut ManagementPacketHeader {
         match self {
-            Self::CommandPacket(p) => &mut p.header
+            Self::CommandPacket(p) => &mut p.header,
         }
     }
 

@@ -34,7 +34,10 @@ use std::time::Instant;
 use validator::{Validate, ValidationError};
 
 use crate::udp_server::management::RemoteConnMeta;
-use crate::udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket, ManagementPacketHeader, ManagementResponse};
+use crate::udp_server::packet::{
+    ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
+    ManagementPacketHeader, ManagementResponse,
+};
 use crate::udp_server::socket::ManagementSocket;
 use crate::{
     error::Error,
@@ -193,13 +196,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                 length: std::mem::size_of::<ManagementCommand>() as u16,
                 seq_number: 0,
                 version: 1,
-                p_type: 0x00
+                p_type: 0x00,
             };
 
-            let packet = ManagementCommandPacket {
-                header,
-                command
-            };
+            let packet = ManagementCommandPacket { header, command };
             let map = self
                 .bridge_state
                 .charger_management_map_with_id
@@ -230,7 +230,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
     }
 }
 
-pub fn open_connection(conn_no: i32, charger_id: i32, management_sock: Arc<Mutex<ManagementSocket>>, port_discovery: Arc<Mutex<HashMap<ManagementResponse, Instant>>>) -> Result<(), Error> {
+pub fn open_connection(
+    conn_no: i32,
+    charger_id: i32,
+    management_sock: Arc<Mutex<ManagementSocket>>,
+    port_discovery: Arc<Mutex<HashMap<ManagementResponse, Instant>>>,
+) -> Result<(), Error> {
     let conn_uuid = uuid::Uuid::new_v4();
     let command = ManagementCommand {
         command_id: ManagementCommandId::Connect,
@@ -248,13 +253,10 @@ pub fn open_connection(conn_no: i32, charger_id: i32, management_sock: Arc<Mutex
         length: std::mem::size_of::<ManagementCommand>() as u16,
         seq_number: 0,
         version: 1,
-        p_type: 0x00
+        p_type: 0x00,
     };
 
-    let packet = ManagementCommandPacket {
-        header,
-        command
-    };
+    let packet = ManagementCommandPacket { header, command };
     let mut sock = management_sock.lock().unwrap();
     sock.send_packet(ManagementPacket::CommandPacket(packet));
     let mut set = port_discovery.lock().unwrap();
@@ -325,7 +327,12 @@ async fn start_ws(
         management_sock
     };
 
-    open_connection(keys.connection_no, keys.charger_id, management_sock, bridge_state.port_discovery.clone())?;
+    open_connection(
+        keys.connection_no,
+        keys.charger_id,
+        management_sock,
+        bridge_state.port_discovery.clone(),
+    )?;
 
     let resp = ws::start(client, &req, stream);
 

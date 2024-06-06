@@ -40,7 +40,7 @@ enum ChargerStatus {
 pub struct GetChargerSchema {
     id: i32,
     name: String,
-    status: ChargerStatus
+    status: ChargerStatus,
 }
 
 /// Get all chargers that the current user has access to.

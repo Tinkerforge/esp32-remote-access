@@ -20,8 +20,8 @@
 pub mod device;
 pub mod management;
 mod multiplex;
-pub mod socket;
 pub mod packet;
+pub mod socket;
 
 use std::{
     collections::HashMap,

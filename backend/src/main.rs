@@ -81,7 +81,10 @@ async fn main() -> std::io::Result<()> {
     let mut conn = pool.get().unwrap();
     {
         use db_connector::schema::chargers::dsl::*;
-        diesel::update(chargers).set(last_ip.eq::<Option<IpNetwork>>(None)).execute(&mut conn).unwrap();
+        diesel::update(chargers)
+            .set(last_ip.eq::<Option<IpNetwork>>(None))
+            .execute(&mut conn)
+            .unwrap();
     }
 
     reset_wg_keys(&pool);

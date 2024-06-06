@@ -27,7 +27,11 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    error::Error, routes::charger::add::get_charger_from_db, utils::{get_connection, web_block_unpacked}, ws_udp_bridge::open_connection, AppState, BridgeState
+    error::Error,
+    routes::charger::add::get_charger_from_db,
+    utils::{get_connection, web_block_unpacked},
+    ws_udp_bridge::open_connection,
+    AppState, BridgeState,
 };
 
 use super::charger::add::password_matches;
@@ -89,13 +93,15 @@ pub async fn management(
     let keys_in_use: Vec<WgKey> = web_block_unpacked(move || {
         use db_connector::schema::wg_keys::dsl::*;
 
-        match WgKey::belonging_to(&charger).filter(in_use.eq(true)).load(&mut conn) {
+        match WgKey::belonging_to(&charger)
+            .filter(in_use.eq(true))
+            .load(&mut conn)
+        {
             Ok(k) => Ok(k),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     {
         let charger_map = bridge_state.charger_management_map_with_id.lock().unwrap();
@@ -106,7 +112,12 @@ pub async fn management(
                 charger.reset();
             }
             for key in keys_in_use.iter() {
-                open_connection(key.connection_no, key.charger_id, c.clone(), bridge_state.port_discovery.clone())?;
+                open_connection(
+                    key.connection_no,
+                    key.charger_id,
+                    c.clone(),
+                    bridge_state.port_discovery.clone(),
+                )?;
             }
         }
     }

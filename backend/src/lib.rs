@@ -28,7 +28,7 @@ use actix::prelude::*;
 use db_connector::Pool;
 use lettre::SmtpTransport;
 use udp_server::{
-    management::RemoteConnMeta, packet::ManagementResponse, socket::ManagementSocket
+    management::RemoteConnMeta, packet::ManagementResponse, socket::ManagementSocket,
 };
 use ws_udp_bridge::Message;
 
