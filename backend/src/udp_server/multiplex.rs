@@ -108,17 +108,14 @@ fn create_tunn(
             Err(_err) => return Err(anyhow::Error::msg("Database is corrupted")),
         };
 
-        let mut tunn = match boringtun::noise::Tunn::new(
+        let mut tunn = boringtun::noise::Tunn::new(
             static_private,
             peer_static_public,
             Some(psk),
             Some(5),
             OsRng.next_u32(),
             Some(rate_limiter.clone()),
-        ) {
-            Ok(tunn) => tunn,
-            Err(err) => return Err(anyhow::Error::msg(err)),
-        };
+        );
 
         match tunn.decapsulate(None, data, &mut dst) {
             TunnResult::WriteToNetwork(data) => {

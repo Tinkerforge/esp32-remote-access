@@ -99,6 +99,11 @@ impl ManagementSocket {
         management_sock
     }
 
+    pub fn reset(&mut self) {
+        let mut tunn = self.tunn.lock().unwrap();
+        tunn.clear_sessions();
+    }
+
     pub fn poll(&mut self) {
         let now = smoltcp::time::Instant::now();
         self.iface.poll(now, &mut self.device, &mut self.sockets);

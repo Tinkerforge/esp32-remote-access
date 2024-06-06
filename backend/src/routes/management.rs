@@ -20,16 +20,14 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use actix_web::{error::ErrorUnauthorized, put, web, HttpRequest, HttpResponse, Responder};
+use db_connector::models::wg_keys::WgKey;
 use diesel::prelude::*;
 use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    error::Error,
-    routes::charger::add::get_charger_from_db,
-    utils::{get_connection, web_block_unpacked},
-    AppState, BridgeState,
+    error::Error, routes::charger::add::get_charger_from_db, utils::{get_connection, web_block_unpacked}, ws_udp_bridge::open_connection, AppState, BridgeState
 };
 
 use super::charger::add::password_matches;
@@ -75,11 +73,10 @@ pub async fn management(
 
     let charger = get_charger_from_db(data.id, &state).await?;
 
-    if !password_matches(data.password.clone(), charger.password)? {
+    if !password_matches(data.password.clone(), charger.password.clone())? {
         return Err(ErrorUnauthorized(""));
     }
 
-    let mut conn = get_connection(&state)?;
     let ip: IpNetwork = match ip.parse() {
         Ok(ip) => ip,
         Err(_err) => {
@@ -88,14 +85,33 @@ pub async fn management(
         }
     };
 
+    let mut conn = get_connection(&state)?;
+    let keys_in_use: Vec<WgKey> = web_block_unpacked(move || {
+        use db_connector::schema::wg_keys::dsl::*;
+
+        match WgKey::belonging_to(&charger).filter(in_use.eq(true)).load(&mut conn) {
+            Ok(k) => Ok(k),
+            Err(_err) => {
+                Err(Error::InternalError)
+            }
+        }
+    }).await?;
+
     {
         let charger_map = bridge_state.charger_management_map_with_id.lock().unwrap();
         if let Some(c) = charger_map.get(&data.id) {
-            let mut charger = c.lock().unwrap();
-            charger.reset_out_sequence();
+            {
+                let mut charger = c.lock().unwrap();
+                charger.reset_out_sequence();
+                charger.reset();
+            }
+            for key in keys_in_use.iter() {
+                open_connection(key.connection_no, key.charger_id, c.clone(), bridge_state.port_discovery.clone())?;
+            }
         }
     }
 
+    let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         match diesel::update(chargers::chargers)
             .filter(chargers::id.eq(data.id))
