@@ -40,6 +40,16 @@ use super::charger::add::password_matches;
 pub struct ManagementSchema {
     id: i32,
     password: String,
+    data: ManagementDataVersion,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub enum ManagementDataVersion {
+    V1(ManagementDataVersion1),
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct ManagementDataVersion1 {
     port: i16,
 }
 
@@ -169,10 +179,12 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
+        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0 });
+
         let body = ManagementSchema {
             id: charger,
             password: pass,
-            port: 0,
+            data,
         };
         let req = test::TestRequest::put()
             .uri("/management")
@@ -196,10 +208,11 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
+        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0 });
         let body = ManagementSchema {
             id: charger,
             password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
-            port: 0,
+            data,
         };
         let req = test::TestRequest::put()
             .uri("/management")
