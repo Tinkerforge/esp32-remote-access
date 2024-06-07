@@ -114,6 +114,8 @@ async fn main() {
             routes::user::get_secret::GetSecretResponse,
             routes::management::ManagementSchema,
             routes::management::ManagementResponseSchema,
+            routes::management::ManagementDataVersion,
+            routes::management::ManagementDataVersion1,
             models::filtered_user::FilteredUser,
         )),
         modifiers(&JwtToken, &RefreshToken)

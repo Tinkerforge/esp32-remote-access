@@ -14,4 +14,6 @@ pub struct Charger {
     pub wg_charger_ip: IpNetwork,
     pub psk: String,
     pub wg_server_ip: IpNetwork,
+    pub webinterface_port: i32,
+    pub firmware_version: String
 }

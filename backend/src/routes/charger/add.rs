@@ -267,6 +267,8 @@ async fn update_charger(
             wg_charger_ip: charger.wg_charger_ip,
             wg_server_ip: charger.wg_server_ip,
             psk: charger.psk,
+            webinterface_port: 0,
+            firmware_version: String::new(),
         };
         match diesel::update(&charger).set(&charger).execute(&mut conn) {
             Ok(_) => Ok(pub_key),
@@ -323,6 +325,8 @@ async fn add_charger(
             wg_charger_ip: charger.wg_charger_ip,
             wg_server_ip: charger.wg_server_ip,
             psk: charger.psk,
+            webinterface_port: 0,
+            firmware_version: String::new(),
         };
 
         match diesel::insert_into(chargers::chargers)
@@ -427,7 +431,7 @@ pub(crate) mod tests {
 
     fn generate_random_keys() -> [Keys; 5] {
         let mut keys: [MaybeUninit<Keys>; 5] = unsafe { MaybeUninit::uninit().assume_init() };
-        for key in keys.iter_mut() {
+        for (i, key) in keys.iter_mut().enumerate() {
             let secret = x25519::StaticSecret::random_from_rng(OsRng);
             let public = x25519::PublicKey::from(&secret);
             *key = MaybeUninit::new(Keys {
@@ -440,7 +444,7 @@ pub(crate) mod tests {
                 web_address: IpNetwork::V4(
                     Ipv4Network::new("123.123.123.122".parse().unwrap(), 24).unwrap(),
                 ),
-                connection_no: 1234,
+                connection_no: i as u16,
             })
         }
 

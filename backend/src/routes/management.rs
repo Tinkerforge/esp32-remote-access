@@ -50,12 +50,62 @@ pub enum ManagementDataVersion {
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ManagementDataVersion1 {
-    port: i16,
+    port: u16,
+    firmware_version: String,
+    configured_connections: Vec<i32>,
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema, Debug)]
 pub struct ManagementResponseSchema {
     time: u64,
+    configured_connections: Vec<i32>,
+}
+
+async fn update_configured_connections(state: &web::Data<AppState>, cid: i32, configured_connections: Vec<i32>) -> actix_web::Result<Vec<i32>> {
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::wg_keys::dsl::*;
+
+         match diesel::delete(wg_keys.filter(charger_id.eq(cid)).filter(connection_no.ne_all(configured_connections))).execute(&mut conn) {
+            Ok(_) => {
+                Ok(())
+            },
+            Err(_err) => {
+                Err(Error::InternalError)
+            }
+         }
+    }).await?;
+
+    let mut conn = get_connection(state)?;
+    let configured_connections: Vec<WgKey> = web_block_unpacked(move || {
+        use db_connector::schema::wg_keys::dsl::*;
+
+        match wg_keys.filter(charger_id.eq(cid)).select(WgKey::as_select()).load(&mut conn) {
+            Ok(v) => Ok(v),
+            Err(_err) => {
+                Err(Error::InternalError)
+            }
+        }
+    }).await?;
+
+    let uids: Vec<uuid::Uuid> = configured_connections.iter().map(|c| c.user_id).collect();
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::allowed_users::dsl::*;
+
+        match diesel::delete(allowed_users.filter(charger_id.eq(cid)).filter(user_id.ne_all(uids))).execute(&mut conn) {
+            Ok(_) => {
+                Ok(())
+            },
+            Err(_err) => {
+                Err(Error::InternalError)
+            }
+        }
+    }).await?;
+
+    let configured_connections: Vec<i32> = configured_connections.iter().map(|c| c.connection_no).collect();
+
+    Ok(configured_connections)
 }
 
 /// Route for the charger to be identifiable via the ip.
@@ -99,6 +149,11 @@ pub async fn management(
         }
     };
 
+    let configured_connections = match &data.data {
+        ManagementDataVersion::V1(data) => data.configured_connections.clone()
+    };
+    let configured_connections = update_configured_connections(&state, charger.id, configured_connections).await?;
+
     let mut conn = get_connection(&state)?;
     let keys_in_use: Vec<WgKey> = web_block_unpacked(move || {
         use db_connector::schema::wg_keys::dsl::*;
@@ -132,11 +187,15 @@ pub async fn management(
         }
     }
 
+
+    let (fw_version, port) = match &data.data {
+        ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port)
+    };
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         match diesel::update(chargers::chargers)
             .filter(chargers::id.eq(data.id))
-            .set(chargers::last_ip.eq(Some(ip)))
+            .set((chargers::last_ip.eq(Some(ip)), chargers::firmware_version.eq(fw_version), chargers::webinterface_port.eq(port as i32)))
             .execute(&mut conn)
         {
             Ok(_) => Ok(()),
@@ -157,7 +216,7 @@ pub async fn management(
     };
 
     let time = time.as_secs();
-    let resp = ManagementResponseSchema { time };
+    let resp = ManagementResponseSchema { time, configured_connections };
 
     Ok(HttpResponse::Ok().json(resp))
 }
@@ -166,9 +225,10 @@ pub async fn management(
 mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
+    use db_connector::{models::allowed_users::AllowedUser, test_connection_pool};
     use rand::distributions::{Alphanumeric, DistString};
 
-    use crate::{routes::user::tests::TestUser, tests::configure};
+    use crate::{routes::user::tests::{get_test_uuid, TestUser}, tests::configure};
 
     #[actix_web::test]
     async fn test_management() {
@@ -179,7 +239,7 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
-        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0 });
+        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0, firmware_version: "2.3.1".to_string(), configured_connections: vec![0, 1, 2, 3, 4], });
 
         let body = ManagementSchema {
             id: charger,
@@ -192,11 +252,10 @@ mod tests {
             .cookie(Cookie::new("X-Forwarded-For", "123.123.123.3"))
             .set_json(body)
             .to_request();
-        let resp = test::call_service(&app, req).await;
+        let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
         println!("{:?}", resp);
-        println!("{:?}", resp.response().body());
-        assert!(resp.status().is_success());
+        assert_eq!([0, 1, 2, 3, 4], *resp.configured_connections);
     }
 
     #[actix_web::test]
@@ -208,7 +267,7 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
-        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0 });
+        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0, firmware_version: "2.3.1".to_string(), configured_connections: vec![0, 1, 2, 3, 4], });
         let body = ManagementSchema {
             id: charger,
             password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
@@ -225,5 +284,45 @@ mod tests {
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_client_error());
         assert_eq!(resp.status().as_u16(), 401);
+    }
+
+    #[actix::test]
+    async fn removed_connections() {
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
+        let (charger, pass) = user.add_random_charger().await;
+
+        let app = App::new().configure(configure).service(management);
+        let app = test::init_service(app).await;
+
+        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0, firmware_version: "2.3.1".to_string(), configured_connections: vec![0, 1, 2, 3], });
+
+        let body = ManagementSchema {
+            id: charger,
+            password: pass,
+            data,
+        };
+        let req = test::TestRequest::put()
+            .uri("/management")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .cookie(Cookie::new("X-Forwarded-For", "123.123.123.3"))
+            .set_json(body)
+            .to_request();
+        let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
+
+        println!("{:?}", resp);
+        assert_eq!([0, 1, 2, 3], *resp.configured_connections);
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+
+
+        let user_id: uuid::Uuid = {
+            use db_connector::schema::allowed_users::dsl::*;
+
+            let user: AllowedUser = allowed_users.filter(charger_id.eq(charger)).select(AllowedUser::as_select()).get_result(&mut conn).unwrap();
+            user.user_id
+        };
+        assert_eq!(get_test_uuid(&user.mail), user_id);
     }
 }

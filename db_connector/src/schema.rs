@@ -20,6 +20,8 @@ diesel::table! {
         psk -> Varchar,
         wg_charger_ip -> Inet,
         wg_server_ip -> Inet,
+        webinterface_port -> Int4,
+        firmware_version -> Varchar,
     }
 }
 
