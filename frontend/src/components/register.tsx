@@ -5,6 +5,8 @@ import { showAlert } from "./Alert";
 import { generate_hash, generate_random_bytes, get_salt } from "../utils";
 import { Base64 } from "js-base64";
 import sodium from "libsodium-wrappers";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 
 interface RegisterSchema {
     name: string,
@@ -103,7 +105,7 @@ export class Register extends Component<{}, RegisterState> {
         });
         if (resp.status === 201) {
             const text = "Registration was successful, you should receive an email in the next couple of minutes.";
-            showAlert(text, "success");
+            showAlert(text, "success", i18n.t("alert_default_success"));
         } else {
             const body = await resp.text();
             const text = `Failed with status ${resp.status}: ${body}`;
@@ -139,50 +141,52 @@ export class Register extends Component<{}, RegisterState> {
     }
 
     render() {
+        const {t} = useTranslation("", {useSuspense: false, keyPrefix: "register"})
 
         return (<>
             <Modal show={this.state.show_modal} onHide={() => this.setState({show_modal: false})}>
                 <Modal.Dialog>
                     <Modal.Header closeButton>
-                        <Modal.Title>Safe recovery data</Modal.Title>
+                        <Modal.Title>{t("save_recovery_data")}</Modal.Title>
                     </Modal.Header>
 
                     <Modal.Body>
-                        <Button variant="primary" onClick={() => this.saveRecoveryData()}>Download Recovery Data</Button>
+                        <p className="mb-3">{t("save_recovery_data_text")}</p>
+                        <Button variant="primary" onClick={() => this.saveRecoveryData()}>{t("save")}</Button>
                     </Modal.Body>
 
                     <Modal.Footer>
                         <Button variant={this.state.recovery_safed ? "primary" : "danger"} onClick={() => {
                             this.setState({show_modal: false});
-                        }}>Close</Button>
+                        }}>{t("close")}</Button>
                     </Modal.Footer>
                 </Modal.Dialog>
             </Modal>
 
             <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)}>
                 <Form.Group className="mb-3" controlId="registerName">
-                    <Form.Label>Name</Form.Label>
+                    <Form.Label>{t("name")}</Form.Label>
                     <Form.Control type="text" placeholder="John Doe" value={this.state.name} onChange={(e) => {
                         this.setState({name: (e.target as HTMLInputElement).value})
                     }} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerEmail">
-                    <Form.Label>Email</Form.Label>
-                    <Form.Control type="email" placeholder="Email" value={this.state.email} onChange={(e) => {
+                    <Form.Label>{t("email")}</Form.Label>
+                    <Form.Control type="email" placeholder={t("email")} value={this.state.email} onChange={(e) => {
                         this.setState({email: (e.target as HTMLInputElement).value})
                     }} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerPassword">
-                    <Form.Label>Password</Form.Label>
-                    <Form.Control type="password" placeholder="Password" value={this.state.password} onChange={(e) => {
+                    <Form.Label>{t("password")}</Form.Label>
+                    <Form.Control type="password" placeholder={t("password")} value={this.state.password} onChange={(e) => {
                         this.setState({password: (e.target as HTMLInputElement).value});
                     }} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerSubmit">
-                    <Form.Check type="checkbox" label="Accept privacy notice" required/>
+                    <Form.Check type="checkbox" label={t("accecpt_privacy_notice")} required/>
                 </Form.Group>
                 <Button variant="primary" type="submit">
-                    Register
+                    {t("register")}
                 </Button>
             </Form>
         </>)

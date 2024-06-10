@@ -17,6 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
+import "./i18n";
 import { render } from 'preact';
 import { LocationProvider, Router, Route } from 'preact-iso';
 
@@ -38,6 +39,7 @@ import { BACKEND } from './types.js';
 import { AppState, loggedIn } from './utils.js';
 import { Spinner } from 'react-bootstrap';
 import { Recovery } from './pages/recovery.js';
+import { useTranslation } from "react-i18next";
 
 
 async function refresh_access_token() {
@@ -64,6 +66,7 @@ setTimeout(async () => {
 }, 1000 * 60 * 5);
 
 export function App() {
+    const {t} = useTranslation("", {useSuspense: false});
     switch (loggedIn.value) {
         case AppState.Loading:
             return <>
@@ -74,8 +77,8 @@ export function App() {
             return <>
                 <ErrorAlert/>
                 <Row fluid className="align-items-center vh-100">
-                    <div class="d-flex col justify-content-center">
-                        <Card className="p-3">
+                    <div class="d-flex justify-content-center">
+                        <Card className="p-3 m-3 col-lg-6 col-xl-3">
                             <Tabs
                                 defaultActiveKey="login"
                                 id="login-register-tab"
@@ -84,7 +87,7 @@ export function App() {
                                 <Tab eventKey="login" title="Login">
                                     <Login />
                                 </Tab>
-                                <Tab eventKey="register" title="Register">
+                                <Tab eventKey="register" title={t("register.register")}>
                                     <Register />
                                 </Tab>
                             </Tabs>

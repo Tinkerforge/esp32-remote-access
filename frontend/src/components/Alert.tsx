@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals";
 import Alert from "react-bootstrap/Alert";
+import i18n from "../i18n";
 
 const state = signal({
     text: "",
@@ -13,7 +14,7 @@ export function showAlert(text: string, variant: string, heading?: string) {
         text: text,
         show: true,
         variant: variant,
-        heading: heading ? heading : "An Error occured!",
+        heading: heading ? heading : i18n.t("alert_default_text"),
     }
 }
 

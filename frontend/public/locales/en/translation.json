@@ -1,0 +1,51 @@
+{
+    "alert_default_text": "An Error occured!",
+    "user": {
+        "user_id": "User-id",
+        "email": "Email-address",
+        "name": "Name",
+        "change": "Change",
+        "change_password": "Change password",
+        "current_password": "Current password",
+        "new_password": "New password",
+        "close": "Close"
+    },
+    "recovery": {
+        "recovery": "Password recovery",
+        "new_password": "New password",
+        "recovery_file": "Recovery File",
+        "submit": "Submit",
+        "invalid_file": "File is invalid"
+    },
+    "chargers": {
+        "charger_name": "Name",
+        "charger_id": "Charger Id",
+        "status": "Status",
+        "status_connected": "Connected",
+        "status_disconnected": "Disconnected",
+        "connect": "Connect",
+        "remove": "Remove",
+        "close": "Close",
+        "connect_error_text": "Connecting to charger {{charger_id}} failed with code {{status}}: {{response}}"
+    },
+    "sidebar": {
+        "home": "Home",
+        "user": "User",
+        "chargers": "Chargers",
+        "logout": "Logout"
+    },
+    "register": {
+        "name": "Name",
+        "email": "Email-address",
+        "password": "Password",
+        "accecpt_privacy_notice": "I have read, understood and I am accepting the privacy notice.",
+        "register": "Register",
+        "save_recovery_data": "Save recovery file",
+        "save": "Save",
+        "save_recovery_data_text": "Since we can only decrypt the access code with the correct password we need this file to recover access to your chargers in case of a password loss. Save this file in a safe location which is inaccessible by others since it is equivalent to your password.",
+        "close": "Close",
+        "success_alert_text": "You should receive an email in the next couple of minutes.",
+        "success_alert_heading": "Success",
+        "error_alert_text": "Failed to start recovery with status {{- status}}: {{text}}"
+    }
+}

@@ -25,6 +25,8 @@ import { signal } from "@preact/signals";
 import * as Base58 from "base58";
 import { generate_hash } from "../utils";
 import sodium from "libsodium-wrappers";
+import { useTranslation } from "react-i18next";
+import { showAlert } from "../components/Alert";
 
 interface Charger {
     id: number,
@@ -72,22 +74,32 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
     }
 
     render() {
+        const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         const list = [];
         this.state.chargers.forEach((charger, index) => {
             const entry = <tr>
                 <td>{index}</td>
                 <td>{charger.name}</td>
                 <td>{Base58.int_to_base58(charger.id)}</td>
-                <td>{charger.status}</td>
+                <td>{charger.status === "Disconnected" ? t("status_disconnected") : t("status_connected")}</td>
                 <td><Button onClick={async () => {
 
                     const get_secret_resp = await fetch(BACKEND + "/user/get_secret", {
                         credentials: "include"
                     });
+                    if (get_secret_resp.status !== 200) {
+                        showAlert(t("connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: get_secret_resp.status, text: await get_secret_resp.text()}), "danger");
+                        return;
+                    }
 
                     const resp = await fetch(BACKEND + "/charger/get_key?cid=" + charger.id, {
                         credentials: "include"
                     });
+                    if (resp.status !== 200) {
+                        showAlert(t("connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: get_secret_resp.status, text: await get_secret_resp.text()}), "danger");
+                        return;
+                    }
+
                     const json = await resp.json();
 
                     const ret = await this.decrypt_keys(json, await get_secret_resp.json());
@@ -102,7 +114,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                     }
 
                     connected.value = true;
-                }} variant="primary">Connect</Button></td>
+                }} variant="primary">{t("connect")}</Button></td>
                 <td><Button onClick={async () => {
                     const body = {
                         charger: charger.id
@@ -121,7 +133,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         this.setState({chargers: chargers});
                     }
                 }}
-                variant="danger">Remove</Button></td>
+                variant="danger">{t("remove")}</Button></td>
             </tr>
             list.push(entry);
         })
@@ -131,9 +143,9 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Charger Name</th>
-                        <th>Charger Id</th>
-                        <th>Status</th>
+                        <th>{t("charger_name")}</th>
+                        <th>{t("charger_id")}</th>
+                        <th>{t("status")}</th>
                         <th />
                         <th />
                         <th />
@@ -148,6 +160,8 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
 }
 
 export function ChargerList() {
+    console.log("here");
+    const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
 
     if (!connected.value) {
         return <>
@@ -159,7 +173,7 @@ export function ChargerList() {
             <Button variant="primary"
                     onClick={() => {
                         connected.value = false;
-                    }}>Close</Button>
+                    }}>{t("close")}</Button>
         </>
     }
 }

@@ -5,6 +5,7 @@ import { BACKEND } from "../types";
 import { showAlert } from "./Alert";
 import { generate_hash, get_salt_for_user } from "../utils";
 import { Modal } from "react-bootstrap";
+import { useTranslation } from "react-i18next";
 
 interface LoginSchema {
     email: string,
@@ -69,38 +70,40 @@ export class Login extends Component<{}, LoginState> {
     }
 
     render() {
+        const {t} = useTranslation("", {useSuspense: false, keyPrefix: "login"});
         return(<>
             <Modal show={this.state.show_modal} onHide={() => this.setState({show_modal: false})}>
                 <Modal.Dialog>
                     <Modal.Header closeButton>
                         <Modal.Title>
-                            Request Password Recovery
+                            {t("password_recovery")}
                         </Modal.Title>
                     </Modal.Header>
                     <Form onSubmit={async (e: SubmitEvent) => {
                         e.preventDefault();
                         const resp = await fetch(`${BACKEND}/auth/start_recovery?email=${this.state.email}`);
                         if (resp.status != 200) {
-                            showAlert(`Failed to start recovery with status ${resp.status}: ${await resp.text()}`, "danger");
+                            this.setState({show_modal: false});
+                            showAlert(t("error_alert_text", {status: resp.status, text: await resp.text(), interpolation: {escapeValue: false}}), "danger");
                         } else {
-                            showAlert(`You will receive an email in the next couple of minutes`, "success", "Success");
+                            showAlert(t("success_alert_text"), "success", t("success_alert_heading"));
                             this.setState({show_modal: false});
                         }
                     }}>
                         <Modal.Body>
                             <Form.Group className="mb-3" controlId="startRecoveryEmail">
-                                <Form.Label>Email</Form.Label>
-                                <Form.Control type="text" placeholder="Email" value={this.state.email} onChange={(e) => {
+                                <Form.Label>{t("email")}</Form.Label>
+                                <Form.Control type="text" placeholder={t("email")} value={this.state.email} onChange={(e) => {
                                     this.setState({email: (e.target as HTMLInputElement).value});
                                 }} />
                             </Form.Group>
                         </Modal.Body>
                         <Modal.Footer>
                             <Button variant="primary" type="submit">
-                                Send recovery email
+                                {t("send")}
                             </Button>
                             <Button variant="secondary" type="button" onClick={() => this.setState({show_modal: false})}>
-                                Close
+                                {t("close")}
                             </Button>
                         </Modal.Footer>
                     </Form>
@@ -109,24 +112,24 @@ export class Login extends Component<{}, LoginState> {
 
             <Form onSubmit={async (e: SubmitEvent) => this.onSubmit(e)}>
                 <Form.Group className="mb-3" controlId="loginEmail">
-                    <Form.Label>Email</Form.Label>
-                    <Form.Control type="text" placeholder="Email" value={this.state.email} onChange={(e) => {
+                    <Form.Label>{t("email")}</Form.Label>
+                    <Form.Control type="text" placeholder={t("email")} value={this.state.email} onChange={(e) => {
                         this.setState({email: (e.target as HTMLInputElement).value});
                     }} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="loginPassword" >
-                    <Form.Label>Password</Form.Label>
-                    <Form.Control type="password" placeholder="Password" value={this.state.password} onChange={(e) => {
+                    <Form.Label>{t("password")}</Form.Label>
+                    <Form.Control type="password" placeholder={t("password")} value={this.state.password} onChange={(e) => {
                         this.setState({password: (e.target as HTMLInputElement).value});
                     }} />
                 </Form.Group>
                 <Button variant="primary" type="submit">
-                    Login
+                    {t("login")}
                 </Button>
-                <a href="" onClick={(e) => {
+                <a className="col mb-3" href="" onClick={(e) => {
                     e.preventDefault();
                     this.setState({show_modal: true});
-                }}>start recovery</a>
+                }}>{t("password_recovery")}</a>
             </Form>
         </>)
     }

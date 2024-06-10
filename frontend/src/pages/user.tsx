@@ -26,6 +26,7 @@ import { BACKEND } from "../types";
 import { concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/sidebar";
+import { useTranslation } from "react-i18next";
 
 
 interface UserState {
@@ -86,25 +87,26 @@ class UserComponent extends Component<{}, State> {
     }
 
     render() {
+        const {t} = useTranslation("", {useSuspense: false, keyPrefix: "user"});
         return (<>
             <Form onSubmit={this.submit}>
                 <Form.Group className="pb-3" controlId="userId">
-                    <Form.Label>User Id</Form.Label>
+                    <Form.Label>{t("user_id")}</Form.Label>
                     <Form.Control type="text" disabled value={this.state.user.id} />
                 </Form.Group>
                 <Form.Group className="pb-3" controlId="userEmail">
-                    <Form.Label>Email</Form.Label>
+                    <Form.Label>{t("email")}</Form.Label>
                     <Form.Control type="email" value={this.state.user.email} onChange={(e) => {
                         this.setState({user: {...this.state.user, email: (e.target as HTMLInputElement).value}, isDirty: true});
                     }} />
                 </Form.Group>
                 <Form.Group className="pb-3" controlId="userName">
-                    <Form.Label>Name</Form.Label>
+                    <Form.Label>{t("name")}</Form.Label>
                     <Form.Control type="text" value={this.state.user.name} onChange={(e) => {
                         this.setState({user: {...this.state.user, name: (e.target as HTMLInputElement).value}, isDirty: true});
                     }} />
                 </Form.Group>
-                <Button type="submit" variant="primary" disabled={!this.state.isDirty} className="mb-3" >Update</Button>
+                <Button type="submit" variant="primary" disabled={!this.state.isDirty} className="mb-3" >{t("change")}</Button>
             </Form>
         </>)
     }
@@ -174,35 +176,37 @@ export function User() {
         }
     };
 
+    const {t} = useTranslation("", {useSuspense: false, keyPrefix: "user"});
+
     return (<>
         <UserComponent/>
         <Button variant="primary" onClick={handleShow}>
-            Change Password
+            {t("change_password")}
         </Button>
 
         <Modal show={show} onHide={handleClose}>
             <Form onSubmit={submit} >
                 <Modal.Header>
                     <Modal.Title>
-                        Change password
+                        {t("change_password")}
                     </Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form.Group className="pb-3" controlId="oldPassword">
-                        <Form.Label>Current Password</Form.Label>
+                        <Form.Label>{t("current_password")}</Form.Label>
                         <Form.Control type="password" value={currentPassword} onChange={(e) => setCurrentPassword((e.target as HTMLInputElement).value)} />
                     </Form.Group>
                     <Form.Group className="pb-3" controlId="newPassword">
-                        <Form.Label>New Password</Form.Label>
+                        <Form.Label>{t("new_password")}</Form.Label>
                         <Form.Control type="password" value={newPassword} onChange={(e) => setNewPassword((e.target as HTMLInputElement).value)} />
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={handleClose}>
-                        Close
+                        {t("close")}
                     </Button>
                     <Button variant="primary" type="submit">
-                        Change Password
+                        {t("change_password")}
                     </Button>
                 </Modal.Footer>
             </Form>

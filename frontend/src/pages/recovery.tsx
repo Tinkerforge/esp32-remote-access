@@ -2,9 +2,10 @@ import { signal } from "@preact/signals";
 import { Base64 } from "js-base64";
 import { Button, Card, Form } from "react-bootstrap";
 import { concat_salts, generate_hash, generate_random_bytes, get_salt } from "../utils";
-import { crypto_box_SECRETKEYBYTES, crypto_box_keypair, crypto_box_seal, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
+import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
 import { BACKEND } from "../types";
 import { showAlert } from "../components/Alert";
+import { useTranslation } from "react-i18next";
 
 interface RecoverySchema {
     new_encrypted_secret: number[],
@@ -17,6 +18,8 @@ interface RecoverySchema {
 }
 
 export function Recovery() {
+    const {t} = useTranslation();
+
     const params = new URLSearchParams(window.location.search);
     const state = signal({
         recovery_key: params.get("token"),
@@ -79,13 +82,13 @@ export function Recovery() {
             <Card>
                 <Card.Header>
                     <Card.Title>
-                        Account Recovery
+                        {t("recovery.recovery")}
                     </Card.Title>
                 </Card.Header>
                 <Card.Body>
                     <Form.Group className="mb-3" controlId="newPassword">
                         <Form.Label>
-                            New Password
+                            {t("recovery.new_password")}
                         </Form.Label>
                         <Form.Control type="password" placeholder="New Password" value={state.value.new_password} onChange={(e) => {
                             state.value.new_password = (e.target as HTMLInputElement).value;
@@ -93,15 +96,18 @@ export function Recovery() {
                     </Form.Group>
                     <Form.Group className="mb-3" controlId="recoveryFile">
                         <Form.Label>
-                            Recovery File
+                            {t("recovery.recovery_file")}
                         </Form.Label>
-                        <Form.Control aria-invalid="true" type="file" onChange={async (e) => {
+                        <Form.Control type="file" onChange={async (e) => {
                             const target = e.target as HTMLInputElement;
                             const recovery_file = target.files.item(0);
 
                             try {
                                 const file_text = await recovery_file.text();
                                 const file_object = JSON.parse(file_text);
+                                if (!("email" in file_object) || !("secret" in file_object) || !("hash" in file_object)) {
+                                    throw "Invalid data";
+                                }
                                 const hash = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(file_object.email + file_object.secret));
                                 const hash_string = Base64.fromUint8Array(new Uint8Array(hash));
                                 if (hash_string != file_object.hash) {
@@ -119,11 +125,11 @@ export function Recovery() {
                                 }
                             }
                         }} />
-                        <Form.Control.Feedback type="invalid">File is invalid</Form.Control.Feedback>
+                        <Form.Control.Feedback type="invalid">{t("recovery.invalid_file")}</Form.Control.Feedback>
                     </Form.Group>
                 </Card.Body>
                 <Card.Footer>
-                    <Button type="submit" variant="primary">Submit</Button>
+                    <Button type="submit" variant="primary">{t("recovery.submit")}</Button>
                 </Card.Footer>
             </Card>
         </Form>
