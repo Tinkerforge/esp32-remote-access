@@ -1,0 +1,60 @@
+{
+    "alert_default_text": "Ein Fehler ist aufgetreten!",
+    "alert_default_success": "Erfolg!",
+    "user": {
+        "user_id": "Nutzer Id",
+        "email": "Email Adresse",
+        "name": "Name",
+        "change": "Ändern",
+        "change_password": "Passwort ändern",
+        "current_password": "Aktuelles Passwort",
+        "new_password": "Neues Passwort",
+        "close": "Schließen"
+    },
+    "recovery": {
+        "recovery": "Passwort zurücksetzen",
+        "new_password": "Neues Passwort",
+        "recovery_file": "Wiederhestellungsdatei",
+        "submit": "Abschicken",
+        "invalid_file": "Datei ist beschädigt oder falsch"
+    },
+    "chargers": {
+        "charger_name": "Name",
+        "charger_id": "Wallbox Id",
+        "status": "Status",
+        "status_connected": "Verbunden",
+        "status_disconnected": "Getrennt",
+        "connect": "Verbinden",
+        "remove": "Löschen",
+        "close": "Schließen",
+        "connect_error_text": "Verbindung zu wallbox {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}"
+    },
+    "sidebar": {
+        "home": "Home",
+        "user": "Nutzer",
+        "chargers": "Wallboxen",
+        "logout": "Ausloggen"
+    },
+    "register": {
+        "name": "Name",
+        "email": "Email Adresse",
+        "password": "Passwort",
+        "accecpt_privacy_notice": "Ich habe die Datenschutzerklärung gelesen, verstanden und stimme zu",
+        "register": "Registrieren",
+        "save_recovery_data": "Wiederhestellungsdatei speichern",
+        "save": "Speichern",
+        "save_recovery_data_text": "Da die Zugangsdaten für die Wallboxen nur mithilfe des korrekten Passworts entschlüsselt werden können brauchen Sie, falls Sie ihr Passwort vergessen sollten diese Datei um den Zugang zu Ihren Wallboxen wiederherzustellen. Bewahren Sie diese Datei sicher und für niemanden sonst zugänglich auf, da sie mit Ihrem Passwort gleichzustellen ist.",
+        "close": "Schließen"
+    },
+    "login": {
+        "password_recovery": "Passwort zurücksetzen",
+        "email":"Email Adresse",
+        "send": "Senden",
+        "close": "Schließen",
+        "password": "Passwort",
+        "login": "Einloggen",
+        "success_alert_text": "Sie sollten innerhalb der nächsten paar Minuten eine E-Mail erhalten.",
+        "success_alert_heading": "Erfolg",
+        "error_alert_text": "Failed to start recovery with status {{status}}: {{text}}"
+    }
+}
