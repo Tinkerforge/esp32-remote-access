@@ -25,7 +25,7 @@ import { useState } from "preact/hooks";
 import { BACKEND } from "../types";
 import { concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
-import { logout } from "../components/sidebar";
+import { logout } from "../components/Navbar";
 import { useTranslation } from "react-i18next";
 import { Container } from "react-bootstrap";
 

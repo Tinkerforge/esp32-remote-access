@@ -21,8 +21,7 @@ import "./i18n";
 import { render } from 'preact';
 import { LocationProvider, Router, Route } from 'preact-iso';
 
-import { Sidebar } from './components/sidebar.js';
-import { Home } from './pages/Home/index.jsx';
+import { CustomNavbar } from './components/Navbar.js';
 import { NotFound } from './pages/_404.jsx';
 import { Login } from './components/login.js';
 import { Register } from './components/register.js';
@@ -100,7 +99,7 @@ export function App() {
             return (
                 <>
                     <ErrorAlert/>
-                    <Sidebar />
+                    <CustomNavbar />
                     <Row>
                         <LocationProvider>
                             <main>

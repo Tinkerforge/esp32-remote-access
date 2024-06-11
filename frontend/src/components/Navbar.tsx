@@ -14,7 +14,7 @@ export async function logout (e: Event) {
         window.location.reload();
     }
 
-export function Sidebar() {
+export function CustomNavbar() {
     const { url } = useLocation();
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "sidebar"})
 
