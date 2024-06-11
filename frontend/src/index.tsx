@@ -60,7 +60,7 @@ async function refresh_access_token() {
 }
 
 refresh_access_token();
-setTimeout(async () => {
+setInterval(async () => {
     await refresh_access_token();
 }, 1000 * 60 * 5);
 
