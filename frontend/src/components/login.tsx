@@ -126,10 +126,10 @@ export class Login extends Component<{}, LoginState> {
                 <Button variant="primary" type="submit">
                     {t("login")}
                 </Button>
-                <a className="col mb-3" href="" onClick={(e) => {
-                    e.preventDefault();
-                    this.setState({show_modal: true});
-                }}>{t("password_recovery")}</a>
+                <a className="col mb-3 ms-3" href="" onClick={(e) => {
+                        e.preventDefault();
+                        this.setState({show_modal: true});
+                    }}>{t("password_recovery")}</a>
             </Form>
         </>)
     }

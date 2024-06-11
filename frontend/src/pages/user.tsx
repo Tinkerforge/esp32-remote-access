@@ -27,6 +27,7 @@ import { concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/sidebar";
 import { useTranslation } from "react-i18next";
+import { Container } from "react-bootstrap";
 
 
 interface UserState {
@@ -179,10 +180,12 @@ export function User() {
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "user"});
 
     return (<>
-        <UserComponent/>
-        <Button variant="primary" onClick={handleShow}>
-            {t("change_password")}
-        </Button>
+        <Container fluid>
+            <UserComponent/>
+            <Button variant="primary" onClick={handleShow}>
+                {t("change_password")}
+            </Button>
+        </Container>
 
         <Modal show={show} onHide={handleClose}>
             <Form onSubmit={submit} >

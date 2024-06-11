@@ -100,21 +100,17 @@ export function App() {
             return (
                 <>
                     <ErrorAlert/>
-                    <LocationProvider>
-                        <Container fluid>
-                            <Row>
-                            <Sidebar />
-                                <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
-                                    <Router>
-                                        <Route path="/" component={Home} />
-                                        <Route path="/user" component={User} />
-                                        <Route path="/chargers" component={ChargerList} />
-                                        <Route default component={NotFound} />
-                                    </Router>
-                                </main>
-                            </Row>
-                        </Container>
-                    </LocationProvider>
+                    <Sidebar />
+                    <Row>
+                        <LocationProvider>
+                            <main>
+                                <Router>
+                                    <Route path="/user" component={User} />
+                                    <Route default path="/chargers" component={ChargerList} />
+                                </Router>
+                            </main>
+                        </LocationProvider>
+                    </Row>
                 </>
             );
         case AppState.Recovery:
