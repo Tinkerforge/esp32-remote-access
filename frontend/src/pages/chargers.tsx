@@ -82,7 +82,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                 <td>{charger.name}</td>
                 <td>{Base58.int_to_base58(charger.id)}</td>
                 <td>{charger.status === "Disconnected" ? t("status_disconnected") : t("status_connected")}</td>
-                <td><Button onClick={async () => {
+                <td><Button disabled={charger.status !== "Connected"} onClick={async () => {
 
                     const get_secret_resp = await fetch(BACKEND + "/user/get_secret", {
                         credentials: "include"
