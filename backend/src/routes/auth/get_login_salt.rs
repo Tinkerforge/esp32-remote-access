@@ -36,7 +36,7 @@ pub async fn get_login_salt(
     let mut conn = get_connection(&state)?;
     let user: User = web_block_unpacked(move || {
         match users
-            .filter(email.eq(&query.email))
+            .filter(email.eq(&query.email.to_lowercase()))
             .select(User::as_select())
             .get_result(&mut conn)
         {

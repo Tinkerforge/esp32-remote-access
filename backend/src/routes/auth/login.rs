@@ -117,7 +117,7 @@ pub async fn login(
         Err(_err) => return Err(Error::InternalError.into()),
     };
 
-    let email = data.email.clone();
+    let email = data.email.to_lowercase();
     let uuid = validate_password(&data.login_key, FindBy::Email(email), conn).await?;
 
     let now = Utc::now();
