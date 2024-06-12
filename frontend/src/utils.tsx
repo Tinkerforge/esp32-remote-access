@@ -67,3 +67,5 @@ export enum AppState {
 }
 
 export const loggedIn = signal(AppState.Loading);
+
+export const PASSWORD_PATTERN = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/;

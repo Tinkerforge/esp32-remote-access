@@ -2,7 +2,7 @@ import { Component } from "preact";
 import { Button, Form, FormGroup, Modal } from "react-bootstrap"
 import { BACKEND } from "../types";
 import { showAlert } from "./Alert";
-import { generate_hash, generate_random_bytes, get_salt } from "../utils";
+import { PASSWORD_PATTERN, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import { Base64 } from "js-base64";
 import sodium from "libsodium-wrappers";
 import { useTranslation } from "react-i18next";
@@ -57,9 +57,8 @@ export class Register extends Component<{}, RegisterState> {
     }
 
     checkPassword() {
-        const pattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/;
 
-        const res = pattern.test(this.state.password);
+        const res = PASSWORD_PATTERN.test(this.state.password);
         if (!res) {
             this.setState({passwordValid: false});
         } else {
