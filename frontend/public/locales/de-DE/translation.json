@@ -37,8 +37,11 @@
     },
     "register": {
         "name": "Name",
+        "name_error_message": "Der Name darf nicht leer sein",
         "email": "Email Adresse",
+        "email_error_message": "Die Email Adresse, darf nicht leer sein",
         "password": "Passwort",
+        "password_error_message": "Muss mindestens 8 Zeichen lang sein und jeweils mindestens einen Klein- und Großbuchstaben sowie ein Sonderzeichen enthalten.",
         "accecpt_privacy_notice": "Ich habe die Datenschutzerklärung gelesen, verstanden und stimme zu",
         "register": "Registrieren",
         "save_recovery_data": "Wiederhestellungsdatei speichern",

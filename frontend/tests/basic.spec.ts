@@ -44,3 +44,12 @@ test('show user page', async ({ page }) => {
   await page.getByRole('link', { name: 'User' }).click();
   await expect(page.getByLabel('Name')).toHaveValue('fred');
 });
+
+test('invalid register form', async ({ page }) => {
+  await page.goto('https://192.168.1.44/');
+  await page.getByRole('tab', { name: 'Register' }).click();
+  await page.getByRole('button', { name: 'Register' }).click();
+  await expect(page.getByText('The name must not be empty')).toBeVisible();
+  await expect(page.getByText('The email-address must not be')).toBeVisible();
+  await expect(page.getByText('Must contain at least one')).toBeVisible();
+});

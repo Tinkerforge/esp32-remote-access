@@ -36,8 +36,11 @@
     },
     "register": {
         "name": "Name",
+        "name_error_message": "The name must not be empty",
         "email": "Email-address",
+        "email_error_message": "The email-address must not be empty",
         "password": "Password",
+        "password_error_message": "Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters",
         "accecpt_privacy_notice": "I have read, understood and I am accepting the privacy notice.",
         "register": "Register",
         "save_recovery_data": "Save recovery file",

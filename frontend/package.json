@@ -5,7 +5,7 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "npx playwright test"
+    "test": "npx playwright test --project=chromium"
   },
   "dependencies": {
     "@preact/signals": "^1.2.2",
@@ -29,7 +29,7 @@
     "workbox-precaching": "^7.0.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.43.1",
+    "@playwright/test": "^1.44.1",
     "@preact/preset-vite": "^2.5.0",
     "@types/argon2-browser": "^1.18.4",
     "@types/cookie": "^0.6.0",

@@ -21,12 +21,18 @@ interface RegisterSchema {
 interface RegisterState {
     accepted: boolean,
     password: string,
+    passwordValid: boolean,
     name: string,
+    nameValid: boolean,
     email: string,
-    recovery_safed: boolean,
-    encrypted_secret: Uint8Array,
+    emailValid: boolean,
+    checkBoxChecked: boolean,
+    checkBoxValid: boolean,
+    recoverySafed: boolean,
+    encryptedSecret: Uint8Array,
     secret: Uint8Array,
-    show_modal: boolean,
+    showModal: boolean,
+    validated: boolean,
 }
 
 export class Register extends Component<{}, RegisterState> {
@@ -35,20 +41,69 @@ export class Register extends Component<{}, RegisterState> {
         this.state = {
             accepted: false,
             password: "",
+            passwordValid: true,
             name: "",
+            nameValid: true,
             email: "",
-            recovery_safed: false,
-            encrypted_secret: new Uint8Array(),
+            emailValid: true,
+            checkBoxChecked: false,
+            checkBoxValid: true,
+            recoverySafed: false,
+            encryptedSecret: new Uint8Array(),
             secret: new Uint8Array(),
-            show_modal: false,
+            showModal: false,
+            validated: false,
         }
+    }
+
+    checkPassword() {
+        const pattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/;
+
+        const res = pattern.test(this.state.password);
+        if (!res) {
+            this.setState({passwordValid: false});
+        } else {
+            this.setState({passwordValid: true});
+        }
+        return res;
+    }
+
+    checkForm() {
+        let ret = true;
+        if (!this.checkPassword()) {
+           ret = false;
+        }
+
+        if (this.state.email.length === 0) {
+            this.setState({emailValid: false});
+            ret = false;
+        } else {
+            this.setState({emailValid: true});
+        }
+
+        if (this.state.name.length === 0) {
+            this.setState({nameValid: false});
+            ret = false;
+        } else {
+            this.setState({nameValid: true});
+        }
+
+        if (!this.state.checkBoxChecked) {
+            this.setState({checkBoxValid: false});
+            ret = false;
+        } else {
+            this.setState({checkBoxValid: true});
+        }
+
+        return ret;
     }
 
     async onSubmit(e: SubmitEvent) {
         e.preventDefault()
-        const form = e.currentTarget as any;
-        if (form.checkValidity() === false) {
+
+        if (!this.checkForm()) {
             e.stopPropagation();
+            return;
         }
 
         let secret_salt: Uint8Array;
@@ -113,7 +168,7 @@ export class Register extends Component<{}, RegisterState> {
             return;
         }
 
-        this.setState({encrypted_secret: new Uint8Array(encrypted_secret), show_modal: true, secret: keypair.privateKey});
+        this.setState({encryptedSecret: new Uint8Array(encrypted_secret), showModal: true, secret: keypair.privateKey});
 
     }
 
@@ -137,14 +192,14 @@ export class Register extends Component<{}, RegisterState> {
         document.body.appendChild(a);
         a.click()
 
-        this.setState({recovery_safed: true});
+        this.setState({recoverySafed: true});
     }
 
     render() {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "register"})
 
         return (<>
-            <Modal show={this.state.show_modal} onHide={() => this.setState({show_modal: false})}>
+            <Modal show={this.state.showModal} onHide={() => this.setState({showModal: false})}>
                 <Modal.Dialog>
                     <Modal.Header closeButton>
                         <Modal.Title>{t("save_recovery_data")}</Modal.Title>
@@ -156,34 +211,43 @@ export class Register extends Component<{}, RegisterState> {
                     </Modal.Body>
 
                     <Modal.Footer>
-                        <Button variant={this.state.recovery_safed ? "primary" : "danger"} onClick={() => {
-                            this.setState({show_modal: false});
+                        <Button variant={this.state.recoverySafed ? "primary" : "danger"} onClick={() => {
+                            this.setState({showModal: false});
                         }}>{t("close")}</Button>
                     </Modal.Footer>
                 </Modal.Dialog>
             </Modal>
 
-            <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)}>
+            <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)} validated={this.state.validated} noValidate>
                 <Form.Group className="mb-3" controlId="registerName">
                     <Form.Label>{t("name")}</Form.Label>
-                    <Form.Control type="text" placeholder="John Doe" value={this.state.name} onChange={(e) => {
+                    <Form.Control type="text" placeholder="John Doe" value={this.state.name} isInvalid={!this.state.nameValid} onChange={(e) => {
                         this.setState({name: (e.target as HTMLInputElement).value})
                     }} />
+                    <Form.Control.Feedback type="invalid">
+                        {t("name_error_message")}
+                    </Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerEmail">
                     <Form.Label>{t("email")}</Form.Label>
-                    <Form.Control type="email" placeholder={t("email")} value={this.state.email} onChange={(e) => {
+                    <Form.Control type="email" placeholder={t("email")} value={this.state.email} isInvalid={!this.state.emailValid} onChange={(e) => {
                         this.setState({email: (e.target as HTMLInputElement).value})
                     }} />
+                    <Form.Control.Feedback type="invalid">
+                        {t("email_error_message")}
+                    </Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerPassword">
                     <Form.Label>{t("password")}</Form.Label>
-                    <Form.Control type="password" placeholder={t("password")} value={this.state.password} onChange={(e) => {
+                    <Form.Control required isInvalid={!this.state.passwordValid} type="password" placeholder={t("password")} value={this.state.password} onChange={(e) => {
                         this.setState({password: (e.target as HTMLInputElement).value});
                     }} />
+                    <Form.Control.Feedback type="invalid">
+                        {t("password_error_message")}
+                    </Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerSubmit">
-                    <Form.Check type="checkbox" label={t("accecpt_privacy_notice")} required/>
+                    <Form.Check type="checkbox" label={t("accecpt_privacy_notice")} isInvalid={!this.state.checkBoxValid} onClick={() => this.setState({checkBoxChecked: !this.state.checkBoxChecked})}/>
                 </Form.Group>
                 <Button variant="primary" type="submit">
                     {t("register")}
