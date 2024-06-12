@@ -34,6 +34,7 @@ use diesel::prelude::*;
 use ipnetwork::IpNetwork;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
+use udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket, ManagementPacketHeader};
 
 fn reset_wg_keys(pool: &Pool) {
     use db_connector::schema::wg_keys::dsl::*;
@@ -49,6 +50,8 @@ fn cleanup_thread(state: web::Data<AppState>) {
     loop {
         use db_connector::schema::refresh_tokens::dsl::*;
 
+        std::thread::sleep(Duration::from_secs(60));
+
         let mut conn = match get_connection(&state) {
             Ok(c) => c,
             Err(_err) => {
@@ -59,7 +62,36 @@ fn cleanup_thread(state: web::Data<AppState>) {
         diesel::delete(refresh_tokens.filter(expiration.lt(Utc::now().timestamp())))
             .execute(&mut conn)
             .ok();
-        std::thread::sleep(Duration::from_secs(60));
+    }
+}
+
+fn resend_thread(bridge_state: web::Data<BridgeState>) {
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+        let undiscovered_ports = bridge_state.port_discovery.lock().unwrap();
+        for (port, _) in undiscovered_ports.iter() {
+            let command = ManagementCommand {
+                command_id: ManagementCommandId::Connect,
+                connection_no: port.connection_no,
+                connection_uuid: port.connection_uuid,
+            };
+
+            let header = ManagementPacketHeader {
+                magic: 0x1234,
+                length: std::mem::size_of::<ManagementCommand>() as u16,
+                seq_number: 0,
+                version: 1,
+                p_type: 0x00,
+            };
+
+            let packet = ManagementCommandPacket { header, command };
+            let charger_id = port.charger_id;
+            let chargers = bridge_state.charger_management_map_with_id.lock().unwrap();
+            if let Some(sock) = chargers.get(&charger_id) {
+                let mut sock = sock.lock().unwrap();
+                sock.send_packet(ManagementPacket::CommandPacket(packet));
+            }
+        }
     }
 }
 
@@ -122,6 +154,8 @@ async fn main() -> std::io::Result<()> {
 
     let state_cpy = state.clone();
     std::thread::spawn(move || cleanup_thread(state_cpy));
+    let bridge_state_cpy = bridge_state.clone();
+    std::thread::spawn(move || resend_thread(bridge_state_cpy));
 
     udp_server::start_server(bridge_state.clone()).unwrap();
 
