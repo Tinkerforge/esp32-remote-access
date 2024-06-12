@@ -189,6 +189,10 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
     let mut buf = vec![0u8; 65535];
     loop {
         if let Ok((s, addr)) = state.socket.recv_from(&mut buf) {
+            if try_port_discovery(&state, &buf[..s], addr) {
+                continue;
+            }
+
             {
                 let client_map = state.web_client_map.lock().unwrap();
                 if let Some(client) = client_map.get(&addr) {
@@ -197,10 +201,6 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                     client.do_send(msg);
                     continue;
                 }
-            }
-
-            if try_port_discovery(&state, &buf[..s], addr) {
-                continue;
             }
 
             let tunn_sock = {
