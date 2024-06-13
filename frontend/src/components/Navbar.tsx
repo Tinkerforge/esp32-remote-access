@@ -22,20 +22,21 @@ export function CustomNavbar() {
     return (
         <Navbar expand="lg" className="bg-body-tertiary">
             <Container fluid>
-                <Navbar.Toggle aria-controls="basic-navbar-nav"/>
-                <Navbar.Collapse id="navbar-nav">
+                <Navbar.Toggle aria-controls="basic-navbar-nav" hidden={connected.value}/>
+                <Navbar.Collapse id="navbar-nav" hidden={connected.value}>
                     <Nav className="me-auto">
                         <Nav.Link href="/user" active={url === "/user"}>{t("user")}</Nav.Link>
                         <Nav.Link href="/chargers" active={url === "/chargers"}>{t("chargers")}</Nav.Link>
                     </Nav>
                     <Nav>
-                        <Nav.Link onClick={logout} >{t("logout")}</Nav.Link>
+                        <Nav.Link onClick={logout}>{t("logout")}</Nav.Link>
                     </Nav>
                 </Navbar.Collapse>
-                        <Button variant="primary"
-                        onClick={() => {
-                            connected.value = false;
-                        }} hidden={!connected.value}>{t("close")}</Button>
+                    <a style="color: #ff0000" class="pe-2">Prerelease</a>
+                    <Button variant="primary"
+                    onClick={() => {
+                        connected.value = false;
+                    }} hidden={!connected.value}>{t("close")}</Button>
             </Container>
         </Navbar>
     )
