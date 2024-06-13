@@ -179,13 +179,13 @@ export class Register extends Component<{}, RegisterState> {
         };
 
         const backupString = JSON.stringify(backupData);
-        const file = new File([backupString], "RecpveryData", {
+        const file = new File([backupString], "RecoveryData", {
             type: "text/plain"
         });
         const a = document.createElement("a");
         const url = URL.createObjectURL(file);
         a.href = url;
-        a.download = "RecoveryData";
+        a.download = `${this.state.email.replaceAll(".", "_").replaceAll("@", "_at_")}_my_warp_charger_com_recovery_data`;
         document.body.appendChild(a);
         a.click()
 
