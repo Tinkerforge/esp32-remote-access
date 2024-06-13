@@ -32,7 +32,6 @@ interface RegisterState {
     encryptedSecret: Uint8Array,
     secret: Uint8Array,
     showModal: boolean,
-    validated: boolean,
 }
 
 export class Register extends Component<{}, RegisterState> {
@@ -52,7 +51,6 @@ export class Register extends Component<{}, RegisterState> {
             encryptedSecret: new Uint8Array(),
             secret: new Uint8Array(),
             showModal: false,
-            validated: false,
         }
     }
 
@@ -93,8 +91,6 @@ export class Register extends Component<{}, RegisterState> {
         } else {
             this.setState({checkBoxValid: true});
         }
-
-        this.setState({validated: true});
 
         return ret;
     }
