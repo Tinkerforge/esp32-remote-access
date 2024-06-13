@@ -1,5 +1,6 @@
 {
     "alert_default_text": "An Error occured!",
+    "alert_default_success": "Success!",
     "user": {
         "user_id": "User-id",
         "email": "Email-address",
@@ -44,12 +45,22 @@
         "email_error_message": "The email-address must not be empty",
         "password": "Password",
         "password_error_message": "Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters",
-        "accecpt_privacy_notice": "I have read, understood and I am accepting the privacy notice.",
+        "accept_privacy_notice": "I have read, understood and I am accepting the privacy notice.",
+        "accept_privacy_notice_alpha": "I understand that this is an alpha and accept the usage of my data as described <0>here</0>.",
         "register": "Register",
         "save_recovery_data": "Save recovery file",
         "save": "Save",
         "save_recovery_data_text": "Since we can only decrypt the access code with the correct password we need this file to recover access to your chargers in case of a password loss. Save this file in a safe location which is inaccessible by others since it is equivalent to your password.",
         "close": "Close",
+        "registration_successful": "Registration was successful, you should receive an email in the next couple of minutes."
+    },
+    "login": {
+        "password_recovery": "Password reset",
+        "email":"Email-address",
+        "send": "Send",
+        "close": "Close",
+        "password": "Password",
+        "login": "Login",
         "success_alert_text": "You should receive an email in the next couple of minutes.",
         "success_alert_heading": "Success",
         "error_alert_text": "Failed to start recovery with status {{- status}}: {{text}}"

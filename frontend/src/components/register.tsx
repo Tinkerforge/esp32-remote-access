@@ -5,7 +5,7 @@ import { showAlert } from "./Alert";
 import { PASSWORD_PATTERN, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import { Base64 } from "js-base64";
 import sodium from "libsodium-wrappers";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import i18n from "../i18n";
 
 interface RegisterSchema {
@@ -156,8 +156,7 @@ export class Register extends Component<{}, RegisterState> {
             }
         });
         if (resp.status === 201) {
-            const text = "Registration was successful, you should receive an email in the next couple of minutes.";
-            showAlert(text, "success", i18n.t("alert_default_success"));
+            showAlert(i18n.t("Registration was successful, you should receive an email in the next couple of minutes."), "success", i18n.t("alert_default_success"));
         } else {
             const body = await resp.text();
             const text = `Failed with status ${resp.status}: ${body}`;
@@ -215,7 +214,7 @@ export class Register extends Component<{}, RegisterState> {
                 </Modal.Dialog>
             </Modal>
 
-            <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)} validated={this.state.validated} noValidate>
+            <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)} noValidate>
                 <Form.Group className="mb-3" controlId="registerName">
                     <Form.Label>{t("name")}</Form.Label>
                     <Form.Control type="text" placeholder="John Doe" value={this.state.name} isInvalid={!this.state.nameValid} onChange={(e) => {
@@ -244,7 +243,7 @@ export class Register extends Component<{}, RegisterState> {
                     </Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerSubmit">
-                    <Form.Check type="checkbox" label={t("accecpt_privacy_notice")} isInvalid={!this.state.checkBoxValid} onClick={() => this.setState({checkBoxChecked: !this.state.checkBoxChecked})}/>
+                    <Form.Check type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice_alpha" ><a href="https://www.tinkerunity.org/forum/13-warp-charger/">link</a></Trans>} isInvalid={!this.state.checkBoxValid} onClick={() => this.setState({checkBoxChecked: !this.state.checkBoxChecked})}/>
                 </Form.Group>
                 <Button variant="primary" type="submit">
                     {t("register")}

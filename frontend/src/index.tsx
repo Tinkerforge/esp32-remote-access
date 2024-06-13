@@ -83,7 +83,7 @@ export function App() {
                                 id="login-register-tab"
                                 className="mb-3"
                             >
-                                <Tab eventKey="login" title="Login">
+                                <Tab eventKey="login" title={t("login.login")}>
                                     <Login />
                                 </Tab>
                                 <Tab eventKey="register" title={t("register.register")}>

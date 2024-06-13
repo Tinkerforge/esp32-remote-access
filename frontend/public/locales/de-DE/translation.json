@@ -3,7 +3,7 @@
     "alert_default_success": "Erfolg!",
     "user": {
         "user_id": "Nutzer Id",
-        "email": "Email Adresse",
+        "email": "E-mail-Adresse",
         "name": "Name",
         "change": "Ändern",
         "change_password": "Passwort ändern",
@@ -41,25 +41,27 @@
     "register": {
         "name": "Name",
         "name_error_message": "Der Name darf nicht leer sein",
-        "email": "Email Adresse",
-        "email_error_message": "Die Email Adresse, darf nicht leer sein",
+        "email": "E-mail-Adresse",
+        "email_error_message": "Die E-mail-Adresse, darf nicht leer sein",
         "password": "Passwort",
         "password_error_message": "Muss mindestens 8 Zeichen lang sein und jeweils mindestens einen Klein- und Großbuchstaben sowie ein Sonderzeichen enthalten.",
-        "accecpt_privacy_notice": "Ich habe die Datenschutzerklärung gelesen, verstanden und stimme zu",
+        "accept_privacy_notice": "Ich habe die Datenschutzerklärung gelesen, verstanden und stimme zu",
+        "accept_privacy_notice_alpha": "Ich verstehe, dass dies eine Alpha-Veresion ist und stimme der verarbeitung meiner Daten wie <0>hier</0> beschrieben zu.",
         "register": "Registrieren",
         "save_recovery_data": "Wiederhestellungsdatei speichern",
         "save": "Speichern",
-        "save_recovery_data_text": "Da die Zugangsdaten für die Wallboxen nur mithilfe des korrekten Passworts entschlüsselt werden können brauchen Sie, falls Sie ihr Passwort vergessen sollten diese Datei um den Zugang zu Ihren Wallboxen wiederherzustellen. Bewahren Sie diese Datei sicher und für niemanden sonst zugänglich auf, da sie mit Ihrem Passwort gleichzustellen ist.",
-        "close": "Schließen"
+        "save_recovery_data_text": "Da die Zugangsdaten für die Wallboxen nur mithilfe des korrekten Passworts entschlüsselt werden können brauchst du, falls du dein Passwort vergessen solltest, diese Datei um den Zugang zu Ihren Wallboxen wiederherzustellen. Bewahree diese Datei sicher und für niemanden sonst zugänglich auf, da sie mit deinem Passwort gleichzustellen ist.",
+        "close": "Schließen",
+        "registration_successful": "Die Registrierung war erfolgreich. Du solltest innerhalb der nächsten paar Minuten eine Email mit einem Bestätigungslink erhalten"
     },
     "login": {
         "password_recovery": "Passwort zurücksetzen",
-        "email":"Email Adresse",
+        "email":"E-mail-Adresse",
         "send": "Senden",
         "close": "Schließen",
         "password": "Passwort",
-        "login": "Einloggen",
-        "success_alert_text": "Sie sollten innerhalb der nächsten paar Minuten eine E-Mail erhalten.",
+        "login": "Anmelden",
+        "success_alert_text": "Du solltest innerhalb der nächsten paar Minuten eine E-Mail erhalten.",
         "success_alert_heading": "Erfolg",
         "error_alert_text": "Failed to start recovery with status {{status}}: {{text}}"
     }
