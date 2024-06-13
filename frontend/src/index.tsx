@@ -100,16 +100,12 @@ export function App() {
                 <>
                     <ErrorAlert/>
                     <CustomNavbar />
-                    <Row>
-                        <LocationProvider>
-                            <main>
-                                <Router>
-                                    <Route path="/user" component={User} />
-                                    <Route default path="/chargers" component={ChargerList} />
-                                </Router>
-                            </main>
-                        </LocationProvider>
-                    </Row>
+                    <LocationProvider>
+                        <Router>
+                            <Route path="/user" component={User} />
+                            <Route default path="/chargers" component={ChargerList} />
+                        </Router>
+                    </LocationProvider>
                 </>
             );
         case AppState.Recovery:

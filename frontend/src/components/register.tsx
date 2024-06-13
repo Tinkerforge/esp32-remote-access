@@ -94,6 +94,8 @@ export class Register extends Component<{}, RegisterState> {
             this.setState({checkBoxValid: true});
         }
 
+        this.setState({validated: true});
+
         return ret;
     }
 

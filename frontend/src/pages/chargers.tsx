@@ -38,7 +38,7 @@ interface ChargerListComponentState {
     chargers: Charger[],
 }
 
-const connected = signal(false);
+export const connected = signal(false);
 
 class ChargerListComponent extends Component<{}, ChargerListComponentState> {
     constructor() {
@@ -160,8 +160,6 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
 }
 
 export function ChargerList() {
-    console.log("here");
-    const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
 
     if (!connected.value) {
         return <>
@@ -170,10 +168,6 @@ export function ChargerList() {
     } else {
         return <>
             <Frame />
-            <Button variant="primary"
-                    onClick={() => {
-                        connected.value = false;
-                    }}>{t("close")}</Button>
         </>
     }
 }

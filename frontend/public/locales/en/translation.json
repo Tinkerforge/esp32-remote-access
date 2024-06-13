@@ -7,7 +7,9 @@
         "change": "Change",
         "change_password": "Change password",
         "current_password": "Current password",
+        "current_password_error_message": "Must not be empty.",
         "new_password": "New password",
+        "new_password_error_message": "Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters",
         "close": "Close"
     },
     "recovery": {
@@ -28,11 +30,12 @@
         "close": "Close",
         "connect_error_text": "Connecting to charger {{charger_id}} failed with code {{status}}: {{response}}"
     },
-    "sidebar": {
+    "navbar": {
         "home": "Home",
         "user": "User",
         "chargers": "Chargers",
-        "logout": "Logout"
+        "logout": "Logout",
+        "close": "Schließen"
     },
     "register": {
         "name": "Name",

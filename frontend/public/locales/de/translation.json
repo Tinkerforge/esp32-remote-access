@@ -8,7 +8,9 @@
         "change": "Ändern",
         "change_password": "Passwort ändern",
         "current_password": "Aktuelles Passwort",
+        "current_password_error_message": "Darf nicht leer sein.",
         "new_password": "Neues Passwort",
+        "new_password_error_message": "Muss mindestens 8 Zeichen lang sein und jeweils mindestens einen Klein- und Großbuchstaben sowie ein Sonderzeichen enthalten.",
         "close": "Schließen"
     },
     "recovery": {
@@ -29,11 +31,12 @@
         "close": "Schließen",
         "connect_error_text": "Verbindung zu wallbox {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}"
     },
-    "sidebar": {
+    "navbar": {
         "home": "Home",
         "user": "Nutzer",
         "chargers": "Wallboxen",
-        "logout": "Ausloggen"
+        "logout": "Ausloggen",
+        "close": "Schließen"
     },
     "register": {
         "name": "Name",

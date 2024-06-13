@@ -86,12 +86,12 @@ export class Frame extends Component {
 
     render() {
         return (
-            <div class="home">
-                <iframe height={600} width={1048} id="interface"></iframe>
-                <button onClick={() => {
+            <>
+                <iframe width="100%" height={screen.height} id="interface"></iframe>
+                {/* <button onClick={() => {
                     this.worker.postMessage("download");
-                }}>Download Pcap log</button>
-            </div>
+                }}>Download Pcap log</button> */}
+            </>
         )
     }
 }

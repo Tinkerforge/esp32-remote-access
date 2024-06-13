@@ -2,7 +2,8 @@ import { useLocation } from "preact-iso";
 import Nav from "react-bootstrap/Nav";
 import { BACKEND } from "../types";
 import { useTranslation } from "react-i18next";
-import { Container, Navbar } from "react-bootstrap";
+import { Button, Container, Navbar } from "react-bootstrap";
+import { connected } from "../pages/chargers";
 
 export async function logout (e: Event) {
         e.preventDefault();
@@ -16,7 +17,7 @@ export async function logout (e: Event) {
 
 export function CustomNavbar() {
     const { url } = useLocation();
-    const {t} = useTranslation("", {useSuspense: false, keyPrefix: "sidebar"})
+    const {t} = useTranslation("", {useSuspense: false, keyPrefix: "navbar"})
 
     return (
         <Navbar expand="lg" className="bg-body-tertiary">
@@ -31,6 +32,10 @@ export function CustomNavbar() {
                         <Nav.Link onClick={logout} >{t("logout")}</Nav.Link>
                     </Nav>
                 </Navbar.Collapse>
+                        <Button variant="primary"
+                        onClick={() => {
+                            connected.value = false;
+                        }} hidden={!connected.value}>{t("close")}</Button>
             </Container>
         </Navbar>
     )
