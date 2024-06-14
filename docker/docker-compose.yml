@@ -11,6 +11,7 @@ services:
         condition: service_completed_successfully
     container_name: nginx
     ports:
+      - "80:80"
       - "443:443"
     volumes:
       - ./nginx/config:/etc/nginx/conf.d

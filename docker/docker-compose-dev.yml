@@ -3,6 +3,7 @@ services:
     image: nginx:1.25
     container_name: nginx
     ports:
+      - "80:80"
       - "443:443"
     volumes:
       - ./nginx/dev-config:/etc/nginx/conf.d
