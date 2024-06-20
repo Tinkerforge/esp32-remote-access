@@ -5,10 +5,8 @@ import { useTranslation } from "react-i18next";
 import { Button, Container, Navbar } from "react-bootstrap";
 import { connected } from "../pages/chargers";
 
-export async function logout (e: Event) {
-        e.preventDefault();
-
-        await fetch(BACKEND + "/user/logout?logout_all=true", {
+export async function logout(logout_all: boolean) {
+        await fetch(`${BACKEND}/user/logout?logout_all=${logout_all ? "true" : "false"}`, {
             credentials: "include",
         });
 
@@ -29,7 +27,10 @@ export function CustomNavbar() {
                         <Nav.Link href="/chargers" active={url === "/chargers"}>{t("chargers")}</Nav.Link>
                     </Nav>
                     <Nav>
-                        <Nav.Link onClick={logout}>{t("logout")}</Nav.Link>
+                        <Nav.Link onClick={(e) => {
+                            e.preventDefault();
+                            logout(true);
+                        }}>{t("logout")}</Nav.Link>
                     </Nav>
                 </Navbar.Collapse>
                     <a style="color: #ff0000" class="pe-2">Prerelease</a>

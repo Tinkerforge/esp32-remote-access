@@ -21,7 +21,7 @@ import "./i18n";
 import { render } from 'preact';
 import { LocationProvider, Router, Route } from 'preact-iso';
 
-import { CustomNavbar } from './components/Navbar.js';
+import { CustomNavbar, logout } from './components/Navbar.js';
 import { NotFound } from './pages/_404.jsx';
 import { Login } from './components/login.js';
 import { Register } from './components/register.js';
@@ -66,6 +66,11 @@ setInterval(async () => {
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
+
+    if (!sessionStorage.getItem("password") && loggedIn.value == AppState.LoggedIn) {
+        logout(false);
+    }
+
     switch (loggedIn.value) {
         case AppState.Loading:
             return <>

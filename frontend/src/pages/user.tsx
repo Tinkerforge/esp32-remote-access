@@ -172,7 +172,7 @@ export function User() {
             body: JSON.stringify(payload)
         });
         if (resp.status === 200) {
-            logout(e);
+            logout(true);
             handleClose();
         }
     };
