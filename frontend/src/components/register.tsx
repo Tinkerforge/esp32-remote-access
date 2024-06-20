@@ -7,6 +7,7 @@ import { Base64 } from "js-base64";
 import sodium from "libsodium-wrappers";
 import { Trans, useTranslation } from "react-i18next";
 import i18n from "../i18n";
+import { PasswordComponent } from "./password_component";
 
 interface RegisterSchema {
     name: string,
@@ -235,12 +236,10 @@ export class Register extends Component<{}, RegisterState> {
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerPassword">
                     <Form.Label>{t("password")}</Form.Label>
-                    <Form.Control required isInvalid={!this.state.passwordValid} type="password" placeholder={t("password")} value={this.state.password} onChange={(e) => {
+                    <PasswordComponent isInvalid={!this.state.passwordValid} onChange={(e) => {
                         this.setState({password: (e.target as HTMLInputElement).value});
-                    }} />
-                    <Form.Control.Feedback type="invalid">
-                        {t("password_error_message")}
-                    </Form.Control.Feedback>
+                    }}
+                    invalidMessage={t("password_error_message")} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerSubmit">
                     <Form.Check type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice_alpha" ><a href="https://www.tinkerunity.org/forum/13-warp-charger/">link</a></Trans>} isInvalid={!this.state.checkBoxValid} onClick={() => this.setState({checkBoxChecked: !this.state.checkBoxChecked})}/>

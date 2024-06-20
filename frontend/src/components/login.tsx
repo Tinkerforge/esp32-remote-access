@@ -6,6 +6,7 @@ import { showAlert } from "./Alert";
 import { generate_hash, get_salt_for_user } from "../utils";
 import { Modal } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
+import { PasswordComponent } from "./password_component";
 
 interface LoginSchema {
     email: string,
@@ -119,9 +120,9 @@ export class Login extends Component<{}, LoginState> {
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="loginPassword" >
                     <Form.Label>{t("password")}</Form.Label>
-                    <Form.Control type="password" placeholder={t("password")} value={this.state.password} onChange={(e) => {
+                    <PasswordComponent onChange={(e) => {
                         this.setState({password: (e.target as HTMLInputElement).value});
-                    }} />
+                    }}/>
                 </Form.Group>
                 <Button variant="primary" type="submit">
                     {t("login")}

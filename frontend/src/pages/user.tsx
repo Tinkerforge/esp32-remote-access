@@ -23,11 +23,13 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import { useState } from "preact/hooks";
 import { BACKEND } from "../types";
-import { concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
+import { PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/Navbar";
 import { useTranslation } from "react-i18next";
 import { Container } from "react-bootstrap";
+import { signal } from "@preact/signals";
+import { PasswordComponent } from "../components/password_component";
 
 
 interface UserState {
@@ -116,20 +118,47 @@ class UserComponent extends Component<{}, State> {
 export function User() {
     const [show, setShow] = useState(false);
     const [currentPassword, setCurrentPassword] = useState("");
+    const [currentPasswordIsValid, setCurrentPasswordIsValid] = useState(true);
     const [newPassword, setNewPassword] = useState("");
+    const [newPasswordIsValid, setNewPasswordIsValid] = useState(true);
+    const validated = signal(false);
 
     const handleClose = () => setShow(false);
     const handleShow = () => setShow(true);
 
+    const checkPasswords = () => {
+        let ret = true;
+        if (!PASSWORD_PATTERN.test(newPassword)) {
+            setNewPasswordIsValid(false);
+            ret = false;
+        } else {
+            setNewPasswordIsValid(true);
+        }
+
+        if (currentPassword.length === 0) {
+            setCurrentPasswordIsValid(false);
+            ret = false;
+        } else {
+            setCurrentPasswordIsValid(true);
+        }
+
+        validated.value = true;
+
+        return ret;
+    }
+
     const submit = async (e: SubmitEvent) => {
         e.preventDefault();
+
+        if (!checkPasswords()) {
+            e.stopPropagation();
+            return;
+        }
 
         const secret_resp = await fetch(BACKEND + "/user/get_secret", {
             method: "GET",
             credentials: "include",
         })
-
-        const crypto = window.crypto.subtle;
 
         const {
             secret,
@@ -188,7 +217,7 @@ export function User() {
         </Container>
 
         <Modal show={show} onHide={handleClose}>
-            <Form onSubmit={submit} >
+            <Form onSubmit={submit} validated={validated.value} noValidate>
                 <Modal.Header>
                     <Modal.Title>
                         {t("change_password")}
@@ -197,11 +226,13 @@ export function User() {
                 <Modal.Body>
                     <Form.Group className="pb-3" controlId="oldPassword">
                         <Form.Label>{t("current_password")}</Form.Label>
-                        <Form.Control type="password" value={currentPassword} onChange={(e) => setCurrentPassword((e.target as HTMLInputElement).value)} />
+                        <PasswordComponent isInvalid={!currentPasswordIsValid} onChange={(e) => {
+                            setCurrentPassword((e.target as HTMLInputElement).value);
+                        }} />
                     </Form.Group>
                     <Form.Group className="pb-3" controlId="newPassword">
                         <Form.Label>{t("new_password")}</Form.Label>
-                        <Form.Control type="password" value={newPassword} onChange={(e) => setNewPassword((e.target as HTMLInputElement).value)} />
+                        <PasswordComponent onChange={(e) => setNewPassword((e.target as HTMLInputElement).value)} isInvalid={!newPasswordIsValid} invalidMessage={t("new_password_error_message")} />
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>

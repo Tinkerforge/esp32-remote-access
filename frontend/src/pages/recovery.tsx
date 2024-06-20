@@ -6,6 +6,7 @@ import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBY
 import { BACKEND } from "../types";
 import { showAlert } from "../components/Alert";
 import { useTranslation } from "react-i18next";
+import { PasswordComponent } from "../components/password_component";
 
 interface RecoverySchema {
     new_encrypted_secret: number[],
@@ -90,7 +91,7 @@ export function Recovery() {
                         <Form.Label>
                             {t("recovery.new_password")}
                         </Form.Label>
-                        <Form.Control type="password" placeholder="New Password" value={state.value.new_password} onChange={(e) => {
+                        <PasswordComponent onChange={(e) => {
                             state.value.new_password = (e.target as HTMLInputElement).value;
                         }} />
                     </Form.Group>
