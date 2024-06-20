@@ -23,6 +23,7 @@
     "preact-iso": "^2.3.2",
     "preact-render-to-string": "^6.3.1",
     "react-bootstrap": "^2.10.1",
+    "react-feather": "^2.0.10",
     "react-i18next": "^14.1.2",
     "vite-plugin-pwa": "^0.19.0",
     "wg-webclient": "file:../wg-webclient/pkg",
