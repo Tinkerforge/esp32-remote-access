@@ -156,7 +156,7 @@ export class Register extends Component<{}, RegisterState> {
             }
         });
         if (resp.status === 201) {
-            showAlert(i18n.t("Registration was successful, you should receive an email in the next couple of minutes."), "success", i18n.t("alert_default_success"));
+            showAlert(i18n.t("register.registration_successful"), "success", i18n.t("alert_default_success"));
         } else {
             const body = await resp.text();
             const text = `Failed with status ${resp.status}: ${body}`;
