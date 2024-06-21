@@ -1,12 +1,13 @@
-import { signal } from "@preact/signals";
+import { signal, useSignal } from "@preact/signals";
 import { Base64 } from "js-base64";
 import { Button, Card, Form } from "react-bootstrap";
-import { concat_salts, generate_hash, generate_random_bytes, get_salt } from "../utils";
+import { PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
 import { BACKEND } from "../types";
 import { showAlert } from "../components/Alert";
 import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "../components/password_component";
+import { useState } from "preact/hooks";
 
 interface RecoverySchema {
     new_encrypted_secret: number[],
@@ -22,35 +23,61 @@ export function Recovery() {
     const {t} = useTranslation();
 
     const params = new URLSearchParams(window.location.search);
-    const state = signal({
+    const [state, setState] = useState({
         recovery_key: params.get("token"),
         new_password: "",
         secret: new Uint8Array(),
+        passwordValid: true,
+        fileValid: true,
+        validated: false,
     });
+
+    const validateForm = () => {
+        let ret = true;
+        let passworValid = true;
+
+        if (!PASSWORD_PATTERN.test(state.new_password)) {
+            passworValid = false;
+            ret = false;
+        }
+
+        if (!state.fileValid) {
+            ret = false;
+        }
+
+        setState({...state, validated: true, passwordValid: passworValid});
+
+        return ret;
+    }
 
     const onSubmit = async (e: SubmitEvent) => {
         e.preventDefault();
 
+        if (!validateForm()) {
+            e.stopPropagation();
+            return;
+        }
+
         const salt1 = await get_salt();
         const secret_salt = concat_salts(salt1);
-        const secret_key = await generate_hash(state.value.new_password, secret_salt, crypto_secretbox_KEYBYTES);
+        const secret_key = await generate_hash(state.new_password, secret_salt, crypto_secretbox_KEYBYTES);
 
         const salt3 = await get_salt();
         const login_salt = concat_salts(salt3);
-        const login_key = await generate_hash(state.value.new_password, login_salt);
+        const login_key = await generate_hash(state.new_password, login_salt);
 
         const secret_nonce = generate_random_bytes(crypto_secretbox_NONCEBYTES);
 
         let secret_reuse: boolean;
         let encrypted_secret: Uint8Array;
-        if (state.value.secret.length == 0) {
+        if (state.secret.length == 0) {
             const key_pair = crypto_box_keypair();
             const new_secret = key_pair.privateKey;
             encrypted_secret = crypto_secretbox_easy(new_secret, secret_nonce, secret_key);
             secret_reuse = false;
             window.location.replace("/");
         } else {
-            encrypted_secret = crypto_secretbox_easy(state.value.secret, secret_nonce, secret_key);
+            encrypted_secret = crypto_secretbox_easy(state.secret, secret_nonce, secret_key);
             secret_reuse = true;
         }
 
@@ -60,7 +87,7 @@ export function Recovery() {
             new_login_salt: [].slice.call(login_salt),
             new_secret_nonce: [].slice.call(secret_nonce),
             new_secret_salt: [].slice.call(secret_salt),
-            recovery_key: state.value.recovery_key,
+            recovery_key: state.recovery_key,
             reused_secret: secret_reuse,
         }
 
@@ -79,7 +106,7 @@ export function Recovery() {
     }
 
     return <>
-        <Form onSubmit={(e: SubmitEvent) => onSubmit(e)}>
+        <Form onSubmit={(e: SubmitEvent) => onSubmit(e)} noValidate>
             <Card>
                 <Card.Header>
                     <Card.Title>
@@ -91,15 +118,15 @@ export function Recovery() {
                         <Form.Label>
                             {t("recovery.new_password")}
                         </Form.Label>
-                        <PasswordComponent onChange={(e) => {
-                            state.value.new_password = (e.target as HTMLInputElement).value;
+                        <PasswordComponent isInvalid={!state.passwordValid}  onChange={(e) => {
+                            setState({...state, new_password: (e.target as HTMLInputElement).value});
                         }} />
                     </Form.Group>
                     <Form.Group className="mb-3" controlId="recoveryFile">
                         <Form.Label>
                             {t("recovery.recovery_file")}
                         </Form.Label>
-                        <Form.Control type="file" onChange={async (e) => {
+                        <Form.Control type="file" isInvalid={!state.fileValid} onChange={async (e) => {
                             const target = e.target as HTMLInputElement;
                             const recovery_file = target.files.item(0);
 
@@ -115,15 +142,9 @@ export function Recovery() {
                                     throw "Data has been modified";
                                 }
 
-                                state.value.secret = Base64.toUint8Array(file_object.secret);
-                                target.reportValidity = () => {
-                                    return true;
-                                }
+                                setState({...state, secret: Base64.toUint8Array(file_object.secret), fileValid: true, validated: true});
                             } catch (e) {
-                                console.log(e);
-                                target.reportValidity = () => {
-                                    return false;
-                                }
+                                setState({...state, fileValid: false, validated: true});
                             }
                         }} />
                         <Form.Control.Feedback type="invalid">{t("recovery.invalid_file")}</Form.Control.Feedback>
