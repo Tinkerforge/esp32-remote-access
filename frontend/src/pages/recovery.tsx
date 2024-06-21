@@ -1,4 +1,3 @@
-import { signal, useSignal } from "@preact/signals";
 import { Base64 } from "js-base64";
 import { Button, Card, Form } from "react-bootstrap";
 import { PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt } from "../utils";
