@@ -1,13 +1,14 @@
 import { Component } from "preact";
-import { Button, Form, FormGroup, Modal } from "react-bootstrap"
+import { Button, Form } from "react-bootstrap"
 import { BACKEND } from "../types";
 import { showAlert } from "./Alert";
 import { PASSWORD_PATTERN, generate_hash, generate_random_bytes, get_salt } from "../utils";
-import { Base64 } from "js-base64";
 import sodium from "libsodium-wrappers";
 import { Trans, useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { PasswordComponent } from "./password_component";
+import { RecoveryDataComponent } from "./recovery_data_component";
+import { Signal, signal } from "@preact/signals";
 
 interface RegisterSchema {
     name: string,
@@ -32,7 +33,6 @@ interface RegisterState {
     recoverySafed: boolean,
     encryptedSecret: Uint8Array,
     secret: Uint8Array,
-    showModal: boolean,
 }
 
 export class Register extends Component<{}, RegisterState> {
@@ -51,9 +51,12 @@ export class Register extends Component<{}, RegisterState> {
             recoverySafed: false,
             encryptedSecret: new Uint8Array(),
             secret: new Uint8Array(),
-            showModal: false,
         }
+
+        this.showModal = signal(false);
     }
+
+    showModal: Signal<boolean>;
 
     checkPassword() {
 
@@ -165,55 +168,15 @@ export class Register extends Component<{}, RegisterState> {
             return;
         }
 
-        this.setState({encryptedSecret: new Uint8Array(encrypted_secret), showModal: true, secret: keypair.privateKey});
-
-    }
-
-    async saveRecoveryData() {
-        const secret_b64 = Base64.fromUint8Array(this.state.secret);
-        const hash = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(this.state.email + secret_b64));
-        const backupData = {
-            email: this.state.email,
-            secret: secret_b64,
-            hash: Base64.fromUint8Array(new Uint8Array(hash)),
-        };
-
-        const backupString = JSON.stringify(backupData);
-        const file = new File([backupString], "RecoveryData", {
-            type: "text/plain"
-        });
-        const a = document.createElement("a");
-        const url = URL.createObjectURL(file);
-        a.href = url;
-        a.download = `${this.state.email.replaceAll(".", "_").replaceAll("@", "_at_")}_my_warp_charger_com_recovery_data`;
-        document.body.appendChild(a);
-        a.click()
-
-        this.setState({recoverySafed: true});
+        this.setState({encryptedSecret: new Uint8Array(encrypted_secret), secret: keypair.privateKey});
+        this.showModal.value = true;
     }
 
     render() {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "register"})
 
         return (<>
-            <Modal show={this.state.showModal} onHide={() => this.setState({showModal: false})}>
-                <Modal.Dialog>
-                    <Modal.Header closeButton>
-                        <Modal.Title>{t("save_recovery_data")}</Modal.Title>
-                    </Modal.Header>
-
-                    <Modal.Body>
-                        <p className="mb-3">{t("save_recovery_data_text")}</p>
-                        <Button variant="primary" onClick={() => this.saveRecoveryData()}>{t("save")}</Button>
-                    </Modal.Body>
-
-                    <Modal.Footer>
-                        <Button variant={this.state.recoverySafed ? "primary" : "danger"} onClick={() => {
-                            this.setState({showModal: false});
-                        }}>{t("close")}</Button>
-                    </Modal.Footer>
-                </Modal.Dialog>
-            </Modal>
+            <RecoveryDataComponent email={this.state.email} secret={this.state.secret} show={this.showModal} />
 
             <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)} noValidate>
                 <Form.Group className="mb-3" controlId="registerName">
