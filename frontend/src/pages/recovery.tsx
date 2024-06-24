@@ -103,10 +103,10 @@ export function Recovery() {
         });
         if (resp.status === 200) {
             showAlert("Your new password is set!", "success", "Success");
+            showModal.value = true;
         } else {
             showAlert(`Failed to recover account with code ${resp.status}: ${await resp.text()}`, "danger");
         }
-        showModal.value = true;
     }
 
     return <>
