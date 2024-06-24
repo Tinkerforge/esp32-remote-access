@@ -10,6 +10,7 @@ export let charger_info = signal({
     self_internal_ip: "",
     peer_internal_ip: "",
     key_id: "",
+    port: 80,
 });
 
 export class Frame extends Component {

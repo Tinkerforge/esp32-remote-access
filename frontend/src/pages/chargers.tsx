@@ -32,6 +32,7 @@ interface Charger {
     id: number,
     name: string,
     status: string,
+    port: number,
 }
 
 interface ChargerListComponentState {
@@ -111,6 +112,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         peer_key: json.charger_pub,
                         peer_internal_ip: json.charger_address,
                         key_id: json.id,
+                        port: charger.port,
                     }
 
                     connected.value = true;

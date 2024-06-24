@@ -63,9 +63,10 @@ impl Client {
         url: &str,
         internal_ip: &str,
         internap_peer_ip: &str,
+        port: u16,
     ) -> Self {
         Self(
-            WgClient::new(secret_str, peer_str, psk, url, internal_ip, internap_peer_ip),
+            WgClient::new(secret_str, peer_str, psk, url, internal_ip, internap_peer_ip, port),
             Rc::new(RefCell::new(VecDeque::new())),
         )
     }
@@ -150,6 +151,7 @@ struct WgClient {
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
     internal_peer_ip: String,
     _polling_interval: Rc<IntervalHandle<MessageEvent>>,
+    port: u16,
 }
 
 enum RequestState {
@@ -174,6 +176,7 @@ impl WgClient {
         url: &str,
         internal_ip: &str,
         internal_peer_ip: &str,
+        port: u16,
     ) -> Self {
         console_error_panic_hook::set_once();
 
@@ -219,6 +222,7 @@ impl WgClient {
             pcap,
             internal_peer_ip: (&internal_peer_ip[0..internal_peer_ip.len() - 3]).to_string(),
             _polling_interval: polling_interval,
+            port
         }
     }
 
@@ -229,7 +233,7 @@ impl WgClient {
         let mut stream = TcpStream::new(self.iface.clone());
         let port = js_sys::Math::random() * 1000.0;
         let port = port as u16;
-        let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), 80);
+        let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), self.port);
         stream.connect(endpoint, port).unwrap_or_else(|e| {
             console_log!("{}", e);
             return;
@@ -283,6 +287,8 @@ impl WgClient {
         let current_request = self.current_request.clone();
         let self_cpy = self.clone();
 
+        let port = self.port;
+
         let req = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             if !stream_cpy.borrow().is_up() {
                 return;
@@ -293,12 +299,12 @@ impl WgClient {
 
             match *state {
                 RequestState::Begin => {
-                    let port = js_sys::Math::random() * 1000.0;
-                    let port = port as u16;
-                    let endpoint = smoltcp::wire::IpEndpoint::new(internal_peer_ip, 80);
+                    let out_port = js_sys::Math::random() * 1000.0;
+                    let out_port = out_port as u16;
+                    let endpoint = smoltcp::wire::IpEndpoint::new(internal_peer_ip, port);
 
                     // FIXME: throw exception instead of panic
-                    stream_cpy.borrow_mut().connect(endpoint, port).unwrap();
+                    stream_cpy.borrow_mut().connect(endpoint, out_port).unwrap();
                     *state = RequestState::Started;
                 }
                 RequestState::Started => {
@@ -585,7 +591,7 @@ pub mod test {
     use wasm_bindgen_test::*;
 
     pub(self) fn create_wg_client(secret: &str, peer: &str, psk: &str, url: &str) -> WgClient {
-        WgClient::new(secret, peer, psk, url, "", "")
+        WgClient::new(secret, peer, psk, url, "", "", 80)
     }
 
     #[wasm_bindgen_test]

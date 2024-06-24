@@ -41,6 +41,7 @@ pub struct GetChargerSchema {
     id: i32,
     name: String,
     status: ChargerStatus,
+    port: i32,
 }
 
 /// Get all chargers that the current user has access to.
@@ -93,6 +94,7 @@ pub async fn get_chargers(
                 id: c.id,
                 name: c.name,
                 status,
+                port: c.webinterface_port,
             }
         })
         .collect::<Vec<GetChargerSchema>>();
