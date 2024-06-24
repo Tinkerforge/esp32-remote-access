@@ -113,18 +113,19 @@ export function App() {
                     </LocationProvider>
                 </>
             );
+        // we need an extra recovery state, otherwise we would show the login/register page.
         case AppState.Recovery:
             return (<>
                 <ErrorAlert/>
                 <LocationProvider>
                     <Container fluid>
-                        <Row>
-                            <main class="col-lg-10 col-md-9 ml-sm-auto px-md-4" >
+                        <Row fluid className="align-items-center vh-100">
+                            <div class="d-flex justify-content-center">
                                 <Router>
                                     <Route path="/recovery" component={Recovery} />
                                     <Route default component={NotFound} />
                                 </Router>
-                            </main>
+                            </div>
                         </Row>
                     </Container>
                 </LocationProvider>
