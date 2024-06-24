@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 interface RecoveryDataProps {
     email: string,
     secret: Uint8Array,
-    show: Signal<boolean>
+    show: Signal<boolean>,
 }
 
 export async function saveRecoveryData(secret: Uint8Array, email: string) {
@@ -25,25 +25,30 @@ export async function saveRecoveryData(secret: Uint8Array, email: string) {
     const a = document.createElement("a");
     const url = URL.createObjectURL(file);
     a.href = url;
+    a.target = "_blank";
     a.download = `${email.replaceAll(".", "_").replaceAll("@", "_at_")}_my_warp_charger_com_recovery_data`;
     document.body.appendChild(a);
     a.click()
+    URL.revokeObjectURL(url);
+    a.remove();
 }
 
 export function RecoveryDataComponent(props: RecoveryDataProps) {
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "register"});
     const saved = useSignal(false);
 
-    return <Modal show={props.show.value} onHide={() => props.show.value = false}>
-        <Modal.Dialog>
+    return <Modal show={props.show.value} onHide={() => {
+                    props.show.value = false;
+                    window.location.replace("/");
+                }}>
             <Modal.Header closeButton>
                 <Modal.Title>{t("save_recovery_data")}</Modal.Title>
             </Modal.Header>
 
             <Modal.Body>
                 <p className="mb-3">{t("save_recovery_data_text")}</p>
-                <Button variant="primary" onClick={async () => {
-                    await saveRecoveryData(props.secret, props.email);
+                <Button variant="primary" onClick={() => {
+                    saveRecoveryData(props.secret, props.email);
                     saved.value = true;
                 }}>{t("save")}</Button>
             </Modal.Body>
@@ -51,8 +56,8 @@ export function RecoveryDataComponent(props: RecoveryDataProps) {
             <Modal.Footer>
                 <Button variant={saved.value ? "primary" : "danger"} onClick={() => {
                     props.show.value = false;
+                    window.location.replace("/");
                 }}>{t("close")}</Button>
             </Modal.Footer>
-        </Modal.Dialog>
     </Modal>
 }

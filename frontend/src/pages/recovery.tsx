@@ -7,6 +7,8 @@ import { showAlert } from "../components/Alert";
 import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "../components/password_component";
 import { useState } from "preact/hooks";
+import { useSignal } from "@preact/signals";
+import { RecoveryDataComponent } from "../components/recovery_data_component";
 
 interface RecoverySchema {
     new_encrypted_secret: number[],
@@ -24,12 +26,14 @@ export function Recovery() {
     const params = new URLSearchParams(window.location.search);
     const [state, setState] = useState({
         recovery_key: params.get("token"),
+        email: params.get("email"),
         new_password: "",
-        secret: new Uint8Array(),
         passwordValid: true,
         fileValid: true,
         validated: false,
     });
+    const secret = useSignal(new Uint8Array());
+    const showModal = useSignal(false);
 
     const validateForm = () => {
         let ret = true;
@@ -69,14 +73,14 @@ export function Recovery() {
 
         let secret_reuse: boolean;
         let encrypted_secret: Uint8Array;
-        if (state.secret.length == 0) {
+        if (secret.value.length == 0) {
             const key_pair = crypto_box_keypair();
             const new_secret = key_pair.privateKey;
+            secret.value = new_secret;
             encrypted_secret = crypto_secretbox_easy(new_secret, secret_nonce, secret_key);
             secret_reuse = false;
-            window.location.replace("/");
         } else {
-            encrypted_secret = crypto_secretbox_easy(state.secret, secret_nonce, secret_key);
+            encrypted_secret = crypto_secretbox_easy(secret.value, secret_nonce, secret_key);
             secret_reuse = true;
         }
 
@@ -102,9 +106,12 @@ export function Recovery() {
         } else {
             showAlert(`Failed to recover account with code ${resp.status}: ${await resp.text()}`, "danger");
         }
+        showModal.value = true;
     }
 
     return <>
+        <RecoveryDataComponent email={state.email} secret={secret.value} show={showModal} />
+
         <Form onSubmit={(e: SubmitEvent) => onSubmit(e)} noValidate>
             <Card>
                 <Card.Header>
@@ -141,7 +148,8 @@ export function Recovery() {
                                     throw "Data has been modified";
                                 }
 
-                                setState({...state, secret: Base64.toUint8Array(file_object.secret), fileValid: true, validated: true});
+                                secret.value = Base64.toUint8Array(file_object.secret);
+                                setState({...state, fileValid: true, validated: true});
                             } catch (e) {
                                 setState({...state, fileValid: false, validated: true});
                             }
