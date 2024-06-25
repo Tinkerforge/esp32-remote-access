@@ -166,24 +166,26 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
             }
         };
 
+        let meta = RemoteConnMeta {
+            charger_id: self.charger_id.clone(),
+            conn_no: self.conn_no,
+        };
+        let mut map = self.bridge_state.charger_remote_conn_map.lock().unwrap();
+
         match self.peer_sock_addr {
             Some(addr) => {
                 let mut map = self.bridge_state.web_client_map.lock().unwrap();
                 map.remove(&addr);
             }
             None => {
-                let meta = RemoteConnMeta {
-                    charger_id: self.charger_id.clone(),
-                    conn_no: self.conn_no,
-                };
-
-                let map = self.bridge_state.charger_remote_conn_map.lock().unwrap();
                 if let Some(addr) = map.get(&meta) {
                     let mut map = self.bridge_state.web_client_map.lock().unwrap();
                     map.remove(&addr);
                 }
             }
         };
+
+        map.remove(&meta);
 
         {
             let command = ManagementCommand {
