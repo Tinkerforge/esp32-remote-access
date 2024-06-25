@@ -89,9 +89,9 @@ export class Frame extends Component {
         return (
             <>
                 <iframe width="100%" height={screen.height} id="interface"></iframe>
-                {/* <button onClick={() => {
+                <button onClick={() => {
                     this.worker.postMessage("download");
-                }}>Download Pcap log</button> */}
+                }}>Download Pcap log</button>
             </>
         )
     }

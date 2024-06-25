@@ -17,14 +17,15 @@
  * Boston, MA 02111-1307, USA.
  */
 
-import { Client } from "wg-webclient";
-import { BACKEND, FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } from "./types";
+import { Client, set_pcap_logging } from "wg-webclient";
+import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } from "./types";
 
 declare const self: DedicatedWorkerGlobalScope;
 
 const tunnel_url = import.meta.env.VITE_BACKEND_WS_URL + "/ws?key_id="
 let wgClient = undefined;
 self.postMessage("started");
+set_pcap_logging(true);
 
 self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
