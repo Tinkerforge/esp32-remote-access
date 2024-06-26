@@ -122,7 +122,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                         );
                     }
                 }
-            }
+            },
+            Ok(ws::Message::Close(_)) => {
+                ctx.close(None);
+            },
             _ => (),
         }
     }

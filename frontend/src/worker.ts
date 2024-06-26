@@ -23,7 +23,7 @@ import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } fro
 declare const self: DedicatedWorkerGlobalScope;
 
 const tunnel_url = import.meta.env.VITE_BACKEND_WS_URL + "/ws?key_id="
-let wgClient = undefined;
+let wgClient: Client | undefined = undefined;
 self.postMessage("started");
 set_pcap_logging(true);
 
@@ -31,7 +31,6 @@ self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
         switch (e.data) {
             case "connect":
-                // wgClient.disconnect_ws();
                 wgClient.start_ws();
                 wgClient.on_message(async (msg: any) => {
                     self.postMessage({
@@ -39,6 +38,11 @@ self.addEventListener("message", async (e: MessageEvent) => {
                         data: msg
                     });
                 });
+                break;
+
+            case "close":
+                wgClient.disconnect_ws();
+                self.postMessage("closed");
                 break;
 
             case "download":

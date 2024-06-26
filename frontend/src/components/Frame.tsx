@@ -31,9 +31,16 @@ export class Frame extends Component {
         });
 
         const message_event = (e: MessageEvent) => {
-            if (e.data === "ready") {
-                const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                iframe.src = "/wg/";
+            if (typeof e.data === "string") {
+                switch (e.data) {
+                    case "ready":
+                        const iframe = document.getElementById("interface") as HTMLIFrameElement;
+                        iframe.src = "/wg/";
+                        break;
+                    case "closed":
+                        this.worker.terminate();
+                        break;
+                }
             } else {
                 const msg = e.data as Message;
                 switch (msg.type) {
@@ -82,7 +89,7 @@ export class Frame extends Component {
     }
 
     componentWillUnmount() {
-        this.worker.terminate();
+        this.worker.postMessage("close");
     }
 
     render() {
