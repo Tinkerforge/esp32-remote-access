@@ -274,6 +274,7 @@ impl WgTunDevice {
                         let mut buf = vec![0u8; data.len() + 32];
                         match tun.encapsulate(&data, &mut buf) {
                             TunnResult::WriteToNetwork(d) => {
+                                drop(tun);
                                 let _ = message_socket.send_with_u8_array(d);
                                 return;
                             }
