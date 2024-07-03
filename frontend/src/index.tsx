@@ -39,6 +39,7 @@ import { AppState, loggedIn } from './utils.js';
 import { Spinner } from 'react-bootstrap';
 import { Recovery } from './pages/recovery.js';
 import { useTranslation } from "react-i18next";
+import Median from "median-js-bridge";
 
 
 async function refresh_access_token() {
@@ -63,6 +64,10 @@ refresh_access_token();
 setInterval(async () => {
     await refresh_access_token();
 }, 1000 * 60 * 5);
+
+if (Median.isNativeApp()) {
+    window.alert("Native!");
+}
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});

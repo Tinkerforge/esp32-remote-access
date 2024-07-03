@@ -19,6 +19,7 @@
     "i18next-http-backend": "^2.5.2",
     "js-base64": "^3.7.7",
     "libsodium-wrappers": "^0.7.13",
+    "median-js-bridge": "^2.3.2",
     "preact": "^10.13.1",
     "preact-iso": "^2.3.2",
     "preact-render-to-string": "^6.3.1",
