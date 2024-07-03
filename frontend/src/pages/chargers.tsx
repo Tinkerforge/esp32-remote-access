@@ -27,6 +27,7 @@ import { generate_hash } from "../utils";
 import sodium from "libsodium-wrappers";
 import { useTranslation } from "react-i18next";
 import { showAlert } from "../components/Alert";
+import { Base64 } from "js-base64";
 
 interface Charger {
     id: number,
@@ -57,8 +58,8 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
     }
 
     async decrypt_keys(keys: any, secret_data: any) {
-        const password = sessionStorage.getItem("password");
-        const secret_key = await generate_hash(password, new Uint8Array(secret_data.secret_salt), sodium.crypto_secretbox_KEYBYTES);
+        const encoded_key = localStorage.getItem("secret_key");
+        const secret_key = Base64.toUint8Array(encoded_key);
         const secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret_data.secret), new Uint8Array(secret_data.secret_nonce), secret_key);
 
         const public_key = sodium.crypto_scalarmult_base(new Uint8Array(secret));

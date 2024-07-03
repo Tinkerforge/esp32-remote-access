@@ -7,6 +7,8 @@ import { generate_hash, get_salt_for_user } from "../utils";
 import { Modal } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "./password_component";
+import sodium from "libsodium-wrappers";
+import { Base64 } from "js-base64";
 
 interface LoginSchema {
     email: string,
@@ -60,8 +62,15 @@ export class Login extends Component<{}, LoginState> {
             credentials: "include"
         });
 
+        const secret_resp = await fetch(BACKEND + "/user/get_secret", {
+            credentials: "include"
+        });
+        const secret_salt = (await secret_resp.json()).secret_salt;
+        const secret_key = await generate_hash(this.state.password, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
+        const encoded_key = Base64.fromUint8Array(secret_key);
+
         if (resp.status === 200) {
-            sessionStorage.setItem("password", this.state.password);
+            localStorage.setItem("secret_key", encoded_key);
             window.location.reload()
         } else {
             const body = await resp.text();

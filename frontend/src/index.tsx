@@ -67,7 +67,7 @@ setInterval(async () => {
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
 
-    if (!sessionStorage.getItem("password") && loggedIn.value == AppState.LoggedIn) {
+    if (!localStorage.getItem("secret_key") && loggedIn.value == AppState.LoggedIn) {
         logout(false);
     }
 
