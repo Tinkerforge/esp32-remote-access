@@ -79,6 +79,7 @@ export function App() {
             </>
 
         case AppState.LoggedOut:
+            Median.sidebar.setItems({items: [], enabled: false, persist: true});
             return <>
                 <ErrorAlert/>
                 <Row fluid className="align-items-center vh-100">

@@ -4,6 +4,7 @@ import { BACKEND } from "../types";
 import { useTranslation } from "react-i18next";
 import { Button, Container, Navbar } from "react-bootstrap";
 import { connected } from "../pages/chargers";
+import Median from "median-js-bridge";
 
 export async function logout(logout_all: boolean) {
         await fetch(`${BACKEND}/user/logout?logout_all=${logout_all ? "true" : "false"}`, {
@@ -16,6 +17,19 @@ export async function logout(logout_all: boolean) {
 export function CustomNavbar() {
     const { url } = useLocation();
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "navbar"})
+
+    if (Median.isNativeApp()) {
+        const items = [{
+            label: t("chargers"),
+            url: "https://mystaging.warp-charger.com/chargers"
+        },
+        {
+            label: t("user"),
+            url: "https://mystaging.warp-charger.com/user"
+        }]
+        Median.sidebar.setItems({items: items, enabled: true, persist: true});
+        return <></>
+    }
 
     return (
         <Navbar expand="lg" className="bg-body-tertiary">
