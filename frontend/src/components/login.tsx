@@ -62,9 +62,22 @@ export class Login extends Component<{}, LoginState> {
             credentials: "include"
         });
 
+        if (200 !== resp.status) {
+            const body = await resp.text();
+            const text = `Failed with status ${resp.status}: ${body}`;
+            showAlert(text, "danger");
+            return;
+        }
+
         const secret_resp = await fetch(BACKEND + "/user/get_secret", {
             credentials: "include"
         });
+        if (200 !== secret_resp.status) {
+            const body = await resp.text();
+            const text = `Failed with status ${resp.status}: ${body}`;
+            showAlert(text, "danger");
+            return;
+        }
         const secret_salt = (await secret_resp.json()).secret_salt;
         const secret_key = await generate_hash(this.state.password, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
         const encoded_key = Base64.fromUint8Array(secret_key);
