@@ -21,11 +21,13 @@ export function CustomNavbar() {
     if (Median.isNativeApp()) {
         const items = [{
             label: t("chargers"),
-            url: "https://mystaging.warp-charger.com/chargers"
+            url: "https://mystaging.warp-charger.com/chargers",
+            icon: "fas fa-server"
         },
         {
             label: t("user"),
-            url: "https://mystaging.warp-charger.com/user"
+            url: "https://mystaging.warp-charger.com/user",
+            icon: "fas fa-user"
         }]
         Median.sidebar.setItems({items: items, enabled: true, persist: true});
         return <></>
