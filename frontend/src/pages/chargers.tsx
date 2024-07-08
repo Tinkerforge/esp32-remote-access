@@ -41,6 +41,7 @@ interface ChargerListComponentState {
 }
 
 export const connected = signal(false);
+export const connected_to = signal("");
 
 class ChargerListComponent extends Component<{}, ChargerListComponentState> {
     constructor() {
@@ -116,6 +117,7 @@ class ChargerListComponent extends Component<{}, ChargerListComponentState> {
                         port: charger.port,
                     }
 
+                    connected_to.value = charger.name;
                     connected.value = true;
                 }} variant="primary">{t("connect")}</Button></td>
                 <td><Button onClick={async () => {
