@@ -114,7 +114,7 @@ async fn update_configured_connections(state: &web::Data<AppState>, cid: i32, co
     responses(
         (status = 200, description = "Identification was successful", body = ManagementResponseSchema),
         (status = 400, description = "Got no valid ip address for the charger"),
-        (status = 401, description = "The logged in user is not the owner of the charger")
+        (status = 401, description = "The charger id and password do not match")
     )
 )]
 #[put("/management")]
