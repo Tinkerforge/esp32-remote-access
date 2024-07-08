@@ -31,6 +31,7 @@ use udp_server::{
     management::RemoteConnMeta, packet::ManagementResponse, socket::ManagementSocket,
 };
 use ws_udp_bridge::Message;
+pub use boringtun::*;
 
 pub mod error;
 pub mod middleware;

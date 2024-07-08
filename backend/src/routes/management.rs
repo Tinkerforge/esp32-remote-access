@@ -38,9 +38,9 @@ use super::charger::add::password_matches;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ManagementSchema {
-    id: i32,
-    password: String,
-    data: ManagementDataVersion,
+    pub id: i32,
+    pub password: String,
+    pub data: ManagementDataVersion,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -50,15 +50,15 @@ pub enum ManagementDataVersion {
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ManagementDataVersion1 {
-    port: u16,
-    firmware_version: String,
-    configured_connections: Vec<i32>,
+    pub port: u16,
+    pub firmware_version: String,
+    pub configured_connections: Vec<i32>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Debug)]
 pub struct ManagementResponseSchema {
-    time: u64,
-    configured_connections: Vec<i32>,
+    pub time: u64,
+    pub configured_connections: Vec<i32>,
 }
 
 async fn update_configured_connections(state: &web::Data<AppState>, cid: i32, configured_connections: Vec<i32>) -> actix_web::Result<Vec<i32>> {

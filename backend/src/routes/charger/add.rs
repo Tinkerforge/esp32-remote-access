@@ -36,43 +36,43 @@ use crate::{
     AppState,
 };
 
-#[derive(Serialize, Deserialize, Clone, Validate, ToSchema)]
+#[derive(Serialize, Deserialize, Clone, Validate, ToSchema, Debug)]
 pub struct Keys {
     #[schema(value_type = Vec<u32>)]
-    web_private: Vec<u8>,
+    pub web_private: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
-    psk: Vec<u8>,
-    charger_public: String,
+    pub psk: Vec<u8>,
+    pub charger_public: String,
     #[schema(value_type = SchemaType::String)]
-    web_address: IpNetwork,
+    pub web_address: IpNetwork,
     #[schema(value_type = SchemaType::String)]
-    charger_address: IpNetwork,
-    connection_no: u16,
+    pub charger_address: IpNetwork,
+    pub connection_no: u16,
 }
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct ChargerSchema {
-    id: String,
-    name: String,
-    charger_pub: String,
+    pub id: String,
+    pub name: String,
+    pub charger_pub: String,
     #[schema(value_type = SchemaType::String)]
-    wg_charger_ip: IpNetwork,
+    pub wg_charger_ip: IpNetwork,
     #[schema(value_type = SchemaType::String)]
-    wg_server_ip: IpNetwork,
-    psk: String,
+    pub wg_server_ip: IpNetwork,
+    pub psk: String,
 }
 
 #[derive(Serialize, Deserialize, Validate, ToSchema)]
 #[validate(schema(function = "validate_add_charger_schema"))]
 pub struct AddChargerSchema {
-    charger: ChargerSchema,
-    keys: [Keys; 5],
+    pub charger: ChargerSchema,
+    pub keys: [Keys; 5],
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct AddChargerResponseSchema {
-    management_pub: String,
-    charger_password: String,
+    pub management_pub: String,
+    pub charger_password: String,
 }
 
 fn validate_add_charger_schema(schema: &AddChargerSchema) -> Result<(), ValidationError> {
