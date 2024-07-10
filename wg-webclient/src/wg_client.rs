@@ -105,8 +105,8 @@ impl Client {
     }
 
     #[wasm_bindgen]
-    pub fn start_ws(&mut self) {
-        self.0.start_ws();
+    pub fn start_inner_ws(&mut self) {
+        self.0.start_inner_ws();
     }
 
     #[wasm_bindgen]
@@ -120,8 +120,8 @@ impl Client {
     }
 
     #[wasm_bindgen]
-    pub fn disconnect_ws(&mut self) {
-        self.0.disconnect_ws();
+    pub fn disconnect_inner_ws(&mut self) {
+        self.0.disconnect_inner_ws();
     }
 
     // leaks memory, for debugging only!!!
@@ -202,14 +202,14 @@ impl WgClient {
         let ip = &internal_ip[0..internal_ip.len() - 3];
         let ip = IpCidr::new(ip.parse().unwrap(), 24);
         let iface = Rc::new(RefCell::new(Interface::new(device, ip)));
-        let iface_cpy = iface.clone();
+        let iface_cpy = Rc::downgrade(&iface);
 
         let stream = TcpStream::new(iface.clone());
 
         let stream = Rc::new(RefCell::new(stream));
 
         let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
-            iface_cpy.borrow_mut().poll();
+            iface_cpy.upgrade().unwrap().borrow_mut().poll();
         });
         let polling_interval = Rc::new(IntervalHandle::new(closure, 0));
 
@@ -229,7 +229,7 @@ impl WgClient {
     /**
      * Creates a new Websocket object and connection that gets stored internally.
      */
-    fn start_ws(&mut self) {
+    fn start_inner_ws(&mut self) {
         let mut stream = TcpStream::new(self.iface.clone());
         let port = js_sys::Math::random() * 1000.0;
         let port = port as u16;
@@ -522,12 +522,12 @@ impl WgClient {
         element.click();
     }
 
-    pub fn disconnect_ws(&mut self) {
+    pub fn disconnect_inner_ws(&mut self) {
         if let Some(socket) = self.websocket.clone() {
             let socket = socket.borrow_mut();
             socket.disconnect();
-            self.websocket = None;
         }
+        self.websocket = None;
     }
 
     pub fn get_pcap_log(&self) -> Vec<u8> {

@@ -31,7 +31,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
         switch (e.data) {
             case "connect":
-                wgClient.start_ws();
+                wgClient.start_inner_ws();
                 wgClient.on_message(async (msg: any) => {
                     self.postMessage({
                         type: 0,
@@ -41,7 +41,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 break;
 
             case "close":
-                wgClient.disconnect_ws();
+                wgClient.disconnect_inner_ws();
                 self.postMessage("closed");
                 break;
 

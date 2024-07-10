@@ -60,7 +60,7 @@ where
 */
 pub struct Websocket<Device>
 where
-    Device: smoltcp::phy::Device + Clone + IsUp,
+    Device: smoltcp::phy::Device + 'static + Clone + IsUp,
 {
     state: Rc<RefCell<WebsocketState<Device>>>,
     cb: Rc<RefCell<Option<js_sys::Function>>>,
@@ -92,13 +92,14 @@ where
         let key_cpy = key.clone();
 
         let state = Rc::new(RefCell::new(WebsocketState::Created));
-        let state_cpy = state.clone();
+        let state_cpy = Rc::downgrade(&state);
 
         let cb = Rc::new(RefCell::new(None::<js_sys::Function>));
-        let cb_cpy = cb.clone();
+        let cb_cpy = Rc::downgrade(&cb);
 
         let closure = Closure::<dyn FnMut(JsValue)>::wrap(Box::new(move |_: JsValue| {
-            let mut state = state_cpy.borrow_mut();
+            let state = state_cpy.upgrade().unwrap();
+            let mut state = state.borrow_mut();
             let mut stream = match &mut *state {
                 WebsocketState::Connecting(connecting) => {
                     if !connecting.stream.can_send() {
@@ -125,7 +126,7 @@ where
                 match tungstenite::handshake::client::Response::try_parse(&buf[..len]) {
                     Ok(Some(response)) => response,
                     Ok(None) => {
-                        *state_cpy.borrow_mut() = WebsocketState::Disconnected;
+                        *state_cpy.upgrade().unwrap().borrow_mut() = WebsocketState::Disconnected;
                         return;
                     }
                     Err(e) => {
@@ -147,24 +148,25 @@ where
             let cb_cpy = cb_cpy.clone();
             let state_cpy = state_cpy.clone();
             let closure = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-                let mut state = state_cpy.borrow_mut();
+                let state = state_cpy.upgrade().unwrap();
+                let mut state = state.borrow_mut();
                 let message = {
-                    let mut stream = match *state {
+                    let mut socket = match *state {
                         WebsocketState::Connected(ref mut connected) => {
                             connected.stream.borrow_mut()
                         }
                         _ => return,
                     };
-                    if !stream.can_read() {
+                    if !socket.can_read() {
                         return;
                     }
-                    match stream.read() {
+                    match socket.read() {
                         Ok(msg) => msg,
                         Err(e) => {
                             match e {
                                 tungstenite::Error::Io(_) => (),
                                 _ => console_log!(
-                                    "error while reading from stream: {}",
+                                    "error while reading from Websocket: {}",
                                     e.to_string()
                                 ),
                             }
@@ -175,6 +177,7 @@ where
 
                 match message {
                     tungstenite::Message::Text(text) => {
+                        let cb_cpy = cb_cpy.upgrade().unwrap();
                         let cb = cb_cpy.borrow_mut();
                         if let Some(cb) = cb.as_ref() {
                             let this = JsValue::null();
@@ -221,5 +224,14 @@ where
     */
     pub fn on_message(&mut self, cb: js_sys::Function) {
         *self.cb.borrow_mut() = Some(cb);
+    }
+}
+
+impl<Device> Drop for Websocket<Device>
+where
+    Device: smoltcp::phy::Device + 'static + Clone + IsUp,
+{
+    fn drop(&mut self) {
+        self.disconnect();
     }
 }

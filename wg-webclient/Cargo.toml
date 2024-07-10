@@ -28,7 +28,7 @@ anyhow = { version = "1.0.79", default-features = false}
 js-sys = "0.3.66"
 wasm-timer = "0.2.5"
 http = "1.0.0"
-tungstenite = "0.21.0"
+tungstenite = "0.23.0"
 
 # Instant::now from smoltcp, enabled by the std-feature must not be used since it will crash in wasm32
 smoltcp = { version = "0.11.0", default-features = false, features = ["proto-ipv4", "medium-ip", "socket-tcp", "std"] }

@@ -41,7 +41,7 @@ where
 {
     iface: Rc<RefCell<Interface<'a, Device>>>,
     handle: SocketHandle,
-    buf: Vec<u8>,
+    buf: Rc<RefCell<Vec<u8>>>,
 }
 
 impl<'a, Device: phy::Device + Clone + IsUp> TcpStream<'a, Device> {
@@ -57,7 +57,7 @@ impl<'a, Device: phy::Device + Clone + IsUp> TcpStream<'a, Device> {
         Self {
             iface,
             handle,
-            buf: vec![],
+            buf: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -130,18 +130,20 @@ impl<'a, Device: phy::Device + Clone + IsUp> TcpStream<'a, Device> {
 impl<Device: phy::Device + Clone + IsUp> Write for TcpStream<'_, Device> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        Ok(self.buf.write(buf)?)
+        let mut inner_buf = self.buf.borrow_mut();
+        Ok(inner_buf.write(buf)?)
     }
 
     #[inline]
     fn flush(&mut self) -> std::io::Result<()> {
+        let mut buf = self.buf.borrow_mut();
         match self
             .iface
             .borrow_mut()
-            .send_slice(self.handle, &self.buf[..])
+            .send_slice(self.handle, &mut buf[..])
         {
             Ok(sent) => {
-                if sent != self.buf.len() {
+                if sent != buf.len() {
                     //FIXME: Implement a buffer in the interface struct to handle bigger payloads.
                     panic!("tx buffer is too small!");
                 }
@@ -153,7 +155,7 @@ impl<Device: phy::Device + Clone + IsUp> Write for TcpStream<'_, Device> {
                 ))
             }
         }
-        self.buf.clear();
+        buf.clear();
         Ok(())
     }
 }

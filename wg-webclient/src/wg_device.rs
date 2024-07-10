@@ -57,6 +57,10 @@ pub struct WgTunDevice {
     socket: Rc<WebSocket>,
     socket_state: Rc<RefCell<WsConnectionState>>,
     _reset_rate_limiter_interval: Rc<IntervalHandle<JsValue>>,
+    _onopen_closure: Rc<Closure<dyn FnMut(JsValue) -> ()>>,
+    _onclose_closure: Rc<Closure<dyn FnMut(JsValue) -> ()>>,
+    _onerror_closure: Rc<Closure<dyn FnMut(JsValue) -> ()>>,
+    _onmessage_closure: Rc<Closure<dyn FnMut(MessageEvent) -> ()>>,
 }
 
 impl WgTunDevice {
@@ -92,45 +96,51 @@ impl WgTunDevice {
         console_log!("Parent WebSocket Created");
 
         let socket = Rc::new(socket);
-        let onopen_socket = socket.clone();
-        let onopen_socket_state = socket_state.clone();
-        let onopen_tun = tun.clone();
+        let onopen_socket = Rc::downgrade(&socket);
+        let onopen_socket_state = Rc::downgrade(&socket_state);
+        let onopen_tun = Rc::downgrade(&tun);
         let onopen = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
             console_log!("Parent WebSocket Opened");
+            let onopen_socket_state = onopen_socket_state.upgrade().unwrap();
             *onopen_socket_state.borrow_mut() = WsConnectionState::Connected;
 
+            let onopen_tun = onopen_tun.upgrade().unwrap();
             let mut tun = onopen_tun.borrow_mut();
             let mut buf = [0u8; 2048];
             match tun.format_handshake_initiation(&mut buf, false) {
                 TunnResult::WriteToNetwork(d) => {
                     console_log!("Sending handshake initiation");
+                    let onopen_socket = onopen_socket.upgrade().unwrap();
                     let _ = onopen_socket.send_with_u8_array(d);
                 }
                 _ => panic!("Unexpected TunnResult"),
             }
         });
+        let onopen = Rc::new(onopen);
 
-        let onclose_socket_state = socket_state.clone();
+        let onclose_socket_state = Rc::downgrade(&socket_state);
         let onclose = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
             console_log!("Parent WebSocket Closed");
-            *onclose_socket_state.borrow_mut() = WsConnectionState::Disconnected;
+            *onclose_socket_state.upgrade().unwrap().borrow_mut() = WsConnectionState::Disconnected;
         });
-        socket.set_onclose(Some(onclose.as_ref().unchecked_ref()));
+        let onclose = Rc::new(onclose);
+        socket.set_onclose(Some(onclose.as_ref().as_ref().unchecked_ref()));
 
-        let onerror_socket_state = socket_state.clone();
+        let onerror_socket_state = Rc::downgrade(&socket_state);
         let onerror = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
             console_log!("Parent WebSocket Error");
-            *onerror_socket_state.borrow_mut() = WsConnectionState::Disconnected;
+            *onerror_socket_state.upgrade().unwrap().borrow_mut() = WsConnectionState::Disconnected;
         });
-        socket.set_onerror(Some(onerror.as_ref().unchecked_ref()));
+        let onerror = Rc::new(onerror);
+        socket.set_onerror(Some(onerror.as_ref().as_ref().unchecked_ref()));
 
         let pcap = vec![];
         let pcap = Rc::new(RefCell::new(PcapNgWriter::new(pcap).unwrap()));
 
-        let message_pcap = pcap.clone();
-        let message_vec = rx.clone();
-        let message_socket = socket.clone();
-        let message_tun = tun.clone();
+        let message_pcap = Rc::downgrade(&pcap);
+        let message_vec = Rc::downgrade(&rx);
+        let message_socket = Rc::downgrade(&socket);
+        let message_tun = Rc::downgrade(&tun);
         let onmessage = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
             let data = e.data();
             let data = match data.dyn_into::<web_sys::Blob>() {
@@ -158,6 +168,7 @@ impl WgTunDevice {
                 };
                 let array = js_sys::Uint8Array::new(&value);
                 let data = array.to_vec();
+                let message_tun = message_tun.upgrade().unwrap();
                 let mut tun = message_tun.borrow_mut();
                 if data.is_empty() {
                     console_log!("Empty data");
@@ -190,12 +201,13 @@ impl WgTunDevice {
                                 };
 
                             {
+                                let message_pcap = message_pcap.upgrade().unwrap();
                                 let mut message_pcap = message_pcap.borrow_mut();
                                 message_pcap.write_pcapng_block(interface).unwrap();
                                 message_pcap.write_pcapng_block(packet).unwrap();
                             }
                         }
-
+                        let message_socket = message_socket.upgrade().unwrap();
                         let _ = message_socket.send_with_u8_array(d);
                         let mut buf = [0u8; 2048];
 
@@ -230,6 +242,7 @@ impl WgTunDevice {
                                     };
 
                                 {
+                                    let message_pcap = message_pcap.upgrade().unwrap();
                                     let mut message_pcap = message_pcap.borrow_mut();
                                     message_pcap.write_pcapng_block(interface).unwrap();
                                     message_pcap.write_pcapng_block(packet).unwrap();
@@ -265,16 +278,19 @@ impl WgTunDevice {
                                 };
 
                             {
+                                let message_pcap = message_pcap.upgrade().unwrap();
                                 let mut message_pcap = message_pcap.borrow_mut();
                                 message_pcap.write_pcapng_block(interface).unwrap();
                                 message_pcap.write_pcapng_block(packet).unwrap();
                             }
                         }
+                        let message_vec = message_vec.upgrade().unwrap();
                         (*message_vec.borrow_mut()).push_back(d.to_vec());
                         let mut buf = vec![0u8; data.len() + 32];
                         match tun.encapsulate(&data, &mut buf) {
                             TunnResult::WriteToNetwork(d) => {
                                 drop(tun);
+                                let message_socket = message_socket.upgrade().unwrap();
                                 let _ = message_socket.send_with_u8_array(d);
                                 return;
                             }
@@ -306,11 +322,13 @@ impl WgTunDevice {
                     };
 
                     {
+                        let message_pcap = message_pcap.upgrade().unwrap();
                         let mut message_pcap = message_pcap.borrow_mut();
                         message_pcap.write_pcapng_block(interface).unwrap();
                         message_pcap.write_pcapng_block(packet).unwrap();
                     }
                 }
+                let message_vec = message_vec.upgrade().unwrap();
                 (*message_vec.borrow_mut()).push_back(buf.to_vec());
             });
 
@@ -320,15 +338,9 @@ impl WgTunDevice {
             // FIXME: need to get rid of this since it leaks memory
             loaded.forget();
         });
-        socket.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+        let onmessage = Rc::new(onmessage);
+        socket.set_onmessage(Some(onmessage.as_ref().as_ref().unchecked_ref()));
         socket.set_onopen(Some(onopen.as_ref().as_ref().unchecked_ref()));
-
-        // !!!! This leaks memory !!!!
-        // But it should be fine because the Object should have a static lifetime
-        onclose.forget();
-        onopen.forget();
-        onerror.forget();
-        onmessage.forget();
 
         Ok(Self {
             pcap,
@@ -337,6 +349,10 @@ impl WgTunDevice {
             socket,
             socket_state,
             _reset_rate_limiter_interval,
+            _onopen_closure: onopen,
+            _onclose_closure: onclose,
+            _onerror_closure: onerror,
+            _onmessage_closure: onmessage,
         })
     }
 
