@@ -2,6 +2,7 @@ import { Component } from 'preact';
 import { signal } from '@preact/signals';
 import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
+import { Row, Spinner } from 'react-bootstrap';
 
 export let charger_info = signal({
     self_key: "",
@@ -16,6 +17,7 @@ export let charger_info = signal({
 export class Frame extends Component {
 
     worker: Worker;
+    show_spinner = signal(true);
     constructor() {
         super();
 
@@ -82,6 +84,7 @@ export class Frame extends Component {
 
         window.addEventListener("message", (e: MessageEvent) => {
             if (e.data === "initIFrame") {
+                this.show_spinner.value = false;
                 this.worker.postMessage("connect");
                 return;
             }
@@ -95,10 +98,13 @@ export class Frame extends Component {
     render() {
         return (
             <>
-                <iframe width="100%" height={screen.height} id="interface"></iframe>
-                <button onClick={() => {
+                <Row hidden={!this.show_spinner.value} fluid className="align-content-center justify-content-center vh-100">
+                    <Spinner className="p-3"animation='border' variant='primary'/>
+                </Row>
+                <iframe hidden={this.show_spinner.value} width="100%" height={screen.height} id="interface"></iframe>
+                {/* <button onClick={() => {
                     this.worker.postMessage("download");
-                }}>Download Pcap log</button>
+                }}>Download Pcap log</button> */}
             </>
         )
     }

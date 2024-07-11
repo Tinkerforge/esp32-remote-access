@@ -75,7 +75,9 @@ export function App() {
     switch (loggedIn.value) {
         case AppState.Loading:
             return <>
-                <Spinner animation='border' variant='primary'/>
+                <Row fluid className="align-content-center justify-content-center vh-100">
+                    <Spinner animation='border' variant='primary'/>
+                </Row>
             </>
 
         case AppState.LoggedOut:
