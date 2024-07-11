@@ -234,10 +234,9 @@ impl WgClient {
         let port = js_sys::Math::random() * 1000.0;
         let port = port as u16;
         let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), self.port);
-        stream.connect(endpoint, port).unwrap_or_else(|e| {
-            console_log!("{}", e);
-            return;
-        });
+        if let Err(err) = stream.connect(endpoint, port) {
+            console_log!("Error when connecting websocket: {}", err.to_string());
+        }
         let websocket = Websocket::connect(stream).unwrap();
         self.websocket = Some(Rc::new(RefCell::new(websocket)));
     }
@@ -269,12 +268,12 @@ impl WgClient {
         let internal_peer_ip = self.internal_peer_ip.parse().unwrap();
         let state = Rc::new(RefCell::new(RequestState::Begin));
         let state_cpy = state.clone();
-        let stream_cpy = self.stream.clone();
+        let stream_cpy = Rc::downgrade(&self.stream);
 
         let sender = Rc::new(RefCell::new(None));
-        let sender_cpy = sender.clone();
+        let sender_cpy = Rc::downgrade(&sender);
         let conn = Rc::new(RefCell::new(None));
-        let conn_cpy = conn.clone();
+        let conn_cpy = Rc::downgrade(&conn);
         let request = Rc::new(RefCell::new(None));
         let resp = Rc::new(RefCell::new(None));
 
@@ -283,14 +282,14 @@ impl WgClient {
         let url = Rc::new(url);
         let js_request = Rc::new(js_request);
 
-        let request_queue = self.request_queue.clone();
-        let current_request = self.current_request.clone();
+        let request_queue = Rc::downgrade(&self.request_queue);
+        let current_request = Rc::downgrade(&self.current_request);
         let self_cpy = self.clone();
 
         let port = self.port;
 
         let req = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
-            if !stream_cpy.borrow().is_up() {
+            if !stream_cpy.upgrade().unwrap().borrow().is_up() {
                 return;
             }
             let stream_cpy = stream_cpy.clone();
@@ -304,10 +303,11 @@ impl WgClient {
                     let endpoint = smoltcp::wire::IpEndpoint::new(internal_peer_ip, port);
 
                     // FIXME: throw exception instead of panic
-                    stream_cpy.borrow_mut().connect(endpoint, out_port).unwrap();
+                    stream_cpy.upgrade().unwrap().borrow_mut().connect(endpoint, out_port).unwrap();
                     *state = RequestState::Started;
                 }
                 RequestState::Started => {
+                    let stream_cpy = stream_cpy.upgrade().unwrap();
                     let stream = stream_cpy.borrow_mut();
                     if stream.can_send() {
                         *state = RequestState::Connected;
@@ -322,13 +322,13 @@ impl WgClient {
                         let stream_cpy = stream_cpy.clone();
                         let state_cpy = state_cpy.clone();
                         wasm_bindgen_futures::spawn_local(async move {
-                            let stream = HyperStream::new(stream_cpy.clone());
+                            let stream = HyperStream::new(stream_cpy.upgrade().unwrap().clone());
 
                             // FIXME: throw exception instead of panic
                             let (sender, conn) =
                                 hyper::client::conn::http1::handshake(stream).await.unwrap();
-                            *sender_cpy.borrow_mut() = Some(sender);
-                            *conn_cpy.borrow_mut() = Some(Box::pin(conn));
+                            *sender_cpy.upgrade().unwrap().borrow_mut() = Some(sender);
+                            *conn_cpy.upgrade().unwrap().borrow_mut() = Some(Box::pin(conn));
                             *state_cpy.borrow_mut() = RequestState::HandshakeDone;
                         });
                     }
@@ -482,13 +482,15 @@ impl WgClient {
                     };
                 }
                 _ => {
+                    let stream_cpy = stream_cpy.upgrade().unwrap();
                     let mut stream = stream_cpy.borrow_mut();
                     stream.close();
                     stream.poll();
                     if stream.is_open() {
                         return;
                     }
-                    *current_request.borrow_mut() = None;
+                    *current_request.upgrade().unwrap().borrow_mut() = None;
+                    let request_queue = request_queue.upgrade().unwrap();
                     let mut request_queue = request_queue.borrow_mut();
                     if let Some(next) = request_queue.pop_front() {
                         wasm_bindgen_futures::spawn_local(async move {
