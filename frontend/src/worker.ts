@@ -31,6 +31,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
         switch (e.data) {
             case "connect":
+                wgClient.disconnect_inner_ws();
                 wgClient.start_inner_ws();
                 wgClient.on_message(async (msg: any) => {
                     self.postMessage({

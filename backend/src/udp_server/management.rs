@@ -20,12 +20,13 @@
 use std::net::SocketAddr;
 
 use actix_web::web;
+use serde::Serialize;
 
 use crate::BridgeState;
 
 use super::packet::ManagementResponse;
 
-#[derive(PartialEq, Hash, Eq, Debug)]
+#[derive(PartialEq, Hash, Eq, Debug, Serialize, Clone)]
 pub struct RemoteConnMeta {
     pub charger_id: i32,
     pub conn_no: i32,

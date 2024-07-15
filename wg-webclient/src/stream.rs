@@ -160,6 +160,18 @@ impl<Device: phy::Device + Clone + IsUp> Write for TcpStream<'_, Device> {
     }
 }
 
+impl<Device> Drop for TcpStream<'_, Device>
+where
+    Device: phy::Device + Clone + IsUp,
+{
+    fn drop(&mut self) {
+        if Rc::strong_count(&self.buf) == 1 {
+            self.close();
+            let _ = self.flush();
+        }
+    }
+}
+
 impl<Device: phy::Device + Clone + IsUp> Read for TcpStream<'_, Device> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {

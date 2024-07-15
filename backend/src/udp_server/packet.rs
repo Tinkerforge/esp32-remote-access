@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 use crate::utils::as_u8_slice;
 
 #[repr(C)]
@@ -36,7 +38,7 @@ pub struct ManagementCommandPacket {
     pub command: ManagementCommand,
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Serialize)]
 #[repr(C, packed)]
 pub struct ManagementResponse {
     pub charger_id: i32,

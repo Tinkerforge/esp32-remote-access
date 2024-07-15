@@ -18,17 +18,16 @@ export class Frame extends Component {
 
     worker: Worker;
     show_spinner = signal(true);
+    id: string;
     constructor() {
         super();
 
+        this.id = crypto.randomUUID();
         this.worker = new Worker();
-
         navigator.serviceWorker.addEventListener("message", (e: MessageEvent) => {
             const msg = e.data as Message;
-            if (msg.type) {
+            if (msg.receiver_id === this.id) {
                 this.worker.postMessage(msg);
-            } else {
-                console.log("Got unknown message from service worker!");
             }
         });
 
@@ -37,7 +36,7 @@ export class Frame extends Component {
                 switch (e.data) {
                     case "ready":
                         const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                        iframe.src = "/wg/";
+                        iframe.src = `/wg-${this.id}/`;
                         break;
                     case "closed":
                         this.worker.terminate();

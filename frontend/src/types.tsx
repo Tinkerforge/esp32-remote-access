@@ -7,6 +7,7 @@ export enum MessageType {
 }
 
 export interface Message {
+    receiver_id?: string,
     type: MessageType,
     id?: string,
     data: any

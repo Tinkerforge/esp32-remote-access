@@ -23,8 +23,11 @@ declare const self: ServiceWorkerGlobalScope;
 
 self.addEventListener("fetch", async (event: FetchEvent) => {
     let url = event.request.url.replace(self.location.origin, "");
-    if (url.startsWith("/wg/")) {
-        url = url.replace("/wg", "");
+    if (url.startsWith("/wg-")) {
+        url = url.replace("/wg-", "");
+        const first = url.indexOf("/");
+        const receiver_id = url.substring(0, first);
+        url = url.replace(receiver_id, "");
         const promise: Promise<Response> = new Promise(async (resolve, reject) => {
             const id = crypto.randomUUID();
             const body = await event.request.arrayBuffer();
@@ -39,6 +42,7 @@ self.addEventListener("fetch", async (event: FetchEvent) => {
                 url: url
             };
             const msg: Message = {
+                receiver_id: receiver_id,
                 id: id,
                 type: MessageType.Fetch,
                 data: fetch

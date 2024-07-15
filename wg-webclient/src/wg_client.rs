@@ -303,7 +303,10 @@ impl WgClient {
                     let endpoint = smoltcp::wire::IpEndpoint::new(internal_peer_ip, port);
 
                     // FIXME: throw exception instead of panic
-                    stream_cpy.upgrade().unwrap().borrow_mut().connect(endpoint, out_port).unwrap();
+                    if let Err(err) = stream_cpy.upgrade().unwrap().borrow_mut().connect(endpoint, out_port) {
+                        console_log!("Error connecting to endpoint {}: {}", endpoint, err.to_string());
+                        return;
+                    }
                     *state = RequestState::Started;
                 }
                 RequestState::Started => {
