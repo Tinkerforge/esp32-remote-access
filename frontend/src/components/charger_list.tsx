@@ -7,7 +7,7 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { BACKEND } from "../types";
-import { Button, Card, Col, Container, Row, Table } from "react-bootstrap";
+import { Button, Card, Col, Container, Modal, Table } from "react-bootstrap";
 import i18n from "../i18n";
 import { Monitor, Trash2 } from "react-feather";
 
@@ -20,17 +20,27 @@ interface Charger {
 
 interface ChargerListComponentState {
     chargers: Charger[],
+    showModal: boolean
 }
 
 export const connected = signal(false);
 export const connected_to = signal("");
 
 export class ChargerListComponent extends Component<{}, ChargerListComponentState> {
+
+    removal_charger: Charger;
     constructor() {
         super();
 
+        this.removal_charger = {
+            id: 0,
+            name: "",
+            status: "",
+            port: 0,
+        };
         this.state = {
             chargers: [],
+            showModal: false,
         };
 
         fetch(BACKEND + "/charger/get_chargers", {
@@ -72,7 +82,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             credentials: "include"
         });
         if (resp.status !== 200) {
-            showAlert(t("connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: resp.status, text: await get_secret_resp.text()}), "danger");
+            showAlert(t("connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: resp.status, text: await resp.text()}), "danger");
             return;
         }
 
@@ -94,7 +104,9 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         connected.value = true;
     }
 
-    async delete_charger(charger: Charger) {
+    async delete_charger() {
+        const t = i18n.t;
+        const charger = this.removal_charger;
         const body = {
             charger: charger.id
         };
@@ -110,6 +122,8 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         if (resp.status === 200) {
             const chargers = this.state.chargers.filter((c) => c.id !== charger.id);
             this.setState({chargers: chargers});
+        } else {
+            showAlert(t("remove_error_text", {charger_id: Base58.int_to_base58(charger.id), status: resp.status, text: await resp.text()}), "danger");
         }
     }
 
@@ -123,8 +137,9 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                         <Button className="me-2" variant="primary" disabled={charger.status !== "Connected"} onClick={async () => {
                             await this.connect_to_charger(charger);
                         }}><Monitor/></Button>
-                        <Button variant="danger" disabled={charger.status !== "Connected"} onClick={async () => {
-                            await this.delete_charger(charger);
+                        <Button variant="danger" onClick={async () => {
+                            this.removal_charger = charger;
+                            this.setState({showModal: true});
                         }}><Trash2/></Button>
                     </div>
                 </Card.Header>
@@ -158,7 +173,8 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     await this.connect_to_charger(charger);
                 }} variant="primary">{t("connect")}</Button></td>
                 <td><Button onClick={async () => {
-                    await this.delete_charger(charger);
+                    this.removal_charger = charger;
+                    this.setState({showModal: true})
                 }} variant="danger">{t("remove")}</Button></td>
             </tr>
             table_list.push(entry);
@@ -166,6 +182,23 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         })
 
         return <>
+            <Modal show={this.state.showModal} onHide={() => this.setState({showModal: false})}>
+                <Modal.Header>
+                    {t("delete_modal_heading", {name: this.removal_charger.name})}
+                </Modal.Header>
+                <Modal.Body>
+                    {t("delete_modal_body", {name: this.removal_charger.name})}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="danger" onClick={async () => {
+                        this.delete_charger();
+                        this.setState({showModal: false});
+                    }}>{t("remove")}</Button>
+                    <Button variant="secondary" onClick={async () => {
+                        this.setState({showModal: false});
+                    }}>{t("close")}</Button>
+                </Modal.Footer>
+            </Modal>
             <Col className="d-none d-md-block">
                 <Table striped hover>
                     <thead>

@@ -29,7 +29,10 @@
         "connect": "Connect",
         "remove": "Remove",
         "close": "Close",
-        "connect_error_text": "Connecting to charger {{charger_id}} failed with code {{status}}: {{response}}"
+        "connect_error_text": "Connecting to charger {{charger_id}} failed with code {{status}}: {{response}}",
+        "remove_error_text": "Removing charger {{charger_id}} failed with code {{status}}: {{response}}",
+        "delete_modal_heading": "Remove charger {{name}}",
+        "delete_modal_body": "Are you sure you want to remove charger {{name}}? This is permanently and the charger can only be added again once you have direct access to the charger again."
     },
     "navbar": {
         "home": "Home",
