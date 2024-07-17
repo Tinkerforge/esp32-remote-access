@@ -126,7 +126,7 @@ where
                 match tungstenite::handshake::client::Response::try_parse(&buf[..len]) {
                     Ok(Some(response)) => response,
                     Ok(None) => {
-                        *state_cpy.upgrade().unwrap().borrow_mut() = WebsocketState::Disconnected;
+                        *state = WebsocketState::Disconnected;
                         return;
                     }
                     Err(e) => {
