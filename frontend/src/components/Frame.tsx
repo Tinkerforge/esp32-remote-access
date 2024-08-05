@@ -83,9 +83,14 @@ export class Frame extends Component {
 
         window.addEventListener("message", (e: MessageEvent) => {
             if (e.data === "initIFrame") {
-                this.show_spinner.value = false;
                 this.worker.postMessage("connect");
                 return;
+            } else if (e.data === "webinterface_loaded") {
+                this.show_spinner.value = false;
+                const iframe = document.getElementById("interface") as HTMLIFrameElement;
+                iframe.contentWindow.postMessage({
+                    connection_id: this.id,
+                });
             }
         });
     }

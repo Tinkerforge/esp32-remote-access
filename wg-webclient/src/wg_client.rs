@@ -35,7 +35,7 @@ use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::IpCidr;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{CustomEvent, MessageEvent};
+use web_sys::{CustomEvent, MessageEvent, Response};
 
 use crate::console_log;
 
@@ -71,20 +71,13 @@ impl Client {
         )
     }
 
-    /**
-     * Makes a http request to the provided url and return a Promise that resolves to a JS Response object.
-     * Internally it calls the fetch function of the wrapped WgClient object and
-     * registers an EventListener for the event returned by it.
-     */
-    #[wasm_bindgen]
-    pub fn fetch(&self, request: web_sys::Request, url: String) -> Promise {
-        let cpy = self.0.clone();
-        let id = cpy.fetch(request, url, None);
+    fn create_await_promise(&self, req_id: String) -> Promise {
+        let queue = self.1.clone();
         Promise::new(&mut move |resolve, _| {
-            let queue = self.1.clone();
+            let queue_cpy = queue.clone();
             let closure = Closure::<dyn FnMut(_)>::new(move |event: CustomEvent| {
                 let response = event.detail();
-                let _ = queue.borrow_mut().pop_front();
+                let _ = queue_cpy.borrow_mut().pop_front();
                 resolve.call1(&JsValue::NULL, &response).unwrap();
             });
 
@@ -95,13 +88,35 @@ impl Client {
             options.once(true);
             global
                 .add_event_listener_with_callback_and_add_event_listener_options(
-                    id.as_str(),
+                    req_id.as_str(),
                     closure.as_ref().unchecked_ref(),
                     &options,
                 )
                 .unwrap();
-            self.1.borrow_mut().push_back(closure);
+            queue.borrow_mut().push_back(closure);
         })
+    }
+
+    /**
+     * Makes a http request to the provided url and return a Promise that resolves to a JS Response object.
+     * Internally it calls the fetch function of the wrapped WgClient object and
+     * registers an EventListener for the event returned by it.
+     */
+    #[wasm_bindgen]
+    pub async fn fetch(&self, request: web_sys::Request, url: String, username: Option<String>, password: Option<String>) -> Response {
+        let id = self.0.clone().fetch(request.clone().unwrap(), url.clone(), None, username.clone(), password.clone());
+        let promise = self.create_await_promise(id);
+        let result = wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+        let mut response = Response::from(result);
+
+        if response.status() == 401 {
+            let id = self.0.clone().fetch(request, url, None, username, password);
+            let promise = self.create_await_promise(id);
+            let result = wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+            response = Response::from(result);
+        }
+
+        response
     }
 
     #[wasm_bindgen]
@@ -151,6 +166,12 @@ struct WgClient {
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
     internal_peer_ip: String,
     _polling_interval: Rc<IntervalHandle<MessageEvent>>,
+    username: Rc<RefCell<String>>,
+    password: Rc<RefCell<String>>,
+    realm: Rc<RefCell<String>>,
+    nonce: Rc<RefCell<String>>,
+    opaque: Rc<RefCell<String>>,
+    nc: Rc<RefCell<i64>>,
     port: u16,
 }
 
@@ -222,6 +243,12 @@ impl WgClient {
             pcap,
             internal_peer_ip: (&internal_peer_ip[0..internal_peer_ip.len() - 3]).to_string(),
             _polling_interval: polling_interval,
+            username: Rc::new(RefCell::new(String::new())),
+            password: Rc::new(RefCell::new(String::new())),
+            realm: Rc::new(RefCell::new(String::new())),
+            nonce: Rc::new(RefCell::new(String::new())),
+            opaque: Rc::new(RefCell::new(String::new())),
+            nc: Rc::new(RefCell::new(1)),
             port
         }
     }
@@ -237,8 +264,39 @@ impl WgClient {
         if let Err(err) = stream.connect(endpoint, port) {
             console_log!("Error when connecting websocket: {}", err.to_string());
         }
-        let websocket = Websocket::connect(stream).unwrap();
+        let auth_header = if self.nonce.borrow().len() != 0 {
+            Some(self.build_authentication_header("GET", "/ws"))
+        } else {
+            None
+        };
+        let websocket = Websocket::connect(stream, auth_header).unwrap();
         self.websocket = Some(Rc::new(RefCell::new(websocket)));
+    }
+
+    fn build_authentication_header(&self, method: &str, uri: &str) ->  String {
+        let ha1 = md5::compute(format!("{}:{}:{}", self.username.borrow(), self.realm.borrow(), self.password.borrow()));
+        let ha2 = md5::compute(format!("{}:{}", method, uri));
+
+        let this: JsValue = js_sys::global().try_into().unwrap();
+        let this = web_sys::WorkerGlobalScope::from(this);
+        let crypto = this.crypto().unwrap();
+
+        let cnonce = md5::compute(crypto.random_uuid());
+        let response = md5::compute(format!("{:x}:{}:{:08x}:{:x}:auth:{:x}", ha1, self.nonce.borrow(), *self.nc.borrow(), cnonce, ha2));
+
+        let result = format!("Digest username=\"{}\",realm=\"{}\",nonce=\"{}\",uri=\"{}\",qop=auth,nc={:08x},cnonce=\"{:x}\",response=\"{:x}\",opaque=\"{}\"",
+            self.username.borrow(),
+            self.realm.borrow(),
+            self.nonce.borrow(),
+            uri,
+            *self.nc.borrow(),
+            cnonce,
+            response,
+            self.opaque.borrow());
+
+        *self.nc.borrow_mut() += 1;
+
+        result
     }
 
     /**
@@ -248,7 +306,7 @@ impl WgClient {
      response, fires a custom event when finished and either returns or proceeds with the next
      request.
     */
-    fn fetch(&self, js_request: web_sys::Request, url: String, in_id: Option<f64>) -> String {
+    fn fetch(&mut self, js_request: web_sys::Request, url: String, in_id: Option<f64>, username: Option<String>, password: Option<String>) -> String {
         let id;
         if let Some(in_id) = in_id {
             id = in_id;
@@ -261,8 +319,17 @@ impl WgClient {
                 id,
                 js_request,
                 url,
+                username,
+                password,
             });
             return format!("get_{}", id);
+        }
+
+        if let Some(username) = username {
+            *self.username.borrow_mut() = urlencoding::decode(&username).unwrap().into_owned();
+        }
+        if let Some(password) = password {
+            *self.password.borrow_mut() = urlencoding::decode(&password).unwrap().into_owned();
         }
 
         let internal_peer_ip = self.internal_peer_ip.parse().unwrap();
@@ -294,7 +361,7 @@ impl WgClient {
             }
             let stream_cpy = stream_cpy.clone();
             let mut state = state_cpy.borrow_mut();
-            let self_cpy = self_cpy.clone();
+            let mut self_cpy = self_cpy.clone();
 
             match *state {
                 RequestState::Begin => {
@@ -347,7 +414,8 @@ impl WgClient {
                             .await
                             .unwrap();
                         let body = js_sys::Uint8Array::new(&body).to_vec();
-                        let method = match js_request_cpy.method().as_str() {
+                        let method_str = js_request_cpy.method();
+                        let method = match method_str.as_str() {
                             "GET" => hyper::Method::GET,
                             "PUT" => hyper::Method::PUT,
                             "POST" => hyper::Method::POST,
@@ -366,6 +434,12 @@ impl WgClient {
                                 continue;
                             };
                             req = req.header(key, value);
+                        }
+
+
+                        if self_cpy.nonce.borrow().len() != 0 {
+                            let auth_header = self_cpy.build_authentication_header(&method_str, &url_cpy);
+                            req = req.header("Authorization", auth_header);
                         }
 
                         let req = req
@@ -449,6 +523,31 @@ impl WgClient {
                                 };
                                 headers.set(key.as_str(), value).unwrap();
                             }
+
+                            if let Ok(Some(authenticate_header)) = headers.get("www-authenticate") {
+                                for val in authenticate_header.split(",") {
+                                    let pair: Vec<&str> = val.split("=").collect();
+                                    let val = &pair[1][1..pair[1].len() - 1];
+                                    match pair[0].trim() {
+                                        "Digest realm" => {
+                                            *self_cpy.realm.borrow_mut() = val.to_owned()
+                                        },
+                                        "nonce" => {
+                                            *self_cpy.nonce.borrow_mut() = val.to_owned()
+                                        },
+                                        "opaque" => {
+                                            *self_cpy.opaque.borrow_mut() = val.to_owned()
+                                        },
+                                        "qop" => {
+                                            if val != "auth" {
+                                                console_log!("Got qop {val}, which is not supported");
+                                            }
+                                        }
+                                        v => console_log!("Got unknown value in www-authenticate header: {}", v)
+                                    }
+                                }
+                            }
+
                             let mut response_init = web_sys::ResponseInit::new();
                             response_init.status(resp.status().as_u16());
                             response_init.headers(&headers);
@@ -497,7 +596,7 @@ impl WgClient {
                     let mut request_queue = request_queue.borrow_mut();
                     if let Some(next) = request_queue.pop_front() {
                         wasm_bindgen_futures::spawn_local(async move {
-                            self_cpy.fetch(next.js_request, next.url, Some(next.id));
+                            self_cpy.fetch(next.js_request, next.url, Some(next.id), next.username, next.password);
                         })
                     }
                 }
@@ -547,6 +646,8 @@ struct Request {
     pub id: f64,
     pub js_request: web_sys::Request,
     pub url: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 /**

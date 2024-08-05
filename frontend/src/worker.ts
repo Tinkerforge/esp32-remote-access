@@ -55,13 +55,28 @@ self.addEventListener("message", async (e: MessageEvent) => {
         switch (data.type) {
             case MessageType.Fetch:
                 const req_data = data.data as FetchMessage;
+
+                // Filter username and password from url
+                const regex = /[^:/]+:[^/@]+/;
+                const credetials = req_data.url.match(regex);
+                let username = undefined;
+                let password = undefined;
+                if (credetials) {
+                    const split = credetials[0].split(":");
+                    username = split[0];
+                    password = split[1];
+                }
+
+                // Replace username and password in url.
+                req_data.url = req_data.url.replace(/^((?:http|ws)s?:\/\/)[^:]+:[^@]+@/, "$1");
+
                 const request = new Request(req_data.url, {
                     method: req_data.method,
                     headers: new Headers(req_data.headers),
                     body: req_data.body,
                 });
                 let url = request.url.replace(self.location.origin, "");
-                const response: Response = await wgClient.fetch(request, url);
+                const response: Response = await wgClient.fetch(request, url, username, password);
                 const headers: [string, string][] = [];
                 response.headers.forEach((val, key) => {
                     headers.push([key, val]);

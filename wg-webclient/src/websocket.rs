@@ -73,18 +73,22 @@ where
     /**
        Consumes the provided TcpStream, does the Websocket handshake and returns a Connected Websocket struct.
     */
-    pub fn connect(mut stream: TcpStream<'static, Device>) -> Result<Self, tungstenite::Error> {
+    pub fn connect(mut stream: TcpStream<'static, Device>, auth_header: Option<String>) -> Result<Self, tungstenite::Error> {
         let key = generate_key();
-        let request = Request::builder()
+        let mut request = Request::builder()
             .method("GET")
             .uri("/ws")
             .header("Sec-WebSocket-Key", key)
             .header("Upgrade", "websocket")
             .header("Connection", "Upgrade")
             .header("Sec-WebSocket-Version", "13")
-            .header("Host", "")
-            .body(())
-            .unwrap();
+            .header("Host", "");
+
+        if let Some(auth_header) = auth_header {
+            request = request.header("Authorization", auth_header);
+        }
+
+        let request = request.body(()).unwrap();
         let (request, key) = generate_request(request)?;
         let _ = stream.write(&request[..]).unwrap();
 

@@ -17,7 +17,7 @@ export interface FetchMessage {
     method: string,
     headers: [string, string][],
     body?: ArrayBuffer,
-    url: string
+    url: string,
 }
 
 export interface ResponseMessage {
