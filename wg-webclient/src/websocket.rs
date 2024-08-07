@@ -118,15 +118,16 @@ where
                 return;
             }
             let mut buf = [0u8; 4096];
-            let len = match stream.read(&mut buf) {
+            let read: usize = match stream.read(&mut buf) {
                 Ok(len) => len,
                 Err(e) => {
                     panic!("error while reading from stream: {}", e.to_string());
                 }
             };
+            log::trace!("read len {}", read);
 
-            let (_, response) =
-                match tungstenite::handshake::client::Response::try_parse(&buf[..len]) {
+            let (cursor, response) =
+                match tungstenite::handshake::client::Response::try_parse(&buf[..read]) {
                     Ok(Some(response)) => response,
                     Ok(None) => {
                         *state = WebsocketState::Disconnected;
@@ -172,7 +173,7 @@ where
                                         }
                                     }
                                 },
-                                _ => console_log!(
+                                _ => panic!(
                                     "error while reading from Websocket: {}",
                                     e.to_string()
                                 ),
@@ -197,12 +198,17 @@ where
             });
 
             let interval = IntervalHandle::new(closure, 100);
-            *state = WebsocketState::Connected(ConnectedStruct {
-                stream: Rc::new(RefCell::new(tungstenite::WebSocket::from_raw_socket(
+            let ws = if cursor == read {
+                tungstenite::WebSocket::from_raw_socket(
                     stream,
                     tungstenite::protocol::Role::Client,
                     None,
-                ))),
+                )
+            } else {
+                tungstenite::WebSocket::from_partially_read(stream, buf[cursor..read].to_vec(), tungstenite::protocol::Role::Client, None)
+            };
+            *state = WebsocketState::Connected(ConnectedStruct {
+                stream: Rc::new(RefCell::new(ws)),
                 _interval: interval,
             });
         }));

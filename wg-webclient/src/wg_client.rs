@@ -65,7 +65,7 @@ impl Client {
         internap_peer_ip: &str,
         port: u16,
     ) -> Self {
-        // console_log::init_with_level(log::Level::Trace).unwrap();
+        console_log::init_with_level(log::Level::Debug).unwrap();
         Self(
             WgClient::new(secret_str, peer_str, psk, url, internal_ip, internap_peer_ip, port),
             Rc::new(RefCell::new(VecDeque::new())),
