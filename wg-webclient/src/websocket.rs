@@ -121,8 +121,7 @@ where
             let len = match stream.read(&mut buf) {
                 Ok(len) => len,
                 Err(e) => {
-                    console_log!("error while reading from stream: {}", e.to_string());
-                    return;
+                    panic!("error while reading from stream: {}", e.to_string());
                 }
             };
 
@@ -134,19 +133,16 @@ where
                         return;
                     }
                     Err(e) => {
-                        console_log!("error while parsing response: {}", e.to_string());
-                        return;
+                        panic!("error while parsing response: {}", e.to_string());
                     }
                 };
 
             if let Some(accept_key) = response.headers().get("Sec-WebSocket-Accept") {
                 if accept_key.as_bytes() != derive_accept_key(&key_cpy.as_bytes()).as_bytes() {
-                    console_log!("invalid accept key");
-                    return;
+                    panic!("invalid accept key");
                 }
             } else {
-                console_log!("no accept key");
-                return;
+                panic!("no accept key");
             }
 
             let cb_cpy = cb_cpy.clone();
@@ -168,7 +164,14 @@ where
                         Ok(msg) => msg,
                         Err(e) => {
                             match e {
-                                tungstenite::Error::Io(_) => (),
+                                tungstenite::Error::Io(err) => {
+                                    match err.kind() {
+                                        std::io::ErrorKind::WouldBlock => (),
+                                        err => {
+                                            console_log!("Error: {err:?}");
+                                        }
+                                    }
+                                },
                                 _ => console_log!(
                                     "error while reading from Websocket: {}",
                                     e.to_string()
@@ -193,13 +196,14 @@ where
                 }
             });
 
+            let interval = IntervalHandle::new(closure, 100);
             *state = WebsocketState::Connected(ConnectedStruct {
                 stream: Rc::new(RefCell::new(tungstenite::WebSocket::from_raw_socket(
                     stream,
                     tungstenite::protocol::Role::Client,
                     None,
                 ))),
-                _interval: IntervalHandle::new(closure, 0),
+                _interval: interval,
             });
         }));
 

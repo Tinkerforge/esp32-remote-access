@@ -65,6 +65,7 @@ impl Client {
         internap_peer_ip: &str,
         port: u16,
     ) -> Self {
+        // console_log::init_with_level(log::Level::Trace).unwrap();
         Self(
             WgClient::new(secret_str, peer_str, psk, url, internal_ip, internap_peer_ip, port),
             Rc::new(RefCell::new(VecDeque::new())),
@@ -120,23 +121,13 @@ impl Client {
     }
 
     #[wasm_bindgen]
-    pub fn start_inner_ws(&mut self) {
-        self.0.start_inner_ws();
+    pub fn start_inner_ws(&self, cb: js_sys::Function) {
+        self.0.clone().start_inner_ws(cb);
     }
 
     #[wasm_bindgen]
-    pub fn on_message(&mut self, cb: js_sys::Function) {
-        self.0
-            .websocket
-            .as_ref()
-            .unwrap()
-            .borrow_mut()
-            .on_message(cb);
-    }
-
-    #[wasm_bindgen]
-    pub fn disconnect_inner_ws(&mut self) {
-        self.0.disconnect_inner_ws();
+    pub fn disconnect_inner_ws(&self) {
+        self.0.clone().disconnect_inner_ws();
     }
 
     // leaks memory, for debugging only!!!
@@ -160,7 +151,7 @@ impl Client {
 struct WgClient {
     stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
     iface: Rc<RefCell<Interface<'static, WgTunDevice>>>,
-    websocket: Option<Rc<RefCell<Websocket<WgTunDevice>>>>,
+    websocket: Rc<RefCell<Option<Websocket<WgTunDevice>>>>,
     current_request: Rc<RefCell<Option<IntervalHandle<MessageEvent>>>>,
     request_queue: Rc<RefCell<VecDeque<Request>>>,
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
@@ -237,7 +228,7 @@ impl WgClient {
         Self {
             stream,
             iface,
-            websocket: None,
+            websocket: Rc::new(RefCell::new(None)),
             current_request: Rc::new(RefCell::new(None)),
             request_queue: Rc::new(RefCell::new(VecDeque::new())),
             pcap,
@@ -256,7 +247,7 @@ impl WgClient {
     /**
      * Creates a new Websocket object and connection that gets stored internally.
      */
-    fn start_inner_ws(&mut self) {
+    fn start_inner_ws(&mut self, cb: js_sys::Function) {
         let mut stream = TcpStream::new(self.iface.clone());
         let port = js_sys::Math::random() * 1000.0;
         let port = port as u16;
@@ -269,8 +260,9 @@ impl WgClient {
         } else {
             None
         };
-        let websocket = Websocket::connect(stream, auth_header).unwrap();
-        self.websocket = Some(Rc::new(RefCell::new(websocket)));
+        let mut websocket = Websocket::connect(stream, auth_header).unwrap();
+        websocket.on_message(cb);
+        *self.websocket.borrow_mut() = Some(websocket);
     }
 
     fn build_authentication_header(&self, method: &str, uri: &str) ->  String {
@@ -306,7 +298,7 @@ impl WgClient {
      response, fires a custom event when finished and either returns or proceeds with the next
      request.
     */
-    fn fetch(&mut self, js_request: web_sys::Request, url: String, in_id: Option<f64>, username: Option<String>, password: Option<String>) -> String {
+    fn fetch(&self, js_request: web_sys::Request, url: String, in_id: Option<f64>, username: Option<String>, password: Option<String>) -> String {
         let id;
         if let Some(in_id) = in_id {
             id = in_id;
@@ -361,7 +353,7 @@ impl WgClient {
             }
             let stream_cpy = stream_cpy.clone();
             let mut state = state_cpy.borrow_mut();
-            let mut self_cpy = self_cpy.clone();
+            let self_cpy = self_cpy.clone();
 
             match *state {
                 RequestState::Begin => {
@@ -500,7 +492,7 @@ impl WgClient {
                             console_log!("done");
                             *state = RequestState::Done;
                             let result = result.borrow_mut();
-                            let mut body =
+                            let body =
                                 if let Some(encoding) = resp.headers().get("Content-Encoding") {
                                     if encoding == "gzip" {
                                         let mut gz = GzDecoder::new(&result[..]);
@@ -553,11 +545,8 @@ impl WgClient {
                             response_init.headers(&headers);
                             response_init
                                 .status_text(resp.status().canonical_reason().unwrap_or(""));
-                            let response = web_sys::Response::new_with_opt_u8_array_and_init(
-                                Some(&mut body[..]),
-                                &response_init,
-                            )
-                            .unwrap();
+                            let array: js_sys::Uint8Array = (&body[..]).into();
+                            let response = web_sys::Response::new_with_opt_buffer_source_and_init(Some(&array), &response_init).unwrap();
                             let mut init = web_sys::CustomEventInit::new();
                             init.detail(&response.into());
                             let event = web_sys::CustomEvent::new_with_event_init_dict(
@@ -627,11 +616,12 @@ impl WgClient {
     }
 
     pub fn disconnect_inner_ws(&mut self) {
-        if let Some(socket) = self.websocket.clone() {
-            let socket = socket.borrow_mut();
+        console_log!("disconnecting inner ws");
+        let mut sock_ref = self.websocket.borrow_mut();
+        if let Some(socket) = &*sock_ref {
             socket.disconnect();
         }
-        self.websocket = None;
+        *sock_ref = None;
     }
 
     pub fn get_pcap_log(&self) -> Vec<u8> {

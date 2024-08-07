@@ -31,9 +31,8 @@ self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
         switch (e.data) {
             case "connect":
-                wgClient.disconnect_inner_ws();
-                wgClient.start_inner_ws();
-                wgClient.on_message(async (msg: any) => {
+                // wgClient.disconnect_inner_ws();
+                wgClient.start_inner_ws((msg: string) => {
                     self.postMessage({
                         type: 0,
                         data: msg
@@ -81,11 +80,12 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 response.headers.forEach((val, key) => {
                     headers.push([key, val]);
                 })
+
                 const response_msg: ResponseMessage = {
                     status: response.status,
                     statusText: response.statusText,
                     headers: headers,
-                    body: await response.arrayBuffer()
+                    body: await response.arrayBuffer(),
                 }
 
                 const msg: Message = {
