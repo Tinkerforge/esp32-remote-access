@@ -37,8 +37,6 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{CustomEvent, MessageEvent, Response};
 
-use crate::console_log;
-
 /**
  * The exported client struct. It Wraps the actual Client and a Queue to keep the needed
  * callbacks alive.
@@ -253,7 +251,7 @@ impl WgClient {
         let port = port as u16;
         let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), self.port);
         if let Err(err) = stream.connect(endpoint, port) {
-            console_log!("Error when connecting websocket: {}", err.to_string());
+            log::error!("Error when connecting websocket: {}", err.to_string());
         }
         let auth_header = if self.nonce.borrow().len() != 0 {
             Some(self.build_authentication_header("GET", "/ws"))
@@ -363,7 +361,7 @@ impl WgClient {
 
                     // FIXME: throw exception instead of panic
                     if let Err(err) = stream_cpy.upgrade().unwrap().borrow_mut().connect(endpoint, out_port) {
-                        console_log!("Error connecting to endpoint {}: {}", endpoint, err.to_string());
+                        log::error!("Error connecting to endpoint {}: {}", endpoint, err.to_string());
                         return;
                     }
                     *state = RequestState::Started;
@@ -489,7 +487,7 @@ impl WgClient {
                         // FIXME: throw exception instead of panic
                         Poll::Ready(Some(Err(e))) => panic!("error: {}", e),
                         Poll::Ready(None) => {
-                            console_log!("done");
+                            log::debug!("done");
                             *state = RequestState::Done;
                             let result = result.borrow_mut();
                             let body =
@@ -532,10 +530,10 @@ impl WgClient {
                                         },
                                         "qop" => {
                                             if val != "auth" {
-                                                console_log!("Got qop {val}, which is not supported");
+                                                log::error!("Got qop {val}, which is not supported");
                                             }
                                         }
-                                        v => console_log!("Got unknown value in www-authenticate header: {}", v)
+                                        v => log::info!("Got unknown value in www-authenticate header: {}", v)
                                     }
                                 }
                             }
@@ -616,7 +614,7 @@ impl WgClient {
     }
 
     pub fn disconnect_inner_ws(&mut self) {
-        console_log!("disconnecting inner ws");
+        log::debug!("disconnecting inner ws");
         let mut sock_ref = self.websocket.borrow_mut();
         if let Some(socket) = &*sock_ref {
             socket.disconnect();

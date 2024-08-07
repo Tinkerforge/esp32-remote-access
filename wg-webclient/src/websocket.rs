@@ -20,7 +20,6 @@
 use std::io::Read;
 use std::{cell::RefCell, io::Write, rc::Rc};
 
-use crate::console_log;
 use crate::interval_handle::IntervalHandle;
 use crate::stream::TcpStream;
 use crate::wg_device::IsUp;
@@ -169,7 +168,7 @@ where
                                     match err.kind() {
                                         std::io::ErrorKind::WouldBlock => (),
                                         err => {
-                                            console_log!("Error: {err:?}");
+                                            log::error!("Error: {err:?}");
                                         }
                                     }
                                 },
@@ -193,7 +192,7 @@ where
                         }
                     }
                     tungstenite::Message::Ping(_) => (),
-                    _ => console_log!("unhandled message: {:?}", message),
+                    _ => log::error!("unhandled message: {:?}", message),
                 }
             });
 

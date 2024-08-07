@@ -18,7 +18,6 @@
  */
 
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
-use crate::console_log;
 
 /**
     This is a helper struct to be able to automagically clear intervals once they are not needed anymore.
@@ -58,7 +57,7 @@ impl<T> Drop for IntervalHandle<T> {
         global.clear_interval_with_handle(self.interval_handle);
 
         if self.log_drop {
-            console_log!("Dropping interval");
+            log::debug!("Dropping interval");
         }
     }
 }

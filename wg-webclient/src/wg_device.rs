@@ -32,7 +32,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::{console_log, pcap_logging_enabled};
+use crate::pcap_logging_enabled;
 use crate::interval_handle::IntervalHandle;
 use web_sys::wasm_bindgen::closure::Closure;
 use web_sys::wasm_bindgen::{JsCast, JsValue};
@@ -93,14 +93,14 @@ impl WgTunDevice {
         let socket_state = Rc::new(RefCell::new(WsConnectionState::Disconnected));
 
         let socket = WebSocket::new(url)?;
-        console_log!("Parent WebSocket Created");
+        log::debug!("Parent WebSocket Created");
 
         let socket = Rc::new(socket);
         let onopen_socket = Rc::downgrade(&socket);
         let onopen_socket_state = Rc::downgrade(&socket_state);
         let onopen_tun = Rc::downgrade(&tun);
         let onopen = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            console_log!("Parent WebSocket Opened");
+            log::debug!("Parent WebSocket Opened");
             let onopen_socket_state = onopen_socket_state.upgrade().unwrap();
             *onopen_socket_state.borrow_mut() = WsConnectionState::Connected;
 
@@ -109,7 +109,7 @@ impl WgTunDevice {
             let mut buf = [0u8; 2048];
             match tun.format_handshake_initiation(&mut buf, false) {
                 TunnResult::WriteToNetwork(d) => {
-                    console_log!("Sending handshake initiation");
+                    log::debug!("Sending handshake initiation");
                     let onopen_socket = onopen_socket.upgrade().unwrap();
                     let _ = onopen_socket.send_with_u8_array(d);
                 }
@@ -120,7 +120,7 @@ impl WgTunDevice {
 
         let onclose_socket_state = Rc::downgrade(&socket_state);
         let onclose = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            console_log!("Parent WebSocket Closed");
+            log::debug!("Parent WebSocket Closed");
             *onclose_socket_state.upgrade().unwrap().borrow_mut() = WsConnectionState::Disconnected;
         });
         let onclose = Rc::new(onclose);
@@ -128,7 +128,7 @@ impl WgTunDevice {
 
         let onerror_socket_state = Rc::downgrade(&socket_state);
         let onerror = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            console_log!("Parent WebSocket Error");
+            log::error!("Parent WebSocket Error");
             *onerror_socket_state.upgrade().unwrap().borrow_mut() = WsConnectionState::Disconnected;
         });
         let onerror = Rc::new(onerror);
@@ -146,7 +146,7 @@ impl WgTunDevice {
             let data = match data.dyn_into::<web_sys::Blob>() {
                 Ok(blob) => blob,
                 Err(_) => {
-                    console_log!("Not a blob");
+                    log::error!("Not a blob");
                     return;
                 }
             };
@@ -162,7 +162,7 @@ impl WgTunDevice {
                 let value = match fr_cpy.result() {
                     Ok(v) => v,
                     Err(_) => {
-                        console_log!("Error reading file");
+                        log::error!("Error reading file");
                         return;
                     }
                 };
@@ -171,7 +171,7 @@ impl WgTunDevice {
                 let message_tun = message_tun.upgrade().unwrap();
                 let mut tun = message_tun.borrow_mut();
                 if data.is_empty() {
-                    console_log!("Empty data");
+                    log::error!("Empty data");
                     return;
                 }
 
@@ -253,7 +253,7 @@ impl WgTunDevice {
                         return;
                     }
                     TunnResult::Err(e) => {
-                        console_log!("Error: {:?}", e);
+                        log::error!("Error: {:?}", e);
                         return;
                     }
                     TunnResult::WriteToTunnelV4(d, _) => {
@@ -298,7 +298,7 @@ impl WgTunDevice {
                         }
                     }
                     _ => {
-                        console_log!("Unknown TunnResult");
+                        log::error!("Unknown TunnResult");
                         return;
                     }
                 }
@@ -475,11 +475,11 @@ impl phy::TxToken for WgTunPhyTxToken {
                 let _ = self.socket.send_with_u8_array(d);
             }
             TunnResult::Err(e) => {
-                console_log!("Error in recv: {:?}", e);
+                log::error!("Error in recv: {:?}", e);
                 return result;
             }
             _ => {
-                console_log!("Unknown TunnResult");
+                log::error!("Unknown TunnResult");
                 return result;
             }
         }
