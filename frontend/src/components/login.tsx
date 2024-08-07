@@ -146,7 +146,7 @@ export class Login extends Component<{}, LoginState> {
                         this.setState({password: (e.target as HTMLInputElement).value});
                     }}/>
                 </Form.Group>
-                <Button variant="primary" type="submit">
+                <Button variant="primary" type="submit" id="loginSubmit">
                     {t("login")}
                 </Button>
                 <a className="col mb-3 ms-3" href="" onClick={(e) => {

@@ -169,7 +169,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 <td>{charger.name}</td>
                 <td>{Base58.int_to_base58(charger.id)}</td>
                 <td>{charger.status === "Disconnected" ? t("status_disconnected") : t("status_connected")}</td>
-                <td><Button disabled={charger.status !== "Connected"} onClick={async () => {
+                <td><Button disabled={charger.status !== "Connected"} id={`connect-${charger.name}`} onClick={async () => {
                     await this.connect_to_charger(charger);
                 }} variant="primary">{t("connect")}</Button></td>
                 <td><Button onClick={async () => {

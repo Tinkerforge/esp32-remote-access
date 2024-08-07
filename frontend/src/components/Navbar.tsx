@@ -56,10 +56,11 @@ export function CustomNavbar() {
                     {connected.value ? <></> : nav}
                     <a style="color: #ff0000" class="pe-2">Prerelease</a>
                     <Button variant="primary"
-                    onClick={() => {
-                        connected.value = false;
-                        connected_to.value = "";
-                    }} hidden={!connected.value}>{t("close")}</Button>
+                        id="closeConnection"
+                        onClick={() => {
+                            connected.value = false;
+                            connected_to.value = "";
+                        }} hidden={!connected.value}>{t("close")}</Button>
             </Container>
         </Navbar>
     )
