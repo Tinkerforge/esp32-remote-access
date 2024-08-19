@@ -74,6 +74,20 @@ async fn invalidate_wg_keys(state: &web::Data<AppState>, uid: Uuid) -> actix_web
     .await
 }
 
+async fn invalidate_chargers(state: &web::Data<AppState>, uid: Uuid) -> actix_web::Result<()> {
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::allowed_users::dsl::*;
+
+        match diesel::update(allowed_users.filter(user_id.eq(uid))).set(valid.eq(false)).execute(&mut conn) {
+            Ok(_) => Ok(()),
+            Err(_err) => {
+                Err(Error::InternalError)
+            }
+        }
+    }).await
+}
+
 // Recover an account
 #[utoipa::path(
     context_path = "/auth",
@@ -98,6 +112,7 @@ pub async fn recovery(
 
     if !data.reused_secret {
         invalidate_wg_keys(&state, user_id).await?;
+        invalidate_chargers(&state, user_id).await?;
     }
 
     let mut conn = get_connection(&state)?;
@@ -135,7 +150,7 @@ mod tests {
         test::{self, TestRequest},
         App,
     };
-    use db_connector::{models::wg_keys::WgKey, test_connection_pool};
+    use db_connector::{models::{allowed_users::AllowedUser, wg_keys::WgKey}, test_connection_pool};
     use diesel::prelude::*;
     use libsodium_sys::{
         crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES,
@@ -147,7 +162,7 @@ mod tests {
             auth::start_recovery::tests::start_test_recovery,
             user::{
                 get_secret::tests::get_test_secret,
-                tests::{generate_random_bytes_len, hash_test_key, TestUser},
+                tests::{generate_random_bytes_len, get_test_uuid, hash_test_key, TestUser},
             },
         },
         tests::configure,
@@ -339,6 +354,19 @@ mod tests {
             let res: Vec<WgKey> = wg_keys
                 .filter(charger_id.eq(cid))
                 .select(WgKey::as_select())
+                .load(&mut conn)
+                .unwrap();
+            assert_eq!(res.len(), 0);
+        }
+        {
+            use db_connector::schema::allowed_users::dsl::*;
+
+            let pool = test_connection_pool();
+            let mut conn = pool.get().unwrap();
+            let res: Vec<AllowedUser> = allowed_users
+                .filter(user_id.eq(get_test_uuid(&user.mail)))
+                .filter(valid.eq(true))
+                .select(AllowedUser::as_select())
                 .load(&mut conn)
                 .unwrap();
             assert_eq!(res.len(), 0);

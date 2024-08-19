@@ -147,7 +147,7 @@ pub async fn add(
 
     let (pub_key, password) = if charger_exists(charger_id, &state).await? {
         if charger_belongs_to_user(&state, uid.clone().into(), charger_id).await? {
-            update_charger(charger_schema.charger.clone(), charger_id, &state).await?
+            update_charger(charger_schema.charger.clone(), charger_id, uid.clone().into(), &state).await?
         } else {
             return Err(Error::UserIsNotOwner.into());
         }
@@ -231,6 +231,7 @@ pub fn password_matches(password: String, password_in_db: String) -> actix_web::
 async fn update_charger(
     charger: ChargerSchema,
     charger_id: i32,
+    uid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<(String, String)> {
     use db_connector::schema::wg_keys::dsl as wg_keys;
@@ -249,6 +250,20 @@ async fn update_charger(
     .await?;
 
     let (password, hash) = generate_password().await?;
+
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::allowed_users::dsl as allowed_users;
+
+        match diesel::update(allowed_users::allowed_users.filter(allowed_users::charger_id.eq(charger_id)).filter(allowed_users::user_id.eq(uid)))
+            .set(allowed_users::valid.eq(true))
+            .execute(&mut conn) {
+                Ok(_) => Ok(()),
+                Err(_err) => {
+                    return Err(Error::InternalError)
+                }
+            }
+    }).await?;
 
     let mut conn = get_connection(state)?;
     let pub_key = web_block_unpacked(move || {
@@ -342,6 +357,7 @@ async fn add_charger(
             user_id: uid,
             charger_id: charger.id,
             is_owner: true,
+            valid: true,
         };
 
         match diesel::insert_into(allowed_users::allowed_users)

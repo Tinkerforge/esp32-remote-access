@@ -11,4 +11,5 @@ pub struct AllowedUser {
     pub user_id: uuid::Uuid,
     pub charger_id: i32,
     pub is_owner: bool,
+    pub valid: bool,
 }

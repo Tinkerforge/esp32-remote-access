@@ -6,6 +6,7 @@ diesel::table! {
         user_id -> Uuid,
         charger_id -> Int4,
         is_owner -> Bool,
+        valid -> Bool,
     }
 }
 

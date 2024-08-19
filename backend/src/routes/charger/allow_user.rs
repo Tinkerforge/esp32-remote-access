@@ -68,6 +68,7 @@ pub async fn allow_user(
             user_id: allowed_uuid,
             charger_id: allow_user.charger_id,
             is_owner: false,
+            valid: false,
         };
 
         match diesel::insert_into(allowed_users)
