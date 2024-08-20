@@ -16,6 +16,7 @@ interface Charger {
     name: string,
     status: string,
     port: number,
+    valid: boolean,
 }
 
 interface ChargerListComponentState {
@@ -37,6 +38,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             name: "",
             status: "",
             port: 0,
+            valid: true,
         };
         this.state = {
             chargers: [],
@@ -127,6 +129,16 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         }
     }
 
+    connection_possible(charger: Charger) {
+        let connection_possible = true;
+        console.log(charger.status, charger.valid);
+        if (charger.status !== "Connected" || charger.valid === false) {
+            connection_possible = false;
+        }
+        console.log(connection_possible);
+        return connection_possible;
+    }
+
     create_card(charger: Charger) {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         return <>
@@ -134,7 +146,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 <Card.Header className="d-flex justify-content-between align-items-center p-2d5">
                     <h5 class="text-break" style="margin-bottom: 0;">{charger.name}</h5>
                     <div style="white-space: nowrap; vertical-align: middle;">
-                        <Button className="me-2" variant="primary" disabled={charger.status !== "Connected"} onClick={async () => {
+                        <Button className="me-2" variant="primary" disabled={!this.connection_possible(charger)} onClick={async () => {
                             await this.connect_to_charger(charger);
                         }}><Monitor/></Button>
                         <Button variant="danger" onClick={async () => {
@@ -154,6 +166,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                             <td>{charger.status === "Disconnected" ? t("status_disconnected") : t("status_connected")}</td>
                         </tr>
                     </table>
+                    <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
                 </Card.Body>
             </Card>
         </>
@@ -169,9 +182,9 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 <td>{charger.name}</td>
                 <td>{Base58.int_to_base58(charger.id)}</td>
                 <td>{charger.status === "Disconnected" ? t("status_disconnected") : t("status_connected")}</td>
-                <td><Button disabled={charger.status !== "Connected"} id={`connect-${charger.name}`} onClick={async () => {
+                <td><Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
                     await this.connect_to_charger(charger);
-                }} variant="primary">{t("connect")}</Button></td>
+                }} variant="primary">{t("connect")}</Button><p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p></td>
                 <td><Button onClick={async () => {
                     this.removal_charger = charger;
                     this.setState({showModal: true})

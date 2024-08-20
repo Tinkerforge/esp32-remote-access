@@ -19,7 +19,7 @@
 
 use actix_web::{get, web, HttpResponse, Responder};
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger};
-use diesel::prelude::*;
+use diesel::{prelude::*, result::Error::NotFound};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -42,6 +42,7 @@ pub struct GetChargerSchema {
     name: String,
     status: ChargerStatus,
     port: i32,
+    valid: bool,
 }
 
 /// Get all chargers that the current user has access to.
@@ -67,23 +68,41 @@ pub async fn get_chargers(
     let user = get_user(&state, uid.into()).await?;
 
     let mut conn = get_connection(&state)?;
-    let charger: Vec<Charger> = web_block_unpacked(move || {
+    let charger: Vec<(Charger, AllowedUser)> = web_block_unpacked(move || {
+        let allowed_users: Vec<AllowedUser> = match AllowedUser::belonging_to(&user).select(AllowedUser::as_select()).load(&mut conn) {
+            Ok(d) => d,
+            Err(NotFound) => Vec::new(),
+            Err(_err) => {
+                return Err(Error::InternalError)
+            }
+        };
         let charger_ids = AllowedUser::belonging_to(&user).select(allowed_users::charger_id);
-        match chargers::chargers
+        let chargers: Vec<Charger> = match chargers::chargers
             .filter(chargers::id.eq_any(charger_ids))
             .select(Charger::as_select())
             .load(&mut conn)
         {
-            Ok(v) => Ok(v),
-            Err(_err) => Err(Error::InternalError),
-        }
+            Ok(v) => v,
+            Err(_err) => {
+                return Err(Error::InternalError)
+            },
+        };
+
+        let chargers_by_users: Vec<(Charger, AllowedUser)> = allowed_users
+            .grouped_by(&chargers)
+            .into_iter()
+            .zip(chargers)
+            .map(|(allowed_users, charger)| (charger, allowed_users[0].clone()))
+            .collect();
+
+        Ok(chargers_by_users)
     })
     .await?;
 
     let charger_map = bridge_state.charger_management_map_with_id.lock().unwrap();
     let charger = charger
         .into_iter()
-        .map(|c| {
+        .map(|(c, allowed_user)| {
             let status = if charger_map.contains_key(&c.id) {
                 ChargerStatus::Connected
             } else {
@@ -95,6 +114,7 @@ pub async fn get_chargers(
                 name: c.name,
                 status,
                 port: c.webinterface_port,
+                valid: allowed_user.valid,
             }
         })
         .collect::<Vec<GetChargerSchema>>();

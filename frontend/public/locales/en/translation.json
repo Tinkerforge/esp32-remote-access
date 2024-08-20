@@ -29,6 +29,7 @@
         "connect": "Connect",
         "remove": "Remove",
         "close": "Close",
+        "no_keys": "You need to register this charger again.",
         "connect_error_text": "Connecting to charger {{charger_id}} failed with code {{status}}: {{response}}",
         "remove_error_text": "Removing charger {{charger_id}} failed with code {{status}}: {{response}}",
         "delete_modal_heading": "Remove charger {{name}}",
