@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{collections::HashSet, time::{Instant, SystemTime, UNIX_EPOCH}};
 
 use actix_web::{error::ErrorUnauthorized, put, web, HttpRequest, HttpResponse, Responder};
 use db_connector::models::wg_keys::WgKey;
@@ -154,6 +154,12 @@ pub async fn management(
     };
     let configured_connections = update_configured_connections(&state, charger.id, configured_connections).await?;
 
+    {
+        let mut map = bridge_state.undiscovered_chargers.lock().unwrap();
+        let set = map.entry(ip).or_insert(HashSet::new());
+        set.insert(crate::DiscoveryCharger { id: charger.id, last_request: Instant::now() });
+    }
+
     let mut conn = get_connection(&state)?;
     let keys_in_use: Vec<WgKey> = web_block_unpacked(move || {
         use db_connector::schema::wg_keys::dsl::*;
@@ -187,7 +193,6 @@ pub async fn management(
         }
     }
 
-
     let (fw_version, port) = match &data.data {
         ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port)
     };
@@ -195,7 +200,7 @@ pub async fn management(
     web_block_unpacked(move || {
         match diesel::update(chargers::chargers)
             .filter(chargers::id.eq(data.id))
-            .set((chargers::last_ip.eq(Some(ip)), chargers::firmware_version.eq(fw_version), chargers::webinterface_port.eq(port as i32)))
+            .set((chargers::firmware_version.eq(fw_version), chargers::webinterface_port.eq(port as i32)))
             .execute(&mut conn)
         {
             Ok(_) => Ok(()),

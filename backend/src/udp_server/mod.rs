@@ -24,14 +24,15 @@ pub mod packet;
 pub mod socket;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     net::SocketAddr,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
-use crate::{udp_server::multiplex::run_server, BridgeState};
+use crate::{udp_server::multiplex::run_server, BridgeState, DiscoveryCharger};
 use actix_web::web;
+use ipnetwork::IpNetwork;
 use packet::ManagementResponse;
 use threadpool::ThreadPool;
 
@@ -44,6 +45,7 @@ fn start_rate_limiters_reset_thread(
     charger_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
     charger_map_id: Arc<Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>>,
     discovery_map: Arc<Mutex<HashMap<ManagementResponse, Instant>>>,
+    undiscovered_chargers:  Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
 ) {
     std::thread::spawn(move || loop {
         {
@@ -75,6 +77,33 @@ fn start_rate_limiters_reset_thread(
             }
             for cmd in to_remove.iter() {
                 map.remove(cmd);
+            }
+        }
+        {
+            let mut map = undiscovered_chargers.lock().unwrap();
+            let to_remove: Vec<Option<IpNetwork>> = map.iter_mut().map(|(ip, chargers)| {
+                let to_remove: Vec<Option<DiscoveryCharger>> = chargers.iter().map(|charger| {
+                    if charger.last_request.elapsed() > Duration::from_secs(60) {
+                        Some(charger.to_owned())
+                    } else {
+                        None
+                    }
+                }).collect();
+                let _ = to_remove.into_iter().map(|charger| {
+                    if let Some(charger) = charger {
+                        chargers.remove(&charger);
+                    }
+                });
+                if chargers.is_empty() {
+                    Some(ip.to_owned())
+                } else {
+                    None
+                }
+            }).collect();
+            for ip in to_remove.into_iter() {
+                if let Some(ip) = ip {
+                    map.remove(&ip);
+                }
             }
         }
         std::thread::sleep(Duration::from_secs(10));

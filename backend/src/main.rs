@@ -31,7 +31,6 @@ use actix_web::{middleware::Logger, web, App, HttpServer};
 use chrono::Utc;
 use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
-use ipnetwork::IpNetwork;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket, ManagementPacketHeader};
@@ -110,14 +109,6 @@ async fn main() -> std::io::Result<()> {
     let pool = get_connection_pool();
     let mut conn = pool.get().expect("Failed to get connection from pool");
     run_migrations(&mut conn).expect("Failed to run migrations");
-    let mut conn = pool.get().unwrap();
-    {
-        use db_connector::schema::chargers::dsl::*;
-        diesel::update(chargers)
-            .set(last_ip.eq::<Option<IpNetwork>>(None))
-            .execute(&mut conn)
-            .unwrap();
-    }
 
     reset_wg_keys(&pool);
 
@@ -149,6 +140,7 @@ async fn main() -> std::io::Result<()> {
         charger_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
         port_discovery: Arc::new(Mutex::new(HashMap::new())),
         charger_remote_conn_map: Mutex::new(HashMap::new()),
+        undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
         socket: UdpSocket::bind("0.0.0.0:51820").unwrap(),
     });
 

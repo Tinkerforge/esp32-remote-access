@@ -69,10 +69,19 @@ fn create_tunn(
     let mut conn = state.pool.get()?;
 
     let ip = IpNetwork::new(addr.ip(), 32)?;
-    let chargers: Vec<Charger> = chargers::chargers
-        .filter(chargers::last_ip.eq(ip))
-        .select(Charger::as_select())
-        .load(&mut conn)?;
+
+    let chargers: Vec<Charger> = {
+        let map = state.undiscovered_chargers.lock().unwrap();
+        if let Some(set) = map.get(&ip) {
+            let charger_ids: Vec<i32> = set.iter().map(|c| c.id).collect();
+            chargers::chargers
+            .filter(chargers::id.eq_any(charger_ids))
+            .select(Charger::as_select())
+            .load(&mut conn)?
+        } else {
+            return Err(anyhow::Error::msg(Error::UnknownPeer));
+        }
+    };
 
     let mut dst = vec![0u8; data.len()];
     for charger in chargers.into_iter() {
@@ -184,6 +193,7 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
         state.charger_management_map.clone(),
         state.charger_management_map_with_id.clone(),
         state.port_discovery.clone(),
+        state.undiscovered_chargers.clone(),
     );
 
     let mut buf = vec![0u8; 65535];

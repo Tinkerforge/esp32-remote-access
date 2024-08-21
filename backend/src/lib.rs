@@ -18,7 +18,7 @@
  */
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     net::{SocketAddr, UdpSocket},
     sync::{Arc, Mutex},
     time::Instant,
@@ -26,6 +26,7 @@ use std::{
 
 use actix::prelude::*;
 use db_connector::Pool;
+use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
 use udp_server::{
     management::RemoteConnMeta, packet::ManagementResponse, socket::ManagementSocket,
@@ -41,6 +42,12 @@ pub mod udp_server;
 pub mod utils;
 pub mod ws_udp_bridge;
 
+#[derive(Hash, PartialEq, Eq, Clone)]
+pub struct DiscoveryCharger {
+    pub id: i32,
+    pub last_request: Instant,
+}
+
 pub struct BridgeState {
     pub pool: Pool,
     pub web_client_map: Mutex<HashMap<SocketAddr, Recipient<Message>>>,
@@ -49,6 +56,7 @@ pub struct BridgeState {
     pub charger_management_map_with_id: Arc<Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>>,
     pub port_discovery: Arc<Mutex<HashMap<ManagementResponse, Instant>>>,
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
+    pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     pub socket: UdpSocket,
 }
 
@@ -129,6 +137,7 @@ pub(crate) mod tests {
             charger_remote_conn_map: Mutex::new(HashMap::new()),
             undiscovered_clients: Mutex::new(HashMap::new()),
             web_client_map: Mutex::new(HashMap::new()),
+            undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
             socket: UdpSocket::bind(("0", 0)).unwrap(),
         };
 
