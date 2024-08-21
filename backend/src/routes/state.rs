@@ -1,9 +1,10 @@
-use std::net::SocketAddr;
+use std::{collections::{HashMap, HashSet}, net::SocketAddr};
 
 use actix_web::{get, web, HttpResponse, Responder};
+use ipnetwork::IpNetwork;
 use serde::Serialize;
 
-use crate::{udp_server::{management::RemoteConnMeta, packet::ManagementResponse}, BridgeState};
+use crate::{udp_server::{management::RemoteConnMeta, packet::ManagementResponse}, BridgeState, DiscoveryCharger};
 
 #[derive(Serialize, Debug)]
 struct ServerState {
@@ -13,6 +14,7 @@ struct ServerState {
     charger_management_map_with_id: Vec<i32>,
     port_discovery: Vec<ManagementResponse>,
     charger_remote_conn_map: Vec<RemoteConnMeta>,
+    undiscovered_chargers: HashMap<IpNetwork, HashSet<DiscoveryCharger>>,
 }
 
 #[get("/state")]
@@ -47,6 +49,11 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         charger_remote_conn_map.iter().map(|(meta, _)| meta.clone()).collect()
     };
 
+    let undiscovered_chargers = {
+        let map = brige_state.undiscovered_chargers.lock().unwrap();
+        map.clone()
+    };
+
     let state = ServerState {
         clients,
         undiscovered_clients,
@@ -54,6 +61,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         port_discovery,
         charger_management_map_with_id,
         charger_remote_conn_map,
+        undiscovered_chargers,
     };
 
     Ok(HttpResponse::Ok().json(state))

@@ -28,6 +28,7 @@ use actix::prelude::*;
 use db_connector::Pool;
 use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
+use serde::{ser::SerializeStruct, Serialize};
 use udp_server::{
     management::RemoteConnMeta, packet::ManagementResponse, socket::ManagementSocket,
 };
@@ -42,10 +43,21 @@ pub mod udp_server;
 pub mod utils;
 pub mod ws_udp_bridge;
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct DiscoveryCharger {
     pub id: i32,
     pub last_request: Instant,
+}
+
+impl Serialize for DiscoveryCharger {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        let mut s = serializer.serialize_struct("DiscoveryCharger", 2)?;
+        s.serialize_field("id", &self.id)?;
+        s.serialize_field("alive_since", &self.last_request.elapsed().as_secs())?;
+        s.end()
+    }
 }
 
 pub struct BridgeState {
