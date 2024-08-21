@@ -13,6 +13,14 @@ import { Monitor, Trash2 } from "react-feather";
 
 interface Charger {
     id: number,
+    name: number[],
+    status: string,
+    port: number,
+    valid: boolean,
+}
+
+interface StateCharger {
+    id: number,
     name: string,
     status: string,
     port: number,
@@ -20,7 +28,7 @@ interface Charger {
 }
 
 interface ChargerListComponentState {
-    chargers: Charger[],
+    chargers: StateCharger[],
     showModal: boolean
 }
 
@@ -29,7 +37,9 @@ export const connected_to = signal("");
 
 export class ChargerListComponent extends Component<{}, ChargerListComponentState> {
 
-    removal_charger: Charger;
+    removal_charger: StateCharger;
+    secret: Uint8Array;
+    pub_key: Uint8Array;
     constructor() {
         super();
 
@@ -48,20 +58,29 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         fetch(BACKEND + "/charger/get_chargers", {
             credentials: "include"
         }).then(async (resp) => {
-            this.setState({chargers: await resp.json()});
+            await this.get_decrypted_secret();
+            const chargers: Charger[] = await resp.json();
+            const state_chargers = [];
+            for (const charger of chargers) {
+                const state_charger: StateCharger = {
+                    id: charger.id,
+                    name: this.decrypt_name(charger.name),
+                    status: charger.status,
+                    port: charger.port,
+                    valid: charger.valid,
+                }
+                state_chargers.push(state_charger);
+            }
+            this.setState({chargers: state_chargers});
         });
     }
 
-    async decrypt_keys(keys: any, secret_data: any) {
-        const encoded_key = localStorage.getItem("secret_key");
-        const secret_key = Base64.toUint8Array(encoded_key);
-        const secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret_data.secret), new Uint8Array(secret_data.secret_nonce), secret_key);
-
-        const public_key = sodium.crypto_scalarmult_base(new Uint8Array(secret));
-        const web_private = sodium.crypto_box_seal_open(new Uint8Array(keys.web_private), public_key, new Uint8Array(secret));
+    async decrypt_keys(keys: any) {
+        const public_key = sodium.crypto_scalarmult_base(this.secret);
+        const web_private = sodium.crypto_box_seal_open(new Uint8Array(keys.web_private), public_key, this.secret);
         const decoder = new TextDecoder();
         const web_private_string = decoder.decode(web_private);
-        const psk = sodium.crypto_box_seal_open(new Uint8Array(keys.psk), public_key, new Uint8Array(secret));
+        const psk = sodium.crypto_box_seal_open(new Uint8Array(keys.psk), public_key, this.secret);
         const psk_string = decoder.decode(psk);
 
         return {
@@ -70,15 +89,24 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         };
     }
 
-    async connect_to_charger(charger: Charger) {
+    async get_decrypted_secret() {
         const t = i18n.t;
         const get_secret_resp = await fetch(BACKEND + "/user/get_secret", {
             credentials: "include"
         });
         if (get_secret_resp.status !== 200) {
-            showAlert(t("connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: get_secret_resp.status, text: await get_secret_resp.text()}), "danger");
+            showAlert(t("alert_default_text"), "danger");
             return;
         }
+        const encoded_key = localStorage.getItem("secret_key");
+        const secret_key = Base64.toUint8Array(encoded_key);
+        const secret_data = await get_secret_resp.json();
+        this.secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret_data.secret), new Uint8Array(secret_data.secret_nonce), secret_key);
+        this.pub_key = sodium.crypto_scalarmult_base(this.secret);
+    }
+
+    async connect_to_charger(charger: StateCharger) {
+        const t = i18n.t;
 
         const resp = await fetch(BACKEND + "/charger/get_key?cid=" + charger.id, {
             credentials: "include"
@@ -90,7 +118,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
 
         const json = await resp.json();
 
-        const ret = await this.decrypt_keys(json, await get_secret_resp.json());
+        const ret = await this.decrypt_keys(json);
 
         charger_info.value = {
             self_key: ret.web_private_string,
@@ -129,7 +157,16 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         }
     }
 
-    connection_possible(charger: Charger) {
+    decrypt_name(name: number[]) {
+        if (!name) {
+            return "";
+        }
+        const decrypted_name =  sodium.crypto_box_seal_open(new Uint8Array(name), this.pub_key, this.secret);
+        const decoder = new TextDecoder();
+        return decoder.decode(decrypted_name);
+    }
+
+    connection_possible(charger: StateCharger) {
         let connection_possible = true;
         console.log(charger.status, charger.valid);
         if (charger.status !== "Connected" || charger.valid === false) {
@@ -139,7 +176,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         return connection_possible;
     }
 
-    create_card(charger: Charger) {
+    create_card(charger: StateCharger) {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         return <>
             <Card className="mb-2">

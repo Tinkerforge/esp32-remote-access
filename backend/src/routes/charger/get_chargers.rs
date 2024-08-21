@@ -39,7 +39,7 @@ enum ChargerStatus {
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetChargerSchema {
     id: i32,
-    name: String,
+    name: Option<Vec<u8>>,
     status: ChargerStatus,
     port: i32,
     valid: bool,

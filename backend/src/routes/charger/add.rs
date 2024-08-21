@@ -53,7 +53,7 @@ pub struct Keys {
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct ChargerSchema {
     pub id: String,
-    pub name: String,
+    pub name: Vec<u8>,
     pub charger_pub: String,
     #[schema(value_type = SchemaType::String)]
     pub wg_charger_ip: IpNetwork,
@@ -275,7 +275,7 @@ async fn update_charger(
         let charger = Charger {
             id: charger_id,
             password: hash,
-            name: charger.name,
+            name: Some(charger.name),
             charger_pub: charger.charger_pub,
             management_private: private_key,
             wg_charger_ip: charger.wg_charger_ip,
@@ -332,7 +332,7 @@ async fn add_charger(
         let charger = Charger {
             id: charger_id,
             password: hash,
-            name: charger.name,
+            name: Some(charger.name),
             charger_pub: charger.charger_pub,
             management_private: private_key,
             wg_charger_ip: charger.wg_charger_ip,
@@ -481,7 +481,7 @@ pub(crate) mod tests {
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 id,
-                name: uuid::Uuid::new_v4().to_string(),
+                name: uuid::Uuid::new_v4().as_bytes().to_vec(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -524,7 +524,7 @@ pub(crate) mod tests {
                 id: bs58::encode(cid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".to_string(),
+                name: "Test".as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -572,7 +572,7 @@ pub(crate) mod tests {
                 id: bs58::encode(charger_id.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".to_string(),
+                name: "Test".to_string().as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -628,7 +628,7 @@ pub(crate) mod tests {
                 id: bs58::encode(charger_id.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".to_string(),
+                name: "Test".as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -673,7 +673,7 @@ pub(crate) mod tests {
                 id: bs58::encode(charger.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".to_string(),
+                name: "Test".as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -728,7 +728,7 @@ pub(crate) mod tests {
                 id: bs58::encode((OsRng.next_u32() as i32).to_le_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".to_string(),
+                name: "Test".as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),

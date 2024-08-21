@@ -7,7 +7,7 @@ use ipnetwork::IpNetwork;
 pub struct Charger {
     pub id: i32,
     pub password: String,
-    pub name: String,
+    pub name: Option<Vec<u8>>,
     pub management_private: String,
     pub charger_pub: String,
     pub wg_charger_ip: IpNetwork,

@@ -14,7 +14,6 @@ diesel::table! {
     chargers (id) {
         id -> Int4,
         password -> Varchar,
-        name -> Varchar,
         management_private -> Varchar,
         charger_pub -> Varchar,
         psk -> Varchar,
@@ -22,6 +21,7 @@ diesel::table! {
         wg_server_ip -> Inet,
         webinterface_port -> Int4,
         firmware_version -> Varchar,
+        name -> Nullable<Bytea>,
     }
 }
 
