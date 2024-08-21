@@ -89,11 +89,11 @@ fn start_rate_limiters_reset_thread(
                         None
                     }
                 }).collect();
-                let _ = to_remove.into_iter().map(|charger| {
-                    if let Some(charger) = charger {
-                        chargers.remove(&charger);
+                for c in to_remove.iter() {
+                    if let Some(c) = c {
+                        chargers.remove(c);
                     }
-                });
+                }
                 if chargers.is_empty() {
                     Some(ip.to_owned())
                 } else {
