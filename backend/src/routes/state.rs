@@ -15,6 +15,7 @@ struct ServerState {
     port_discovery: Vec<ManagementResponse>,
     charger_remote_conn_map: Vec<RemoteConnMeta>,
     undiscovered_chargers: HashMap<IpNetwork, HashSet<DiscoveryCharger>>,
+    lost_connections: Vec<i32>,
 }
 
 #[get("/state")]
@@ -54,6 +55,11 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         map.clone()
     };
 
+    let lost_connections: Vec<i32> = {
+        let map = brige_state.lost_connections.lock().unwrap();
+        map.iter().map(|(id, _)| id.to_owned()).collect()
+    };
+
     let state = ServerState {
         clients,
         undiscovered_clients,
@@ -62,6 +68,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         charger_management_map_with_id,
         charger_remote_conn_map,
         undiscovered_chargers,
+        lost_connections,
     };
 
     Ok(HttpResponse::Ok().json(state))

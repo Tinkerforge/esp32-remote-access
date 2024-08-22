@@ -190,6 +190,9 @@ pub async fn management(
                     bridge_state.port_discovery.clone(),
                 )?;
             }
+        } else if !keys_in_use.is_empty() {
+            let mut lost_map = bridge_state.lost_connections.lock().unwrap();
+            let _ = lost_map.insert(data.id ,keys_in_use);
         }
     }
 

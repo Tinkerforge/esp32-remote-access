@@ -177,22 +177,29 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
             charger_id: self.charger_id.clone(),
             conn_no: self.conn_no,
         };
-        let mut map = self.bridge_state.charger_remote_conn_map.lock().unwrap();
+        {
+            let mut map = self.bridge_state.charger_remote_conn_map.lock().unwrap();
 
-        match self.peer_sock_addr {
-            Some(addr) => {
-                let mut map = self.bridge_state.web_client_map.lock().unwrap();
-                map.remove(&addr);
-            }
-            None => {
-                if let Some(addr) = map.get(&meta) {
+            match self.peer_sock_addr {
+                Some(addr) => {
                     let mut map = self.bridge_state.web_client_map.lock().unwrap();
                     map.remove(&addr);
                 }
-            }
-        };
+                None => {
+                    if let Some(addr) = map.get(&meta) {
+                        let mut map = self.bridge_state.web_client_map.lock().unwrap();
+                        map.remove(&addr);
+                    }
+                }
+            };
 
-        map.remove(&meta);
+            map.remove(&meta);
+        }
+
+        {
+            let mut lost_map = self.bridge_state.lost_connections.lock().unwrap();
+            let _ = lost_map.remove(&self.charger_id);
+        }
 
         {
             let command = ManagementCommand {

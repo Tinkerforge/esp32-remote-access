@@ -141,6 +141,7 @@ async fn main() -> std::io::Result<()> {
         port_discovery: Arc::new(Mutex::new(HashMap::new())),
         charger_remote_conn_map: Mutex::new(HashMap::new()),
         undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
+        lost_connections: Mutex::new(HashMap::new()),
         socket: UdpSocket::bind("0.0.0.0:51820").unwrap(),
     });
 
