@@ -196,7 +196,7 @@ where
                 }
             });
 
-            let interval = IntervalHandle::new(closure, 100);
+            let interval = IntervalHandle::new(closure, 0);
             let ws = if cursor == read {
                 tungstenite::WebSocket::from_raw_socket(
                     stream,
