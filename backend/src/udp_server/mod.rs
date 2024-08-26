@@ -60,11 +60,24 @@ fn start_rate_limiters_reset_thread(
                 charger.reset_rate_limiter();
             }
             for addr in to_remove.into_iter() {
-                log::debug!("Charger {} has timeouted and will be removed.", addr);
                 let charger = charger_map.remove(&addr).unwrap();
                 let charger = charger.lock().unwrap();
                 let mut map = charger_map_id.lock().unwrap();
-                map.remove(&charger.id());
+                let (remove, id) = if let Some(c) = map.get(&charger.id()) {
+                    let _ = drop(charger);
+                    let charger = c.lock().unwrap();
+                    if charger.last_seen() > Duration::from_secs(30) {
+                        (true, charger.id())
+                    } else {
+                        (false, 0)
+                    }
+                } else {
+                    (false, 0)
+                };
+                if remove {
+                    log::debug!("Charger {} has timeouted and will be removed.", id);
+                    map.remove(&id);
+                }
             }
         }
         {
