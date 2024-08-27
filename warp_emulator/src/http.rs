@@ -125,7 +125,7 @@ pub async fn add_charger(access_token: &String, secret: &[u8], base_url: &String
         wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(123, 123, 123, 3), 24).unwrap()),
         wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(123, 123, 123, 4), 24).unwrap()),
         id: bs58::encode(ID.to_be_bytes()).with_alphabet(bs58::Alphabet::FLICKR).into_string(),
-        name: "Emulator".to_owned(),
+        name: "Emulator".as_bytes().to_vec(),
         charger_pub: engine.encode(local_management_pub.as_bytes()),
         psk: engine.encode(local_management_psk.as_bytes()),
     };
