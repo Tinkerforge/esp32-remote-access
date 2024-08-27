@@ -147,7 +147,13 @@ pub async fn add(
 
     let (pub_key, password) = if charger_exists(charger_id, &state).await? {
         if charger_belongs_to_user(&state, uid.clone().into(), charger_id).await? {
-            update_charger(charger_schema.charger.clone(), charger_id, uid.clone().into(), &state).await?
+            update_charger(
+                charger_schema.charger.clone(),
+                charger_id,
+                uid.clone().into(),
+                &state,
+            )
+            .await?
         } else {
             return Err(Error::UserIsNotOwner.into());
         }
@@ -255,15 +261,19 @@ async fn update_charger(
     web_block_unpacked(move || {
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
-        match diesel::update(allowed_users::allowed_users.filter(allowed_users::charger_id.eq(charger_id)).filter(allowed_users::user_id.eq(uid)))
-            .set(allowed_users::valid.eq(true))
-            .execute(&mut conn) {
-                Ok(_) => Ok(()),
-                Err(_err) => {
-                    return Err(Error::InternalError)
-                }
-            }
-    }).await?;
+        match diesel::update(
+            allowed_users::allowed_users
+                .filter(allowed_users::charger_id.eq(charger_id))
+                .filter(allowed_users::user_id.eq(uid)),
+        )
+        .set(allowed_users::valid.eq(true))
+        .execute(&mut conn)
+        {
+            Ok(_) => Ok(()),
+            Err(_err) => return Err(Error::InternalError),
+        }
+    })
+    .await?;
 
     let mut conn = get_connection(state)?;
     let pub_key = web_block_unpacked(move || {

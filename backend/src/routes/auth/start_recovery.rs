@@ -34,7 +34,10 @@ fn send_email(
     mailer: SmtpTransport,
     frontend_url: String,
 ) -> actix_web::Result<()> {
-    let link = format!("{}/recovery?token={}&email={}", frontend_url, token_id, email);
+    let link = format!(
+        "{}/recovery?token={}&email={}",
+        frontend_url, token_id, email
+    );
     let template = StartRecoveryTemplate {
         name: &name,
         link: &link,

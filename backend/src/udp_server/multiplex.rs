@@ -72,9 +72,9 @@ fn create_tunn(
         if let Some(set) = map.get(&ip) {
             let charger_ids: Vec<i32> = set.iter().map(|c| c.id).collect();
             chargers::chargers
-            .filter(chargers::id.eq_any(charger_ids))
-            .select(Charger::as_select())
-            .load(&mut conn)?
+                .filter(chargers::id.eq_any(charger_ids))
+                .select(Charger::as_select())
+                .load(&mut conn)?
         } else {
             return Err(anyhow::Error::msg(Error::UnknownPeer));
         }

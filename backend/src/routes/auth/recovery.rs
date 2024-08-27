@@ -79,13 +79,15 @@ async fn invalidate_chargers(state: &web::Data<AppState>, uid: Uuid) -> actix_we
     web_block_unpacked(move || {
         use db_connector::schema::allowed_users::dsl::*;
 
-        match diesel::update(allowed_users.filter(user_id.eq(uid))).set(valid.eq(false)).execute(&mut conn) {
+        match diesel::update(allowed_users.filter(user_id.eq(uid)))
+            .set(valid.eq(false))
+            .execute(&mut conn)
+        {
             Ok(_) => Ok(()),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await
+    })
+    .await
 }
 
 // Recover an account
@@ -150,7 +152,10 @@ mod tests {
         test::{self, TestRequest},
         App,
     };
-    use db_connector::{models::{allowed_users::AllowedUser, wg_keys::WgKey}, test_connection_pool};
+    use db_connector::{
+        models::{allowed_users::AllowedUser, wg_keys::WgKey},
+        test_connection_pool,
+    };
     use diesel::prelude::*;
     use libsodium_sys::{
         crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES,

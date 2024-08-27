@@ -33,7 +33,10 @@ use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
-use udp_server::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket, ManagementPacketHeader};
+use udp_server::packet::{
+    ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
+    ManagementPacketHeader,
+};
 
 fn reset_wg_keys(pool: &Pool) {
     use db_connector::schema::wg_keys::dsl::*;

@@ -20,9 +20,9 @@
 pub mod auth;
 pub mod charger;
 pub mod management;
-pub mod user;
-pub mod state;
 pub mod selfdestruct;
+pub mod state;
+pub mod user;
 
 use actix_web::web::{self, scope};
 

@@ -122,14 +122,14 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                         );
                     }
                 }
-            },
+            }
             Ok(ws::Message::Close(_)) => {
                 ctx.close(None);
                 self.finished(ctx);
-            },
+            }
             Err(err) => {
                 log::error!("Websocket error: {}", err.to_string());
-            },
+            }
             _ => (),
         }
     }

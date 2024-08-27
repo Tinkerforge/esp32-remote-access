@@ -69,12 +69,13 @@ pub async fn get_chargers(
 
     let mut conn = get_connection(&state)?;
     let charger: Vec<(Charger, AllowedUser)> = web_block_unpacked(move || {
-        let allowed_users: Vec<AllowedUser> = match AllowedUser::belonging_to(&user).select(AllowedUser::as_select()).load(&mut conn) {
+        let allowed_users: Vec<AllowedUser> = match AllowedUser::belonging_to(&user)
+            .select(AllowedUser::as_select())
+            .load(&mut conn)
+        {
             Ok(d) => d,
             Err(NotFound) => Vec::new(),
-            Err(_err) => {
-                return Err(Error::InternalError)
-            }
+            Err(_err) => return Err(Error::InternalError),
         };
         let charger_ids = AllowedUser::belonging_to(&user).select(allowed_users::charger_id);
         let chargers: Vec<Charger> = match chargers::chargers
@@ -83,9 +84,7 @@ pub async fn get_chargers(
             .load(&mut conn)
         {
             Ok(v) => v,
-            Err(_err) => {
-                return Err(Error::InternalError)
-            },
+            Err(_err) => return Err(Error::InternalError),
         };
 
         let chargers_by_users: Vec<(Charger, AllowedUser)> = allowed_users

@@ -25,6 +25,7 @@ use std::{
 };
 
 use actix::prelude::*;
+pub use boringtun::*;
 use db_connector::{models::wg_keys::WgKey, Pool};
 use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
@@ -33,7 +34,6 @@ use udp_server::{
     management::RemoteConnMeta, packet::ManagementResponse, socket::ManagementSocket,
 };
 use ws_udp_bridge::Message;
-pub use boringtun::*;
 
 pub mod error;
 pub mod middleware;
@@ -51,8 +51,9 @@ pub struct DiscoveryCharger {
 
 impl Serialize for DiscoveryCharger {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer {
+    where
+        S: serde::Serializer,
+    {
         let mut s = serializer.serialize_struct("DiscoveryCharger", 2)?;
         s.serialize_field("id", &self.id)?;
         s.serialize_field("alive_since", &self.last_request.elapsed().as_secs())?;

@@ -17,7 +17,10 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use std::{collections::HashSet, time::{Instant, SystemTime, UNIX_EPOCH}};
+use std::{
+    collections::HashSet,
+    time::{Instant, SystemTime, UNIX_EPOCH},
+};
 
 use actix_web::{error::ErrorUnauthorized, put, web, HttpRequest, HttpResponse, Responder};
 use db_connector::models::wg_keys::WgKey;
@@ -61,49 +64,65 @@ pub struct ManagementResponseSchema {
     pub configured_connections: Vec<i32>,
 }
 
-async fn update_configured_connections(state: &web::Data<AppState>, cid: i32, configured_connections: Vec<i32>) -> actix_web::Result<Vec<i32>> {
+async fn update_configured_connections(
+    state: &web::Data<AppState>,
+    cid: i32,
+    configured_connections: Vec<i32>,
+) -> actix_web::Result<Vec<i32>> {
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         use db_connector::schema::wg_keys::dsl::*;
 
-         match diesel::delete(wg_keys.filter(charger_id.eq(cid)).filter(connection_no.ne_all(configured_connections))).execute(&mut conn) {
-            Ok(_) => {
-                Ok(())
-            },
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
-         }
-    }).await?;
+        match diesel::delete(
+            wg_keys
+                .filter(charger_id.eq(cid))
+                .filter(connection_no.ne_all(configured_connections)),
+        )
+        .execute(&mut conn)
+        {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError),
+        }
+    })
+    .await?;
 
     let mut conn = get_connection(state)?;
     let configured_connections: Vec<WgKey> = web_block_unpacked(move || {
         use db_connector::schema::wg_keys::dsl::*;
 
-        match wg_keys.filter(charger_id.eq(cid)).select(WgKey::as_select()).load(&mut conn) {
+        match wg_keys
+            .filter(charger_id.eq(cid))
+            .select(WgKey::as_select())
+            .load(&mut conn)
+        {
             Ok(v) => Ok(v),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     let uids: Vec<uuid::Uuid> = configured_connections.iter().map(|c| c.user_id).collect();
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         use db_connector::schema::allowed_users::dsl::*;
 
-        match diesel::delete(allowed_users.filter(charger_id.eq(cid)).filter(user_id.ne_all(uids))).execute(&mut conn) {
-            Ok(_) => {
-                Ok(())
-            },
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+        match diesel::delete(
+            allowed_users
+                .filter(charger_id.eq(cid))
+                .filter(user_id.ne_all(uids)),
+        )
+        .execute(&mut conn)
+        {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
-    let configured_connections: Vec<i32> = configured_connections.iter().map(|c| c.connection_no).collect();
+    let configured_connections: Vec<i32> = configured_connections
+        .iter()
+        .map(|c| c.connection_no)
+        .collect();
 
     Ok(configured_connections)
 }
@@ -150,14 +169,18 @@ pub async fn management(
     };
 
     let configured_connections = match &data.data {
-        ManagementDataVersion::V1(data) => data.configured_connections.clone()
+        ManagementDataVersion::V1(data) => data.configured_connections.clone(),
     };
-    let configured_connections = update_configured_connections(&state, charger.id, configured_connections).await?;
+    let configured_connections =
+        update_configured_connections(&state, charger.id, configured_connections).await?;
 
     {
         let mut map = bridge_state.undiscovered_chargers.lock().unwrap();
         let set = map.entry(ip).or_insert(HashSet::new());
-        set.insert(crate::DiscoveryCharger { id: charger.id, last_request: Instant::now() });
+        set.insert(crate::DiscoveryCharger {
+            id: charger.id,
+            last_request: Instant::now(),
+        });
     }
 
     let mut conn = get_connection(&state)?;
@@ -190,20 +213,24 @@ pub async fn management(
                     bridge_state.port_discovery.clone(),
                 )?;
             }
-        } else if !keys_in_use.is_empty() {
+        }
+        {
             let mut lost_map = bridge_state.lost_connections.lock().unwrap();
-            let _ = lost_map.insert(data.id ,keys_in_use);
+            let _ = lost_map.insert(data.id, keys_in_use);
         }
     }
 
     let (fw_version, port) = match &data.data {
-        ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port)
+        ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port),
     };
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         match diesel::update(chargers::chargers)
             .filter(chargers::id.eq(data.id))
-            .set((chargers::firmware_version.eq(fw_version), chargers::webinterface_port.eq(port as i32)))
+            .set((
+                chargers::firmware_version.eq(fw_version),
+                chargers::webinterface_port.eq(port as i32),
+            ))
             .execute(&mut conn)
         {
             Ok(_) => Ok(()),
@@ -224,7 +251,10 @@ pub async fn management(
     };
 
     let time = time.as_secs();
-    let resp = ManagementResponseSchema { time, configured_connections };
+    let resp = ManagementResponseSchema {
+        time,
+        configured_connections,
+    };
 
     Ok(HttpResponse::Ok().json(resp))
 }
@@ -236,7 +266,10 @@ mod tests {
     use db_connector::{models::allowed_users::AllowedUser, test_connection_pool};
     use rand::distributions::{Alphanumeric, DistString};
 
-    use crate::{routes::user::tests::{get_test_uuid, TestUser}, tests::configure};
+    use crate::{
+        routes::user::tests::{get_test_uuid, TestUser},
+        tests::configure,
+    };
 
     #[actix_web::test]
     async fn test_management() {
@@ -247,7 +280,11 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
-        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0, firmware_version: "2.3.1".to_string(), configured_connections: vec![0, 1, 2, 3, 4], });
+        let data = ManagementDataVersion::V1(ManagementDataVersion1 {
+            port: 0,
+            firmware_version: "2.3.1".to_string(),
+            configured_connections: vec![0, 1, 2, 3, 4],
+        });
 
         let body = ManagementSchema {
             id: charger,
@@ -275,7 +312,11 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
-        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0, firmware_version: "2.3.1".to_string(), configured_connections: vec![0, 1, 2, 3, 4], });
+        let data = ManagementDataVersion::V1(ManagementDataVersion1 {
+            port: 0,
+            firmware_version: "2.3.1".to_string(),
+            configured_connections: vec![0, 1, 2, 3, 4],
+        });
         let body = ManagementSchema {
             id: charger,
             password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
@@ -303,7 +344,11 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
-        let data = ManagementDataVersion::V1(ManagementDataVersion1 { port: 0, firmware_version: "2.3.1".to_string(), configured_connections: vec![0, 1, 2, 3], });
+        let data = ManagementDataVersion::V1(ManagementDataVersion1 {
+            port: 0,
+            firmware_version: "2.3.1".to_string(),
+            configured_connections: vec![0, 1, 2, 3],
+        });
 
         let body = ManagementSchema {
             id: charger,
@@ -324,11 +369,14 @@ mod tests {
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
 
-
         let user_id: uuid::Uuid = {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let user: AllowedUser = allowed_users.filter(charger_id.eq(charger)).select(AllowedUser::as_select()).get_result(&mut conn).unwrap();
+            let user: AllowedUser = allowed_users
+                .filter(charger_id.eq(charger))
+                .select(AllowedUser::as_select())
+                .get_result(&mut conn)
+                .unwrap();
             user.user_id
         };
         assert_eq!(get_test_uuid(&user.mail), user_id);
