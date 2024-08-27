@@ -10,6 +10,7 @@ import { BACKEND } from "../types";
 import { Button, Card, Col, Container, Modal, Table } from "react-bootstrap";
 import i18n from "../i18n";
 import { Monitor, Trash2 } from "react-feather";
+import { Circle } from "./Circle";
 
 interface Charger {
     id: number,
@@ -200,7 +201,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                         </tr>
                         <tr>
                             <td><b>{t("status")}</b></td>
-                            <td>{charger.status === "Disconnected" ? t("status_disconnected") : t("status_connected")}</td>
+                            <td>{charger.status === "Disconnected" ? <Circle color="red"/> : <Circle color="green"/>}</td>
                         </tr>
                     </table>
                     <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
@@ -215,10 +216,9 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         const card_list = [];
         this.state.chargers.forEach((charger, index) => {
             const entry = <tr>
-                <td>{index}</td>
                 <td>{charger.name}</td>
                 <td>{Base58.int_to_base58(charger.id)}</td>
-                <td>{charger.status === "Disconnected" ? t("status_disconnected") : t("status_connected")}</td>
+                <td>{charger.status === "Disconnected" ? <Circle color="red"/> : <Circle color="green"/>}</td>
                 <td><Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
                     await this.connect_to_charger(charger);
                 }} variant="primary">{t("connect")}</Button><p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p></td>
@@ -253,7 +253,6 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 <Table striped hover>
                     <thead>
                         <tr>
-                            <th>#</th>
                             <th>{t("charger_name")}</th>
                             <th>{t("charger_id")}</th>
                             <th>{t("status")}</th>
