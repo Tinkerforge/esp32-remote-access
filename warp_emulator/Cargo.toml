@@ -20,3 +20,6 @@ simplelog = "0.12.2"
 base64 = "0.22.1"
 ipnetwork = "0.20.0"
 bs58 = "0.5.1"
+
+# Override unsafe openssl dependency 
+openssl = "0.10.66"
