@@ -22,7 +22,7 @@
     },
     "chargers": {
         "charger_name": "Name",
-        "charger_id": "Wallbox Id",
+        "charger_id": "Wallbox-ID",
         "status": "Status",
         "status_connected": "Verbunden",
         "status_disconnected": "Getrennt",
@@ -45,8 +45,8 @@
     "register": {
         "name": "Name",
         "name_error_message": "Der Name darf nicht leer sein",
-        "email": "E-mail-Adresse",
-        "email_error_message": "Die E-mail-Adresse, darf nicht leer sein",
+        "email": "E-Mail-Adresse",
+        "email_error_message": "Die E-Mail-Adresse, darf nicht leer sein",
         "password": "Passwort",
         "password_error_message": "Muss mindestens 8 Zeichen lang sein und jeweils mindestens einen Klein- und Großbuchstaben sowie ein Sonderzeichen enthalten.",
         "accept_privacy_notice": "Ich habe die Datenschutzerklärung gelesen, verstanden und stimme zu",
@@ -60,7 +60,7 @@
     },
     "login": {
         "password_recovery": "Passwort zurücksetzen",
-        "email":"E-mail-Adresse",
+        "email":"E-Mail-Adresse",
         "send": "Senden",
         "close": "Schließen",
         "password": "Passwort",

@@ -22,7 +22,7 @@
     },
     "chargers": {
         "charger_name": "Name",
-        "charger_id": "Charger Id",
+        "charger_id": "Charger-ID",
         "status": "Status",
         "status_connected": "Connected",
         "status_disconnected": "Disconnected",
