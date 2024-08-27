@@ -96,8 +96,18 @@ fn resend_thread(bridge_state: web::Data<BridgeState>) {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    #[cfg(debug_assertions)]
     CombinedLogger::init(vec![TermLogger::new(
         LevelFilter::Debug,
+        Config::default(),
+        TerminalMode::Mixed,
+        ColorChoice::Auto,
+    )])
+    .unwrap();
+
+    #[cfg(not(debug_assertions))]
+    CombinedLogger::init(vec![TermLogger::new(
+        LevelFilter::Info,
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
