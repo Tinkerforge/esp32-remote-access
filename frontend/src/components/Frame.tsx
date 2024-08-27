@@ -18,9 +18,17 @@ export class Frame extends Component {
 
     worker: Worker;
     show_spinner = signal(true);
+    available_space = signal(window.innerHeight - document.getElementById("remote_access_navbar").clientHeight);
     id: string;
     constructor() {
         super();
+
+        window.addEventListener("resize", () => {
+            document.getElementById("app").style.height = window.innerHeight.toString();
+        })
+
+        history.pushState(null, "", "#closeConnection");
+        history.pushState(null, "", "#");
 
         this.id = crypto.randomUUID();
         this.worker = new Worker();
@@ -105,7 +113,7 @@ export class Frame extends Component {
                 <Row hidden={!this.show_spinner.value} fluid className="align-content-center justify-content-center vh-100">
                     <Spinner className="p-3"animation='border' variant='primary'/>
                 </Row>
-                <iframe hidden={this.show_spinner.value} width="100%" height={screen.height} id="interface"></iframe>
+                <iframe hidden={this.show_spinner.value} width="100%" height={this.available_space.value - 10} id="interface"></iframe>
                 {/* <button onClick={() => {
                     this.worker.postMessage("download");
                 }}>Download Pcap log</button> */}

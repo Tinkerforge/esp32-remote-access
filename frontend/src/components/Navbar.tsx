@@ -50,7 +50,7 @@ export function CustomNavbar() {
     </>
 
     return (
-        <Navbar expand="lg" className="bg-body-tertiary">
+        <Navbar id="remote_access_navbar" expand="lg" className="bg-body-tertiary">
             <Container fluid>
                     {connected_to.value}
                     {connected.value ? <></> : nav}
