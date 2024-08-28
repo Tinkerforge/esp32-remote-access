@@ -28,8 +28,10 @@ interface RegisterState {
     nameValid: boolean,
     email: string,
     emailValid: boolean,
-    checkBoxChecked: boolean,
-    checkBoxValid: boolean,
+    termsAndConditionsChecked: boolean,
+    termsAndConditionsValid: boolean,
+    acceptPrivacyChecked: boolean,
+    acceptPrivacyValid: boolean,
     recoverySafed: boolean,
     encryptedSecret: Uint8Array,
     secret: Uint8Array,
@@ -46,8 +48,10 @@ export class Register extends Component<{}, RegisterState> {
             nameValid: true,
             email: "",
             emailValid: true,
-            checkBoxChecked: false,
-            checkBoxValid: true,
+            termsAndConditionsChecked: false,
+            termsAndConditionsValid: true,
+            acceptPrivacyChecked: false,
+            acceptPrivacyValid: true,
             recoverySafed: false,
             encryptedSecret: new Uint8Array(),
             secret: new Uint8Array(),
@@ -89,11 +93,18 @@ export class Register extends Component<{}, RegisterState> {
             this.setState({nameValid: true});
         }
 
-        if (!this.state.checkBoxChecked) {
-            this.setState({checkBoxValid: false});
+        if (!this.state.acceptPrivacyChecked) {
+            this.setState({acceptPrivacyValid: false});
             ret = false;
         } else {
-            this.setState({checkBoxValid: true});
+            this.setState({acceptPrivacyValid: true});
+        }
+
+        if (!this.state.termsAndConditionsChecked) {
+            this.setState({termsAndConditionsValid: false});
+            ret = false;
+        } else {
+            this.setState({termsAndConditionsValid: true});
         }
 
         return ret;
@@ -204,8 +215,11 @@ export class Register extends Component<{}, RegisterState> {
                     }}
                     invalidMessage={t("password_error_message")} />
                 </Form.Group>
-                <Form.Group className="mb-3" controlId="registerSubmit">
-                    <Form.Check type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice_alpha" ><a href="https://www.tinkerunity.org/forum/13-warp-charger/">link</a></Trans>} isInvalid={!this.state.checkBoxValid} onClick={() => this.setState({checkBoxChecked: !this.state.checkBoxChecked})}/>
+                <Form.Group className="mb-3">
+                    <Form.Check type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice" ><a target="__blank" href="https://www.tinkerforge.com/de/home/privacy_notice">link</a></Trans>} isInvalid={!this.state.acceptPrivacyValid} onClick={() => this.setState({acceptPrivacyChecked: !this.state.acceptPrivacyChecked})}/>
+                </Form.Group>
+                <Form.Group className="mb-3">
+                    <Form.Check type="checkbox" label={<Trans i18nKey="register.accept_terms_and_conditions" ><a target="__blank" href="https://www.tinkerforge.com/de/home/terms_and_conditions">link</a></Trans>} isInvalid={!this.state.termsAndConditionsValid} onClick={() => this.setState({termsAndConditionsChecked: !this.state.termsAndConditionsChecked})}/>
                 </Form.Group>
                 <Button variant="primary" type="submit">
                     {t("register")}
