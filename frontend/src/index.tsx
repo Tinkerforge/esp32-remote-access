@@ -85,8 +85,7 @@ export function App() {
             Median.sidebar.setItems({items: [], enabled: false, persist: true});
             return <>
                 <ErrorAlert/>
-                <Row fluid className="align-items-center vh-100">
-                    <div class="d-flex justify-content-center">
+                <Row className="align-items-center justify-content-center vh-100">
                         <Card className="p-3 m-3 col-lg-6 col-xl-3">
                             <Tabs
                                 defaultActiveKey="login"
@@ -101,8 +100,8 @@ export function App() {
                                 </Tab>
                             </Tabs>
                         </Card>
-                    </div>
                 </Row>
+                <Footer />
             </>
 
         case AppState.LoggedIn:
