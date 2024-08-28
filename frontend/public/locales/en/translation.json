@@ -68,5 +68,10 @@
         "success_alert_text": "You should receive an email in the next couple of minutes.",
         "success_alert_heading": "Success",
         "error_alert_text": "Failed to start recovery with status {{- status}}: {{text}}"
+    },
+    "footer": {
+        "imprint": "Imprint",
+        "terms_of_use": "Terms and Conditions",
+        "privacy_notice": "Privacy Notice"
     }
 }

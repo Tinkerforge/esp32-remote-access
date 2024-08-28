@@ -40,6 +40,7 @@ import { Spinner } from 'react-bootstrap';
 import { Recovery } from './pages/recovery.js';
 import { useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
+import { Footer } from "./components/Footer";
 
 
 async function refresh_access_token() {
@@ -115,6 +116,7 @@ export function App() {
                             <Route default path="/chargers" component={ChargerList} />
                         </Router>
                     </LocationProvider>
+                    <Footer />
                 </>
             );
         // we need an extra recovery state, otherwise we would show the login/register page.
