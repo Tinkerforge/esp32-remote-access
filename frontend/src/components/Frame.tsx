@@ -3,6 +3,7 @@ import { signal } from '@preact/signals';
 import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
+import { connected, connected_to } from './charger_list';
 
 export let charger_info = signal({
     self_key: "",
@@ -90,15 +91,23 @@ export class Frame extends Component {
         }
 
         window.addEventListener("message", (e: MessageEvent) => {
-            if (e.data === "initIFrame") {
-                this.worker.postMessage("connect");
-                return;
-            } else if (e.data === "webinterface_loaded") {
-                this.show_spinner.value = false;
-                const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                iframe.contentWindow.postMessage({
-                    connection_id: this.id,
-                });
+            switch (e.data) {
+                case "initIFrame":
+                    this.worker.postMessage("connect");
+                    return;
+
+                case "webinterface_loaded":
+                    this.show_spinner.value = false;
+                    const iframe = document.getElementById("interface") as HTMLIFrameElement;
+                    iframe.contentWindow.postMessage({
+                        connection_id: this.id,
+                    });
+                    return;
+
+                case "close":
+                    connected.value = false;
+                    connected_to.value = "";
+                    return;
             }
         });
     }
