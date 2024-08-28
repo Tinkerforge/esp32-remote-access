@@ -24,7 +24,7 @@ export class Frame extends Component {
         super();
 
         window.addEventListener("resize", () => {
-            document.getElementById("app").style.height = window.innerHeight.toString();
+            this.available_space.value = window.innerHeight - document.getElementById("remote_access_navbar").clientHeight;
         })
 
         history.pushState(null, "", "#closeConnection");
