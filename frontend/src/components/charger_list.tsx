@@ -258,7 +258,6 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                             <th>{t("status")}</th>
                             <th />
                             <th />
-                            <th />
                         </tr>
                     </thead>
                     <tbody>
