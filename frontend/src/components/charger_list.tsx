@@ -201,7 +201,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                         </tr>
                         <tr>
                             <td><b>{t("status")}</b></td>
-                            <td>{charger.status === "Disconnected" ? <Circle color="red"/> : <Circle color="green"/>}</td>
+                            <td>{charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}</td>
                         </tr>
                     </table>
                     <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
@@ -218,7 +218,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             const entry = <tr>
                 <td>{charger.name}</td>
                 <td>{Base58.int_to_base58(charger.id)}</td>
-                <td>{charger.status === "Disconnected" ? <Circle color="red"/> : <Circle color="green"/>}</td>
+                <td>{charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}</td>
                 <td><Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
                     await this.connect_to_charger(charger);
                 }} variant="primary">{t("connect")}</Button><p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p></td>
