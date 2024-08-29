@@ -37,7 +37,7 @@ import { BACKEND } from './types.js';
 import { AppState, loggedIn } from './utils.js';
 import { Spinner } from 'react-bootstrap';
 import { Recovery } from './pages/recovery.js';
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
 
