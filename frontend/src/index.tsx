@@ -31,7 +31,6 @@ import Row from "react-bootstrap/Row";
 import Card from "react-bootstrap/Card";
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
-import 'bootstrap/dist/css/bootstrap.min.css';
 import { ChargerList } from './pages/chargers.js';
 import { ErrorAlert } from './components/Alert.js';
 import { BACKEND } from './types.js';
@@ -42,6 +41,7 @@ import { useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
 
+import "./main.scss";
 
 async function refresh_access_token() {
     if (window.location.pathname == "/recovery") {
