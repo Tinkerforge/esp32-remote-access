@@ -89,7 +89,14 @@ export function App() {
                     <a href="/"><img class="pt-2 pb-2 pl-3" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ0AAAAjAQMAAAC0Dc25AAAABlBMVEXwH1b///+8ndbpAAAAAXRSTlMAQObYZgAAAE1JREFUOMtjeMDAwM7AwFDA/h8CDshDGQz1EPoHA3WVMEAA4wEogx1KM1iMKhlCSuiWXthhbpGBOQLmvOGihB1FCXKADwMl0Hj9QGslAM2l6A72PC0DAAAAAElFTkSuQmCC" style="max-width: calc(100vw - 72px);" alt="logo"/></a>
                 </nav>
                 <Row className="align-items-center justify-content-center vh-100">
-                        <Card className="p-3 m-3 col-lg-6 col-xl-3">
+                        <div class="d-xl-none col-12" style="height: 15vh;"></div>
+                        <div class="d-lg-none col-1" style="height: 10vh;"></div>
+                        <Card className="p-3 col-10 col-lg-5 col-xl-3">
+                            <Trans i18nKey="description"><a target="__blank" href="https://docs.warp-charger.com/docs/home" >link</a></Trans>
+                        </Card>
+                        <div class="d-lg-none col-1" style="height: 10vh;"></div>
+                        <div class="d-none d-lg-block col-1" style="height: 10vh;"></div>
+                        <Card className="p-3 col-10 col-lg-5 col-xl-3">
                             <Tabs
                                 defaultActiveKey="login"
                                 id="login-register-tab"

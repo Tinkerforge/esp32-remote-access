@@ -1,6 +1,7 @@
 {
     "alert_default_text": "An Error occured!",
     "alert_default_success": "Success!",
+    "description": "This page provides remote access to registered WARP-Chargers. For more information click <0>here</0>",
     "user": {
         "user_id": "User-id",
         "email": "Email-address",

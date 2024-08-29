@@ -1,6 +1,7 @@
 {
     "alert_default_text": "Ein Fehler ist aufgetreten!",
     "alert_default_success": "Erfolg!",
+    "description": "Diese Seite bietet einen Fernzugriff für WARP Charger. Weitere Informationen findest du <0>hier</0>",
     "user": {
         "user_id": "Nutzer Id",
         "email": "E-mail-Adresse",
