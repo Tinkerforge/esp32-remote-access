@@ -22,6 +22,9 @@ $navbar-color: #555;
     }
   }
 
+.navbar-extend {
+    background-color: $navbar-color;
+}
 
 .sidebar .nav-link {
     font-weight: 500;

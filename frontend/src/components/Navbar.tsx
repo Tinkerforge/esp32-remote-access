@@ -34,8 +34,9 @@ export function CustomNavbar() {
     }
 
     const nav = <>
+            <a href="/"><img class="pt-2 pb-2 pl-3" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ0AAAAjAQMAAAC0Dc25AAAABlBMVEXwH1b///+8ndbpAAAAAXRSTlMAQObYZgAAAE1JREFUOMtjeMDAwM7AwFDA/h8CDshDGQz1EPoHA3WVMEAA4wEogx1KM1iMKhlCSuiWXthhbpGBOQLmvOGihB1FCXKADwMl0Hj9QGslAM2l6A72PC0DAAAAAElFTkSuQmCC" style="max-width: calc(100vw - 72px);" alt="logo"/></a>
         <Navbar.Toggle aria-controls="basic-navbar-nav"/>
-        <Navbar.Collapse id="navbar-nav">
+        <Navbar.Collapse id="navbar-nav" className="navbar-extend p-2">
             <Nav className="me-auto">
                 <Nav.Link href="/user" active={url === "/user"}>{t("user")}</Nav.Link>
                 <Nav.Link href="/chargers" active={url === "/chargers"}>{t("chargers")}</Nav.Link>
@@ -50,8 +51,7 @@ export function CustomNavbar() {
     </>
 
     return (
-        <Navbar id="remote_access_navbar" expand="lg" hidden={connected.value} className="navbar-dark sticky-top flex-md-nowrap p-0 pb-2 pt-2 ps-2">
-            <a href="/"><img class="pt-2 pb-2 pl-3" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ0AAAAjAQMAAAC0Dc25AAAABlBMVEXwH1b///+8ndbpAAAAAXRSTlMAQObYZgAAAE1JREFUOMtjeMDAwM7AwFDA/h8CDshDGQz1EPoHA3WVMEAA4wEogx1KM1iMKhlCSuiWXthhbpGBOQLmvOGihB1FCXKADwMl0Hj9QGslAM2l6A72PC0DAAAAAElFTkSuQmCC" style="max-width: calc(100vw - 72px);" alt="logo"/></a>
+        <Navbar id="remote_access_navbar" expand="lg" hidden={connected.value} className="navbar-dark sticky-top flex-md-nowrap p-0 pb-2 pt-2 ps-2 mb-2">
             <Container fluid>
                     {connected_to.value}
                     {connected.value ? <></> : nav}
