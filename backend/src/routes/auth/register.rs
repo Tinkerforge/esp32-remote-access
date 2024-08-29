@@ -32,14 +32,19 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
-    error::Error,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
+    error::Error, utils::{get_connection, web_block_unpacked}, AppState
 };
 
 #[derive(Template)]
-#[template(path = "register.html")]
-struct RegisterTemplate<'a> {
+#[template(path = "register_en.html")]
+struct RegisterENTemplate<'a> {
+    name: &'a str,
+    link: &'a str,
+}
+
+#[derive(Template)]
+#[template(path = "register_de.html")]
+struct RegisterDETemplate<'a> {
     name: &'a str,
     link: &'a str,
 }
@@ -80,15 +85,31 @@ fn send_verification_mail(
     email: String,
     mailer: SmtpTransport,
     frontend_url: String,
+    lang: String,
 ) -> Result<(), actix_web::Error> {
     let link = format!("{}/api/auth/verify?id={}", frontend_url, id.id.to_string());
-    let template = RegisterTemplate {
-        name: &name,
-        link: &link,
-    };
-    let body = match template.render() {
-        Ok(body) => body,
-        Err(_err) => return Err(Error::InternalError.into()),
+
+    let body = match lang.as_str() {
+        "de" | "de-DE" => {
+            let template = RegisterDETemplate {
+                name: &name,
+                link: &link,
+            };
+            match template.render() {
+                Ok(body) => body,
+                Err(_err) => return Err(Error::InternalError.into()),
+            }
+        }
+        _ => {
+            let template = RegisterENTemplate {
+                name: &name,
+                link: &link,
+            };
+            match template.render() {
+                Ok(body) => body,
+                Err(_err) => return Err(Error::InternalError.into()),
+            }
+        }
     };
 
     let email = Message::builder()
@@ -119,6 +140,8 @@ fn send_verification_mail(
 pub async fn register(
     state: web::Data<AppState>,
     data: Json<RegisterSchema>,
+    #[cfg(not(test))]
+    lang: crate::models::lang::Lang,
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
     use db_connector::schema::verification::dsl::*;
@@ -192,6 +215,7 @@ pub async fn register(
                 mail,
                 state.mailer.clone(),
                 state.frontend_url.clone(),
+                lang.into(),
             )
             .ok();
         });

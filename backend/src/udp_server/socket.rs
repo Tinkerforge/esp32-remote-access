@@ -46,6 +46,14 @@ pub struct ManagementSocket {
     out_sequence: u16,
 }
 
+impl std::fmt::Debug for ManagementSocket {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ManagementSocket")
+            .field("charger_id", &self.charger_id)
+            .finish()
+    }
+}
+
 impl ManagementSocket {
     pub fn new(
         self_ip: Ipv4Addr,

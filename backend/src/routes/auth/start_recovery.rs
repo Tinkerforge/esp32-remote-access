@@ -20,8 +20,15 @@ struct StartRecoveryQuery {
 }
 
 #[derive(Template)]
-#[template(path = "start_recovery.html")]
-struct StartRecoveryTemplate<'a> {
+#[template(path = "start_recovery_de.html")]
+struct StartRecoveryDETemplate<'a> {
+    name: &'a str,
+    link: &'a str,
+}
+
+#[derive(Template)]
+#[template(path = "start_recovery_en.html")]
+struct StartRecoveryENTemplate<'a> {
     name: &'a str,
     link: &'a str,
 }
@@ -33,18 +40,34 @@ fn send_email(
     email: String,
     mailer: SmtpTransport,
     frontend_url: String,
+    lang: String,
 ) -> actix_web::Result<()> {
     let link = format!(
         "{}/recovery?token={}&email={}",
         frontend_url, token_id, email
     );
-    let template = StartRecoveryTemplate {
-        name: &name,
-        link: &link,
-    };
-    let body = match template.render() {
-        Ok(b) => b,
-        Err(_err) => return Err(Error::InternalError.into()),
+
+    let body = match lang.as_str() {
+        "de" | "de-DE" => {
+            let template = StartRecoveryDETemplate {
+                name: &name,
+                link: &link,
+            };
+            match template.render() {
+                Ok(b) => b,
+                Err(_err) => return Err(Error::InternalError.into()),
+            }
+        }
+        _ => {
+            let template = StartRecoveryENTemplate {
+                name: &name,
+                link: &link,
+            };
+            match template.render() {
+                Ok(b) => b,
+                Err(_err) => return Err(Error::InternalError.into()),
+            }
+        }
     };
 
     let mail = Message::builder()
@@ -80,6 +103,8 @@ fn send_email(
 pub async fn start_recovery(
     query: web::Query<StartRecoveryQuery>,
     state: web::Data<AppState>,
+    #[cfg(not(test))]
+    lang: crate::models::lang::Lang,
 ) -> actix_web::Result<impl Responder> {
     let user_id = get_uuid(
         &state,
@@ -119,6 +144,7 @@ pub async fn start_recovery(
             user.email,
             state.mailer.clone(),
             state.frontend_url.clone(),
+            lang.into(),
         )
         .ok();
     });

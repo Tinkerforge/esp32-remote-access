@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "./password_component";
 import sodium from "libsodium-wrappers";
 import { Base64 } from "js-base64";
+import i18n from "../i18n";
 
 interface LoginSchema {
     email: string,
@@ -104,7 +105,14 @@ export class Login extends Component<{}, LoginState> {
                     </Modal.Header>
                     <Form onSubmit={async (e: SubmitEvent) => {
                         e.preventDefault();
-                        const resp = await fetch(`${BACKEND}/auth/start_recovery?email=${this.state.email}`);
+                        console.log("lang", i18n.language);
+                        const resp = await fetch(`${BACKEND}/auth/start_recovery?email=${this.state.email}`,
+                            {
+                                headers: {
+                                    "X-Lang": i18n.language,
+                                }
+                            }
+                        );
                         if (resp.status != 200) {
                             this.setState({show_modal: false});
                             showAlert(t("error_alert_text", {status: resp.status, text: await resp.text(), interpolation: {escapeValue: false}}), "danger");

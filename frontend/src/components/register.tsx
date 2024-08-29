@@ -163,12 +163,14 @@ export class Register extends Component<{}, RegisterState> {
             secret_salt: [].slice.call(combined_secret_salt),
         }
 
+        console.log(i18n.language);
         const resp = await fetch(BACKEND + "/auth/register", {
             method: "POST",
             body: JSON.stringify(login_data),
             headers: {
                 "Content-Type": "application/json",
-            }
+                "X-Lang": i18n.language
+            },
         });
         if (resp.status === 201) {
             showAlert(i18n.t("register.registration_successful"), "success", i18n.t("alert_default_success"));
