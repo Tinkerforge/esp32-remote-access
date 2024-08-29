@@ -55,7 +55,6 @@ export function CustomNavbar() {
             <Container fluid>
                     {connected_to.value}
                     {connected.value ? <></> : nav}
-                    <a style="color: #ff0000" class="pe-2">Prerelease</a>
                     <Button variant="primary"
                         id="closeConnection"
                         onClick={() => {
