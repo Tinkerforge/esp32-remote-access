@@ -92,7 +92,7 @@ export function App() {
                         <div class="d-xl-none col-12" style="height: 15vh;"></div>
                         <div class="d-lg-none col-1" style="height: 10vh;"></div>
                         <Card className="p-3 col-10 col-lg-5 col-xl-3">
-                            <Trans i18nKey="description"><a target="__blank" href="https://docs.warp-charger.com/docs/home" >link</a></Trans>
+                            <Trans i18nKey="description"><a target="__blank" href="https://docs.warp-charger.com/docs/remote_access" >link</a></Trans>
                         </Card>
                         <div class="d-lg-none col-1" style="height: 10vh;"></div>
                         <div class="d-none d-lg-block col-1" style="height: 10vh;"></div>
