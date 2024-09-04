@@ -143,7 +143,7 @@ pub async fn login(
         .max_age(actix_web::cookie::time::Duration::minutes(
             MAX_TOKEN_AGE_MINUTES,
         ))
-        .http_only(false)
+        .http_only(true)
         .same_site(actix_web::cookie::SameSite::None)
         .secure(true)
         .finish();
