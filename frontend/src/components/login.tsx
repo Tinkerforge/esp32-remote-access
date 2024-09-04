@@ -97,48 +97,46 @@ export class Login extends Component<{}, LoginState> {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "login"});
         return(<>
             <Modal show={this.state.show_modal} onHide={() => this.setState({show_modal: false})}>
-                <Modal.Dialog>
-                    <Modal.Header closeButton>
-                        <Modal.Title>
-                            {t("password_recovery")}
-                        </Modal.Title>
-                    </Modal.Header>
-                    <Form onSubmit={async (e: SubmitEvent) => {
-                        e.preventDefault();
-                        console.log("lang", i18n.language);
-                        const resp = await fetch(`${BACKEND}/auth/start_recovery?email=${this.state.email}`,
-                            {
-                                headers: {
-                                    "X-Lang": i18n.language,
-                                }
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        {t("password_recovery")}
+                    </Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={async (e: SubmitEvent) => {
+                    e.preventDefault();
+                    console.log("lang", i18n.language);
+                    const resp = await fetch(`${BACKEND}/auth/start_recovery?email=${this.state.email}`,
+                        {
+                            headers: {
+                                "X-Lang": i18n.language,
                             }
-                        );
-                        if (resp.status != 200) {
-                            this.setState({show_modal: false});
-                            showAlert(t("error_alert_text", {status: resp.status, text: await resp.text(), interpolation: {escapeValue: false}}), "danger");
-                        } else {
-                            showAlert(t("success_alert_text"), "success", t("success_alert_heading"));
-                            this.setState({show_modal: false});
                         }
-                    }}>
-                        <Modal.Body>
-                            <Form.Group className="mb-3" controlId="startRecoveryEmail">
-                                <Form.Label>{t("email")}</Form.Label>
-                                <Form.Control type="text" placeholder={t("email")} value={this.state.email} onChange={(e) => {
-                                    this.setState({email: (e.target as HTMLInputElement).value});
-                                }} />
-                            </Form.Group>
-                        </Modal.Body>
-                        <Modal.Footer>
-                            <Button variant="primary" type="submit">
-                                {t("send")}
-                            </Button>
-                            <Button variant="secondary" type="button" onClick={() => this.setState({show_modal: false})}>
-                                {t("close")}
-                            </Button>
-                        </Modal.Footer>
-                    </Form>
-                </Modal.Dialog>
+                    );
+                    if (resp.status != 200) {
+                        this.setState({show_modal: false});
+                        showAlert(t("error_alert_text", {status: resp.status, text: await resp.text(), interpolation: {escapeValue: false}}), "danger");
+                    } else {
+                        showAlert(t("success_alert_text"), "success", t("success_alert_heading"));
+                        this.setState({show_modal: false});
+                    }
+                }}>
+                    <Modal.Body>
+                        <Form.Group className="mb-3" controlId="startRecoveryEmail">
+                            <Form.Label>{t("email")}</Form.Label>
+                            <Form.Control type="text" placeholder={t("email")} value={this.state.email} onChange={(e) => {
+                                this.setState({email: (e.target as HTMLInputElement).value});
+                            }} />
+                        </Form.Group>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="primary" type="submit">
+                            {t("send")}
+                        </Button>
+                        <Button variant="secondary" type="button" onClick={() => this.setState({show_modal: false})}>
+                            {t("close")}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
             </Modal>
 
             <Form onSubmit={async (e: SubmitEvent) => this.onSubmit(e)}>
