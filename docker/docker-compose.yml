@@ -51,6 +51,8 @@ services:
       - MAIL_RELAY=${MAIL_RELAY}
       - MAIL_RELAY_PORT=${MAIL_RELAY_PORT}
       - FRONTEND_URL=${FRONTEND_URL}
+      - SERVER_NAME=${SERVER_NAME}
+      - MONITORING_MAIL=${MONITORING_MAIL}
     healthcheck:
       test: ["CMD", "curl", "backend:8081"]
       interval: 20s
