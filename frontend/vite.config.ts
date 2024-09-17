@@ -11,15 +11,11 @@ export default defineConfig({
 			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js"
 		}
 	},
-	build: {
-		minify: false,
-	},
 	plugins: [
 		preact(),
 		wasm(),
 		topLevelAwait(),
 		VitePWA({
-			minify: false,
 			strategies: 'injectManifest',
 			injectRegister: false,
 			injectManifest: {
