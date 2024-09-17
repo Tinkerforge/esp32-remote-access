@@ -169,11 +169,9 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
 
     connection_possible(charger: StateCharger) {
         let connection_possible = true;
-        console.log(charger.status, charger.valid);
         if (charger.status !== "Connected" || charger.valid === false) {
             connection_possible = false;
         }
-        console.log(connection_possible);
         return connection_possible;
     }
 

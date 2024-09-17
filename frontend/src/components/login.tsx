@@ -104,7 +104,6 @@ export class Login extends Component<{}, LoginState> {
                 </Modal.Header>
                 <Form onSubmit={async (e: SubmitEvent) => {
                     e.preventDefault();
-                    console.log("lang", i18n.language);
                     const resp = await fetch(`${BACKEND}/auth/start_recovery?email=${this.state.email}`,
                         {
                             headers: {
