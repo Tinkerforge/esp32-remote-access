@@ -17,6 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+mod monitoring;
+
 use std::{
     collections::HashMap,
     net::UdpSocket,
@@ -144,6 +146,8 @@ async fn main() -> std::io::Result<()> {
         mailer,
         frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
     });
+
+    monitoring::start_monitoring(state.clone());
 
     let bridge_state = web::Data::new(BridgeState {
         pool,
