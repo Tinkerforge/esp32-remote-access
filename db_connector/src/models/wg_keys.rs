@@ -1,5 +1,6 @@
 use diesel::{associations::{Associations, Identifiable}, deserialize::Queryable, prelude::Insertable, Selectable};
 use ipnetwork::IpNetwork;
+use serde::Serialize;
 use crate::models::{users::User, chargers::Charger};
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, Associations)]
@@ -18,4 +19,12 @@ pub struct WgKey {
     pub web_address: IpNetwork,
     pub charger_address: IpNetwork,
     pub connection_no: i32,
+}
+
+impl Serialize for WgKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        serializer.serialize_i32(self.connection_no)
+    }
 }

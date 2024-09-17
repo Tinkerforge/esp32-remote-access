@@ -4,6 +4,7 @@ use std::{
 };
 
 use actix_web::{get, web, HttpResponse, Responder};
+use db_connector::models::wg_keys::WgKey;
 use ipnetwork::IpNetwork;
 use serde::Serialize;
 
@@ -21,7 +22,7 @@ struct ServerState {
     port_discovery: Vec<ManagementResponse>,
     charger_remote_conn_map: Vec<RemoteConnMeta>,
     undiscovered_chargers: HashMap<IpNetwork, HashSet<DiscoveryCharger>>,
-    lost_connections: Vec<i32>,
+    lost_connections: Vec<(i32, Vec<WgKey>)>,
 }
 
 #[get("/state")]
@@ -80,9 +81,9 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         map.clone()
     };
 
-    let lost_connections: Vec<i32> = {
+    let lost_connections: Vec<(i32, Vec<WgKey>)> = {
         let map = brige_state.lost_connections.lock().unwrap();
-        map.iter().map(|(id, _)| id.to_owned()).collect()
+        map.iter().map(|(id, key)| (id.to_owned(), key.clone())).collect()
     };
 
     let state = ServerState {
