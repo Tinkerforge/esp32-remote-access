@@ -56,6 +56,11 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             showModal: false,
         };
 
+        this.updateChargers();
+        setInterval(this.updateChargers, 5000);
+    }
+
+    updateChargers() {
         fetch(BACKEND + "/charger/get_chargers", {
             credentials: "include"
         }).then(async (resp) => {
