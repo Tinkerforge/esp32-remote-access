@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 export function Footer() {
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "footer"});
-    return <Container id="footer" fluid className="fixed-bottom bg-light">
+    return <Container id="footer" fluid className="footer">
             <Row>
                 <Col fluid className="text-end float-end">
                     <a target="__blank" href="https://www.tinkerforge.com/de/home/privacy_notice" class="m-2">{t("privacy_notice")}</a>

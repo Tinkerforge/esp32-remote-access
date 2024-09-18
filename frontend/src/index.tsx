@@ -35,7 +35,7 @@ import { ChargerList } from './pages/chargers.js';
 import { ErrorAlert } from './components/Alert.js';
 import { BACKEND } from './types.js';
 import { AppState, loggedIn } from './utils.js';
-import { Spinner } from 'react-bootstrap';
+import { Col, Spinner } from 'react-bootstrap';
 import { Recovery } from './pages/recovery.js';
 import { Trans, useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
@@ -84,32 +84,28 @@ export function App() {
         case AppState.LoggedOut:
             Median.sidebar.setItems({items: [], enabled: false, persist: true});
             return <>
-                <ErrorAlert/>
-                <nav class="navbar navbar-expand-md navbar-dark sticky-top flex-md-nowrap p-0 pb-2 pt-2 ps-2">
+                <nav id="logo-nav" class="navbar navbar-expand-md navbar-dark sticky-top flex-md-nowrap p-0 pb-2 pt-2 ps-2">
                     <a href="/"><img class="pt-2 pb-2 pl-3" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ0AAAAjAQMAAAC0Dc25AAAABlBMVEXwH1b///+8ndbpAAAAAXRSTlMAQObYZgAAAE1JREFUOMtjeMDAwM7AwFDA/h8CDshDGQz1EPoHA3WVMEAA4wEogx1KM1iMKhlCSuiWXthhbpGBOQLmvOGihB1FCXKADwMl0Hj9QGslAM2l6A72PC0DAAAAAElFTkSuQmCC" style="max-width: calc(100vw - 72px);" alt="logo"/></a>
                 </nav>
-                <Row className="align-items-center justify-content-center vh-100">
-                        <div class="d-xl-none col-12" style="height: 15vh;"></div>
-                        <div class="d-lg-none col-1" style="height: 10vh;"></div>
-                        <Card className="p-3 col-10 col-lg-5 col-xl-3">
-                            <Trans i18nKey="description"><a target="__blank" href="https://docs.warp-charger.com/docs/remote_access" >link</a></Trans>
-                        </Card>
-                        <div class="d-lg-none col-1" style="height: 10vh;"></div>
-                        <div class="d-none d-lg-block col-1" style="height: 10vh;"></div>
-                        <Card className="p-3 col-10 col-lg-5 col-xl-3">
-                            <Tabs
-                                defaultActiveKey="login"
-                                id="login-register-tab"
-                                className="mb-3"
-                            >
-                                <Tab eventKey="login" title={t("login.login")}>
-                                    <Login />
-                                </Tab>
-                                <Tab eventKey="register" title={t("register.register")}>
-                                    <Register />
-                                </Tab>
-                            </Tabs>
-                        </Card>
+                <ErrorAlert/>
+                <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3">
+                    <Card className="p-3 col-10 col-lg-5 col-xl-3">
+                        <Trans i18nKey="description"><a target="__blank" href="https://docs.warp-charger.com/docs/remote_access" >link</a></Trans>
+                    </Card>
+                    <Card className="p-3 col-10 col-lg-5 col-xl-3">
+                        <Tabs
+                            defaultActiveKey="login"
+                            id="login-register-tab"
+                            className="mb-3"
+                        >
+                            <Tab eventKey="login" title={t("login.login")}>
+                                <Login />
+                            </Tab>
+                            <Tab eventKey="register" title={t("register.register")}>
+                                <Register />
+                            </Tab>
+                        </Tabs>
+                    </Card>
                 </Row>
                 <Footer />
             </>
@@ -119,12 +115,14 @@ export function App() {
                 <>
                     <ErrorAlert/>
                     <CustomNavbar />
-                    <LocationProvider>
-                        <Router>
-                            <Route path="/user" component={User} />
-                            <Route default path="/chargers" component={ChargerList} />
-                        </Router>
-                    </LocationProvider>
+                    <Col className="my-3">
+                        <LocationProvider>
+                            <Router>
+                                <Route path="/user" component={User} />
+                                <Route default path="/chargers" component={ChargerList} />
+                            </Router>
+                        </LocationProvider>
+                    </Col>
                     <Footer />
                 </>
             );
@@ -133,17 +131,14 @@ export function App() {
             return (<>
                 <ErrorAlert/>
                 <LocationProvider>
-                    <Container fluid>
-                        <Row fluid className="align-items-center vh-100">
-                            <div class="d-flex justify-content-center">
-                                <Router>
-                                    <Route path="/recovery" component={Recovery} />
-                                    <Route default component={NotFound} />
-                                </Router>
-                            </div>
-                        </Row>
-                    </Container>
+                    <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3">
+                        <Router>
+                            <Route path="/recovery" component={Recovery} />
+                            <Route default component={NotFound} />
+                        </Router>
+                    </Row>
                 </LocationProvider>
+                <Footer />
             </>);
     }
 }

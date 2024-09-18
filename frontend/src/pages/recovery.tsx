@@ -112,8 +112,8 @@ export function Recovery() {
     return <>
         <RecoveryDataComponent email={state.email} secret={secret.value} show={showModal} />
 
-        <Form onSubmit={(e: SubmitEvent) => onSubmit(e)} noValidate>
-            <Card>
+        <Card className="p-0 col-10 col-lg-5 col-xl-3">
+            <Form onSubmit={(e: SubmitEvent) => onSubmit(e)} noValidate>
                 <Card.Header>
                     <Card.Title>
                         {t("recovery.recovery")}
@@ -160,7 +160,7 @@ export function Recovery() {
                 <Card.Footer>
                     <Button type="submit" variant="primary">{t("recovery.submit")}</Button>
                 </Card.Footer>
-            </Card>
-        </Form>
+            </Form>
+        </Card>
     </>
 }

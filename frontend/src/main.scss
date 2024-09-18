@@ -22,6 +22,14 @@ $navbar-color: #555;
     }
   }
 
+.footer {
+  background-color: $navbar-color;
+}
+
+.footer a {
+  color: #ffff;
+}
+
 .navbar-extend {
     background-color: $navbar-color;
 }
