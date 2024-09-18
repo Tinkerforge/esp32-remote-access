@@ -167,6 +167,10 @@ where
                                 tungstenite::Error::Io(err) => {
                                     match err.kind() {
                                         std::io::ErrorKind::WouldBlock => (),
+
+                                        // This error happens when updating a firmware and when rebooting the charger.
+                                        // The underlying tcp stream should be able to recover
+                                        std::io::ErrorKind::BrokenPipe => (),
                                         err => {
                                             log::error!("Error: {err:?}");
                                         }
