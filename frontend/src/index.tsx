@@ -115,7 +115,7 @@ export function App() {
                 <>
                     <ErrorAlert/>
                     <CustomNavbar />
-                    <Col className="my-3">
+                    <Col>
                         <LocationProvider>
                             <Router>
                                 <Route path="/user" component={User} />
