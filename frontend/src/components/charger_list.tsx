@@ -57,17 +57,18 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             showModal: false,
         };
 
-        this.updateChargers();
-        this.updatingInterval = setInterval(this.updateChargers, 5000);
+        this.updateChargers(this);
+        const that = this;
+        this.updatingInterval = setInterval(() => that.updateChargers(that), 5000);
     }
 
-    updateChargers() {
+    async updateChargers(that: any) {
+        if (!that.secret) {
+            await that.get_decrypted_secret();
+        }
         fetch(BACKEND + "/charger/get_chargers", {
             credentials: "include"
         }).then(async (resp) => {
-            if (!this.secret) {
-                await this.get_decrypted_secret();
-            }
             const chargers: Charger[] = await resp.json();
             const state_chargers = [];
             for (const charger of chargers) {
