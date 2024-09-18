@@ -4,6 +4,13 @@ import wasm from "vite-plugin-wasm"
 import topLevelAwait from 'vite-plugin-top-level-await';
 import { VitePWA } from 'vite-plugin-pwa';
 
+function plugins() {
+	return [
+		wasm(),
+		topLevelAwait(),
+	];
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
 	resolve: {
@@ -31,9 +38,6 @@ export default defineConfig({
 		})
 	],
 	worker: {
-		plugins: [
-			wasm(),
-			topLevelAwait(),
-		]
+		plugins: plugins
 	}
 });
