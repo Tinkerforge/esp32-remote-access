@@ -27,7 +27,7 @@ import { PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, g
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/Navbar";
 import { useTranslation } from "react-i18next";
-import { Container } from "react-bootstrap";
+import { Card, Container } from "react-bootstrap";
 import { signal } from "@preact/signals";
 import { PasswordComponent } from "../components/password_component";
 
@@ -210,13 +210,15 @@ export function User() {
 
     return (<>
         <Container fluid>
+            <Card className="p-3 my-3">
             <UserComponent/>
-            <Button variant="primary" onClick={handleShow}>
+            <Button variant="primary" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2" onClick={handleShow}>
                 {t("change_password")}
             </Button>
+            </Card>
         </Container>
 
-        <Modal show={show} onHide={handleClose}>
+        <Modal show={show} onHide={handleClose} centered>
             <Form onSubmit={submit} validated={validated.value} noValidate>
                 <Modal.Header>
                     <Modal.Title>
