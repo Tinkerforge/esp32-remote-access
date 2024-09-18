@@ -16,6 +16,7 @@ export function showAlert(text: string, variant: string, heading?: string) {
         variant: variant,
         heading: heading ? heading : i18n.t("alert_default_text"),
     }
+    window.scrollTo(0,0);
 }
 
 export function ErrorAlert() {
