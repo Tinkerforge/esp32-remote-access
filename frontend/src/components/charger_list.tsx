@@ -41,6 +41,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
     removal_charger: StateCharger;
     secret: Uint8Array;
     pub_key: Uint8Array;
+    updatingInterval: any;
     constructor() {
         super();
 
@@ -57,14 +58,16 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         };
 
         this.updateChargers();
-        setInterval(this.updateChargers, 5000);
+        this.updatingInterval = setInterval(this.updateChargers, 5000);
     }
 
     updateChargers() {
         fetch(BACKEND + "/charger/get_chargers", {
             credentials: "include"
         }).then(async (resp) => {
-            await this.get_decrypted_secret();
+            if (!this.secret) {
+                await this.get_decrypted_secret();
+            }
             const chargers: Charger[] = await resp.json();
             const state_chargers = [];
             for (const charger of chargers) {
@@ -79,6 +82,10 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             }
             this.setState({chargers: state_chargers});
         });
+    }
+
+    componentWillUnmount() {
+        clearInterval(this.updatingInterval);
     }
 
     async decrypt_keys(keys: any) {
