@@ -192,7 +192,9 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         return <>
             <Card className="mb-2">
-                <Card.Header className="d-flex justify-content-between align-items-center p-2d5">
+                <Card.Header onClick={async () => {
+                    await this.connect_to_charger(charger);
+                }} className="d-flex justify-content-between align-items-center p-2d5">
                     <h5 class="text-break" style="margin-bottom: 0;">{charger.name}</h5>
                     <div style="white-space: nowrap; vertical-align: middle;">
                         <Button className="me-2" variant="primary" disabled={!this.connection_possible(charger)} onClick={async () => {
