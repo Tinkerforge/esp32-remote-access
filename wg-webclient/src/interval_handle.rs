@@ -25,6 +25,7 @@ use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 pub struct IntervalHandle<T> {
     interval_handle: i32,
     _closure: Closure<dyn FnMut(T)>,
+    #[cfg(debug_assertions)]
     log_drop: bool,
 }
 
@@ -45,6 +46,9 @@ impl<T> IntervalHandle<T> {
         }
     }
 
+    // For debugging
+    #[allow(dead_code)]
+    #[cfg(debug_assertions)]
     pub fn set_drop_logging(&mut self, log_drop: bool) {
         self.log_drop = log_drop;
     }
@@ -56,6 +60,7 @@ impl<T> Drop for IntervalHandle<T> {
         let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
         global.clear_interval_with_handle(self.interval_handle);
 
+        #[cfg(debug_assertions)]
         if self.log_drop {
             log::debug!("Dropping interval");
         }
