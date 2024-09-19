@@ -64,7 +64,7 @@ impl Client {
         port: u16,
         disconnect_cb: js_sys::Function,
     ) -> Self {
-        console_log::init_with_level(log::Level::Debug).unwrap();
+        console_log::init_with_level(log::Level::Debug).ok();
         Self(
             WgClient::new(secret_str, peer_str, psk, url, internal_ip, internap_peer_ip, port, disconnect_cb),
             Rc::new(RefCell::new(VecDeque::new())),
