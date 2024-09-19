@@ -28,13 +28,9 @@ export interface ResponseMessage {
 }
 
 export interface SetupMessage {
-    self_key: string,
-    peer_key: string,
-    psk: string,
-    self_internal_ip: string,
-    peer_internal_ip: string,
-    key_id: string,
-    port: number
+    chargerID: number,
+    port: number,
+    secret: Uint8Array,
 }
 
 export const BACKEND = import.meta.env.VITE_BACKEND_URL;

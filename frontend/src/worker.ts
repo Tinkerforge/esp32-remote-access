@@ -19,11 +19,13 @@
 
 import { Client, set_pcap_logging } from "wg-webclient";
 import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } from "./types";
+import sodium from "libsodium-wrappers";
 
 declare const self: DedicatedWorkerGlobalScope;
 
 const tunnel_url = import.meta.env.VITE_BACKEND_WS_URL + "/ws?key_id="
 let wgClient: Client | undefined = undefined;
+let setup_data: SetupMessage;
 self.postMessage("started");
 set_pcap_logging(true);
 
@@ -97,13 +99,58 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 break;
 
             case MessageType.Setup:
-                const setup_data = data.data as SetupMessage;
-                wgClient = new Client(setup_data.self_key, setup_data.peer_key, setup_data.psk, tunnel_url + setup_data.key_id, setup_data.self_internal_ip, setup_data.peer_internal_ip, setup_data.port);
+                setup_data = data.data as SetupMessage;
+                await start_connection(setup_data);
                 self.postMessage("ready");
                 break;
         }
     }
 });
+
+function disconnect_cb() {
+    setTimeout(async () => {
+        start_connection(setup_data);
+    }, 1000);
+}
+
+async function start_connection(setup_data: SetupMessage) {
+    let resp: Response;
+    try {
+        resp = await fetch(`${import.meta.env.VITE_BACKEND_URL}/charger/get_key?cid=${setup_data.chargerID}`, {
+            credentials: "same-origin",
+        });
+    } catch (e) {
+        disconnect_cb();
+        return;
+    }
+    const keys = await resp.json();
+    const decrypted_keys = decrypt_keys(keys, setup_data.secret);
+
+    wgClient = new Client(
+        decrypted_keys.web_private_string,
+        keys.charger_pub,
+        decrypted_keys.psk,
+        tunnel_url + keys.id,
+        keys.web_address,
+        keys.charger_address,
+        setup_data.port,
+        disconnect_cb,
+    );
+}
+
+function decrypt_keys(keys: any, secret: Uint8Array) {
+    const public_key = sodium.crypto_scalarmult_base(secret);
+    const web_private = sodium.crypto_box_seal_open(new Uint8Array(keys.web_private), public_key, secret);
+    const decoder = new TextDecoder();
+    const web_private_string = decoder.decode(web_private);
+    const psk = sodium.crypto_box_seal_open(new Uint8Array(keys.psk), public_key, secret);
+    const psk_string = decoder.decode(psk);
+
+    return {
+        web_private_string: web_private_string,
+        psk: psk_string
+    };
+}
 
 function triggerDownload() {
     const msg = wgClient.get_pcap_log();

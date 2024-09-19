@@ -1,6 +1,6 @@
 import { signal } from "@preact/signals";
 import * as Base58 from "base58";
-import { charger_info } from "./Frame";
+import { chargerID, chargerPort } from "./Frame";
 import sodium from "libsodium-wrappers";
 import { useTranslation } from "react-i18next";
 import { showAlert } from "../components/Alert";
@@ -36,11 +36,12 @@ interface ChargerListComponentState {
 export const connected = signal(false);
 export const connected_to = signal("");
 
+export let secret: Uint8Array;
+export let pub_key: Uint8Array
+
 export class ChargerListComponent extends Component<{}, ChargerListComponentState> {
 
     removal_charger: StateCharger;
-    secret: Uint8Array;
-    pub_key: Uint8Array;
     updatingInterval: any;
     constructor() {
         super();
@@ -63,7 +64,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
     }
 
     async updateChargers(that: any) {
-        if (!that.secret) {
+        if (!secret) {
             await that.get_decrypted_secret();
         }
         fetch(BACKEND + "/charger/get_chargers", {
@@ -89,20 +90,6 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         clearInterval(this.updatingInterval);
     }
 
-    async decrypt_keys(keys: any) {
-        const public_key = sodium.crypto_scalarmult_base(this.secret);
-        const web_private = sodium.crypto_box_seal_open(new Uint8Array(keys.web_private), public_key, this.secret);
-        const decoder = new TextDecoder();
-        const web_private_string = decoder.decode(web_private);
-        const psk = sodium.crypto_box_seal_open(new Uint8Array(keys.psk), public_key, this.secret);
-        const psk_string = decoder.decode(psk);
-
-        return {
-            web_private_string: web_private_string,
-            psk: psk_string
-        };
-    }
-
     async get_decrypted_secret() {
         const t = i18n.t;
         const get_secret_resp = await fetch(BACKEND + "/user/get_secret", {
@@ -115,8 +102,8 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         const encoded_key = localStorage.getItem("secret_key");
         const secret_key = Base64.toUint8Array(encoded_key);
         const secret_data = await get_secret_resp.json();
-        this.secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret_data.secret), new Uint8Array(secret_data.secret_nonce), secret_key);
-        this.pub_key = sodium.crypto_scalarmult_base(this.secret);
+        secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret_data.secret), new Uint8Array(secret_data.secret_nonce), secret_key);
+        pub_key = sodium.crypto_scalarmult_base(secret);
     }
 
     async connect_to_charger(charger: StateCharger) {
@@ -130,20 +117,8 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             return;
         }
 
-        const json = await resp.json();
-
-        const ret = await this.decrypt_keys(json);
-
-        charger_info.value = {
-            self_key: ret.web_private_string,
-            psk: ret.psk,
-            self_internal_ip: json.web_address,
-            peer_key: json.charger_pub,
-            peer_internal_ip: json.charger_address,
-            key_id: json.id,
-            port: charger.port,
-        }
-
+        chargerID.value = charger.id;
+        chargerPort.value = charger.port;
         connected_to.value = charger.name;
         connected.value = true;
     }
@@ -175,7 +150,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         if (!name) {
             return "";
         }
-        const decrypted_name =  sodium.crypto_box_seal_open(new Uint8Array(name), this.pub_key, this.secret);
+        const decrypted_name =  sodium.crypto_box_seal_open(new Uint8Array(name), pub_key, secret);
         const decoder = new TextDecoder();
         return decoder.decode(decrypted_name);
     }

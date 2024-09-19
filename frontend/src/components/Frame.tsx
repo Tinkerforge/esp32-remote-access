@@ -3,17 +3,10 @@ import { signal } from '@preact/signals';
 import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
-import { connected, connected_to } from './charger_list';
+import { connected, connected_to, secret } from './charger_list';
 
-export let charger_info = signal({
-    self_key: "",
-    peer_key: "",
-    psk: "",
-    self_internal_ip: "",
-    peer_internal_ip: "",
-    key_id: "",
-    port: 80,
-});
+export const chargerID = signal(0);
+export const chargerPort = signal(0);
 
 export class Frame extends Component {
 
@@ -27,9 +20,6 @@ export class Frame extends Component {
         window.addEventListener("resize", () => {
             this.available_space.value = window.innerHeight - document.getElementById("remote_access_navbar").clientHeight;
         })
-
-        history.pushState(null, "", "#closeConnection");
-        history.pushState(null, "", "#");
 
         this.id = crypto.randomUUID();
         this.worker = new Worker();
@@ -80,7 +70,11 @@ export class Frame extends Component {
         this.worker.onmessage = (e: MessageEvent) => {
             if (e.data === "started") {
                 this.worker.onmessage = message_event;
-                const message_data: SetupMessage = charger_info.value;
+                const message_data: SetupMessage = {
+                    chargerID: chargerID.value,
+                    port: chargerPort.value,
+                    secret: secret
+                };
                 const message: Message = {
                     type: MessageType.Setup,
                     data: message_data
