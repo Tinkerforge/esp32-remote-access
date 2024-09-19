@@ -42,6 +42,7 @@ impl<T> IntervalHandle<T> {
         Self {
             interval_handle,
             _closure: f,
+            #[cfg(debug_assertions)]
             log_drop: false,
         }
     }
