@@ -72,6 +72,7 @@ impl WgTunDevice {
         peer: x25519::PublicKey,
         psk: [u8; 32],
         url: &str,
+        disconnect_cb: js_sys::Function,
     ) -> Result<Self, JsValue> {
         let rate_limiter = Arc::new(RateLimiter::new(&x25519::PublicKey::from(&self_key), 10));
 
@@ -122,6 +123,7 @@ impl WgTunDevice {
         let onclose = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
             log::debug!("Parent WebSocket Closed");
             *onclose_socket_state.upgrade().unwrap().borrow_mut() = WsConnectionState::Disconnected;
+            let _ = disconnect_cb.call0(&JsValue::null());
         });
         let onclose = Rc::new(onclose);
         socket.set_onclose(Some(onclose.as_ref().as_ref().unchecked_ref()));
@@ -499,6 +501,7 @@ pub mod test {
             x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng)),
             [0u8; 32],
             "ws://localhost:8082",
+                js_sys::Function::new_no_args(""),
         )
         .unwrap()
     }
