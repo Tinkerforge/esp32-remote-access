@@ -113,7 +113,7 @@ export class Frame extends Component {
     render() {
         return (
             <>
-                <Row hidden={!this.show_spinner.value} fluid className="align-content-center justify-content-center h-100">
+                <Row hidden={!this.show_spinner.value} className="align-content-center justify-content-center m-0 h-100">
                     <Spinner className="p-3"animation='border' variant='primary'/>
                 </Row>
                 <iframe hidden={this.show_spinner.value} width="100%" height="100%" id="interface"></iframe>
