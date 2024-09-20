@@ -17,12 +17,12 @@ export async function logout(logout_all: boolean) {
 
 export function setAppNavigation() {
     const items = [{
-        label: i18n.t("chargers"),
+        label: i18n.t("navbar.chargers"),
         url: "https://mystaging.warp-charger.com/chargers",
         icon: "fas fa-server"
     },
     {
-        label: i18n.t("user"),
+        label: i18n.t("navbar.user"),
         url: "https://mystaging.warp-charger.com/user",
         icon: "fas fa-user"
     }]
