@@ -100,10 +100,17 @@ export class Frame extends Component {
             }
         });
 
-        // this is used by the app to close the remote connection.
+        // this is used by the app to close the remote connection via the native app menu.
         (window as any).close = () => {
             connected.value = false;
             connected_to.value = "";
+        }
+
+        // this is used by the app to change location via the native app menu.
+        (window as any).switchTo = (hash: string) => {
+            const frame = document.getElementById("interface") as HTMLIFrameElement;
+            const frame_window = frame.contentWindow;
+            frame_window.location.hash = hash;
         }
     }
 
