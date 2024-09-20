@@ -12,14 +12,9 @@ export class Frame extends Component {
 
     worker: Worker;
     show_spinner = signal(true);
-    available_space = signal(window.innerHeight - document.getElementById("remote_access_navbar").clientHeight);
     id: string;
     constructor() {
         super();
-
-        window.addEventListener("resize", () => {
-            this.available_space.value = window.innerHeight - document.getElementById("remote_access_navbar").clientHeight;
-        })
 
         this.id = crypto.randomUUID();
         this.worker = new Worker();
