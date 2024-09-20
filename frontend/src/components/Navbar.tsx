@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Container, Navbar, Row } from "react-bootstrap";
 import { connected, connected_to } from "./charger_list";
 import Median from "median-js-bridge";
+import i18n from "../i18n";
 
 export async function logout(logout_all: boolean) {
         await fetch(`${BACKEND}/user/logout?logout_all=${logout_all ? "true" : "false"}`, {
@@ -14,23 +15,28 @@ export async function logout(logout_all: boolean) {
         window.location.reload();
     }
 
+export function setAppNavigation() {
+    const {t} = i18n;
+    const items = [{
+        label: t("chargers"),
+        url: "https://mystaging.warp-charger.com/chargers",
+        icon: "fas fa-server"
+    },
+    {
+        label: t("user"),
+        url: "https://mystaging.warp-charger.com/user",
+        icon: "fas fa-user"
+    }]
+    Median.sidebar.setItems({items: items, enabled: true, persist: true});
+    return <></>
+}
+
 export function CustomNavbar() {
     const { url } = useLocation();
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "navbar"})
 
     if (Median.isNativeApp()) {
-        const items = [{
-            label: t("chargers"),
-            url: "https://mystaging.warp-charger.com/chargers",
-            icon: "fas fa-server"
-        },
-        {
-            label: t("user"),
-            url: "https://mystaging.warp-charger.com/user",
-            icon: "fas fa-user"
-        }]
-        Median.sidebar.setItems({items: items, enabled: true, persist: true});
-        return <></>
+        return setAppNavigation()
     }
 
 
