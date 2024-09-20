@@ -99,6 +99,12 @@ export class Frame extends Component {
                     return;
             }
         });
+
+        // this is used by the app to close the remote connection.
+        (window as any).close = () => {
+            connected.value = false;
+            connected_to.value = "";
+        }
     }
 
     componentWillUnmount() {
