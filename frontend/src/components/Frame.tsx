@@ -4,6 +4,7 @@ import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
 import { connected, connected_to, secret } from './charger_list';
+import { setAppNavigation } from './Navbar';
 
 export const chargerID = signal(0);
 export const chargerPort = signal(0);
@@ -104,6 +105,7 @@ export class Frame extends Component {
         (window as any).close = () => {
             connected.value = false;
             connected_to.value = "";
+            setAppNavigation();
         }
 
         // this is used by the app to change location via the native app menu.
