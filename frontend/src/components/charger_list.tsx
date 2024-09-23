@@ -168,6 +168,9 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         return <>
             <Card className="mb-2">
                 <Card.Header onClick={async () => {
+                    if (!this.connection_possible(charger)) {
+                        return;
+                    }
                     await this.connect_to_charger(charger);
                 }} className="d-flex justify-content-between align-items-center p-2d5">
                     <h5 class="text-break" style="margin-bottom: 0;">{charger.name}</h5>
