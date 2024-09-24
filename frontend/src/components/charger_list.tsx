@@ -113,7 +113,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             credentials: "include"
         });
         if (resp.status !== 200) {
-            showAlert(t("connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: resp.status, text: await resp.text()}), "danger");
+            showAlert(t("chargers.connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: resp.status, response: await resp.text()}), "danger");
             return;
         }
 
