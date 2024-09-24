@@ -2,7 +2,7 @@ import { Base64 } from "js-base64";
 import { Button, Card, Form } from "react-bootstrap";
 import { PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
-import { BACKEND } from "../types";
+import { BACKEND } from "../utils";
 import { showAlert } from "../components/Alert";
 import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "../components/password_component";

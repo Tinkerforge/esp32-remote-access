@@ -1,6 +1,6 @@
 import { Component } from "preact";
 import { Button, Form } from "react-bootstrap"
-import { BACKEND } from "../types";
+import { BACKEND } from "../utils";
 import { showAlert } from "./Alert";
 import { PASSWORD_PATTERN, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import sodium from "libsodium-wrappers";

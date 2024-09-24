@@ -8,7 +8,7 @@
 		<title>Remote Access</title>
 		<script type="text/javascript">
 			if ('serviceWorker' in navigator) {
-				navigator.serviceWorker.register("/sw.js").then((reg) => {
+				navigator.serviceWorker.register("/sw.js", {type: "module"}).then((reg) => {
 					// The serviceworker wont update when it is currently awaiting a response
 					// this way it will be defenitely updated on the next refresh
 					window.addEventListener("beforeunload", ()=> {

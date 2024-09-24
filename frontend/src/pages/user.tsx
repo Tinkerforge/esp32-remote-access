@@ -22,7 +22,7 @@ import Form from "react-bootstrap/Form"
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import { useState } from "preact/hooks";
-import { BACKEND } from "../types";
+import { BACKEND } from "../utils";
 import { PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/Navbar";

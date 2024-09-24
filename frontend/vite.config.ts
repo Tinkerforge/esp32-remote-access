@@ -1,14 +1,30 @@
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 import wasm from "vite-plugin-wasm"
 import topLevelAwait from 'vite-plugin-top-level-await';
-import { VitePWA } from 'vite-plugin-pwa';
+import { buildSync } from "esbuild";
+import { join } from "node:path";
 
 function plugins() {
 	return [
 		wasm(),
 		topLevelAwait(),
 	];
+}
+
+const swBuildPlugin: Plugin = {
+	name: "SWBuild",
+	apply: "build",
+	enforce: "post",
+	transformIndexHtml() {
+		buildSync({
+			minify: true,
+			bundle: true,
+			entryPoints: [join(process.cwd(), "src", "sw.ts")],
+			outfile: join(process.cwd(), "dist", "sw.js"),
+			format: "esm",
+		})
+	}
 }
 
 // https://vitejs.dev/config/
@@ -22,20 +38,7 @@ export default defineConfig({
 		preact(),
 		wasm(),
 		topLevelAwait(),
-		VitePWA({
-			strategies: 'injectManifest',
-			injectRegister: false,
-			injectManifest: {
-				injectionPoint: null,
-			},
-			manifest: false,
-			devOptions: {
-				enabled: true,
-				type: 'module',
-			},
-			srcDir: 'src',
-			filename: 'sw.ts',
-		})
+		swBuildPlugin
 	],
 	worker: {
 		plugins: plugins

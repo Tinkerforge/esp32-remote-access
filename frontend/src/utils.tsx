@@ -1,5 +1,4 @@
 import { signal } from "@preact/signals";
-import { BACKEND } from "./types";
 import { hash, ArgonType } from "argon2-browser";
 
 export async function get_salt() {
@@ -69,3 +68,4 @@ export enum AppState {
 export const loggedIn = signal(AppState.Loading);
 
 export const PASSWORD_PATTERN = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/;
+export const BACKEND = import.meta.env.VITE_BACKEND_URL;

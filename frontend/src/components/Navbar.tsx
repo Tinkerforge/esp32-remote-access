@@ -1,6 +1,6 @@
 import { useLocation } from "preact-iso";
 import Nav from "react-bootstrap/Nav";
-import { BACKEND } from "../types";
+import { BACKEND } from "../utils";
 import { useTranslation } from "react-i18next";
 import { Button, Container, Navbar, Row } from "react-bootstrap";
 import { connected, connected_to } from "./charger_list";

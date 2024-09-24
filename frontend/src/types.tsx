@@ -33,4 +33,3 @@ export interface SetupMessage {
     secret: Uint8Array,
 }
 
-export const BACKEND = import.meta.env.VITE_BACKEND_URL;

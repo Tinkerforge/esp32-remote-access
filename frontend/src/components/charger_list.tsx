@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
-import { BACKEND } from "../types";
+import { BACKEND } from "../utils";
 import { Button, Card, Col, Container, Modal, Table } from "react-bootstrap";
 import i18n from "../i18n";
 import { Monitor, Trash2 } from "react-feather";
