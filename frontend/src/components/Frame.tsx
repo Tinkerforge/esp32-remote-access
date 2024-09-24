@@ -17,6 +17,8 @@ export class Frame extends Component {
     constructor() {
         super();
 
+        document.title = connected_to.value;
+
         this.id = crypto.randomUUID();
         this.worker = new Worker();
         navigator.serviceWorker.addEventListener("message", (e: MessageEvent) => {
@@ -122,6 +124,7 @@ export class Frame extends Component {
 
     componentWillUnmount() {
         this.worker.postMessage("close");
+        document.title = "Remote Access";
     }
 
     render() {
