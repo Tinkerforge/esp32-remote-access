@@ -67,6 +67,7 @@
         "close": "Close",
         "password": "Password",
         "login": "Login",
+        "wrong_credentials": "Email-adresse or password wrong.",
         "success_alert_text": "You should receive an email in the next couple of minutes.",
         "success_alert_heading": "Success",
         "error_alert_text": "Failed to start recovery with status {{- status}}: {{text}}"

@@ -20,6 +20,7 @@ interface LoginState {
     email: string,
     password: string,
     show_modal: boolean,
+    credentials_wrong: boolean,
 }
 
 export class Login extends Component<{}, LoginState> {
@@ -29,6 +30,7 @@ export class Login extends Component<{}, LoginState> {
             email: "",
             password: "",
             show_modal: false,
+            credentials_wrong: false,
         }
     }
 
@@ -43,7 +45,7 @@ export class Login extends Component<{}, LoginState> {
         try {
             login_salt = await get_salt_for_user(this.state.email);
         } catch (e) {
-            showAlert(e, "danger");
+            this.setState({credentials_wrong: true});
             return;
         }
 
@@ -64,9 +66,7 @@ export class Login extends Component<{}, LoginState> {
         });
 
         if (200 !== resp.status) {
-            const body = await resp.text();
-            const text = `Failed with status ${resp.status}: ${body}`;
-            showAlert(text, "danger");
+            this.setState({credentials_wrong: true});
             return;
         }
 
@@ -149,7 +149,9 @@ export class Login extends Component<{}, LoginState> {
                     <Form.Label>{t("password")}</Form.Label>
                     <PasswordComponent onChange={(e) => {
                         this.setState({password: (e.target as HTMLInputElement).value});
-                    }}/>
+                    }}
+                    invalidMessage={t("wrong_credentials")}
+                    isInvalid={this.state.credentials_wrong}/>
                 </Form.Group>
                 <Button variant="primary" type="submit" id="loginSubmit">
                     {t("login")}
