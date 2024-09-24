@@ -56,7 +56,7 @@
         "register": "Registrieren",
         "save_recovery_data": "Wiederhestellungsdatei speichern",
         "save": "Speichern",
-        "save_recovery_data_text": "Da die Zugangsdaten für die Wallboxen nur mithilfe des korrekten Passworts entschlüsselt werden können brauchst du, falls du dein Passwort vergessen solltest, diese Datei um den Zugang zu Ihren Wallboxen wiederherzustellen. Bewahree diese Datei sicher und für niemanden sonst zugänglich auf, da sie mit deinem Passwort gleichzustellen ist.",
+        "save_recovery_data_text": "Da die Zugangsdaten für die Wallboxen nur mithilfe des korrekten Passworts entschlüsselt werden können brauchst du, falls du dein Passwort vergessen solltest, diese Datei um den Zugang zu Ihren Wallboxen wiederherzustellen. Bewahre diese Datei sicher und für niemanden sonst zugänglich auf, da sie mit deinem Passwort gleichzustellen ist.",
         "close": "Schließen",
         "registration_successful": "Die Registrierung war erfolgreich. Du solltest innerhalb der nächsten paar Minuten eine Email mit einem Bestätigungslink erhalten"
     },
