@@ -99,6 +99,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 break;
 
             case MessageType.Setup:
+                await sodium.ready;
                 setup_data = data.data as SetupMessage;
                 await start_connection(setup_data);
                 self.postMessage("ready");
