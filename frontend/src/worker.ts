@@ -47,6 +47,10 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 self.postMessage("closed");
                 break;
 
+            case "pauseWS":
+                wgClient.disconnect_inner_ws();
+                break;
+
             case "download":
                 triggerDownload();
                 break;

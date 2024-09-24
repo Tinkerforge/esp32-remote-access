@@ -81,6 +81,7 @@ export class Frame extends Component {
         }
 
         window.addEventListener("message", (e: MessageEvent) => {
+            const iframe = document.getElementById("interface") as HTMLIFrameElement;
             switch (e.data) {
                 case "initIFrame":
                     this.worker.postMessage("connect");
@@ -88,10 +89,13 @@ export class Frame extends Component {
 
                 case "webinterface_loaded":
                     this.show_spinner.value = false;
-                    const iframe = document.getElementById("interface") as HTMLIFrameElement;
                     iframe.contentWindow.postMessage({
                         connection_id: this.id,
                     });
+                    return;
+
+                case "pauseWS":
+                    this.worker.postMessage("pauseWS");
                     return;
 
                 case "close":
