@@ -75,7 +75,7 @@ services:
       - /bin/sh
       - -c
       - |
-        npm install
+        npm ci
         npm run build
     depends_on:
       wg-webclient-builder:
