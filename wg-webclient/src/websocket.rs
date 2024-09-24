@@ -120,7 +120,8 @@ where
             let read: usize = match stream.read(&mut buf) {
                 Ok(len) => len,
                 Err(e) => {
-                    panic!("error while reading from stream: {}", e.to_string());
+                    log::error!("error while reading from stream: {}", e.to_string());
+                    return;
                 }
             };
             log::trace!("read len {}", read);
@@ -133,7 +134,8 @@ where
                         return;
                     }
                     Err(e) => {
-                        panic!("error while parsing response: {}", e.to_string());
+                        log::error!("error while parsing response: {}", e.to_string());
+                        return;
                     }
                 };
 
@@ -176,7 +178,7 @@ where
                                         }
                                     }
                                 },
-                                _ => panic!(
+                                _ => log::error!(
                                     "error while reading from Websocket: {}",
                                     e.to_string()
                                 ),
