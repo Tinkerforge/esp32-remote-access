@@ -309,14 +309,6 @@ async fn start_ws(
             return Err(Error::WgKeyAlreadyInUse);
         }
 
-        if let Err(_err) = diesel::update(wg_keys::wg_keys)
-            .filter(wg_keys::id.eq(&key_id))
-            .set(wg_keys::in_use.eq(true))
-            .execute(&mut conn)
-        {
-            return Err(Error::InternalError);
-        }
-
         Ok(keys)
     })
     .await?;
@@ -352,8 +344,19 @@ async fn start_ws(
 
     let resp = ws::start(client, &req, stream);
 
-    if let Err(err) = &resp {
-        log::debug!("{:?}", err.to_string());
+    if resp.is_ok() {
+        let mut conn = get_connection(&state)?;
+        use db_connector::schema::wg_keys::dsl::*;
+        web_block_unpacked(move || {
+            if let Err(_err) = diesel::update(wg_keys)
+                .filter(id.eq(&keys.id))
+                .set(in_use.eq(true))
+                .execute(&mut conn)
+            {
+                return Err(Error::InternalError);
+            }
+            Ok(())
+        }).await?;
     }
 
     resp
