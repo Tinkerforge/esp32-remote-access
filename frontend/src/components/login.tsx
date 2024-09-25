@@ -141,7 +141,7 @@ export class Login extends Component<{}, LoginState> {
             <Form onSubmit={async (e: SubmitEvent) => this.onSubmit(e)}>
                 <Form.Group className="mb-3" controlId="loginEmail">
                     <Form.Label>{t("email")}</Form.Label>
-                    <Form.Control type="email" placeholder={t("email")} value={this.state.email} onChange={(e) => {
+                    <Form.Control isInvalid={this.state.credentials_wrong} type="email" placeholder={t("email")} value={this.state.email} onChange={(e) => {
                         this.setState({email: (e.target as HTMLInputElement).value});
                     }} />
                 </Form.Group>
