@@ -105,24 +105,25 @@ sequenceDiagram
     participant Charger
     participant Backend
 
-    Note over Charger Frontend, Backend: Login
+    Charger Frontend->>Charger: Trigger request to get login-salt
+    Charger<<->>Backend: Get login-salt
+    Charger->>Charger Frontend: Respond with login-salt
+    Note left of Charger Frontend: login-key = argon2(password, login-salt)
 
-    Note left of Charger Frontend: Holds: <br> - login-key
-    Charger Frontend->>Backend: Request encrypted-secret
+    Charger Frontend->>Charger: Send login-key and trigger login
+    Note over Charger, Backend: Login
 
-    Backend->>Charger Frontend: Respond with encrypted-secret and secret-salt
-    Note over Charger Frontend: secret-key = argon2(password, secret-salt)
-    Note over Charger Frontend: Generate WireGuard keys
+    Charger Frontend->>Charger: Trigger request to get secret
+    Charger<<->>Backend: Get secret
+    Charger->>Charger Frontend: Respond with secret-salt
+    Note left of Charger Frontend: secret-key = argon2(password, secret-salt)
 
-    Note left of Charger Frontend: Holds: <br> - encrypted secret <br> - secret-key <br> - login-key <br> - WireGuard-keys
-
-    Charger Frontend->>Charger: Send encrypted-secret, secret-key, <br> Wireguard-keys, login-key
+    Charger Frontend->>Charger: Send Wireguard-keys and secret-key
     Note over Charger: secret = libsodium.secret_box_open(encrypted-secret, secret-key)
     Note over Charger: encrypted-WireGuard-keys = libsodium.sealed_box(WireGuard-keys, secret)
 
     Note left of Charger: Saves: <br> - WireGuard keys
 
-    Note over Charger, Backend: Login
 
     Charger->>Backend: Register charger
     Note over Backend: Generates a login-key for that charger.
