@@ -74,8 +74,8 @@ export class Login extends Component<{}, LoginState> {
             credentials: "include"
         });
         if (200 !== secret_resp.status) {
-            const body = await resp.text();
-            const text = `Failed with status ${resp.status}: ${body}`;
+            const body = await secret_resp.text();
+            const text = `Failed with status ${secret_resp.status}: ${body}`;
             showAlert(text, "danger");
             return;
         }
@@ -83,14 +83,8 @@ export class Login extends Component<{}, LoginState> {
         const secret_key = await generate_hash(this.state.password, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
         const encoded_key = Base64.fromUint8Array(secret_key);
 
-        if (resp.status === 200) {
-            localStorage.setItem("secret_key", encoded_key);
-            window.location.reload()
-        } else {
-            const body = await resp.text();
-            const text = `Failed with status ${resp.status}: ${body}`;
-            showAlert(text, "danger");
-        }
+        localStorage.setItem("secret_key", encoded_key);
+        window.location.reload()
     }
 
     render() {
