@@ -313,3 +313,18 @@ sequenceDiagram
         Charger->>Charger Frontend: Indicate failure
     end
 ```
+
+### Remove a user
+```mermaid
+sequenceDiagram
+    Charger Frontend->>Charger: Trigger removal
+    Charger->>Backend: Request removal
+    Note over Backend: Authenticates request and tries to<br>remove keys for user+charger
+    alt if success
+        Backend->>Charger: Indicate success
+        Note over Charger: Removes user from charger
+    else if failure
+        Backend->>Charger: Indicates failure
+    end
+    Charger->>Charger Frontend: Indicates failure or success
+```
