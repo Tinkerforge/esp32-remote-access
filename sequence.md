@@ -293,3 +293,23 @@ sequenceDiagram
     end
     Note right of Backend: Saves: <br> - login-key <br> login-salt <br> - secret-salt <br> - encrypted secret
 ```
+
+### Add new user
+```mermaid
+sequenceDiagram
+    Note left of Charger Frontend: User provides some kind of<br>authentication for new user
+    Note over Charger Frontend: Generates new WireGuard keys
+    Charger Frontend->>Charger: Sends authentication data and WireGuard keys
+    Note over Charger: Read public key from authentication data and<br>encrypt WireGuard keys
+    Charger->>Backend: Sends authentication data and<br>encrypted WireGuard keys
+    Note over Backend: Authenticates request and stores keys
+    alt auth successfull
+        Backend->>Charger: Indicate success
+        Note over Charger: Save WireGuard keys and user mail
+        Charger->>Charger Frontend: Indicate success
+    else auth failed
+        Backend->>Charger: Indicate failure
+        Note over Charger: Forget WireGuard keys and user data
+        Charger->>Charger Frontend: Indicate failure
+    end
+```
