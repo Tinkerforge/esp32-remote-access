@@ -5,8 +5,10 @@ diesel::table! {
         id -> Uuid,
         user_id -> Uuid,
         charger_id -> Int4,
-        is_owner -> Bool,
         valid -> Bool,
+        key -> Nullable<Bytea>,
+        name -> Nullable<Bytea>,
+        note -> Nullable<Bytea>,
     }
 }
 
