@@ -300,7 +300,7 @@ async fn start_ws(
     .await?;
 
     if !keys.user_id.eq(&uid.into()) {
-        return Err(Error::UserIsNotOwner.into());
+        return Err(Error::Unauthorized.into());
     }
 
     let client = WebClient {

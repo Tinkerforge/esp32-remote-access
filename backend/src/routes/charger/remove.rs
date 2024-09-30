@@ -24,7 +24,7 @@ use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    routes::charger::charger_belongs_to_user,
+    routes::charger::user_is_allowed,
     utils::{get_connection, web_block_unpacked},
     AppState, BridgeState,
 };
@@ -95,6 +95,46 @@ pub fn remove_charger_from_state(charger: i32, state: &web::Data<BridgeState>) {
     }
 }
 
+async fn is_last_user(cid: i32, state: &web::Data<AppState>) -> actix_web::Result<bool> {
+    let mut conn = get_connection(state)?;
+    let count: i64 = web_block_unpacked(move || {
+        use db_connector::schema::allowed_users::dsl::*;
+
+        match allowed_users.filter(charger_id.eq(cid)).count().get_result(&mut conn) {
+            Ok(c) => Ok(c),
+            Err(_err) => Err(Error::InternalError)
+        }
+    }).await?;
+
+    Ok(count == 1)
+}
+
+async fn delete_keys_for_user(cid: i32, uid: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::wg_keys::dsl::*;
+        match diesel::delete(wg_keys.filter(user_id.eq(uid)).filter(charger_id.eq(cid))).execute(&mut conn) {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError)
+        }
+    }).await?;
+
+    Ok(())
+}
+
+async fn delete_allowed_user(cid: i32, uid: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::allowed_users::dsl::*;
+        match diesel::delete(allowed_users.filter(user_id.eq(uid)).filter(charger_id.eq(cid))).execute(&mut conn) {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError)
+        }
+    }).await?;
+
+    Ok(())
+}
+
 #[utoipa::path(
     context_path = "/charger",
     request_body = DeleteChargerSchema,
@@ -114,14 +154,28 @@ pub async fn remove(
     bridge_state: web::Data<BridgeState>,
 ) -> Result<impl Responder, actix_web::Error> {
 
-    if !charger_belongs_to_user(&state, uid.clone().into(), data.charger.clone()).await? {
-        return Err(Error::UserIsNotOwner.into());
+    if !user_is_allowed(&state, uid.clone().into(), data.charger.clone()).await? {
+        return Err(Error::Unauthorized.into());
     }
 
-    delete_all_keys(data.charger.clone(), &state).await?;
-    delete_all_allowed_users(data.charger.clone(), &state).await?;
-    delete_charger(data.charger, &state).await?;
-    remove_charger_from_state(data.charger, &bridge_state);
+    if is_last_user(data.charger, &state).await? {
+        delete_all_keys(data.charger.clone(), &state).await?;
+        delete_all_allowed_users(data.charger.clone(), &state).await?;
+
+        let mut conn = get_connection(&state)?;
+        web_block_unpacked(move || {
+            match diesel::delete(chargers.filter(id.eq(data.charger.clone()))).execute(&mut conn) {
+                Ok(_) => Ok(()),
+                Err(_err) => Err(Error::InternalError),
+            }
+        })
+        .await?;
+        delete_charger(charger, &state).await?;
+        remove_charger_from_state(charger, state);
+    } else {
+        delete_allowed_user(data.charger, uid.clone().into(), &state).await?;
+        delete_keys_for_user(data.charger, uid.into(), &state).await?;
+    }
 
     Ok(HttpResponse::Ok())
 }
@@ -133,6 +187,7 @@ pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::test_connection_pool;
+    use diesel::r2d2::{ConnectionManager, PooledConnection};
     use rand::RngCore;
     use rand_core::OsRng;
 
@@ -169,13 +224,45 @@ pub(crate) mod tests {
     }
 
     pub fn remove_test_charger(cid: i32) {
-        use db_connector::schema::chargers::dsl::*;
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
-        diesel::delete(chargers.filter(id.eq(cid)))
-            .execute(&mut conn)
-            .unwrap();
+        {
+            use db_connector::schema::wg_keys::dsl::*;
+
+            diesel::delete(wg_keys.filter(charger_id.eq(cid)))
+                .execute(&mut conn)
+                .unwrap();
+        }
+        {
+            use db_connector::schema::allowed_users::dsl::*;
+
+            diesel::delete(allowed_users.filter(charger_id.eq(cid)))
+                .execute(&mut conn)
+                .unwrap();
+        }
+        {
+            use db_connector::schema::chargers::dsl::*;
+            diesel::delete(chargers.filter(id.eq(cid)))
+                .execute(&mut conn)
+                .unwrap();
+        }
+    }
+
+    fn get_allowed_users_count(cid: i32, conn: &mut PooledConnection<ConnectionManager<PgConnection>>) -> i64 {
+        use db_connector::schema::allowed_users::dsl::*;
+
+        let count: i64 = allowed_users.filter(charger_id.eq(cid)).count().get_result(conn).unwrap();
+
+        count
+    }
+
+    fn get_wg_key_count(cid: i32, conn: &mut PooledConnection<ConnectionManager<PgConnection>>) -> i64 {
+        use db_connector::schema::wg_keys::dsl::*;
+
+        let count: i64 = wg_keys.filter(charger_id.eq(cid)).count().get_result(conn).unwrap();
+
+        count
     }
 
     #[actix_web::test]
@@ -209,6 +296,11 @@ pub(crate) mod tests {
                 panic!("test valid delete failed: {:?}", err);
             }
         }
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        assert_eq!(0, get_allowed_users_count(charger_id, &mut conn));
+        assert_eq!(0, get_wg_key_count(charger_id, &mut conn));
     }
 
     #[actix_web::test]
@@ -235,6 +327,11 @@ pub(crate) mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        assert_eq!(1, get_allowed_users_count(charger, &mut conn));
+        assert_eq!(5, get_wg_key_count(charger, &mut conn));
     }
 
     #[actix_web::test]
@@ -263,8 +360,12 @@ pub(crate) mod tests {
         let resp = test::try_call_service(&app, req).await.unwrap();
 
         println!("{:?}", resp);
-        assert!(resp.status().is_client_error());
-        assert!(resp.status().as_u16() == 401);
+        assert!(resp.status().is_success());
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        assert_eq!(1, get_allowed_users_count(charger, &mut conn));
+        assert_eq!(5, get_wg_key_count(charger, &mut conn));
     }
 
     #[actix_web::test]

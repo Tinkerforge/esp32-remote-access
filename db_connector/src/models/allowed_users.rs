@@ -10,6 +10,8 @@ pub struct AllowedUser {
     pub id: uuid::Uuid,
     pub user_id: uuid::Uuid,
     pub charger_id: i32,
-    pub is_owner: bool,
     pub valid: bool,
+    pub key: Option<Vec<u8>>,
+    pub name: Option<Vec<u8>>,
+    pub note: Option<Vec<u8>>,
 }

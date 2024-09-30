@@ -48,8 +48,6 @@ pub enum Error {
     WgKeyAlreadyInUse,
     #[display(fmt = "Charger was not seen yet")]
     ChargerNotSeenYet,
-    #[display(fmt = "Logged in user is not the owner of the charger")]
-    UserIsNotOwner,
     #[display(fmt = "Request does not contain a valid ip address")]
     NoValidIp,
     #[display(fmt = "Charger is currently not connected to the server")]
@@ -78,7 +76,6 @@ impl error::ResponseError for Error {
             Self::AllKeysInUse => StatusCode::NOT_FOUND,
             Self::WgKeyAlreadyInUse => StatusCode::CONFLICT,
             Self::ChargerNotSeenYet => StatusCode::NOT_FOUND,
-            Self::UserIsNotOwner => StatusCode::UNAUTHORIZED,
             Self::NoValidIp => StatusCode::BAD_REQUEST,
             Self::ChargerDisconnected => StatusCode::BAD_GATEWAY,
             Self::SessionDoesNotExist => StatusCode::UNAUTHORIZED,

@@ -18,22 +18,56 @@
  */
 
 use actix_web::{put, web, HttpResponse, Responder};
-use db_connector::models::allowed_users::AllowedUser;
+use db_connector::models::{allowed_users::AllowedUser, wg_keys::WgKey};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    routes::{auth::login::FindBy, charger::charger_belongs_to_user, user::get_uuid},
+    routes::{auth::login::FindBy, user::get_uuid},
     utils::{get_connection, web_block_unpacked},
     AppState,
 };
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, Clone)]
 pub struct AllowUserSchema {
     charger_id: i32,
+    pass: String,
     email: String,
+    wg_keys: [super::add::Keys; 5],
+    key: Vec<u8>,
+    charger_name: Vec<u8>,
+    note: Vec<u8>,
+}
+
+async fn add_keys(state: &web::Data<AppState>, keys: [super::add::Keys; 5], uid: uuid::Uuid, cid: i32) -> actix_web::Result<()> {
+    let mut conn = get_connection(&state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::wg_keys::dsl::*;
+
+        let insert_keys: Vec<WgKey> = keys.into_iter().map(|key| {
+            WgKey {
+                id: uuid::Uuid::new_v4(),
+                user_id: uid,
+                charger_id: cid,
+                in_use: false,
+                charger_pub: key.charger_public,
+                web_private: key.web_private,
+                psk: key.psk,
+                web_address: key.web_address,
+                charger_address: key.charger_address,
+                connection_no: key.connection_no as i32
+            }
+        }).collect();
+
+        match diesel::insert_into(wg_keys).values(&insert_keys).execute(&mut conn) {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError)
+        }
+    }).await?;
+
+    Ok(())
 }
 
 /// Give another user permission to access a charger owned by the user.
@@ -43,32 +77,27 @@ pub struct AllowUserSchema {
     responses(
         (status = 200, description = "Allowing the user to access the charger was successful."),
         (status = 400, description = "The user does not exist.")
-    ),
-    security(
-        ("jwt" = [])
     )
 )]
 #[put("/allow_user")]
 pub async fn allow_user(
     state: web::Data<AppState>,
-    uid: crate::models::uuid::Uuid,
     allow_user: web::Json<AllowUserSchema>,
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::allowed_users::dsl::*;
 
-    if !charger_belongs_to_user(&state, uid.into(), allow_user.charger_id).await? {
-        return Err(Error::UserIsNotOwner.into());
-    }
-
     let allowed_uuid = get_uuid(&state, FindBy::Email(allow_user.email.clone())).await?;
     let mut conn = get_connection(&state)?;
+    let allow_user = allow_user.clone();
     web_block_unpacked(move || {
         let u = AllowedUser {
             id: uuid::Uuid::new_v4(),
             user_id: allowed_uuid,
             charger_id: allow_user.charger_id,
-            is_owner: false,
             valid: false,
+            key: Some(allow_user.key),
+            name: Some(allow_user.charger_name),
+            note: Some(allow_user.note)
         };
 
         match diesel::insert_into(allowed_users)
@@ -81,6 +110,13 @@ pub async fn allow_user(
     })
     .await?;
 
+    match add_keys(&state, allow_user.wg_keys, allowed_uuid, allow_user.charger_id).await {
+        Ok(_) => (),
+        Err(_err) => {
+
+        }
+    }
+
     Ok(HttpResponse::Ok())
 }
 
@@ -91,7 +127,7 @@ pub mod tests {
     use rand::RngCore;
     use rand_core::OsRng;
 
-    use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
+    use crate::{middleware::jwt::JwtMiddleware, routes::{charger::add::tests::generate_random_keys, user::tests::TestUser}, tests::configure};
 
     pub async fn add_allowed_test_user(email: &str, charger_id: i32, token: &str) {
         let app = App::new()
@@ -103,6 +139,11 @@ pub mod tests {
         let body = AllowUserSchema {
             charger_id,
             email: email.to_string(),
+            pass: String::new(),
+            wg_keys: generate_random_keys(),
+            key: Vec::new(),
+            charger_name: Vec::new(),
+            note: Vec::new(),
         };
         let req = test::TestRequest::put()
             .cookie(Cookie::new("access_token", token))
@@ -134,6 +175,11 @@ pub mod tests {
         let allow = AllowUserSchema {
             charger_id: charger,
             email,
+            pass: String::new(),
+            wg_keys: generate_random_keys(),
+            key: Vec::new(),
+            charger_name: Vec::new(),
+            note: Vec::new(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
@@ -162,6 +208,11 @@ pub mod tests {
         let allow = AllowUserSchema {
             charger_id: charger,
             email: uuid::Uuid::new_v4().to_string(),
+            pass: String::new(),
+            wg_keys: generate_random_keys(),
+            key: Vec::new(),
+            charger_name: Vec::new(),
+            note: Vec::new(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")

@@ -31,7 +31,7 @@ use validator::{Validate, ValidationError};
 
 use crate::{
     error::Error,
-    routes::{auth::register::hash_key, charger::charger_belongs_to_user},
+    routes::{auth::register::hash_key, charger::user_is_allowed},
     utils::{get_connection, web_block_unpacked},
     AppState,
 };
@@ -63,11 +63,14 @@ pub struct ChargerSchema {
     pub psk: String,
 }
 
-#[derive(Serialize, Deserialize, Validate, ToSchema)]
+#[derive(Serialize, Deserialize, Validate, ToSchema, Clone)]
 #[validate(schema(function = "validate_add_charger_schema"))]
 pub struct AddChargerSchema {
     pub charger: ChargerSchema,
     pub keys: [Keys; 5],
+    pub key: Option<Vec<u8>>,
+    pub name: Option<Vec<u8>>,
+    pub note: Option<Vec<u8>>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -147,7 +150,7 @@ pub async fn add(
     let charger_id = i32::from_le_bytes(charger_id);
 
     let (pub_key, password) = if charger_exists(charger_id, &state).await? {
-        if charger_belongs_to_user(&state, uid.clone().into(), charger_id).await? {
+        if user_is_allowed(&state, uid.clone().into(), charger_id).await? {
             update_charger(
                 charger_schema.charger.clone(),
                 charger_id,
@@ -156,11 +159,11 @@ pub async fn add(
             )
             .await?
         } else {
-            return Err(Error::UserIsNotOwner.into());
+            return Err(Error::Unauthorized.into());
         }
     } else {
         add_charger(
-            charger_schema.charger.clone(),
+            charger_schema.0.clone(),
             charger_id,
             uid.clone().into(),
             &state,
@@ -323,7 +326,7 @@ async fn generate_password() -> actix_web::Result<(String, String)> {
 }
 
 async fn add_charger(
-    charger: ChargerSchema,
+    schema: AddChargerSchema,
     charger_id: i32,
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
@@ -339,16 +342,17 @@ async fn add_charger(
         let pub_key = boringtun::x25519::PublicKey::from(&private_key);
         let private_key = BASE64_STANDARD.encode(private_key.as_bytes());
         let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
+        let charger = &schema.charger;
 
         let charger = Charger {
             id: charger_id,
             password: hash,
-            name: Some(charger.name),
-            charger_pub: charger.charger_pub,
+            name: Some(charger.name.clone()),
+            charger_pub: charger.charger_pub.clone(),
             management_private: private_key,
             wg_charger_ip: charger.wg_charger_ip,
             wg_server_ip: charger.wg_server_ip,
-            psk: charger.psk,
+            psk: charger.psk.clone(),
             webinterface_port: 0,
             firmware_version: String::new(),
         };
@@ -365,8 +369,10 @@ async fn add_charger(
             id: uuid::Uuid::new_v4(),
             user_id: uid,
             charger_id: charger.id,
-            is_owner: true,
             valid: true,
+            key: schema.key,
+            note: schema.note,
+            name: schema.name,
         };
 
         match diesel::insert_into(allowed_users::allowed_users)
@@ -454,7 +460,7 @@ pub(crate) mod tests {
         utils::generate_random_bytes,
     };
 
-    fn generate_random_keys() -> [Keys; 5] {
+    pub fn generate_random_keys() -> [Keys; 5] {
         let mut keys: [MaybeUninit<Keys>; 5] = unsafe { MaybeUninit::uninit().assume_init() };
         for (i, key) in keys.iter_mut().enumerate() {
             let secret = x25519::StaticSecret::random_from_rng(OsRng);
@@ -503,6 +509,9 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
+            name: None,
+            key: None,
+            note: None,
         };
 
         let req = test::TestRequest::put()
@@ -546,6 +555,9 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
+            name: None,
+            key: None,
+            note: None,
         };
 
         let req = test::TestRequest::put()
@@ -594,6 +606,9 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
+            name: None,
+            key: None,
+            note: None,
         };
 
         let req = test::TestRequest::put()
@@ -650,6 +665,9 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
+            name: None,
+            key: None,
+            note: None,
         };
 
         let req = test::TestRequest::put()
@@ -661,7 +679,7 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
-        assert_eq!(resp.status(), 401);
+        assert_eq!(resp.status(), 200);
     }
 
     #[actix_web::test]
@@ -695,6 +713,9 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
+            name: None,
+            key: None,
+            note: None,
         };
 
         let req = test::TestRequest::put()
@@ -750,6 +771,9 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
+            name: None,
+            key: None,
+            note: None,
         };
 
         assert!(validate_add_charger_schema(&schema).is_ok());

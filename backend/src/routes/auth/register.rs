@@ -277,6 +277,8 @@ pub(crate) mod tests {
         use db_connector::schema::refresh_tokens::dsl::*;
         use db_connector::schema::users::dsl::*;
         use db_connector::schema::verification::dsl::*;
+        use db_connector::schema::wg_keys::dsl as wg_keys;
+        use db_connector::schema::allowed_users::dsl as allowed_users;
         use diesel::prelude::*;
 
         let pool = db_connector::test_connection_pool();
@@ -298,6 +300,12 @@ pub(crate) mod tests {
         diesel::delete(verification.filter(user.eq(u.id)))
             .execute(&mut conn)
             .expect("Error deleting verification");
+        diesel::delete(wg_keys::wg_keys.filter(wg_keys::user_id.eq(u.id)))
+            .execute(&mut conn)
+            .expect("Error deleting wg keys");
+        diesel::delete(allowed_users::allowed_users.filter(allowed_users::user_id.eq(u.id)))
+            .execute(&mut conn)
+            .expect("Error deleting allowed user object");
         diesel::delete(users.filter(email.eq(mail.to_lowercase())))
             .execute(&mut conn)
             .expect("Error deleting test user");

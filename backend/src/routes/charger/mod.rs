@@ -37,14 +37,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     let scope = web::scope("/charger")
         .wrap(JwtMiddleware)
         .service(add::add)
-        .service(allow_user::allow_user)
         .service(remove::remove)
         .service(get_chargers::get_chargers)
         .service(get_key::get_key);
     cfg.service(scope);
+    cfg.service(allow_user::allow_user);
 }
 
-pub async fn charger_belongs_to_user(
+pub async fn user_is_allowed(
     state: &web::Data<AppState>,
     uid: uuid::Uuid,
     cid: i32,
@@ -53,18 +53,18 @@ pub async fn charger_belongs_to_user(
 
     let mut conn = get_connection(state)?;
     let owner = web_block_unpacked(move || {
-        let allowed_user: AllowedUser = match allowed_users
+        let _allowed_user: AllowedUser = match allowed_users
             .filter(user_id.eq(uid))
             .filter(charger_id.eq(cid))
             .select(AllowedUser::as_select())
             .get_result(&mut conn)
         {
             Ok(u) => u,
-            Err(NotFound) => return Err(Error::UserIsNotOwner),
+            Err(NotFound) => return Err(Error::Unauthorized),
             Err(_err) => return Err(Error::InternalError),
         };
 
-        Ok(allowed_user.is_owner)
+        Ok(true)
     })
     .await?;
 
