@@ -144,7 +144,7 @@ pub async fn login(
             MAX_TOKEN_AGE_MINUTES,
         ))
         .http_only(true)
-        .same_site(actix_web::cookie::SameSite::Strict)
+        .same_site(actix_web::cookie::SameSite::None)
         .secure(true)
         .finish();
 
@@ -205,7 +205,7 @@ pub async fn create_refresh_token(
             MAX_REFRESH_TOKEN_AGE_DAYS,
         ))
         .http_only(true)
-        .same_site(actix_web::cookie::SameSite::Strict)
+        .same_site(actix_web::cookie::SameSite::None)
         .secure(true)
         .finish();
 

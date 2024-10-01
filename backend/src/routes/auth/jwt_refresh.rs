@@ -123,12 +123,10 @@ pub async fn jwt_refresh(
                 .path("/")
                 .max_age(actix_web::cookie::time::Duration::new(-1, 0))
                 .http_only(true)
-                .same_site(actix_web::cookie::SameSite::Strict)
                 .finish();
             let refresh_token = Cookie::build("refresh_token", "")
                 .path("/")
                 .max_age(actix_web::cookie::time::Duration::new(-1, 0))
-                .same_site(actix_web::cookie::SameSite::Strict)
                 .http_only(true)
                 .finish();
 
@@ -162,8 +160,8 @@ pub async fn jwt_refresh(
         .max_age(actix_web::cookie::time::Duration::minutes(
             super::login::MAX_TOKEN_AGE_MINUTES,
         ))
-        .http_only(true)
-        .same_site(actix_web::cookie::SameSite::Strict)
+        .http_only(false)
+        .same_site(actix_web::cookie::SameSite::None)
         .secure(true)
         .finish();
 
