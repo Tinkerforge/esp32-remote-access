@@ -4,17 +4,17 @@ diesel::table! {
     allowed_users (id) {
         id -> Uuid,
         user_id -> Uuid,
-        charger_id -> Int4,
         valid -> Bool,
         key -> Nullable<Bytea>,
         name -> Nullable<Bytea>,
         note -> Nullable<Bytea>,
+        charger_uid -> Nullable<Int4>,
+        charger_id -> Uuid,
     }
 }
 
 diesel::table! {
     chargers (id) {
-        id -> Int4,
         password -> Varchar,
         management_private -> Varchar,
         charger_pub -> Varchar,
@@ -24,6 +24,8 @@ diesel::table! {
         webinterface_port -> Int4,
         firmware_version -> Varchar,
         name -> Nullable<Bytea>,
+        uid -> Int4,
+        id -> Uuid,
     }
 }
 
@@ -71,7 +73,6 @@ diesel::table! {
     wg_keys (id) {
         id -> Uuid,
         user_id -> Uuid,
-        charger_id -> Int4,
         in_use -> Bool,
         charger_pub -> Varchar,
         web_private -> Bytea,
@@ -79,6 +80,8 @@ diesel::table! {
         web_address -> Inet,
         charger_address -> Inet,
         connection_no -> Int4,
+        charger_uid -> Nullable<Int4>,
+        charger_id -> Uuid,
     }
 }
 
