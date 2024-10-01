@@ -73,13 +73,11 @@ pub async fn logout(
         .path("/")
         .max_age(Duration::new(-1, 0))
         .http_only(true)
-        .same_site(actix_web::cookie::SameSite::Strict)
         .finish();
     let refresh_token = Cookie::build("refresh_token", "")
         .path("/")
         .max_age(Duration::new(-1, 0))
         .http_only(true)
-        .same_site(actix_web::cookie::SameSite::Strict)
         .finish();
 
     Ok(HttpResponse::Ok()
