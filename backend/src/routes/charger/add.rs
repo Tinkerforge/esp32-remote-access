@@ -31,10 +31,12 @@ use validator::{Validate, ValidationError};
 
 use crate::{
     error::Error,
-    routes::{auth::register::hash_key, charger::user_is_allowed},
+    routes::auth::register::hash_key,
     utils::{get_connection, web_block_unpacked},
     AppState,
 };
+
+use super::get_charger_uuid;
 
 #[derive(Serialize, Deserialize, Clone, Validate, ToSchema, Debug)]
 pub struct Keys {
@@ -52,7 +54,7 @@ pub struct Keys {
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct ChargerSchema {
-    pub id: String,
+    pub uid: String,
     #[schema(value_type = Vec<u32>)]
     pub name: Vec<u8>,
     pub charger_pub: String,
@@ -73,9 +75,10 @@ pub struct AddChargerSchema {
     pub note: Option<Vec<u8>>,
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema, Debug)]
 pub struct AddChargerResponseSchema {
     pub management_pub: String,
+    pub charger_uuid: String,
     pub charger_password: String,
 }
 
@@ -85,7 +88,7 @@ fn validate_add_charger_schema(schema: &AddChargerSchema) -> Result<(), Validati
     }
 
     validate_wg_key(&schema.charger.charger_pub)?;
-    validate_charger_id(&schema.charger.id)?;
+    validate_charger_id(&schema.charger.uid)?;
 
     Ok(())
 }
@@ -138,33 +141,34 @@ pub async fn add(
     uid: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
     // uwrapping here is safe since it got checked in the validator.
-    let mut id_bytes = bs58::decode(&charger_schema.charger.id)
+    let mut uid_bytes = bs58::decode(&charger_schema.charger.uid)
         .with_alphabet(bs58::Alphabet::FLICKR)
         .into_vec()
         .unwrap();
-    id_bytes.reverse();
+    uid_bytes.reverse();
     let mut charger_id = [0u8; 4];
-    for (i, byte) in id_bytes.into_iter().enumerate() {
+    for (i, byte) in uid_bytes.into_iter().enumerate() {
         charger_id[i] = byte;
     }
-    let charger_id = i32::from_le_bytes(charger_id);
+    let charger_uid = i32::from_le_bytes(charger_id);
+    let charger_id;
 
-    let (pub_key, password) = if charger_exists(charger_id, &state).await? {
-        if user_is_allowed(&state, uid.clone().into(), charger_id).await? {
-            update_charger(
-                charger_schema.charger.clone(),
-                charger_id,
-                uid.clone().into(),
-                &state,
-            )
-            .await?
-        } else {
-            return Err(Error::Unauthorized.into());
-        }
+    let (pub_key, password) = if let Some(cid) = get_charger_uuid(&state, charger_uid, uid.clone().into()).await? {
+        charger_id = cid;
+        update_charger(
+            charger_schema.charger.clone(),
+            charger_id,
+            charger_uid,
+            uid.clone().into(),
+            &state,
+        )
+        .await?
     } else {
+        charger_id = uuid::Uuid::new_v4();
         add_charger(
             charger_schema.0.clone(),
             charger_id,
+            charger_uid,
             uid.clone().into(),
             &state,
         )
@@ -177,34 +181,15 @@ pub async fn add(
 
     let resp = AddChargerResponseSchema {
         management_pub: pub_key,
+        charger_uuid: charger_id.to_string(),
         charger_password: password,
     };
 
     Ok(HttpResponse::Ok().json(resp))
 }
 
-async fn charger_exists(charger_id: i32, state: &web::Data<AppState>) -> actix_web::Result<bool> {
-    use db_connector::schema::chargers::dsl as chargers;
-
-    let mut conn = get_connection(state)?;
-    let exists = web_block_unpacked(move || {
-        match chargers::chargers
-            .find(charger_id)
-            .select(Charger::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(_) => Ok(true),
-            Err(NotFound) => Ok(false),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
-
-    Ok(exists)
-}
-
 pub async fn get_charger_from_db(
-    charger_id: i32,
+    charger_id: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<Charger> {
     let mut conn = get_connection(state)?;
@@ -228,19 +213,20 @@ pub async fn get_charger_from_db(
     Ok(charger)
 }
 
-pub fn password_matches(password: String, password_in_db: String) -> actix_web::Result<bool> {
-    let password_hash = match PasswordHash::new(&password_in_db) {
+pub fn password_matches(password: &str, password_in_db: &str) -> actix_web::Result<bool> {
+    let password_hash = match PasswordHash::new(password_in_db) {
         Ok(p) => p,
         Err(_err) => return Err(Error::InternalError.into()),
     };
-    let result = Argon2::default().verify_password(&password.as_bytes(), &password_hash);
+    let result = Argon2::default().verify_password(password.as_bytes(), &password_hash);
 
     Ok(result.is_ok())
 }
 
 async fn update_charger(
     charger: ChargerSchema,
-    charger_id: i32,
+    charger_id: uuid::Uuid,
+    charger_uid: i32,
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<(String, String)> {
@@ -288,6 +274,7 @@ async fn update_charger(
 
         let charger = Charger {
             id: charger_id,
+            uid: charger_uid,
             password: hash,
             name: Some(charger.name),
             charger_pub: charger.charger_pub,
@@ -327,7 +314,8 @@ async fn generate_password() -> actix_web::Result<(String, String)> {
 
 async fn add_charger(
     schema: AddChargerSchema,
-    charger_id: i32,
+    charger_id: uuid::Uuid,
+    charger_uid: i32,
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> Result<(String, String), actix_web::Error> {
@@ -346,6 +334,7 @@ async fn add_charger(
 
         let charger = Charger {
             id: charger_id,
+            uid: charger_uid,
             password: hash,
             name: Some(charger.name.clone()),
             charger_pub: charger.charger_pub.clone(),
@@ -369,6 +358,7 @@ async fn add_charger(
             id: uuid::Uuid::new_v4(),
             user_id: uid,
             charger_id: charger.id,
+            charger_uid: charger.uid,
             valid: true,
             key: schema.key,
             note: schema.note,
@@ -391,7 +381,7 @@ async fn add_charger(
 }
 
 async fn add_wg_key(
-    cid: i32,
+    cid: uuid::Uuid,
     uid: uuid::Uuid,
     keys: Keys,
     state: &web::Data<AppState>,
@@ -434,7 +424,7 @@ async fn add_wg_key(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{mem::MaybeUninit, net::Ipv4Addr};
+    use std::{mem::MaybeUninit, net::Ipv4Addr, str::FromStr};
 
     use super::*;
     use actix_web::{
@@ -451,9 +441,9 @@ pub(crate) mod tests {
     use crate::{
         middleware::jwt::JwtMiddleware,
         routes::{
-            charger::remove::tests::{
+            charger::{allow_user::UserAuth, remove::tests::{
                 remove_allowed_test_users, remove_test_charger, remove_test_keys,
-            },
+            }, tests::TestCharger},
             user::tests::TestUser,
         },
         tests::configure,
@@ -482,22 +472,22 @@ pub(crate) mod tests {
         unsafe { std::mem::transmute::<_, [Keys; 5]>(keys) }
     }
 
-    pub async fn add_test_charger(id: i32, token: &str) -> String {
+    pub async fn add_test_charger(uid: i32, token: &str) -> TestCharger {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
             .service(add);
         let app = test::init_service(app).await;
 
-        println!("Id number: {}", id);
-        let id = bs58::encode(id.to_be_bytes())
+        println!("Id number: {}", uid);
+        let uid_str = bs58::encode(uid.to_be_bytes())
             .with_alphabet(bs58::Alphabet::FLICKR)
             .into_string();
-        println!("id: {}", id);
+        println!("id: {}", uid_str);
         let keys = generate_random_keys();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
-                id,
+                uid: uid_str,
                 name: uuid::Uuid::new_v4().as_bytes().to_vec(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
@@ -522,8 +512,11 @@ pub(crate) mod tests {
 
         let resp = test::call_service(&app, req).await;
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-
-        body.charger_password
+        TestCharger {
+            uid,
+            uuid: body.charger_uuid,
+            password: body.charger_password,
+        }
     }
 
     #[actix_web::test]
@@ -541,7 +534,7 @@ pub(crate) mod tests {
         let cid = OsRng.next_u32() as i32;
         let charger = AddChargerSchema {
             charger: ChargerSchema {
-                id: bs58::encode(cid.to_be_bytes())
+                uid: bs58::encode(cid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 name: "Test".as_bytes().to_owned(),
@@ -573,15 +566,20 @@ pub(crate) mod tests {
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
+        let body: AddChargerResponseSchema = test::read_body_json(resp).await;
+        remove_test_keys(&mail);
+        remove_allowed_test_users(&body.charger_uuid);
+        remove_test_charger(&body.charger_uuid);
     }
 
     #[actix_web::test]
     async fn test_update_charger() {
         use db_connector::schema::wg_keys::dsl as wg_keys;
+        use diesel::prelude::*;
 
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_owned();
-        let (charger_id, _) = user.add_random_charger().await;
+        let charger = user.add_random_charger().await;
 
         let app = App::new()
             .configure(configure)
@@ -590,9 +588,9 @@ pub(crate) mod tests {
         let app = init_service(app).await;
 
         let keys = generate_random_keys();
-        let charger = AddChargerSchema {
+        let charger_schema = AddChargerSchema {
             charger: ChargerSchema {
-                id: bs58::encode(charger_id.to_be_bytes())
+                uid: bs58::encode(charger.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 name: "Test".to_string().as_bytes().to_owned(),
@@ -614,18 +612,21 @@ pub(crate) mod tests {
         let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
-            .set_json(charger)
+            .set_json(charger_schema)
             .to_request();
 
         let resp = test::call_service(&app, req).await;
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
+        let body: AddChargerResponseSchema = test::read_body_json(resp).await;
 
+        let uuid = uuid::Uuid::from_str(&body.charger_uuid).unwrap();
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         let keys: Vec<WgKey> = wg_keys::wg_keys
-            .filter(wg_keys::charger_id.eq(charger_id))
+            .filter(wg_keys::charger_id.eq(uuid))
+            .select(WgKey::as_select())
             .load(&mut conn)
             .unwrap();
         assert_eq!(keys.len(), 5);
@@ -639,8 +640,8 @@ pub(crate) mod tests {
 
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
-        let (charger_id, _) = user2.add_random_charger().await;
-        user2.allow_user(&email, charger_id).await;
+        let charger = user2.add_random_charger().await;
+        user2.allow_user(&email, UserAuth::LoginKey(user.get_login_key().await), &charger).await;
 
         let app = App::new()
             .configure(configure)
@@ -649,9 +650,9 @@ pub(crate) mod tests {
         let app = init_service(app).await;
 
         let keys = generate_random_keys();
-        let charger = AddChargerSchema {
+        let charger_schema = AddChargerSchema {
             charger: ChargerSchema {
-                id: bs58::encode(charger_id.to_be_bytes())
+                uid: bs58::encode(charger.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 name: "Test".as_bytes().to_owned(),
@@ -673,7 +674,7 @@ pub(crate) mod tests {
         let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
-            .set_json(charger)
+            .set_json(charger_schema)
             .to_request();
 
         let resp = test::call_service(&app, req).await;
@@ -686,7 +687,7 @@ pub(crate) mod tests {
     async fn test_add_existing_charger() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let (charger, _) = user.add_random_charger().await;
+        let charger = user.add_random_charger().await;
         let (mut user2, _) = TestUser::random().await;
         let token = user2.login().await.to_owned();
 
@@ -697,9 +698,9 @@ pub(crate) mod tests {
         let app = init_service(app).await;
 
         let keys = generate_random_keys();
-        let charger = AddChargerSchema {
+        let charger_schema = AddChargerSchema {
             charger: ChargerSchema {
-                id: bs58::encode(charger.to_be_bytes())
+                uid: bs58::encode(charger.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 name: "Test".as_bytes().to_owned(),
@@ -721,13 +722,13 @@ pub(crate) mod tests {
         let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
-            .set_json(charger)
+            .set_json(charger_schema)
             .to_request();
 
         let resp = test::call_service(&app, req).await;
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
-        assert_eq!(resp.status().as_u16(), 401);
+        assert_eq!(resp.status().as_u16(), 200);
     }
 
     #[actix_web::test]
@@ -757,7 +758,7 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let schema = AddChargerSchema {
             charger: ChargerSchema {
-                id: bs58::encode((OsRng.next_u32() as i32).to_le_bytes())
+                uid: bs58::encode((OsRng.next_u32() as i32).to_le_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 name: "Test".as_bytes().to_owned(),

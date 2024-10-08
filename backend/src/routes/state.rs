@@ -8,7 +8,7 @@ use ipnetwork::IpNetwork;
 use serde::Serialize;
 
 use crate::{
-    udp_server::{management::RemoteConnMeta, packet::ManagementResponse},
+    udp_server::{management::RemoteConnMeta, packet::ManagementResponseV2},
     BridgeState, DiscoveryCharger,
 };
 
@@ -17,11 +17,11 @@ pub struct ServerState {
     pub clients: Vec<SocketAddr>,
     pub undiscovered_clients: Vec<RemoteConnMeta>,
     pub charger_management_map: Vec<SocketAddr>,
-    pub charger_management_map_with_id: Vec<i32>,
-    pub port_discovery: Vec<ManagementResponse>,
+    pub charger_management_map_with_id: Vec<String>,
+    pub port_discovery: Vec<ManagementResponseV2>,
     pub charger_remote_conn_map: Vec<RemoteConnMeta>,
     pub undiscovered_chargers: HashMap<IpNetwork, HashSet<DiscoveryCharger>>,
-    pub lost_connections: Vec<(i32, Vec<i32>)>,
+    pub lost_connections: Vec<(String, Vec<i32>)>,
 }
 
 #[get("/state")]
@@ -50,16 +50,16 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
             .collect()
     };
 
-    let charger_management_map_with_id: Vec<i32> = {
+    let charger_management_map_with_id: Vec<String> = {
         let charger_management_map_with_id =
             brige_state.charger_management_map_with_id.lock().unwrap();
         charger_management_map_with_id
             .iter()
-            .map(|(id, _)| id.to_owned())
+            .map(|(id, _)| id.to_string())
             .collect()
     };
 
-    let port_discovery: Vec<ManagementResponse> = {
+    let port_discovery: Vec<ManagementResponseV2> = {
         let port_discovery = brige_state.port_discovery.lock().unwrap();
         port_discovery
             .iter()
@@ -80,9 +80,9 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         map.clone()
     };
 
-    let lost_connections: Vec<(i32, Vec<i32>)> = {
+    let lost_connections: Vec<(String, Vec<i32>)> = {
         let map = brige_state.lost_connections.lock().unwrap();
-        map.iter().map(|(id, conns)| (id.to_owned(), conns.into_iter().map(|(conn_no, _)| *conn_no).collect())).collect()
+        map.iter().map(|(id, conns)| (id.to_string(), conns.into_iter().map(|(conn_no, _)| *conn_no).collect())).collect()
     };
 
     let state = ServerState {

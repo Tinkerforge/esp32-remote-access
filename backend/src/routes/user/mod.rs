@@ -51,7 +51,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
 /**
  * Lookup the corresponding Uuid for an email or username or check if uuid exists.
  */
-pub async fn get_uuid(
+pub async fn get_user_id(
     state: &web::Data<AppState>,
     find: FindBy,
 ) -> Result<uuid::Uuid, actix_web::Error> {
@@ -149,8 +149,8 @@ pub mod tests {
             },
             charger::{
                 add::tests::add_test_charger,
-                allow_user::tests::add_allowed_test_user,
-                remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
+                allow_user::{tests::add_allowed_test_user, UserAuth},
+                remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys}, tests::TestCharger,
             },
         },
         tests::configure,
@@ -177,7 +177,7 @@ pub mod tests {
     #[derive(Debug)]
     pub struct TestUser {
         pub mail: String,
-        pub charger: Vec<i32>,
+        pub charger: Vec<TestCharger>,
         pub password: Vec<u8>,
         pub access_token: Option<String>,
         pub refresh_token: Option<String>,
@@ -300,26 +300,28 @@ pub mod tests {
             login_user(&self.mail, login_key).await;
         }
 
-        pub async fn add_charger(&mut self, id: i32) -> String {
-            let pass = add_test_charger(id, self.access_token.as_ref().unwrap()).await;
-            self.charger.push(id);
-
-            pass
+        pub async fn get_login_key(&self) -> Vec<u8> {
+            let login_salt = get_test_login_salt(&self.mail).await;
+            let login_key = hash_test_key(&self.password, &login_salt, None);
+            login_key
         }
 
-        pub async fn add_random_charger(&mut self) -> (i32, String) {
-            let charger = OsRng.next_u32() as i32;
-            let pass = self.add_charger(charger).await;
+        pub async fn add_charger(&mut self, id: i32) -> TestCharger {
+            let charger = add_test_charger(id, self.access_token.as_ref().unwrap()).await;
+            self.charger.push(charger.clone());
 
-            (charger, pass)
+            charger
         }
 
-        pub async fn allow_user(&mut self, email: &str, charger_id: i32) {
-            let token = self
-                .access_token
-                .as_ref()
-                .expect("Test user must be logged in.");
-            add_allowed_test_user(email, charger_id, token).await;
+        pub async fn add_random_charger(&mut self) -> TestCharger {
+            let id = OsRng.next_u32() as i32;
+            let charger = self.add_charger(id).await;
+
+            charger
+        }
+
+        pub async fn allow_user(&mut self, email: &str, user_auth: UserAuth, charger: &TestCharger) {
+            add_allowed_test_user(email, user_auth, charger).await;
         }
 
         pub fn get_mail(&self) -> &str {
@@ -334,9 +336,9 @@ pub mod tests {
     impl Drop for TestUser {
         fn drop(&mut self) {
             while let Some(charger) = self.charger.pop() {
-                let _ = remove_test_keys(&self.mail);
-                remove_allowed_test_users(charger);
-                remove_test_charger(charger);
+                remove_test_keys(&self.mail);
+                remove_allowed_test_users(&charger.uuid);
+                remove_test_charger(&charger.uuid);
             }
             delete_user(&self.mail);
         }

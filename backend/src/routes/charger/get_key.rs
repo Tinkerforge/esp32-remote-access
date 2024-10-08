@@ -27,14 +27,14 @@ use utoipa::{IntoParams, ToSchema};
 use crate::{
     error::Error,
     routes::user::get_user,
-    utils::{get_connection, web_block_unpacked},
+    utils::{get_connection, parse_uuid, web_block_unpacked},
     AppState,
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetWgKeysResponseSchema {
     id: String,
-    charger_id: i32,
+    charger_id: String,
     charger_pub: String,
     #[schema(value_type = SchemaType::String)]
     charger_address: IpNetwork,
@@ -48,7 +48,7 @@ pub struct GetWgKeysResponseSchema {
 
 #[derive(Serialize, Deserialize, IntoParams)]
 pub struct GetWgKeysQuery {
-    cid: i32,
+    cid: String,
 }
 
 #[utoipa::path(
@@ -74,11 +74,12 @@ pub async fn get_key(
     use db_connector::schema::wg_keys::dsl::*;
 
     let user = get_user(&state, uid.into()).await?;
+    let cid = parse_uuid(&web_query.cid)?;
 
     let mut conn = get_connection(&state)?;
     let key: Option<WgKey> = web_block_unpacked(move || {
         match WgKey::belonging_to(&user)
-            .filter(charger_id.eq(&web_query.cid))
+            .filter(charger_id.eq(&cid))
             .filter(in_use.eq(false))
             .select(WgKey::as_select())
             .get_result(&mut conn)
@@ -93,7 +94,7 @@ pub async fn get_key(
     if let Some(key) = key {
         let key = GetWgKeysResponseSchema {
             id: key.id.to_string(),
-            charger_id: key.charger_id,
+            charger_id: key.charger_id.to_string(),
             charger_pub: key.charger_pub,
             charger_address: key.charger_address,
             web_private: key.web_private,
@@ -108,6 +109,8 @@ pub async fn get_key(
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::test_connection_pool;
@@ -121,8 +124,8 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let charger = OsRng.next_u32() as i32;
-        user.add_charger(charger).await;
+        let charger_uid = OsRng.next_u32() as i32;
+        let charger = user.add_charger(charger_uid).await;
 
         let app = App::new()
             .configure(configure)
@@ -131,12 +134,12 @@ mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/get_key?cid={}", charger.clone()))
+            .uri(&format!("/get_key?cid={}", charger.uuid))
             .cookie(Cookie::new("access_token", user.get_access_token()))
             .to_request();
 
         let resp: GetWgKeysResponseSchema = test::call_and_read_body_json(&app, req).await;
-        assert_eq!(resp.charger_id, charger);
+        assert_eq!(resp.charger_id, charger.uuid);
     }
 
     #[actix_web::test]
@@ -146,14 +149,14 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let charger = OsRng.next_u32() as i32;
-        user.add_charger(charger).await;
+        let charger_uid = OsRng.next_u32() as i32;
+        let charger = user.add_charger(charger_uid).await;
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
 
         diesel::update(wg_keys)
-            .filter(charger_id.eq(&charger))
+            .filter(charger_id.eq(uuid::Uuid::from_str(&charger.uuid).unwrap()))
             .set(in_use.eq(true))
             .execute(&mut conn)
             .unwrap();
@@ -165,7 +168,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/get_key?cid={}", charger.clone()))
+            .uri(&format!("/get_key?cid={}", charger.uuid))
             .cookie(Cookie::new("access_token", user.get_access_token()))
             .to_request();
 

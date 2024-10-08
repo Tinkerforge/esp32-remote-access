@@ -20,37 +20,74 @@
 use std::net::SocketAddr;
 
 use actix_web::web;
-use serde::Serialize;
+use anyhow::Error;
+use serde::{ser::SerializeStruct, Serialize};
 
 use crate::BridgeState;
 
-use super::packet::ManagementResponse;
+use super::packet::{ManagementResponsePacket, ManagementResponseV2, OldManagementResponse};
 
-#[derive(PartialEq, Hash, Eq, Debug, Serialize, Clone)]
+#[derive(PartialEq, Hash, Eq, Debug, Clone)]
 pub struct RemoteConnMeta {
-    pub charger_id: i32,
+    pub charger_id: uuid::Uuid,
     pub conn_no: i32,
 }
 
-pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: SocketAddr) -> bool {
-    if data.len() != ::core::mem::size_of::<ManagementResponse>() {
-        return false;
+impl Serialize for RemoteConnMeta {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        let mut s =serializer.serialize_struct("RemoteConnMeta", 2)?;
+        s.serialize_field("charger_id", &self.charger_id.to_string())?;
+        s.serialize_field("conn_no", &self.conn_no)?;
+        s.end()
     }
+}
 
-    let response: ManagementResponse = unsafe {
-        // using std::mem::transmute is more unsafe than std::ptr::read. https://users.rust-lang.org/t/isnt-a-pointer-cast-just-a-more-dangerous-transmute/47007
+fn process_old_packet(state: &web::Data<BridgeState>, data: &[u8]) -> anyhow::Result<ManagementResponseV2> {
+    let packet: OldManagementResponse = unsafe {
         std::ptr::read(data.as_ptr() as *const _)
     };
+
+    let map = state.port_discovery.lock().unwrap();
+    for (meta, _) in map.iter() {
+        if meta.connection_no == packet.connection_no && meta.connection_uuid == packet.connection_uuid {
+            return Ok(meta.clone())
+        }
+    }
+
+    Err(Error::msg("Unknown connection"))
+}
+
+fn unpack_packet(state: &web::Data<BridgeState>, data: &[u8]) -> anyhow::Result<ManagementResponseV2> {
+    if data.len() == ::core::mem::size_of::<OldManagementResponse>() {
+        process_old_packet(state, data)
+    } else if data.len() == ::core::mem::size_of::<ManagementResponsePacket>() {
+        let packet: ManagementResponsePacket = unsafe {
+            std::ptr::read(data.as_ptr() as *const _)
+        };
+        if packet.header.magic != 0x1234 || packet.header.version != 1 {
+            return Err(Error::msg("Not a valid ManagementResponse packet"))
+        }
+
+        Ok(packet.data)
+    } else {
+        Err(Error::msg("Received a packet of invalid length"))
+    }
+}
+
+pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: SocketAddr) -> anyhow::Result<()> {
+    let response = unpack_packet(state, data)?;
 
     {
         let mut set = state.port_discovery.lock().unwrap();
         if set.remove(&response).is_none() {
-            return false;
+            return Err(Error::msg("Connection does not exist"));
         }
     }
 
     let meta = RemoteConnMeta {
-        charger_id: response.charger_id,
+        charger_id: uuid::Uuid::from_u128(response.charger_id),
         conn_no: response.connection_no,
     };
 
@@ -65,5 +102,5 @@ pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: Soc
     let mut map = state.charger_remote_conn_map.lock().unwrap();
     map.insert(meta, addr);
 
-    true
+    Ok(())
 }

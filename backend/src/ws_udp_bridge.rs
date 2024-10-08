@@ -35,7 +35,7 @@ use validator::{Validate, ValidationError};
 use crate::udp_server::management::RemoteConnMeta;
 use crate::udp_server::packet::{
     ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
-    ManagementPacketHeader, ManagementResponse,
+    ManagementPacketHeader, ManagementResponseV2,
 };
 use crate::udp_server::socket::ManagementSocket;
 use crate::{
@@ -59,7 +59,7 @@ fn validate_key_id(key_id: &str) -> Result<(), ValidationError> {
 
 pub struct WebClient {
     pub key_id: uuid::Uuid,
-    pub charger_id: i32,
+    pub charger_id: uuid::Uuid,
     pub app_state: web::Data<AppState>,
     pub bridge_state: web::Data<BridgeState>,
     pub conn_no: i32,
@@ -234,9 +234,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
 
 pub fn open_connection(
     conn_no: i32,
-    charger_id: i32,
+    charger_id: uuid::Uuid,
     management_sock: Arc<Mutex<ManagementSocket>>,
-    port_discovery: Arc<Mutex<HashMap<ManagementResponse, Instant>>>,
+    port_discovery: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
 ) -> Result<(), Error> {
     let conn_uuid = uuid::Uuid::new_v4();
     let command = ManagementCommand {
@@ -244,8 +244,8 @@ pub fn open_connection(
         connection_no: conn_no,
         connection_uuid: conn_uuid.as_u128(),
     };
-    let response = ManagementResponse {
-        charger_id,
+    let response = ManagementResponseV2 {
+        charger_id: charger_id.as_u128(),
         connection_no: conn_no,
         connection_uuid: conn_uuid.as_u128(),
     };

@@ -147,6 +147,8 @@ pub async fn recovery(
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use actix_web::{
         http::header::ContentType,
         test::{self, TestRequest},
@@ -180,7 +182,7 @@ mod tests {
         let secret = generate_random_bytes_len(crypto_box_SECRETKEYBYTES as usize);
         let (mut user, mail) = TestUser::random_with_secret(secret.clone()).await;
         user.login().await;
-        let (cid, _) = user.add_random_charger().await;
+        let charger = user.add_random_charger().await;
         let recovery_id = start_test_recovery(&mail).await;
 
         let new_login_salt = generate_random_bytes_len(48);
@@ -259,10 +261,11 @@ mod tests {
         {
             use db_connector::schema::wg_keys::dsl::*;
 
+            let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
             let pool = test_connection_pool();
             let mut conn = pool.get().unwrap();
             let res: Vec<WgKey> = wg_keys
-                .filter(charger_id.eq(cid))
+                .filter(charger_id.eq(uuid))
                 .select(WgKey::as_select())
                 .load(&mut conn)
                 .unwrap();
@@ -274,7 +277,7 @@ mod tests {
     async fn test_recover_new_secret() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let (cid, _) = user.add_random_charger().await;
+        let charger = user.add_random_charger().await;
         let recovery_id = start_test_recovery(&mail).await;
 
         let new_secret = generate_random_bytes_len(crypto_box_SECRETKEYBYTES as usize);
@@ -354,10 +357,11 @@ mod tests {
         {
             use db_connector::schema::wg_keys::dsl::*;
 
+            let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
             let pool = test_connection_pool();
             let mut conn = pool.get().unwrap();
             let res: Vec<WgKey> = wg_keys
-                .filter(charger_id.eq(cid))
+                .filter(charger_id.eq(uuid))
                 .select(WgKey::as_select())
                 .load(&mut conn)
                 .unwrap();

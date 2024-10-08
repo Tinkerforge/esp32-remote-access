@@ -89,7 +89,7 @@ fn resend_thread(bridge_state: web::Data<BridgeState>) {
             };
 
             let packet = ManagementCommandPacket { header, command };
-            let charger_id = port.charger_id;
+            let charger_id = uuid::Uuid::from_u128(port.charger_id);
             let chargers = bridge_state.charger_management_map_with_id.lock().unwrap();
             if let Some(sock) = chargers.get(&charger_id) {
                 let mut sock = sock.lock().unwrap();

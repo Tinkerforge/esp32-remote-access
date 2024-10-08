@@ -33,7 +33,7 @@ use std::{
 use crate::{udp_server::multiplex::run_server, BridgeState, DiscoveryCharger};
 use actix_web::web;
 use ipnetwork::IpNetwork;
-use packet::ManagementResponse;
+use packet::ManagementResponseV2;
 use threadpool::ThreadPool;
 
 use self::socket::ManagementSocket;
@@ -43,8 +43,8 @@ use self::socket::ManagementSocket;
 /// is always one to one and the esps keepalive is two minutes.
 fn start_rate_limiters_reset_thread(
     charger_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
-    charger_map_id: Arc<Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>>,
-    discovery_map: Arc<Mutex<HashMap<ManagementResponse, Instant>>>,
+    charger_map_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket>>>>>,
+    discovery_map: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
 ) {
     std::thread::spawn(move || loop {
@@ -69,10 +69,10 @@ fn start_rate_limiters_reset_thread(
                     if charger.last_seen() > Duration::from_secs(30) {
                         (true, charger.id())
                     } else {
-                        (false, 0)
+                        (false, uuid::Uuid::nil())
                     }
                 } else {
-                    (false, 0)
+                    (false, uuid::Uuid::nil())
                 };
                 if remove {
                     log::debug!("Charger {} has timeouted and will be removed.", id);

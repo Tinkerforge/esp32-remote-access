@@ -32,7 +32,7 @@ use smoltcp::{
 use super::{device::ManagementDevice, packet::ManagementPacket};
 
 pub struct ManagementSocket {
-    charger_id: i32,
+    charger_id: uuid::Uuid,
     sock_handle: SocketHandle,
     sockets: SocketSet<'static>,
     iface: iface::Interface,
@@ -62,7 +62,7 @@ impl ManagementSocket {
         tunn: Tunn,
         rate_limiter: Arc<RateLimiter>,
         udp_socket: Arc<UdpSocket>,
-        charger_id: i32,
+        charger_id: uuid::Uuid,
     ) -> Self {
         let tunn = Arc::new(Mutex::new(tunn));
 
@@ -211,7 +211,7 @@ impl ManagementSocket {
         self.last_seen.elapsed()
     }
 
-    pub fn id(&self) -> i32 {
+    pub fn id(&self) -> uuid::Uuid {
         self.charger_id
     }
 

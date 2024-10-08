@@ -39,10 +39,24 @@ pub struct ManagementCommandPacket {
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Serialize)]
 #[repr(C, packed)]
-pub struct ManagementResponse {
+pub struct OldManagementResponse {
     pub charger_id: i32,
     pub connection_no: i32,
     pub connection_uuid: u128,
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Serialize)]
+#[repr(C, packed)]
+pub struct ManagementResponseV2 {
+    pub charger_id: u128,
+    pub connection_no: i32,
+    pub connection_uuid: u128,
+}
+
+#[repr(C, packed)]
+pub struct ManagementResponsePacket {
+    pub header: ManagementPacketHeader,
+    pub data: ManagementResponseV2,
 }
 
 pub enum ManagementPacket {

@@ -31,7 +31,7 @@ use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
 use serde::{ser::SerializeStruct, Serialize};
 use udp_server::{
-    management::RemoteConnMeta, packet::ManagementResponse, socket::ManagementSocket,
+    management::RemoteConnMeta, packet::ManagementResponseV2, socket::ManagementSocket,
 };
 use ws_udp_bridge::Message;
 
@@ -45,7 +45,7 @@ pub mod ws_udp_bridge;
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct DiscoveryCharger {
-    pub id: i32,
+    pub id: uuid::Uuid,
     pub last_request: Instant,
 }
 
@@ -55,7 +55,7 @@ impl Serialize for DiscoveryCharger {
         S: serde::Serializer,
     {
         let mut s = serializer.serialize_struct("DiscoveryCharger", 2)?;
-        s.serialize_field("id", &self.id)?;
+        s.serialize_field("id", &self.id.to_string())?;
         s.serialize_field("alive_since", &self.last_request.elapsed().as_secs())?;
         s.end()
     }
@@ -66,11 +66,11 @@ pub struct BridgeState {
     pub web_client_map: Mutex<HashMap<SocketAddr, Recipient<Message>>>,
     pub undiscovered_clients: Mutex<HashMap<RemoteConnMeta, Recipient<Message>>>,
     pub charger_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
-    pub charger_management_map_with_id: Arc<Mutex<HashMap<i32, Arc<Mutex<ManagementSocket>>>>>,
-    pub port_discovery: Arc<Mutex<HashMap<ManagementResponse, Instant>>>,
+    pub charger_management_map_with_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket>>>>>,
+    pub port_discovery: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
-    pub lost_connections: Mutex<HashMap<i32, Vec<(i32, Recipient<Message>)>>>,
+    pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<WgKey>>>,
     pub socket: UdpSocket,
 }
 
