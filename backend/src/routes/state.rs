@@ -9,7 +9,7 @@ use ipnetwork::IpNetwork;
 use serde::Serialize;
 
 use crate::{
-    udp_server::{management::RemoteConnMeta, packet::ManagementResponse},
+    udp_server::{management::RemoteConnMeta, packet::ManagementResponseV2},
     BridgeState, DiscoveryCharger,
 };
 
@@ -18,11 +18,11 @@ struct ServerState {
     clients: Vec<SocketAddr>,
     undiscovered_clients: Vec<RemoteConnMeta>,
     charger_management_map: Vec<SocketAddr>,
-    charger_management_map_with_id: Vec<i32>,
-    port_discovery: Vec<ManagementResponse>,
+    charger_management_map_with_id: Vec<String>,
+    port_discovery: Vec<ManagementResponseV2>,
     charger_remote_conn_map: Vec<RemoteConnMeta>,
     undiscovered_chargers: HashMap<IpNetwork, HashSet<DiscoveryCharger>>,
-    lost_connections: Vec<(i32, Vec<WgKey>)>,
+    lost_connections: Vec<(String, Vec<WgKey>)>,
 }
 
 #[get("/state")]
@@ -51,16 +51,16 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
             .collect()
     };
 
-    let charger_management_map_with_id: Vec<i32> = {
+    let charger_management_map_with_id: Vec<String> = {
         let charger_management_map_with_id =
             brige_state.charger_management_map_with_id.lock().unwrap();
         charger_management_map_with_id
             .iter()
-            .map(|(id, _)| id.to_owned())
+            .map(|(id, _)| id.to_string())
             .collect()
     };
 
-    let port_discovery: Vec<ManagementResponse> = {
+    let port_discovery: Vec<ManagementResponseV2> = {
         let port_discovery = brige_state.port_discovery.lock().unwrap();
         port_discovery
             .iter()
@@ -81,9 +81,9 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         map.clone()
     };
 
-    let lost_connections: Vec<(i32, Vec<WgKey>)> = {
+    let lost_connections: Vec<(String, Vec<WgKey>)> = {
         let map = brige_state.lost_connections.lock().unwrap();
-        map.iter().map(|(id, key)| (id.to_owned(), key.clone())).collect()
+        map.iter().map(|(id, key)| (id.to_string(), key.clone())).collect()
     };
 
     let state = ServerState {

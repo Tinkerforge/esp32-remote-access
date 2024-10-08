@@ -9,7 +9,8 @@ use super::{users::User, chargers::Charger};
 pub struct AllowedUser {
     pub id: uuid::Uuid,
     pub user_id: uuid::Uuid,
-    pub charger_id: i32,
+    pub charger_id: uuid::Uuid,
+    pub charger_uid: i32,
     pub valid: bool,
     pub key: Option<Vec<u8>>,
     pub name: Option<Vec<u8>>,

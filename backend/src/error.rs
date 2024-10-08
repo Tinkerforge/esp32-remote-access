@@ -54,6 +54,8 @@ pub enum Error {
     ChargerDisconnected,
     #[display(fmt = "Not an active session")]
     SessionDoesNotExist,
+    #[display(fmt = "The provided credentials are wrong")]
+    ChargerCredentialsWrong,
 }
 
 impl error::ResponseError for Error {
@@ -79,6 +81,7 @@ impl error::ResponseError for Error {
             Self::NoValidIp => StatusCode::BAD_REQUEST,
             Self::ChargerDisconnected => StatusCode::BAD_GATEWAY,
             Self::SessionDoesNotExist => StatusCode::UNAUTHORIZED,
+            Self::ChargerCredentialsWrong => StatusCode::UNAUTHORIZED,
         }
     }
 }

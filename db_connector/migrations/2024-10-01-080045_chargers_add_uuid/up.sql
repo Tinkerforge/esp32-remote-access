@@ -7,7 +7,7 @@ ALTER TABLE "wg_keys" DROP CONSTRAINT "wg_keys_charger_id_fkey";
 ALTER TABLE "wg_keys" ADD "charger_uid" INT;
 
 UPDATE "allowed_users" T SET "charger_uid" = (T.charger_id);
-ALTER TABLE "allowed_user" ALTER COLUMN "charger_uid" SET NOT NULL;
+ALTER TABLE "allowed_users" ALTER COLUMN "charger_uid" SET NOT NULL;
 UPDATE "wg_keys" T SET "charger_uid" = (T.charger_id);
 
 ALTER TABLE "chargers" ADD "uuid" UUID;
@@ -35,5 +35,4 @@ ALTER TABLE "chargers" ADD PRIMARY KEY ("id");
 ALTER TABLE "chargers" DROP COLUMN "uuid";
 
 ALTER TABLE "allowed_users" ADD CONSTRAINT "allowed_users_charger_id_fkey" FOREIGN KEY ("charger_id") REFERENCES "chargers" ("id");
--- ALTER TABLE "allowed_users" ADD CONSTRAINT "allowed_users_charger_uid_fkey" FOREIGN KEY ("charger_uid") REFERENCES "chargers" ("uid");
 ALTER TABLE "wg_keys" ADD CONSTRAINT "wg_keys_charger_id_fkey" FOREIGN KEY ("charger_id") REFERENCES "chargers" ("id");

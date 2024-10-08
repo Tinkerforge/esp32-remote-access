@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     error::Error,
-    routes::user::{get_user, get_uuid},
+    routes::user::{get_user, get_user_id},
     utils::{get_connection, web_block_unpacked},
     AppState,
 };
@@ -106,7 +106,7 @@ pub async fn start_recovery(
     #[cfg(not(test))]
     lang: crate::models::lang::Lang,
 ) -> actix_web::Result<impl Responder> {
-    let user_id = get_uuid(
+    let user_id = get_user_id(
         &state,
         crate::routes::auth::login::FindBy::Email(query.email.clone()),
     )

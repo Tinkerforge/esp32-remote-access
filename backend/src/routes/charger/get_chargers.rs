@@ -38,7 +38,8 @@ enum ChargerStatus {
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetChargerSchema {
-    id: i32,
+    id: String,
+    uid: i32,
     name: Option<Vec<u8>>,
     status: ChargerStatus,
     port: i32,
@@ -109,7 +110,8 @@ pub async fn get_chargers(
             };
 
             GetChargerSchema {
-                id: c.id,
+                id: c.id.to_string(),
+                uid: c.uid,
                 name: c.name,
                 status,
                 port: c.webinterface_port,
@@ -128,26 +130,19 @@ mod tests {
     use rand_core::OsRng;
 
     use super::*;
-    use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
+    use crate::{middleware::jwt::JwtMiddleware, routes::{charger::allow_user::UserAuth, user::tests::TestUser}, tests::configure};
 
     /// Test if only the chargers the user has access to will be returned.
     #[actix_web::test]
     async fn test_get_chargers() {
-        let mut owned_chargers: Vec<i32> = Vec::new();
-        let mut accessable_chargers: Vec<i32> = Vec::new();
         let (mut user1, _) = TestUser::random().await;
-        let email = user1.get_mail().to_owned();
         let (mut user2, _) = TestUser::random().await;
         user1.login().await;
         user2.login().await;
         for _ in 0..5 {
-            let uuid1 = OsRng.next_u32() as i32;
-            let uuid2 = OsRng.next_u32() as i32;
-            user1.add_charger(uuid1).await;
-            user2.add_charger(uuid2).await;
-            user2.allow_user(&email, uuid2).await;
-            owned_chargers.push(uuid1);
-            accessable_chargers.push(uuid2);
+            let _ = user1.add_random_charger().await;
+            let charger = user2.add_random_charger().await;
+            user2.allow_user(&user1.mail, UserAuth::LoginKey(user1.get_login_key().await), &charger).await;
         }
         for _ in 0..5 {
             let uuid = OsRng.next_u32() as i32;
@@ -160,6 +155,7 @@ mod tests {
             .service(get_chargers);
         let app = test::init_service(app).await;
 
+        println!("Access token: {}", user1.get_access_token());
         let req = test::TestRequest::get()
             .uri("/get_chargers")
             .cookie(Cookie::new("access_token", user1.get_access_token()))

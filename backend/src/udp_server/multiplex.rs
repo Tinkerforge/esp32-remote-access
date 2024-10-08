@@ -60,7 +60,7 @@ fn create_tunn(
     state: &web::Data<BridgeState>,
     addr: SocketAddr,
     data: &[u8],
-) -> anyhow::Result<(i32, ManagementSocket)> {
+) -> anyhow::Result<(uuid::Uuid, ManagementSocket)> {
     use db_connector::schema::chargers::dsl as chargers;
 
     let mut conn = state.pool.get()?;
@@ -70,7 +70,7 @@ fn create_tunn(
     let chargers: Vec<Charger> = {
         let map = state.undiscovered_chargers.lock().unwrap();
         if let Some(set) = map.get(&ip) {
-            let charger_ids: Vec<i32> = set.iter().map(|c| c.id).collect();
+            let charger_ids: Vec<uuid::Uuid> = set.iter().map(|c| c.id).collect();
             chargers::chargers
                 .filter(chargers::id.eq_any(charger_ids))
                 .select(Charger::as_select())
@@ -199,7 +199,7 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
             let state = state.clone();
             let buf = buf.clone();
             thread_pool.execute(move || {
-                if try_port_discovery(&state, &buf[..s], addr) {
+                if try_port_discovery(&state, &buf[..s], addr).is_ok() {
                     return;
                 }
 

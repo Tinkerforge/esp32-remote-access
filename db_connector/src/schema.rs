@@ -8,7 +8,7 @@ diesel::table! {
         key -> Nullable<Bytea>,
         name -> Nullable<Bytea>,
         note -> Nullable<Bytea>,
-        charger_uid -> Nullable<Int4>,
+        charger_uid -> Int4,
         charger_id -> Uuid,
     }
 }
@@ -80,7 +80,6 @@ diesel::table! {
         web_address -> Inet,
         charger_address -> Inet,
         connection_no -> Int4,
-        charger_uid -> Nullable<Int4>,
         charger_id -> Uuid,
     }
 }

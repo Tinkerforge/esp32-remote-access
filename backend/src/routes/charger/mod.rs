@@ -44,10 +44,28 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(allow_user::allow_user);
 }
 
+pub async fn get_charger_uuid(state: &web::Data<AppState>, charger_uid: i32, user_id: uuid::Uuid) -> actix_web::Result<Option<uuid::Uuid>> {
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::allowed_users::dsl as allowed_users;
+
+        let allowed_user: AllowedUser = match allowed_users::allowed_users
+            .filter(allowed_users::charger_uid.eq(charger_uid))
+            .filter(allowed_users::user_id.eq(user_id))
+            .select(AllowedUser::as_select())
+            .get_result(&mut conn) {
+                Ok(u) => u,
+                Err(NotFound) => return Ok(None),
+                Err(_err) => return Err(Error::InternalError),
+            };
+        Ok(Some(allowed_user.charger_id))
+    }).await
+}
+
 pub async fn user_is_allowed(
     state: &web::Data<AppState>,
     uid: uuid::Uuid,
-    cid: i32,
+    cid: uuid::Uuid,
 ) -> Result<bool, actix_web::Error> {
     use db_connector::schema::allowed_users::dsl::*;
 
@@ -69,4 +87,14 @@ pub async fn user_is_allowed(
     .await?;
 
     Ok(owner)
+}
+
+#[cfg(test)]
+pub mod tests {
+    #[derive(Clone, Debug)]
+    pub struct TestCharger {
+        pub uid: i32,
+        pub uuid: String,
+        pub password: String,
+    }
 }
