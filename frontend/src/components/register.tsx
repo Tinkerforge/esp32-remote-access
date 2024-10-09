@@ -1,7 +1,7 @@
 import { Component } from "preact";
 import { Button, Form } from "react-bootstrap"
 import { showAlert } from "./Alert";
-import { PASSWORD_PATTERN, generate_hash, generate_random_bytes, get_salt } from "../utils";
+import { PASSWORD_PATTERN, fetchClient, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import sodium from "libsodium-wrappers";
 import { Trans, useTranslation } from "react-i18next";
 import i18n from "../i18n";

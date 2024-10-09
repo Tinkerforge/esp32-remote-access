@@ -4,8 +4,8 @@ import createClient from "openapi-fetch";
 import type { paths } from "./schema";
 
 export async function get_salt() {
-    const {data, error, response} = await fetchClient.GET("/auth/generate_salt");
-    if (response.status) {
+    const {data, response} = await fetchClient.GET("/auth/generate_salt");
+    if (response.status !== 200) {
         throw `Failed to get new salt with ${response.status}: ${await response.text()}`;
     }
 
