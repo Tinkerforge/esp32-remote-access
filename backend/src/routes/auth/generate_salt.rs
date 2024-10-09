@@ -5,7 +5,7 @@ use crate::utils::generate_random_bytes;
 /// Generate random bytes
 // Need Vec<u32> here because otherwise it is recognised as String.
 #[utoipa::path(
-    context_path = "/user",
+    context_path = "/auth",
     responses(
         (status = 200, body = Vec<u32>)
     )

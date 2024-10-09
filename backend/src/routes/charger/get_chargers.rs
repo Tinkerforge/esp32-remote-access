@@ -30,8 +30,8 @@ use crate::{
     AppState, BridgeState,
 };
 
-#[derive(Serialize, Deserialize)]
-enum ChargerStatus {
+#[derive(Serialize, Deserialize, ToSchema)]
+pub enum ChargerStatus {
     Disconnected = 0,
     Connected = 1,
 }
@@ -40,6 +40,7 @@ enum ChargerStatus {
 pub struct GetChargerSchema {
     id: String,
     uid: i32,
+    #[schema(value_type = Vec<u32>)]
     name: Option<Vec<u8>>,
     status: ChargerStatus,
     port: i32,
