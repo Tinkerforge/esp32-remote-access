@@ -108,8 +108,10 @@ async fn main() {
             routes::charger::add::ChargerSchema,
             routes::charger::add::Keys,
             routes::charger::add::AddChargerResponseSchema,
+            routes::charger::allow_user::UserAuth,
             routes::charger::allow_user::AllowUserSchema,
             routes::charger::remove::DeleteChargerSchema,
+            routes::charger::get_chargers::ChargerStatus,
             routes::charger::get_chargers::GetChargerSchema,
             routes::selfdestruct::SelfdestructSchema,
             routes::charger::get_key::GetWgKeysResponseSchema,
@@ -120,6 +122,7 @@ async fn main() {
             routes::management::ManagementResponseSchema,
             routes::management::ManagementDataVersion,
             routes::management::ManagementDataVersion1,
+            routes::management::ManagementDataVersion2,
             models::filtered_user::FilteredUser,
         )),
         modifiers(&JwtToken, &RefreshToken)

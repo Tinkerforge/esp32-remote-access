@@ -30,10 +30,11 @@ use crate::{
     AppState,
 };
 
-use super::add::password_matches;
+use super::add::{password_matches, Keys};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub enum UserAuth {
+    #[schema(value_type = Vec<u32>)]
     LoginKey(Vec<u8>)
 }
 
@@ -43,9 +44,12 @@ pub struct AllowUserSchema {
     pass: String,
     email: String,
     user_auth: UserAuth,
-    wg_keys: [super::add::Keys; 5],
+    wg_keys: [Keys; 5],
+    #[schema(value_type = Vec<u32>)]
     key: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
     charger_name: Vec<u8>,
+    #[schema(value_type = Vec<u32>)]
     note: Vec<u8>,
 }
 
