@@ -1,8 +1,7 @@
 import { Base64 } from "js-base64";
 import { Button, Card, Form } from "react-bootstrap";
-import { PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt } from "../utils";
+import { PASSWORD_PATTERN, concat_salts, fetchClient, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
-import { BACKEND } from "../utils";
 import { showAlert } from "../components/Alert";
 import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "../components/password_component";
@@ -94,18 +93,12 @@ export function Recovery() {
             reused_secret: secret_reuse,
         }
 
-        const resp = await fetch(`${BACKEND}/auth/recovery`, {
-            method: "POST",
-            body: JSON.stringify(payload),
-            headers: {
-                "Content-Type": "application/json"
-            }
-        });
-        if (resp.status === 200) {
+        const {response} = await fetchClient.POST("/auth/recovery", {body: payload});
+        if (response.status === 200) {
             showAlert("Your new password is set!", "success", "Success");
             showModal.value = true;
         } else {
-            showAlert(`Failed to recover account with code ${resp.status}: ${await resp.text()}`, "danger");
+            showAlert(`Failed to recover account with code ${response.status}: ${await response.text()}`, "danger");
         }
     }
 

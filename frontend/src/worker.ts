@@ -20,6 +20,7 @@
 import { Client, set_pcap_logging } from "wg-webclient";
 import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } from "./types";
 import sodium from "libsodium-wrappers";
+import { fetchClient } from "./utils";
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -119,16 +120,18 @@ function disconnect_cb() {
 }
 
 async function start_connection(setup_data: SetupMessage) {
-    let resp: Response;
+    let keys: any;
     try {
-        resp = await fetch(`${import.meta.env.VITE_BACKEND_URL}/charger/get_key?cid=${setup_data.chargerID}`, {
-            credentials: "same-origin",
-        });
+        const {data, error} = await fetchClient.GET("/charger/get_key", {params:{query:{cid:setup_data.chargerID}}, credentials: "same-origin"});
+        if (error) {
+            disconnect_cb();
+            return;
+        }
+        keys = data;
     } catch (e) {
         disconnect_cb();
         return;
     }
-    const keys = await resp.json();
     const decrypted_keys = decrypt_keys(keys, setup_data.secret);
 
     wgClient = new Client(

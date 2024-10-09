@@ -6,7 +6,7 @@ import { Row, Spinner } from 'react-bootstrap';
 import { connected, connected_to, secret } from './charger_list';
 import { setAppNavigation } from './Navbar';
 
-export const chargerID = signal(0);
+export const chargerID = signal("");
 export const chargerPort = signal(0);
 
 export class Frame extends Component {

@@ -32,7 +32,7 @@ import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 import { ChargerList } from './pages/chargers.js';
 import { ErrorAlert } from './components/Alert.js';
-import { BACKEND } from './utils';
+import { fetchClient } from './utils';
 import { AppState, loggedIn } from './utils.js';
 import { Col, Spinner } from 'react-bootstrap';
 import { Recovery } from './pages/recovery.js';
@@ -48,12 +48,9 @@ async function refresh_access_token() {
         return;
     }
 
-    const resp = await fetch(BACKEND + "/auth/jwt_refresh", {
-        method: "GET",
-        credentials: "include"
-    });
+    const {error} = await fetchClient.GET("/auth/jwt_refresh", {credentials: "same-origin"});
 
-    if (resp.status == 200) {
+    if (!error) {
         loggedIn.value = AppState.LoggedIn;
     } else {
         loggedIn.value = AppState.LoggedOut;

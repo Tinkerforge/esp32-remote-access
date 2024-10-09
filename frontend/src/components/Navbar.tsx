@@ -1,16 +1,14 @@
 import { useLocation } from "preact-iso";
 import Nav from "react-bootstrap/Nav";
-import { BACKEND } from "../utils";
+import { fetchClient } from "../utils";
 import { useTranslation } from "react-i18next";
-import { Button, Container, Navbar, Row } from "react-bootstrap";
-import { connected, connected_to } from "./charger_list";
+import { Navbar } from "react-bootstrap";
+import { connected} from "./charger_list";
 import Median from "median-js-bridge";
 import i18n from "../i18n";
 
 export async function logout(logout_all: boolean) {
-        await fetch(`${BACKEND}/user/logout?logout_all=${logout_all ? "true" : "false"}`, {
-            credentials: "include",
-        });
+        await fetchClient.GET("/user/logout", {params:{query:{logout_all: logout_all}}, credentials: "same-origin"});
 
         window.location.reload();
     }
