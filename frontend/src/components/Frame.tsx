@@ -9,7 +9,7 @@ import { enableLogging, refreshPromise } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
 
-export const chargerID = signal(0);
+export const chargerID = signal("");
 export const chargerPort = signal(0);
 
 export class Frame extends Component {

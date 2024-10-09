@@ -22,7 +22,7 @@ import Form from "react-bootstrap/Form"
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import { useState } from "preact/hooks";
-import { BACKEND } from "../utils";
+import { fetchClient } from "../utils";
 import { PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/Navbar";
@@ -63,31 +63,18 @@ class UserComponent extends Component<{}, State> {
             user: state,
         }
 
-        fetch(BACKEND + "/user/me", {
-            credentials: "include"
-        }).then(async (r) => {
-            if (r.status === 200) {
-                const user: UserState = await r.json();
-                email = user.email;
-                this.setState({user: user, isDirty: false});
-            } else {
-                console.log("Got answer:", r);
+        fetchClient.GET("/user/me", {credentials: "same-origin"}).then(({data}) => {
+            if (data) {
+                email = data.email;
+                this.setState({user: data});
             }
-        })
+        });
     }
 
     submit = async (e: SubmitEvent) => {
         e.preventDefault();
-        const resp = await fetch(BACKEND + "/user/update_user", {
-            method: "PUT",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(this.state.user)
-        })
-
-        if (resp.status === 200) {
+        const {response} = await fetchClient.PUT("/user/update_user", {body: this.state.user, credentials: "same-origin"});
+        if (response.status === 200) {
             window.location.reload();
         }
     }
@@ -161,16 +148,13 @@ export function User() {
             return;
         }
 
-        const secret_resp = await fetch(BACKEND + "/user/get_secret", {
-            method: "GET",
-            credentials: "include",
-        })
+        const {data} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
 
         const {
             secret,
             secret_nonce,
             secret_salt
-        } = await secret_resp.json();
+        } = data;
 
         const secret_key = await generate_hash(currentPassword, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
         const decrypted_secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret), new Uint8Array(secret_nonce), secret_key);
@@ -198,15 +182,8 @@ export function User() {
             new_encrypted_secret: [].slice.call(new Uint8Array(new_encrypted_secret)),
         };
 
-        const resp = await fetch(BACKEND + "/user/update_password", {
-            credentials: "include",
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
-        });
-        if (resp.status === 200) {
+        const {response} = await fetchClient.PUT("/user/update_password", {body: payload, credentials: "same-origin"});
+        if (response.status === 200) {
             logout(true);
             handleUpdatePasswordClose();
         }

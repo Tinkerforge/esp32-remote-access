@@ -1,7 +1,7 @@
 import { Component } from "preact";
 import Button from "react-bootstrap/Button"
 import Form from "react-bootstrap/Form";
-import { BACKEND } from "../utils";
+import { fetchClient } from "../utils";
 import { showAlert } from "./Alert";
 import { generate_hash, get_salt_for_user } from "../utils";
 import { Modal } from "react-bootstrap";
@@ -59,30 +59,20 @@ export class Login extends Component<{}, LoginState> {
             login_key: [].slice.call(login_key)
         };
 
-        let resp = await fetch(BACKEND + "/auth/login", {
-            method: "POST",
-            body: JSON.stringify(login_schema),
-            headers: {
-                "Content-Type": "application/json",
-            },
-            credentials: "include"
-        });
-
-        if (200 !== resp.status) {
+        const {error} = await fetchClient.POST("/auth/login", {body: login_schema, credentials: "same-origin"});
+        if (error) {
             this.setState({credentials_wrong: true});
             return;
         }
 
-        const secret_resp = await fetch(BACKEND + "/user/get_secret", {
-            credentials: "include"
-        });
-        if (200 !== secret_resp.status) {
-            const body = await secret_resp.text();
-            const text = `Failed with status ${secret_resp.status}: ${body}`;
+        const {data, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
+        if (200 !== response.status) {
+            const body = await response.text();
+            const text = `Failed with status ${response.status}: ${body}`;
             showAlert(text, "danger");
             return;
         }
-        const secret_salt = (await secret_resp.json()).secret_salt;
+        const secret_salt = data.secret_salt;
         const secret_key = await generate_hash(this.state.password, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
         const encoded_key = Base64.fromUint8Array(secret_key);
 
@@ -101,16 +91,10 @@ export class Login extends Component<{}, LoginState> {
                 </Modal.Header>
                 <Form onSubmit={async (e: SubmitEvent) => {
                     e.preventDefault();
-                    const resp = await fetch(`${BACKEND}/auth/start_recovery?email=${this.state.email}`,
-                        {
-                            headers: {
-                                "X-Lang": i18n.language,
-                            }
-                        }
-                    );
-                    if (resp.status != 200) {
+                    const {response} = await fetchClient.GET("/auth/start_recovery", {params:{query:{email:this.state.email}}, headers: {"X-Lang": i18n.language}});
+                    if (response.status != 200) {
                         this.setState({show_modal: false});
-                        showAlert(t("error_alert_text", {status: resp.status, text: await resp.text(), interpolation: {escapeValue: false}}), "danger");
+                        showAlert(t("error_alert_text", {status: response.status, text: await response.text(), interpolation: {escapeValue: false}}), "danger");
                     } else {
                         showAlert(t("success_alert_text"), "success", t("success_alert_heading"));
                         this.setState({show_modal: false});

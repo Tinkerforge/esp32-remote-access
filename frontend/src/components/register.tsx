@@ -1,6 +1,5 @@
 import { Component } from "preact";
 import { Button, Form } from "react-bootstrap"
-import { BACKEND } from "../utils";
 import { showAlert } from "./Alert";
 import { PASSWORD_PATTERN, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import sodium from "libsodium-wrappers";
@@ -163,19 +162,18 @@ export class Register extends Component<{}, RegisterState> {
             secret_salt: [].slice.call(combined_secret_salt),
         }
 
-        const resp = await fetch(BACKEND + "/auth/register", {
-            method: "POST",
-            body: JSON.stringify(login_data),
-            headers: {
-                "Content-Type": "application/json",
-                "X-Lang": i18n.language
-            },
-        });
-        if (resp.status === 201) {
+        const {response} = await fetchClient.POST("/auth/register",
+            {
+                body: login_data,
+                headers: {
+                    "X-Lang": i18n.language
+                }
+            })
+        if (response.status === 201) {
             showAlert(i18n.t("register.registration_successful"), "success", i18n.t("alert_default_success"));
         } else {
-            const body = await resp.text();
-            const text = `Failed with status ${resp.status}: ${body}`;
+            const body = await response.text();
+            const text = `Failed with status ${response.status}: ${body}`;
             showAlert(text, "danger");
             return;
         }

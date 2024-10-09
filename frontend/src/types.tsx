@@ -28,8 +28,7 @@ export interface ResponseMessage {
 }
 
 export interface SetupMessage {
-    chargerID: number,
+    chargerID: string,
     port: number,
     secret: Uint8Array,
 }
-

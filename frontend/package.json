@@ -25,6 +25,7 @@
     "react-bootstrap": "^2.10.1",
     "react-feather": "^2.0.10",
     "react-i18next": "^14.1.2",
+    "openapi-fetch": "^0.12.2",
     "wg-webclient": "file:../wg-webclient/pkg"
   },
   "devDependencies": {

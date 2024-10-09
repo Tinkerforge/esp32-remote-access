@@ -6,14 +6,15 @@ import { useTranslation } from "react-i18next";
 import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
-import { BACKEND } from "../utils";
+import { fetchClient } from "../utils";
 import { Button, Card, Col, Container, Modal, Table } from "react-bootstrap";
 import i18n from "../i18n";
 import { Monitor, Trash2 } from "react-feather";
 import { Circle } from "./Circle";
 
 interface Charger {
-    id: number,
+    id: string,
+    uid: number,
     name: number[],
     status: string,
     port: number,
@@ -21,7 +22,8 @@ interface Charger {
 }
 
 interface StateCharger {
-    id: number,
+    id: string,
+    uid: number,
     name: string,
     status: string,
     port: number,
@@ -47,7 +49,8 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         super();
 
         this.removal_charger = {
-            id: 0,
+            id: "",
+            uid: 0,
             name: "",
             status: "",
             port: 0,
@@ -67,14 +70,13 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         if (!secret) {
             await that.get_decrypted_secret();
         }
-        fetch(BACKEND + "/charger/get_chargers", {
-            credentials: "include"
-        }).then(async (resp) => {
-            const chargers: Charger[] = await resp.json();
+        fetchClient.GET("/charger/get_chargers", {credentials: "same-origin"}).then(async ({data}) => {
+            const chargers: Charger[] = data;
             const state_chargers = [];
             for (const charger of chargers) {
                 const state_charger: StateCharger = {
                     id: charger.id,
+                    uid: charger.uid,
                     name: this.decrypt_name(charger.name),
                     status: charger.status,
                     port: charger.port,
@@ -83,7 +85,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 state_chargers.push(state_charger);
             }
             this.setState({chargers: state_chargers});
-        });
+        })
     }
 
     componentWillUnmount() {
@@ -93,28 +95,23 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
     async get_decrypted_secret() {
         await sodium.ready;
         const t = i18n.t;
-        const get_secret_resp = await fetch(BACKEND + "/user/get_secret", {
-            credentials: "include"
-        });
-        if (get_secret_resp.status !== 200) {
+        const {data, error} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
+        if (error) {
             showAlert(t("chargers.loading_secret_failed", {status: get_secret_resp.status, response: await get_secret_resp.text()}), "danger");
             return;
         }
         const encoded_key = localStorage.getItem("secretKey");
         const secret_key = Base64.toUint8Array(encoded_key);
-        const secret_data = await get_secret_resp.json();
-        secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret_data.secret), new Uint8Array(secret_data.secret_nonce), secret_key);
+        secret = sodium.crypto_secretbox_open_easy(new Uint8Array(data.secret), new Uint8Array(data.secret_nonce), secret_key);
         pub_key = sodium.crypto_scalarmult_base(secret);
     }
 
     async connect_to_charger(charger: StateCharger) {
         const t = i18n.t;
 
-        const resp = await fetch(BACKEND + "/charger/get_key?cid=" + charger.id, {
-            credentials: "include"
-        });
-        if (resp.status !== 200) {
-            showAlert(t("chargers.connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: resp.status, response: await resp.text()}), "danger");
+        const {response} = await fetchClient.GET("/charger/get_key", {params:{query:{cid: charger.id}}, credentials: "same-origin"});
+        if (response.status !== 200) {
+            showAlert(t("chargers.connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: response.status, response: await response.text()}), "danger");
             return;
         }
 
@@ -130,20 +127,13 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         const body = {
             charger: charger.id
         };
-        const resp = await fetch(BACKEND + "/charger/remove", {
-            method: "DELETE",
-            credentials: "include",
-            body: JSON.stringify(body),
-            headers: {
-                "Content-Type": "application/json"
-            }
-        });
+        const {response} = await fetchClient.DELETE("/charger/remove", {body: body, credentials: "same-origin"});
 
-        if (resp.status === 200) {
+        if (response.status === 200) {
             const chargers = this.state.chargers.filter((c) => c.id !== charger.id);
             this.setState({chargers: chargers});
         } else {
-            showAlert(t("remove_error_text", {charger_id: Base58.int_to_base58(charger.id), status: resp.status, text: await resp.text()}), "danger");
+            showAlert(t("remove_error_text", {charger_id: Base58.int_to_base58(charger.id), status: response.status, text: await response.text()}), "danger");
         }
     }
 
@@ -189,7 +179,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     <table class="table" style="margin-bottom: 0;">
                         <tr>
                             <td><b>{t("charger_id")}</b></td>
-                            <td>{Base58.int_to_base58(charger.id)}</td>
+                            <td>{Base58.int_to_base58(charger.uid)}</td>
                         </tr>
                         <tr>
                             <td><b>{t("status")}</b></td>
@@ -209,7 +199,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         this.state.chargers.forEach((charger, index) => {
             const entry = <tr>
                 <td>{charger.name}</td>
-                <td>{Base58.int_to_base58(charger.id)}</td>
+                <td>{Base58.int_to_base58(charger.uid)}</td>
                 <td>{charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}</td>
                 <td><Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
                     await this.connect_to_charger(charger);
