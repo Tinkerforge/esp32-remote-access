@@ -9,6 +9,7 @@ import i18n from "../i18n";
 import { PasswordComponent } from "./password_component";
 import { RecoveryDataComponent } from "./recovery_data_component";
 import { Signal, signal } from "@preact/signals";
+import * as passwdqc from "passwdqc";
 
 interface RegisterSchema {
     name: string,
@@ -62,20 +63,11 @@ export class Register extends Component<{}, RegisterState> {
 
     showModal: Signal<boolean>;
 
-    checkPassword() {
-
-        const res = PASSWORD_PATTERN.test(this.state.password);
-        if (!res) {
-            this.setState({passwordValid: false});
-        } else {
-            this.setState({passwordValid: true});
-        }
-        return res;
-    }
-
     checkForm() {
         let ret = true;
-        if (!this.checkPassword()) {
+        const passwdCheck = passwdqc.check(this.state.password, undefined, this.state.email);
+        if (passwdCheck) {
+            console.log(passwdCheck);
            ret = false;
         }
 

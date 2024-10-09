@@ -1,5 +1,7 @@
 import { signal } from "@preact/signals";
 import { hash, ArgonType } from "argon2-browser";
+import i18n from "./i18n";
+import * as passwdqc from "passwdqc";
 
 export async function get_salt() {
     const resp = await fetch(`${BACKEND}/auth/generate_salt`, {
@@ -56,6 +58,44 @@ export function concat_salts(salt1: Uint8Array) {
     concat.set(salt2, salt1.length);
 
     return concat;
+}
+
+interface PwCheckParams {
+    passwd: string,
+    login?: string,
+    oldPass?: string,
+}
+
+export function checkPassword(params: PwCheckParams) {
+    const pms = {
+        min: [passwdqc.INT_MAX, 24, 11, 8, 7],
+        max: passwdqc.INT_MAX,
+        passphrase_words: 3,
+        match_length: 4,
+        similar_deny: 1,
+        random_bits: 47,
+        flags: 3,
+        retry: 3,
+    };
+    return passwdqc.check(params.passwd, params.oldPass, params.login, undefined, pms);
+}
+
+export function translatePwError(err: string) {
+    const t = i18n.t;
+    switch(err) {
+        case passwdqc.REASON_SAME:
+            return t("passwd.same");
+        case passwdqc.REASON_SIMILAR:
+            return t("passwd.similar");
+        case passwdqc.REASON_SHORT:
+            return t("passwd.short");
+        case passwdqc.REASON_SIMPLESHORT:
+            return t("passwd_simpleshort");
+        case passwdqc.REASON_SIMPLE:
+            return t("passwd.simple");
+        default:
+            return err
+    }
 }
 
 export enum AppState {
