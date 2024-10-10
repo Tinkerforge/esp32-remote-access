@@ -1,9 +1,9 @@
 import { useLocation } from "preact-iso";
 import Nav from "react-bootstrap/Nav";
-import { BACKEND } from "../utils";
+import { BACKEND, FRONTEN_URL } from "../utils";
 import { useTranslation } from "react-i18next";
-import { Button, Container, Navbar, Row } from "react-bootstrap";
-import { connected, connected_to } from "./charger_list";
+import { Navbar } from "react-bootstrap";
+import { connected } from "./charger_list";
 import Median from "median-js-bridge";
 import i18n from "../i18n";
 
@@ -18,12 +18,12 @@ export async function logout(logout_all: boolean) {
 export function setAppNavigation() {
     const items = [{
         label: i18n.t("navbar.chargers"),
-        url: "https://mystaging.warp-charger.com/chargers",
+        url: `${FRONTEN_URL}/chargers`,
         icon: "fas fa-server"
     },
     {
         label: i18n.t("navbar.user"),
-        url: "https://mystaging.warp-charger.com/user",
+        url: `${FRONTEN_URL}/user`,
         icon: "fas fa-user"
     }]
     Median.sidebar.setItems({items: items, enabled: true, persist: true});

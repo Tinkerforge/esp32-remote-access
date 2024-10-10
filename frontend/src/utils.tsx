@@ -69,3 +69,4 @@ export const loggedIn = signal(AppState.Loading);
 
 export const PASSWORD_PATTERN = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/;
 export const BACKEND = import.meta.env.VITE_BACKEND_URL;
+export const FRONTEN_URL = import.meta.env.VITE_FRONTEND_URL;
