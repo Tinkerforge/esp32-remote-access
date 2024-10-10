@@ -166,7 +166,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
     create_card(charger: StateCharger) {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         return <>
-            <Card className="mb-2">
+            <Card className="my-2">
                 <Card.Header onClick={async () => {
                     if (!this.connection_possible(charger)) {
                         return;
