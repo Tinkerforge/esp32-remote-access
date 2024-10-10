@@ -41,7 +41,7 @@ pub enum UserAuth {
 #[derive(Debug, Deserialize, Serialize, ToSchema, Clone)]
 pub struct AllowUserSchema {
     charger_id: String,
-    pass: String,
+    charger_password: String,
     email: String,
     user_auth: UserAuth,
     wg_keys: [Keys; 5],
@@ -110,7 +110,7 @@ pub async fn allow_user(
 
     let charger = get_charger_from_db(cid, &state).await?;
 
-    if !password_matches(&allow_user.pass, &charger.password)? {
+    if !password_matches(&allow_user.charger_password, &charger.password)? {
         return Err(Error::Unauthorized.into())
     }
 
@@ -173,7 +173,7 @@ pub mod tests {
             charger_id: charger.uuid.to_string(),
             user_auth,
             email: email.to_string(),
-            pass: charger.password.clone(),
+            charger_password: charger.password.clone(),
             wg_keys: generate_random_keys(),
             key: Vec::new(),
             charger_name: Vec::new(),
@@ -207,7 +207,7 @@ pub mod tests {
             charger_id: charger.uuid,
             user_auth: UserAuth::LoginKey(user2.get_login_key().await),
             email: user2.mail.to_owned(),
-            pass: charger.password,
+            charger_password: charger.password,
             wg_keys: generate_random_keys(),
             key: Vec::new(),
             charger_name: Vec::new(),
@@ -240,7 +240,7 @@ pub mod tests {
             charger_id: charger.uuid,
             user_auth: UserAuth::LoginKey(user2.get_login_key().await),
             email: user2.mail.to_owned(),
-            pass: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
+            charger_password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
             wg_keys: generate_random_keys(),
             key: Vec::new(),
             charger_name: Vec::new(),
@@ -272,7 +272,7 @@ pub mod tests {
             charger_id: charger.uuid,
             user_auth: UserAuth::LoginKey(Vec::new()),
             email: uuid::Uuid::new_v4().to_string(),
-            pass: String::new(),
+            charger_password: String::new(),
             wg_keys: generate_random_keys(),
             key: Vec::new(),
             charger_name: Vec::new(),
