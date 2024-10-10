@@ -108,7 +108,7 @@ export function App() {
                         </Tabs>
                     </Card>
                 </Row>
-                <Footer />
+                { Median.isNativeApp() ? <></> : <Footer /> }
             </>
 
         case AppState.LoggedIn:
