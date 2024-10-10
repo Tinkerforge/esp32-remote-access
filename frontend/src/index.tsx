@@ -124,7 +124,7 @@ export function App() {
                             </Router>
                         </LocationProvider>
                     </Col>
-                    <Footer />
+                    { Median.isNativeApp() ? <></> : <Footer /> }
                 </>
             );
         // we need an extra recovery state, otherwise we would show the login/register page.
@@ -139,7 +139,7 @@ export function App() {
                         </Router>
                     </Row>
                 </LocationProvider>
-                <Footer />
+                { Median.isNativeApp() ? <></> : <Footer /> }
             </>);
     }
 }
