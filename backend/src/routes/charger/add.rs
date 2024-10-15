@@ -554,7 +554,7 @@ pub(crate) mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        remove_test_keys(&mail);
+        let _ = remove_test_keys(&mail);
         remove_allowed_test_users(cid);
         remove_test_charger(cid);
         println!("{:?}", resp);

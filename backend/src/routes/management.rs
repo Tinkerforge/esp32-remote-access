@@ -378,6 +378,6 @@ mod tests {
                 .unwrap();
             user.user_id
         };
-        assert_eq!(get_test_uuid(&user.mail), user_id);
+        assert_eq!(get_test_uuid(&user.mail).unwrap(), user_id);
     }
 }

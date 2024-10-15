@@ -1,7 +1,7 @@
 use diesel::prelude::*;
 use super::{users::User, chargers::Charger};
 
-#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, Associations)]
+#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, Associations, PartialEq)]
 #[diesel(belongs_to(User))]
 #[diesel(belongs_to(Charger))]
 #[diesel(table_name = crate::schema::allowed_users)]

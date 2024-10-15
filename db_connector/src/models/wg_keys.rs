@@ -3,7 +3,7 @@ use ipnetwork::IpNetwork;
 use serde::Serialize;
 use crate::models::{users::User, chargers::Charger};
 
-#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, Associations)]
+#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, Associations, PartialEq)]
 #[diesel(table_name = crate::schema::wg_keys)]
 #[diesel(belongs_to(User))]
 #[diesel(belongs_to(Charger))]

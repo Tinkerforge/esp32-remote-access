@@ -181,7 +181,7 @@ pub mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
 
-        let uid = get_test_uuid(&mail);
+        let uid = get_test_uuid(&mail).unwrap();
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         let token: RecoveryToken = recovery_tokens
@@ -208,7 +208,7 @@ pub mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
 
-        let uid = get_test_uuid(&mail);
+        let uid = get_test_uuid(&mail).unwrap();
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         let token: RecoveryToken = recovery_tokens

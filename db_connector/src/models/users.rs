@@ -1,6 +1,6 @@
 use diesel::{associations::Identifiable, deserialize::Queryable, prelude::Insertable, Selectable};
 
-#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable)]
+#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, PartialEq)]
 #[diesel(table_name = crate::schema::users)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct User {

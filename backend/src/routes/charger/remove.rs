@@ -34,7 +34,7 @@ pub struct DeleteChargerSchema {
     charger: i32,
 }
 
-async fn delete_all_keys(cid: i32, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
+pub async fn delete_all_keys(cid: i32, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
     use db_connector::schema::wg_keys::dsl::*;
 
     let mut conn = get_connection(state)?;
@@ -49,7 +49,7 @@ async fn delete_all_keys(cid: i32, state: &web::Data<AppState>) -> Result<(), ac
     Ok(())
 }
 
-async fn delete_all_allowed_users(
+pub async fn delete_all_allowed_users(
     cid: i32,
     state: &web::Data<AppState>,
 ) -> Result<(), actix_web::Error> {
@@ -58,6 +58,20 @@ async fn delete_all_allowed_users(
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         match diesel::delete(allowed_users.filter(charger_id.eq(cid))).execute(&mut conn) {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError),
+        }
+    })
+    .await?;
+
+    Ok(())
+}
+
+pub async fn delete_charger(charger: i32, state: &web::Data<AppState>) -> actix_web::Result<()> {
+    use db_connector::schema::chargers::dsl::*;
+    let mut conn = get_connection(&state)?;
+    web_block_unpacked(move || {
+        match diesel::delete(chargers.filter(id.eq(charger))).execute(&mut conn) {
             Ok(_) => Ok(()),
             Err(_err) => Err(Error::InternalError),
         }
@@ -84,7 +98,6 @@ pub async fn remove(
     uid: crate::models::uuid::Uuid,
     data: web::Json<DeleteChargerSchema>,
 ) -> Result<impl Responder, actix_web::Error> {
-    use db_connector::schema::chargers::dsl::*;
 
     if !charger_belongs_to_user(&state, uid.clone().into(), data.charger.clone()).await? {
         return Err(Error::UserIsNotOwner.into());
@@ -92,15 +105,7 @@ pub async fn remove(
 
     delete_all_keys(data.charger.clone(), &state).await?;
     delete_all_allowed_users(data.charger.clone(), &state).await?;
-
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
-        match diesel::delete(chargers.filter(id.eq(data.charger.clone()))).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    delete_charger(data.charger, &state).await?;
 
     Ok(HttpResponse::Ok())
 }
@@ -124,16 +129,17 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn remove_test_keys(mail: &str) {
+    pub fn remove_test_keys(mail: &str) -> anyhow::Result<()> {
         use db_connector::schema::wg_keys::dsl::*;
 
-        let uid = get_test_uuid(mail);
+        let uid = get_test_uuid(mail)?;
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         diesel::delete(wg_keys.filter(user_id.eq(uid)))
-            .execute(&mut conn)
-            .unwrap();
+            .execute(&mut conn)?;
+
+        Ok(())
     }
 
     pub fn remove_allowed_test_users(cid: i32) {

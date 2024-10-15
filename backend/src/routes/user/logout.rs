@@ -86,7 +86,7 @@ pub async fn logout(
         .body(""))
 }
 
-async fn delete_all_refresh_tokens(
+pub async fn delete_all_refresh_tokens(
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {

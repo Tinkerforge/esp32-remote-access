@@ -369,7 +369,7 @@ mod tests {
             let pool = test_connection_pool();
             let mut conn = pool.get().unwrap();
             let res: Vec<AllowedUser> = allowed_users
-                .filter(user_id.eq(get_test_uuid(&user.mail)))
+                .filter(user_id.eq(get_test_uuid(&user.mail).unwrap()))
                 .filter(valid.eq(true))
                 .select(AllowedUser::as_select())
                 .load(&mut conn)

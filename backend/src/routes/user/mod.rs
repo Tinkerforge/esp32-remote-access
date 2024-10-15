@@ -22,6 +22,7 @@ pub mod logout;
 pub mod me;
 pub mod update_password;
 pub mod update_user;
+pub mod delete;
 
 use crate::{
     error::Error,
@@ -42,6 +43,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .service(update_password::update_password)
         .service(get_secret::get_secret)
         .service(logout::logout)
+        .service(delete::delete_user)
         .service(me::me);
     cfg.service(scope);
 }
@@ -155,7 +157,7 @@ pub mod tests {
     };
 
     // Get the uuid for an test user.
-    pub fn get_test_uuid(mail: &str) -> uuid::Uuid {
+    pub fn get_test_uuid(mail: &str) -> Result<uuid::Uuid, anyhow::Error> {
         use db_connector::schema::users::dsl::*;
 
         let pool = test_connection_pool();
@@ -163,10 +165,9 @@ pub mod tests {
         let user: User = users
             .filter(email.eq(mail))
             .select(User::as_select())
-            .get_result(&mut conn)
-            .unwrap();
+            .get_result(&mut conn)?;
 
-        user.id
+        Ok(user.id)
     }
 
     /**
@@ -333,7 +334,7 @@ pub mod tests {
     impl Drop for TestUser {
         fn drop(&mut self) {
             while let Some(charger) = self.charger.pop() {
-                remove_test_keys(&self.mail);
+                let _ = remove_test_keys(&self.mail);
                 remove_allowed_test_users(charger);
                 remove_test_charger(charger);
             }
