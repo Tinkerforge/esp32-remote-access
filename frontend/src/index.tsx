@@ -53,11 +53,11 @@ async function refresh_access_token() {
         credentials: "include"
     });
 
-    if (!localStorage.getItem("loginKey") || !localStorage.getItem("secret_key")) {
-        loggedIn.value = AppState.LoggedOut
-    }
-
     if (resp.status == 200) {
+        if (!localStorage.getItem("loginKey") || !localStorage.getItem("secret_key")) {
+            logout(false);
+            return;
+        }
         loggedIn.value = AppState.LoggedIn;
     } else {
         loggedIn.value = AppState.LoggedOut;

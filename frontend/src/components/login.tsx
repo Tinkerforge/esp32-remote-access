@@ -50,7 +50,7 @@ export class Login extends Component<{}, LoginState> {
         }
 
         const loginSaltBs64 = Base64.fromUint8Array(login_salt);
-        window.localStorage.setItem("LoginKey", loginSaltBs64);
+        window.localStorage.setItem("loginKey", loginSaltBs64);
 
         const login_key = await generate_hash(this.state.password, login_salt);
 
