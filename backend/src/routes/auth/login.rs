@@ -104,7 +104,7 @@ pub async fn validate_password(
     request_body = LoginSchema,
     responses(
         (status = 200, description = "Login was successful"),
-        (status = 400, description = "Credentials were incorrect")
+        (status = 401, description = "Credentials were incorrect")
     )
 )]
 #[post("/login")]

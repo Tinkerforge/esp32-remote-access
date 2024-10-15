@@ -69,7 +69,7 @@ impl error::ResponseError for Error {
         match *self {
             Self::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::UserAlreadyExists => StatusCode::CONFLICT,
-            Self::WrongCredentials => StatusCode::BAD_REQUEST,
+            Self::WrongCredentials => StatusCode::UNAUTHORIZED,
             Self::NotVerified => StatusCode::UNAUTHORIZED,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::ChargerAlreadyExists => StatusCode::CONFLICT,
