@@ -49,6 +49,9 @@ export class Login extends Component<{}, LoginState> {
             return;
         }
 
+        const loginSaltBs64 = Base64.fromUint8Array(login_salt);
+        window.localStorage.setItem("LoginKey", loginSaltBs64);
+
         const login_key = await generate_hash(this.state.password, login_salt);
 
         const login_schema: LoginSchema = {

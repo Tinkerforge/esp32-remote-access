@@ -12,7 +12,10 @@
         "current_password_error_message": "Must not be empty.",
         "new_password": "New password",
         "new_password_error_message": "Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters",
-        "close": "Close"
+        "close": "Close",
+        "delete_user": "Delete account",
+        "password": "Password",
+        "password_invalid": "Password is wrong"
     },
     "recovery": {
         "recovery": "Password recovery",

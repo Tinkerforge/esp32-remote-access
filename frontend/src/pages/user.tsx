@@ -30,6 +30,9 @@ import { useTranslation } from "react-i18next";
 import { Card, Container } from "react-bootstrap";
 import { signal } from "@preact/signals";
 import { PasswordComponent } from "../components/password_component";
+import i18n from "../i18n";
+import { showAlert } from "../components/Alert";
+import { Base64 } from "js-base64";
 
 
 interface UserState {
@@ -116,15 +119,18 @@ class UserComponent extends Component<{}, State> {
 }
 
 export function User() {
-    const [show, setShow] = useState(false);
+    const [showPasswordReset, setShowPasswordReset] = useState(false);
+    const [deleteUser, setDeleteUser] = useState({show: false, password: "", password_valid: true});
     const [currentPassword, setCurrentPassword] = useState("");
     const [currentPasswordIsValid, setCurrentPasswordIsValid] = useState(true);
     const [newPassword, setNewPassword] = useState("");
     const [newPasswordIsValid, setNewPasswordIsValid] = useState(true);
     const validated = signal(false);
 
-    const handleClose = () => setShow(false);
-    const handleShow = () => setShow(true);
+    const handleUpdatePasswordClose = () => setShowPasswordReset(false);
+    const handleUpdatePasswordShow = () => setShowPasswordReset(true);
+    const handleDelteUserClose = () => setDeleteUser({...deleteUser, show: false});
+    const handleDeleteUserShow = () => setDeleteUser({...deleteUser, show: true});
 
     const checkPasswords = () => {
         let ret = true;
@@ -147,7 +153,7 @@ export function User() {
         return ret;
     }
 
-    const submit = async (e: SubmitEvent) => {
+    const submitUpdatePassword = async (e: SubmitEvent) => {
         e.preventDefault();
 
         if (!checkPasswords()) {
@@ -202,9 +208,37 @@ export function User() {
         });
         if (resp.status === 200) {
             logout(true);
-            handleClose();
+            handleUpdatePasswordClose();
         }
     };
+
+    const submitDeleteUser = async (e: SubmitEvent) => {
+        e.preventDefault();
+
+        const t = i18n.t;
+
+        const loginSaltBs64 = window.localStorage.getItem("LoginKey");
+        const loginSalt = Base64.toUint8Array(loginSaltBs64);
+        const loginKey = await generate_hash(deleteUser.password, loginSalt)
+
+        const resp = await fetch(BACKEND + "/user/delete", {
+            credentials: "include",
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({login_key: [].slice.call(loginKey)})
+        });
+
+        if (resp.status === 200) {
+            location.reload();
+        } else  if (resp.status === 400) {
+            setDeleteUser({...deleteUser, password_valid: false})
+        } else {
+            showAlert(`${t("alert_default_text")}: ${resp.status} ${await resp.text()}`, "danger")
+            handleDelteUserClose();
+        }
+    }
 
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "user"});
 
@@ -212,14 +246,43 @@ export function User() {
         <Container fluid>
             <Card className="p-3 my-3">
             <UserComponent/>
-            <Button variant="primary" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2" onClick={handleShow}>
+            <Button variant="primary" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-3" onClick={handleUpdatePasswordShow}>
                 {t("change_password")}
+            </Button>
+            <Button variant="danger" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2" onClick={handleDeleteUserShow}>
+                {t("delete_user")}
             </Button>
             </Card>
         </Container>
 
-        <Modal show={show} onHide={handleClose} centered>
-            <Form onSubmit={submit} validated={validated.value} noValidate>
+        {/* Delete user modal */}
+        <Modal show={deleteUser.show} onHide={handleDelteUserClose} centered>
+            <Form onSubmit={submitDeleteUser} validated={validated.value} noValidate>
+                <Modal.Header>
+                    <Modal.Title>
+                        {t("delete_user")}
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form.Group className="pb-3" controlId="deleteUserPassword">
+                        <Form.Label>{t("password")}</Form.Label>
+                        <PasswordComponent onChange={(e) => setDeleteUser({...deleteUser, password: (e.target as HTMLInputElement).value})} isInvalid={!deleteUser.password_valid} invalidMessage={t("password_invalid")} />
+                    </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={handleDelteUserClose}>
+                        {t("close")}
+                    </Button>
+                    <Button variant="danger" type="submit">
+                        {t("delete_user")}
+                    </Button>
+                </Modal.Footer>
+            </Form>
+        </Modal>
+
+        {/* Reset password modal */}
+        <Modal show={showPasswordReset} onHide={handleUpdatePasswordClose} centered>
+            <Form onSubmit={submitUpdatePassword} validated={validated.value} noValidate>
                 <Modal.Header>
                     <Modal.Title>
                         {t("change_password")}
@@ -238,7 +301,7 @@ export function User() {
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={handleClose}>
+                    <Button variant="secondary" onClick={handleUpdatePasswordClose}>
                         {t("close")}
                     </Button>
                     <Button variant="primary" type="submit">

@@ -53,6 +53,10 @@ async function refresh_access_token() {
         credentials: "include"
     });
 
+    if (!localStorage.getItem("loginKey") || !localStorage.getItem("secret_key")) {
+        loggedIn.value = AppState.LoggedOut
+    }
+
     if (resp.status == 200) {
         loggedIn.value = AppState.LoggedIn;
     } else {

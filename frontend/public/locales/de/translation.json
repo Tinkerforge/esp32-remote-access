@@ -12,7 +12,10 @@
         "current_password_error_message": "Darf nicht leer sein.",
         "new_password": "Neues Passwort",
         "new_password_error_message": "Muss mindestens 8 Zeichen lang sein und jeweils mindestens einen Klein- und Großbuchstaben sowie ein Sonderzeichen enthalten.",
-        "close": "Schließen"
+        "close": "Schließen",
+        "delete_user": "Account löschen",
+        "password": "Passwort",
+        "password_invalid": "Passwort ist falsch"
     },
     "recovery": {
         "recovery": "Passwort zurücksetzen",
