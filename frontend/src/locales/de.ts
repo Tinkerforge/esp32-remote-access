@@ -1,0 +1,83 @@
+export const de ={
+    "alert_default_text": "Ein Fehler ist aufgetreten!",
+    "alert_default_success": "Erfolg!",
+    "description": "Diese Seite bietet einen Fernzugriff für WARP Charger. Weitere Informationen findest du <0>hier</0>",
+    "user": {
+        "user_id": "Nutzer Id",
+        "email": "E-mail-Adresse",
+        "name": "Name",
+        "change": "Ändern",
+        "change_password": "Passwort ändern",
+        "current_password": "Aktuelles Passwort",
+        "current_password_error_message": "Darf nicht leer sein.",
+        "new_password": "Neues Passwort",
+        "new_password_error_message": "Muss mindestens 8 Zeichen lang sein und jeweils mindestens einen Klein- und Großbuchstaben sowie ein Sonderzeichen enthalten.",
+        "close": "Schließen",
+        "delete_user": "Account löschen",
+        "password": "Passwort",
+        "password_invalid": "Passwort falsch"
+    },
+    "recovery": {
+        "recovery": "Passwort zurücksetzen",
+        "new_password": "Neues Passwort",
+        "recovery_file": "Wiederhestellungsdatei",
+        "submit": "Abschicken",
+        "invalid_file": "Datei ist beschädigt oder falsch"
+    },
+    "chargers": {
+        "charger_name": "Name",
+        "charger_id": "Wallbox-ID",
+        "status": "Status",
+        "status_connected": "Verbunden",
+        "status_disconnected": "Getrennt",
+        "connect": "Verbinden",
+        "remove": "Löschen",
+        "close": "Schließen",
+        "no_keys": "Bitte lerne die Wallbox erneut an",
+        "connect_error_text": "Verbindung zu wallbox {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
+        "remove_error_text": "Entfernen der Wallbox {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
+        "delete_modal_heading": "Wallbox {{name}} entfernen",
+        "delete_modal_body": "Bist du sicher, dass du die Wallbox {{name}} entfernen willst? Dies ist permanent und die Wallbox kann nur wiederhergestellt werden wenn du direkten Zugriff auf das webinterface hast."
+    },
+    "navbar": {
+        "home": "Home",
+        "user": "Nutzer",
+        "chargers": "Wallboxen",
+        "logout": "Ausloggen",
+        "close": "Schließen"
+    },
+    "register": {
+        "name": "Name",
+        "name_error_message": "Der Name darf nicht leer sein",
+        "email": "E-Mail-Adresse",
+        "email_error_message": "Die E-Mail-Adresse, darf nicht leer sein",
+        "password": "Passwort",
+        "password_error_message": "Muss mindestens 8 Zeichen lang sein und jeweils mindestens einen Klein- und Großbuchstaben sowie ein Sonderzeichen enthalten.",
+        "accept_privacy_notice": "Ich habe die <0>Datenschutzerklärung</0> gelesen, verstanden und stimme zu.",
+        "accept_terms_and_conditions": "Ich habe die <0>AGB</0> gelesen, verstanden und stimme zu.",
+        "accept_privacy_notice_alpha": "Ich verstehe, dass dies eine Alpha-Version ist und stimme der verarbeitung meiner Daten wie <0>hier</0> beschrieben zu.",
+        "register": "Registrieren",
+        "save_recovery_data": "Wiederhestellungsdatei speichern",
+        "save": "Speichern",
+        "save_recovery_data_text": "Da die Zugangsdaten für die Wallboxen nur mithilfe des korrekten Passworts entschlüsselt werden können brauchst du, falls du dein Passwort vergessen solltest, diese Datei um den Zugang zu Ihren Wallboxen wiederherzustellen. Bewahre diese Datei sicher und für niemanden sonst zugänglich auf, da sie mit deinem Passwort gleichzustellen ist.",
+        "close": "Schließen",
+        "registration_successful": "Die Registrierung war erfolgreich. Du solltest innerhalb der nächsten paar Minuten eine Email mit einem Bestätigungslink erhalten"
+    },
+    "login": {
+        "password_recovery": "Passwort zurücksetzen",
+        "email":"E-Mail-Adresse",
+        "send": "Senden",
+        "close": "Schließen",
+        "password": "Passwort",
+        "login": "Anmelden",
+        "wrong_credentials": "E-Mail-Adresse oder Passwort falsch.",
+        "success_alert_text": "Du solltest innerhalb der nächsten paar Minuten eine E-Mail erhalten.",
+        "success_alert_heading": "Erfolg",
+        "error_alert_text": "Failed to start recovery with status {{status}}: {{text}}"
+    },
+    "footer": {
+        "imprint": "Impressum",
+        "terms_of_use": "AGB",
+        "privacy_notice": "Datenschutzerklärung"
+    }
+};
