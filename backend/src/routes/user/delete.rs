@@ -7,7 +7,7 @@ use utoipa::ToSchema;
 use crate::{error::Error, routes::{auth::login::{validate_password, FindBy}, charger::remove::{delete_all_allowed_users, delete_all_keys, delete_charger}, user::logout::delete_all_refresh_tokens}, utils::{get_connection, web_block_unpacked}, AppState};
 
 #[derive(ToSchema, Serialize, Deserialize)]
-pub struct DeleteSchema {
+pub struct DeleteUserSchema {
     #[schema(value_type = Vec<u32>)]
     pub login_key: Vec<u8>
 }
@@ -37,8 +37,17 @@ async fn get_all_chargers_for_user(user_id: uuid::Uuid, state: &web::Data<AppSta
     }).await
 }
 
+#[utoipa::path(
+    context_path = "/user",
+    request_body = DeleteUserSchema,
+    responses(
+        (status = 200),
+        (status = 400, description = "Wrong password"),
+        (status = 500)
+    )
+)]
 #[delete("/delete")]
-pub async fn delete_user(state: web::Data<AppState>, user_id: crate::models::uuid::Uuid, payload: web::Json<DeleteSchema>) -> actix_web::Result<impl Responder> {
+pub async fn delete_user(state: web::Data<AppState>, user_id: crate::models::uuid::Uuid, payload: web::Json<DeleteUserSchema>) -> actix_web::Result<impl Responder> {
     let user_id = user_id.into();
 
     let conn = get_connection(&state)?;
@@ -77,7 +86,7 @@ mod tests {
 
     use crate::{middleware::jwt::JwtMiddleware, routes::{auth::get_login_salt::tests::get_test_login_salt, user::tests::{get_test_uuid, hash_test_key, TestUser}}, tests::configure, utils::generate_random_bytes};
 
-    use super::{delete_user, DeleteSchema};
+    use super::{delete_user, DeleteUserSchema};
 
 
     //TODO: add test for shared charger once it is merged
@@ -100,7 +109,7 @@ mod tests {
 
         let login_salt = get_test_login_salt(&user1_mail).await;
         let login_key = hash_test_key(&user1.password, &login_salt, None);
-        let schema = DeleteSchema {
+        let schema = DeleteUserSchema {
             login_key
         };
         let req = test::TestRequest::delete()
@@ -170,7 +179,7 @@ mod tests {
             .service(delete_user);
         let app = test::init_service(app).await;
 
-        let schema = DeleteSchema {
+        let schema = DeleteUserSchema {
             login_key: generate_random_bytes()
         };
         let req = test::TestRequest::delete()

@@ -97,6 +97,7 @@ async fn main() {
             routes::user::update_password::update_password,
             routes::user::update_user::update_user,
             routes::user::get_secret::get_secret,
+            routes::user::delete::delete_user,
             routes::management::management,
         ),
         components(schemas(
@@ -114,6 +115,7 @@ async fn main() {
             routes::charger::get_key::GetWgKeysResponseSchema,
             routes::user::update_password::PasswordUpdateSchema,
             routes::user::get_secret::GetSecretResponse,
+            routes::user::delete::DeleteUserSchema,
             routes::management::ManagementSchema,
             routes::management::ManagementResponseSchema,
             routes::management::ManagementDataVersion,
