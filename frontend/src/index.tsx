@@ -54,9 +54,8 @@ async function refresh_access_token() {
     });
 
     if (resp.status == 200) {
-        if (!localStorage.getItem("loginKey") || !localStorage.getItem("secret_key")) {
+        if (!localStorage.getItem("loginKey") || !localStorage.getItem("secretKey")) {
             logout(false);
-            return;
         }
         loggedIn.value = AppState.LoggedIn;
     } else {
@@ -71,10 +70,6 @@ setInterval(async () => {
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
-
-    if (!localStorage.getItem("secret_key") && loggedIn.value == AppState.LoggedIn) {
-        logout(false);
-    }
 
     switch (loggedIn.value) {
         case AppState.Loading:

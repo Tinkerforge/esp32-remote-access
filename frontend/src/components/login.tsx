@@ -86,7 +86,7 @@ export class Login extends Component<{}, LoginState> {
         const secret_key = await generate_hash(this.state.password, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
         const encoded_key = Base64.fromUint8Array(secret_key);
 
-        localStorage.setItem("secret_key", encoded_key);
+        localStorage.setItem("secretKey", encoded_key);
         window.location.reload()
     }
 

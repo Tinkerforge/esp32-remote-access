@@ -13,7 +13,7 @@ export async function logout(logout_all: boolean) {
         });
 
         localStorage.removeItem("loginKey");
-        localStorage.removeItem("secret_key");
+        localStorage.removeItem("secretKey");
 
         window.location.reload();
     }

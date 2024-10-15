@@ -99,7 +99,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             showAlert(t("alert_default_text"), "danger");
             return;
         }
-        const encoded_key = localStorage.getItem("secret_key");
+        const encoded_key = localStorage.getItem("secretKey");
         const secret_key = Base64.toUint8Array(encoded_key);
         const secret_data = await get_secret_resp.json();
         secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret_data.secret), new Uint8Array(secret_data.secret_nonce), secret_key);
