@@ -12,6 +12,9 @@ export async function logout(logout_all: boolean) {
             credentials: "include",
         });
 
+        localStorage.removeItem("loginKey");
+        localStorage.removeItem("secret_key");
+
         window.location.reload();
     }
 
