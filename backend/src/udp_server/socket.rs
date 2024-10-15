@@ -214,4 +214,8 @@ impl ManagementSocket {
     pub fn id(&self) -> i32 {
         self.charger_id
     }
+
+    pub fn get_remote_address(&self) -> SocketAddr {
+        self.remote_addr
+    }
 }

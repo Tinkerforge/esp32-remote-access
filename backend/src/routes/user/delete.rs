@@ -4,7 +4,7 @@ use diesel::{prelude::*, result::Error::NotFound};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, routes::{auth::login::{validate_password, FindBy}, charger::remove::{delete_all_allowed_users, delete_all_keys, delete_charger}, user::logout::delete_all_refresh_tokens}, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{error::Error, routes::{auth::login::{validate_password, FindBy}, charger::remove::{delete_all_allowed_users, delete_all_keys, delete_charger, remove_charger_from_state}, user::logout::delete_all_refresh_tokens}, utils::{get_connection, web_block_unpacked}, AppState, BridgeState};
 
 #[derive(ToSchema, Serialize, Deserialize)]
 pub struct DeleteUserSchema {
@@ -47,7 +47,7 @@ async fn get_all_chargers_for_user(user_id: uuid::Uuid, state: &web::Data<AppSta
     )
 )]
 #[delete("/delete")]
-pub async fn delete_user(state: web::Data<AppState>, user_id: crate::models::uuid::Uuid, payload: web::Json<DeleteUserSchema>) -> actix_web::Result<impl Responder> {
+pub async fn delete_user(state: web::Data<AppState>, bridge_state: web::Data<BridgeState>, user_id: crate::models::uuid::Uuid, payload: web::Json<DeleteUserSchema>) -> actix_web::Result<impl Responder> {
     let user_id = user_id.into();
 
     let conn = get_connection(&state)?;
@@ -59,6 +59,7 @@ pub async fn delete_user(state: web::Data<AppState>, user_id: crate::models::uui
         delete_all_keys(id, &state).await?;
         delete_all_allowed_users(id, &state).await?;
         delete_charger(id, &state).await?;
+        remove_charger_from_state(id, &bridge_state);
     }
 
     delete_all_refresh_tokens(user_id, &state).await?;

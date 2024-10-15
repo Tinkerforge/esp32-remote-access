@@ -26,7 +26,7 @@ use crate::{
     error::Error,
     routes::charger::charger_belongs_to_user,
     utils::{get_connection, web_block_unpacked},
-    AppState,
+    AppState, BridgeState,
 };
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
@@ -81,6 +81,20 @@ pub async fn delete_charger(charger: i32, state: &web::Data<AppState>) -> actix_
     Ok(())
 }
 
+pub fn remove_charger_from_state(charger: i32, state: &web::Data<BridgeState>) {
+    let socket = {
+        let mut map = state.charger_management_map_with_id.lock().unwrap();
+        map.remove(&charger)
+    };
+
+    if let Some(socket) = socket {
+        let socket = socket.lock().unwrap();
+        let remote_address = socket.get_remote_address();
+        let mut map = state.charger_management_map.lock().unwrap();
+        let _ = map.remove(&remote_address);
+    }
+}
+
 #[utoipa::path(
     context_path = "/charger",
     request_body = DeleteChargerSchema,
@@ -97,6 +111,7 @@ pub async fn remove(
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
     data: web::Json<DeleteChargerSchema>,
+    bridge_state: web::Data<BridgeState>,
 ) -> Result<impl Responder, actix_web::Error> {
 
     if !charger_belongs_to_user(&state, uid.clone().into(), data.charger.clone()).await? {
@@ -106,6 +121,7 @@ pub async fn remove(
     delete_all_keys(data.charger.clone(), &state).await?;
     delete_all_allowed_users(data.charger.clone(), &state).await?;
     delete_charger(data.charger, &state).await?;
+    remove_charger_from_state(data.charger, &bridge_state);
 
     Ok(HttpResponse::Ok())
 }
