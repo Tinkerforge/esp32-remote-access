@@ -59,6 +59,8 @@ async function refresh_access_token() {
         }
         loggedIn.value = AppState.LoggedIn;
     } else {
+        localStorage.removeItem("loginKey");
+        localStorage.removeItem("secretKey");
         loggedIn.value = AppState.LoggedOut;
     }
 }
@@ -67,6 +69,8 @@ refresh_access_token();
 setInterval(async () => {
     await refresh_access_token();
 }, 1000 * 60 * 5);
+
+localStorage.removeItem("secret_key");
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
