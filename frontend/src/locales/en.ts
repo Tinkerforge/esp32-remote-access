@@ -1,7 +1,7 @@
 export const en = {
     "alert_default_text": "An Error occured!",
     "alert_default_success": "Success!",
-    "description": "This page provides remote access to registered WARP-Chargers. For more information click <0>here</0>",
+    "description": "This page provides remote access to registered Tinkerforge WARP-Devices. For more information click <0>here</0>",
     "user": {
         "user_id": "User-id",
         "email": "Email-address",
@@ -27,23 +27,23 @@ export const en = {
     },
     "chargers": {
         "charger_name": "Name",
-        "charger_id": "Charger-ID",
+        "charger_id": "Device-ID",
         "status": "Status",
         "status_connected": "Connected",
         "status_disconnected": "Disconnected",
         "connect": "Connect",
         "remove": "Remove",
         "close": "Close",
-        "no_keys": "You need to register this charger again.",
-        "connect_error_text": "Connecting to charger {{charger_id}} failed with code {{status}}: {{response}}",
-        "remove_error_text": "Removing charger {{charger_id}} failed with code {{status}}: {{response}}",
-        "delete_modal_heading": "Remove charger {{name}}",
-        "delete_modal_body": "Are you sure you want to remove charger {{name}}? This is permanently and the charger can only be added again once you have direct access to the charger again."
+        "no_keys": "You need to register this device again.",
+        "connect_error_text": "Connecting to device {{charger_id}} failed with code {{status}}: {{response}}",
+        "remove_error_text": "Removing device {{charger_id}} failed with code {{status}}: {{response}}",
+        "delete_modal_heading": "Remove device {{name}}",
+        "delete_modal_body": "Are you sure you want to remove device {{name}}? This is permanently and the device can only be added again once you have direct access to the device again."
     },
     "navbar": {
         "home": "Home",
         "user": "User",
-        "chargers": "Chargers",
+        "chargers": "Devices",
         "logout": "Logout",
         "close": "Schließen"
     },
@@ -60,7 +60,7 @@ export const en = {
         "register": "Register",
         "save_recovery_data": "Save recovery file",
         "save": "Save",
-        "save_recovery_data_text": "Since we can only decrypt the access code with the correct password we need this file to recover access to your chargers in case of a password loss. Save this file in a safe location which is inaccessible by others since it is equivalent to your password.",
+        "save_recovery_data_text": "Since we can only decrypt the access code with the correct password we need this file to recover access to your devices in case of a password loss. Save this file in a safe location which is inaccessible by others since it is equivalent to your password.",
         "close": "Close",
         "registration_successful": "Registration was successful, you should receive an email in the next couple of minutes."
     },

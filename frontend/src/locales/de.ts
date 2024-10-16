@@ -1,7 +1,7 @@
 export const de ={
     "alert_default_text": "Ein Fehler ist aufgetreten!",
     "alert_default_success": "Erfolg!",
-    "description": "Diese Seite bietet einen Fernzugriff für WARP Charger. Weitere Informationen findest du <0>hier</0>",
+    "description": "Diese Seite bietet einen Fernzugriff für Tinkerforge WARP-Geräte. Weitere Informationen findest du <0>hier</0>",
     "user": {
         "user_id": "Nutzer Id",
         "email": "E-mail-Adresse",
@@ -27,23 +27,23 @@ export const de ={
     },
     "chargers": {
         "charger_name": "Name",
-        "charger_id": "Wallbox-ID",
+        "charger_id": "Geräte-ID",
         "status": "Status",
         "status_connected": "Verbunden",
         "status_disconnected": "Getrennt",
         "connect": "Verbinden",
         "remove": "Löschen",
         "close": "Schließen",
-        "no_keys": "Bitte lerne die Wallbox erneut an",
-        "connect_error_text": "Verbindung zu wallbox {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
-        "remove_error_text": "Entfernen der Wallbox {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
-        "delete_modal_heading": "Wallbox {{name}} entfernen",
-        "delete_modal_body": "Bist du sicher, dass du die Wallbox {{name}} entfernen willst? Dies ist permanent und die Wallbox kann nur wiederhergestellt werden wenn du direkten Zugriff auf das webinterface hast."
+        "no_keys": "Bitte lerne das Gerät erneut an",
+        "connect_error_text": "Verbindung zu Gerät {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
+        "remove_error_text": "Entfernen des Gerätes {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
+        "delete_modal_heading": "Gerät {{name}} entfernen",
+        "delete_modal_body": "Bist du sicher, dass du das Gerät {{name}} entfernen willst? Dies ist permanent und das Gerät kann nur wiederhergestellt werden wenn du direkten Zugriff auf das webinterface hast."
     },
     "navbar": {
         "home": "Home",
         "user": "Nutzer",
-        "chargers": "Wallboxen",
+        "chargers": "Geräte",
         "logout": "Ausloggen",
         "close": "Schließen"
     },
@@ -60,7 +60,7 @@ export const de ={
         "register": "Registrieren",
         "save_recovery_data": "Wiederhestellungsdatei speichern",
         "save": "Speichern",
-        "save_recovery_data_text": "Da die Zugangsdaten für die Wallboxen nur mithilfe des korrekten Passworts entschlüsselt werden können brauchst du, falls du dein Passwort vergessen solltest, diese Datei um den Zugang zu Ihren Wallboxen wiederherzustellen. Bewahre diese Datei sicher und für niemanden sonst zugänglich auf, da sie mit deinem Passwort gleichzustellen ist.",
+        "save_recovery_data_text": "Da die Zugangsdaten für die Geräte nur mithilfe des korrekten Passworts entschlüsselt werden können brauchst du, falls du dein Passwort vergessen solltest, diese Datei um den Zugang zu deinen Geräten wiederherzustellen. Bewahre diese Datei sicher und für niemanden sonst zugänglich auf, da sie mit deinem Passwort gleichzustellen ist.",
         "close": "Schließen",
         "registration_successful": "Die Registrierung war erfolgreich. Du solltest innerhalb der nächsten paar Minuten eine Email mit einem Bestätigungslink erhalten"
     },
