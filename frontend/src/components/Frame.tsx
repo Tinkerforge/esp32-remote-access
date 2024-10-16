@@ -5,6 +5,7 @@ import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
 import { connected, connected_to, secret } from './charger_list';
 import { setAppNavigation } from './Navbar';
+import { enableLogging } from '../utils';
 
 export const chargerID = signal(0);
 export const chargerPort = signal(0);
@@ -79,6 +80,10 @@ export class Frame extends Component {
                 };
 
                 this.worker.postMessage(message);
+
+                if (enableLogging) {
+                    this.worker.postMessage("enableLogging");
+                }
             }
         }
 
@@ -120,6 +125,12 @@ export class Frame extends Component {
             const frame_window = frame.contentWindow;
             frame_window.location.hash = hash;
         }
+
+        window.addEventListener("keydown", (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.altKey && e.code === "KeyP") {
+                this.worker.postMessage("download");
+            }
+        })
     }
 
     componentWillUnmount() {

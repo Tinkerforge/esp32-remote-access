@@ -26,8 +26,6 @@ declare const self: DedicatedWorkerGlobalScope;
 const tunnel_url = import.meta.env.VITE_BACKEND_WS_URL + "/ws?key_id="
 let wgClient: Client | undefined = undefined;
 let setup_data: SetupMessage;
-self.postMessage("started");
-set_pcap_logging(true);
 
 self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
@@ -49,6 +47,10 @@ self.addEventListener("message", async (e: MessageEvent) => {
 
             case "pauseWS":
                 wgClient.disconnect_inner_ws();
+                break;
+
+            case "enableLogging":
+                set_pcap_logging(true);
                 break;
 
             case "download":
@@ -164,3 +166,5 @@ function triggerDownload() {
         data: msg
     });
 }
+
+self.postMessage("started");
