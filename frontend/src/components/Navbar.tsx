@@ -54,7 +54,7 @@ export function CustomNavbar() {
                     <Nav>
                         <Nav.Link onClick={(e) => {
                             e.preventDefault();
-                            logout(true);
+                            logout(false);
                         }}>{t("logout")}</Nav.Link>
                     </Nav>
                 </Navbar.Collapse>

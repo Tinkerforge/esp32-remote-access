@@ -249,6 +249,10 @@ export function User() {
             <Button variant="primary" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-3" onClick={handleUpdatePasswordShow}>
                 {t("change_password")}
             </Button>
+
+            <Button variant="primary" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-3" onClick={() => logout(true)}>
+                {t("logout_all")}
+            </Button>
             <Button variant="danger" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2" onClick={handleDeleteUserShow}>
                 {t("delete_user")}
             </Button>

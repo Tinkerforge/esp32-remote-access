@@ -15,7 +15,8 @@ export const en = {
         "close": "Close",
         "delete_user": "Delete account",
         "password": "Password",
-        "password_invalid": "Password is wrong"
+        "password_invalid": "Password is wrong",
+        "logout_all": "Logout from all devices"
     },
     "recovery": {
         "recovery": "Password recovery",
