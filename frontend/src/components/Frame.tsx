@@ -7,6 +7,7 @@ import { connected, connected_to, secret } from './charger_list';
 import { setAppNavigation } from './Navbar';
 import { enableLogging } from '../utils';
 import Median from "median-js-bridge";
+import i18n from '../i18n';
 
 export const chargerID = signal(0);
 export const chargerPort = signal(0);
@@ -33,6 +34,20 @@ export class Frame extends Component {
         });
 
         this.startWorker();
+
+        if (Median.isNativeApp()) {
+            const t = i18n.t;
+            Median.sidebar.setItems({
+                enabled: true,
+                persist: true,
+                items: [
+                    {
+                        label: t("app.close_remote_access"),
+                        url: "javascript:window.close()"
+                    }
+                ]
+            })
+        }
 
         // used by the app to detect a resumed app
         window.addEventListener("appResumed", () => {

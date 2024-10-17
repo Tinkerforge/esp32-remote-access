@@ -80,5 +80,8 @@ export const de ={
         "imprint": "Impressum",
         "terms_of_use": "AGB",
         "privacy_notice": "Datenschutzerklärung"
+    },
+    "app": {
+        "close_remote_access": "Fernzugriff schließen"
     }
 };

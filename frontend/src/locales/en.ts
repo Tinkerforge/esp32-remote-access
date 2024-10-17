@@ -80,5 +80,8 @@ export const en = {
         "imprint": "Imprint",
         "terms_of_use": "Terms and Conditions",
         "privacy_notice": "Privacy Notice"
+    },
+    "app": {
+        "close_remote_access": "Close Remote-Access"
     }
 };
