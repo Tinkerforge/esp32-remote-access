@@ -6,6 +6,7 @@ import { Row, Spinner } from 'react-bootstrap';
 import { connected, connected_to, secret } from './charger_list';
 import { setAppNavigation } from './Navbar';
 import { enableLogging } from '../utils';
+import Median from "median-js-bridge";
 
 export const chargerID = signal(0);
 export const chargerPort = signal(0);
@@ -15,13 +16,15 @@ export class Frame extends Component {
     worker: Worker;
     show_spinner = signal(true);
     id: string;
+    abort: AbortController;
     constructor() {
         super();
+
+        this.abort = new AbortController();
 
         document.title = connected_to.value;
 
         this.id = crypto.randomUUID();
-        this.worker = new Worker();
         navigator.serviceWorker.addEventListener("message", (e: MessageEvent) => {
             const msg = e.data as Message;
             if (msg.receiver_id === this.id) {
@@ -29,6 +32,32 @@ export class Frame extends Component {
             }
         });
 
+        this.startWorker();
+
+        // used by the app to detect a resumed app
+        window.addEventListener("appResumed", () => {
+            this.worker.terminate();
+            this.startWorker();
+            this.show_spinner.value = true;
+        }, {signal: this.abort.signal});
+
+        // this is used by the app to close the remote connection via the native app menu.
+        (window as any).close = () => {
+            connected.value = false;
+            connected_to.value = "";
+            setAppNavigation();
+        }
+
+        // this is used by the app to change location via the native app menu.
+        (window as any).switchTo = (hash: string) => {
+            const frame = document.getElementById("interface") as HTMLIFrameElement;
+            const frame_window = frame.contentWindow;
+            frame_window.location.hash = hash;
+        }
+    }
+
+    startWorker() {
+        this.worker = new Worker();
         const message_event = (e: MessageEvent) => {
             if (typeof e.data === "string") {
                 switch (e.data) {
@@ -136,6 +165,7 @@ export class Frame extends Component {
     componentWillUnmount() {
         this.worker.postMessage("close");
         document.title = "Remote Access";
+        this.abort.abort();
     }
 
     render() {
