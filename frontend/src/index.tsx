@@ -58,9 +58,6 @@ async function refresh_access_token() {
             logout(false);
         }
         loggedIn.value = AppState.LoggedIn;
-        setInterval(async () => {
-            await refresh_access_token();
-        }, 1000 * 60 * 5);
     } else {
         localStorage.removeItem("loginKey");
         localStorage.removeItem("secretKey");
@@ -68,7 +65,13 @@ async function refresh_access_token() {
     }
 }
 
-refresh_access_token();
+refresh_access_token().then(() => {
+    if (loggedIn.value === AppState.LoggedIn) {
+        setInterval(async () => {
+            await refresh_access_token();
+        }, 1000 * 60 * 5);
+    }
+});
 
 localStorage.removeItem("secret_key");
 
