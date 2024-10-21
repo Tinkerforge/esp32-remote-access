@@ -173,6 +173,9 @@ export class Frame extends Component {
         window.addEventListener("keydown", (e: KeyboardEvent) => {
             if (e.ctrlKey && e.altKey && e.code === "KeyP") {
                 this.worker.postMessage("download");
+            } else if(e.ctrlKey && e.altKey && e.shiftKey && e.code === "KeyR") {
+                const iframe = document.getElementById("interface") as HTMLIFrameElement;
+                iframe.src = `/wg-${this.id}/recovery`;
             }
         })
     }
