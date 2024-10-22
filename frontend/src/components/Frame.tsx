@@ -54,6 +54,18 @@ export class Frame extends Component {
             this.worker.terminate();
             this.startWorker();
             this.show_spinner.value = true;
+
+            const t = i18n.t;
+            Median.sidebar.setItems({
+                enabled: true,
+                persist: true,
+                items: [
+                    {
+                        label: t("app.close_remote_access"),
+                        url: "javascript:window.close()"
+                    }
+                ]
+            })
         }, {signal: this.abort.signal});
 
         // this is used by the app to close the remote connection via the native app menu.
