@@ -248,6 +248,7 @@ impl WgClient {
      * Creates a new Websocket object and connection that gets stored internally.
      */
     fn start_inner_ws(&mut self, cb: js_sys::Function) {
+        self.disconnect_inner_ws();
         let mut stream = TcpStream::new(self.iface.clone());
         let port = js_sys::Math::random() * 1000.0;
         let port = port as u16;
@@ -616,7 +617,6 @@ impl WgClient {
     }
 
     pub fn disconnect_inner_ws(&mut self) {
-        log::debug!("disconnecting inner ws");
         let mut sock_ref = self.websocket.borrow_mut();
         if let Some(socket) = &*sock_ref {
             socket.disconnect();
