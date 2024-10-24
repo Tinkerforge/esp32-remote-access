@@ -5,7 +5,7 @@ import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
 import { connected, connected_to, secret } from './charger_list';
 import { setAppNavigation } from './Navbar';
-import { enableLogging } from '../utils';
+import { enableLogging, refreshPromise } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
 
@@ -50,8 +50,10 @@ export class Frame extends Component {
         }
 
         // used by the app to detect a resumed app
-        window.addEventListener("appResumed", () => {
+        window.addEventListener("appResumed", async () => {
             this.worker.terminate();
+            this.worker = null;
+            await refreshPromise;
             this.startWorker();
             this.show_spinner.value = true;
 

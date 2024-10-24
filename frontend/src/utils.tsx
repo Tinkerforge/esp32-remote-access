@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals";
 import { hash, ArgonType } from "argon2-browser";
+import { logout } from "./components/Navbar";
 
 export async function get_salt() {
     const resp = await fetch(`${BACKEND}/auth/generate_salt`, {
@@ -79,3 +80,34 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
         enableLogging = true;
     }
 })
+
+// This promise is used to synchronize the timeout and Frame component refreshing the access token
+export let refreshPromise: Promise<void>;
+
+// This function must be called only at one place. Use the promise instead if you need to ensure that you have a valid token.
+export async function refresh_access_token() {
+    refreshPromise = new Promise(async (resolve, reject) => {
+        if (window.location.pathname == "/recovery") {
+            loggedIn.value = AppState.Recovery;
+            return;
+        }
+
+        const resp = await fetch(BACKEND + "/auth/jwt_refresh", {
+            method: "GET",
+            credentials: "include"
+        });
+
+        if (resp.status == 200) {
+            if (!localStorage.getItem("loginKey") || !localStorage.getItem("secretKey")) {
+                logout(false);
+            }
+            loggedIn.value = AppState.LoggedIn;
+        } else {
+            localStorage.removeItem("loginKey");
+            localStorage.removeItem("secretKey");
+            loggedIn.value = AppState.LoggedOut;
+        }
+        resolve();
+    });
+    await refreshPromise;
+}
