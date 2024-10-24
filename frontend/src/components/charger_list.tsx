@@ -91,6 +91,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
     }
 
     async get_decrypted_secret() {
+        await sodium.ready;
         const t = i18n.t;
         const get_secret_resp = await fetch(BACKEND + "/user/get_secret", {
             credentials: "include"
