@@ -33,7 +33,6 @@ use crate::{
     error::Error,
     routes::charger::add::get_charger_from_db,
     utils::{get_connection, web_block_unpacked},
-    ws_udp_bridge::open_connection,
     AppState, BridgeState,
 };
 
@@ -183,6 +182,16 @@ pub async fn management(
         });
     }
 
+    {
+        let mut map = bridge_state.charger_management_map_with_id.lock().unwrap();
+        let sock = map.remove(&data.id);
+        if let Some(socket) = sock {
+            let mut map = bridge_state.charger_management_map.lock().unwrap();
+            let socket = socket.lock().unwrap();
+            let _ = map.remove(&socket.get_remote_address());
+        }
+    }
+
     let mut conn = get_connection(&state)?;
     let keys_in_use: Vec<WgKey> = web_block_unpacked(move || {
         use db_connector::schema::wg_keys::dsl::*;
@@ -198,25 +207,19 @@ pub async fn management(
     .await?;
 
     {
-        let charger_map = bridge_state.charger_management_map_with_id.lock().unwrap();
-        if let Some(c) = charger_map.get(&data.id) {
-            {
-                let mut charger = c.lock().unwrap();
-                charger.reset_out_sequence();
-                charger.reset();
-            }
-            for key in keys_in_use.iter() {
-                open_connection(
-                    key.connection_no,
-                    key.charger_id,
-                    c.clone(),
-                    bridge_state.port_discovery.clone(),
-                )?;
-            }
-        } else {
             let mut lost_map = bridge_state.lost_connections.lock().unwrap();
             let _ = lost_map.insert(data.id, keys_in_use);
         }
+
+    {
+        let mut map = bridge_state.charger_remote_conn_map.lock().unwrap();
+        map.retain(|key, _| {
+            if key.charger_id == data.id {
+                false
+            } else {
+                true
+            }
+        });
     }
 
     let (fw_version, port) = match &data.data {
