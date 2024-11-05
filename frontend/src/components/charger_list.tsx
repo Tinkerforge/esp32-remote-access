@@ -97,7 +97,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             credentials: "include"
         });
         if (get_secret_resp.status !== 200) {
-            showAlert(t("alert_default_text"), "danger");
+            showAlert(t("chargers.loading_secret_failed", {status: get_secret_resp.status, response: await get_secret_resp.text()}), "danger");
             return;
         }
         const encoded_key = localStorage.getItem("secretKey");

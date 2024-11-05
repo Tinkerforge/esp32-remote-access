@@ -34,9 +34,10 @@ export const en = {
         "connect": "Connect",
         "remove": "Remove",
         "close": "Close",
+        "loading_secret_failed": "Loading secret failed with status code {{status}}: {{response}}",
         "no_keys": "You need to register this device again.",
-        "connect_error_text": "Connecting to device {{charger_id}} failed with code {{status}}: {{response}}",
-        "remove_error_text": "Removing device {{charger_id}} failed with code {{status}}: {{response}}",
+        "connect_error_text": "Connecting to device {{charger_id}} failed with status code {{status}}: {{response}}",
+        "remove_error_text": "Removing device {{charger_id}} failed with status code {{status}}: {{response}}",
         "delete_modal_heading": "Remove device {{name}}",
         "delete_modal_body": "Are you sure you want to remove device {{name}}? This is permanently and the device can only be added again once you have direct access to the device again."
     },
