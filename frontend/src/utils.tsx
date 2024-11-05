@@ -102,7 +102,8 @@ export async function refresh_access_token() {
             localStorage.removeItem("loginKey");
         }
 
-        if (resp.status == 200) {
+        // prevent loggin out in developement when backend is restarting
+        if (resp.status == 200 || resp.status == 502) {
             if (!localStorage.getItem("loginSalt") || !localStorage.getItem("secretKey")) {
                 logout(false);
             }
