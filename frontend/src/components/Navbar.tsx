@@ -12,7 +12,7 @@ export async function logout(logout_all: boolean) {
             credentials: "include",
         });
 
-        localStorage.removeItem("loginKey");
+        localStorage.removeItem("loginSalt");
         localStorage.removeItem("secretKey");
 
         window.location.reload();

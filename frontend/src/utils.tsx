@@ -97,13 +97,18 @@ export async function refresh_access_token() {
             credentials: "include"
         });
 
+        if (localStorage.getItem("loginKey")) {
+            localStorage.setItem("loginSalt", localStorage.getItem("loginKey"));
+            localStorage.removeItem("loginKey");
+        }
+
         if (resp.status == 200) {
-            if (!localStorage.getItem("loginKey") || !localStorage.getItem("secretKey")) {
+            if (!localStorage.getItem("loginSalt") || !localStorage.getItem("secretKey")) {
                 logout(false);
             }
             loggedIn.value = AppState.LoggedIn;
         } else {
-            localStorage.removeItem("loginKey");
+            localStorage.removeItem("loginSalt");
             localStorage.removeItem("secretKey");
             loggedIn.value = AppState.LoggedOut;
         }

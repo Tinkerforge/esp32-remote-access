@@ -217,7 +217,7 @@ export function User() {
 
         const t = i18n.t;
 
-        const loginSaltBs64 = window.localStorage.getItem("loginKey");
+        const loginSaltBs64 = window.localStorage.getItem("loginSalt");
         const loginSalt = Base64.toUint8Array(loginSaltBs64);
         const loginKey = await generate_hash(deleteUser.password, loginSalt)
 
