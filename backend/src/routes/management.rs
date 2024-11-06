@@ -207,7 +207,7 @@ pub async fn management(
 
     {
         let mut map = bridge_state.charger_management_map_with_id.lock().unwrap();
-        let sock = map.remove(&data.id);
+        let sock = map.remove(&charger_id);
         if let Some(socket) = sock {
             let mut map = bridge_state.charger_management_map.lock().unwrap();
             let socket = socket.lock().unwrap();
@@ -219,7 +219,7 @@ pub async fn management(
         let mut map = bridge_state.charger_remote_conn_map.lock().unwrap();
         let mut addresses = Vec::new();
         map.retain(|key, addr| {
-            if key.charger_id == data.id {
+            if key.charger_id == charger_id {
                 addresses.push((*addr, key.conn_no));
                 false
             } else {
@@ -242,7 +242,7 @@ pub async fn management(
 
     {
         let mut lost_conns = bridge_state.lost_connections.lock().unwrap();
-        lost_conns.insert(data.id, losing_conns);
+        lost_conns.insert(charger_id, losing_conns);
     }
 
     let (fw_version, port) = match &data.data {
@@ -513,7 +513,7 @@ mod tests {
                 .unwrap();
             user.user_id
         };
-        assert_eq!(get_test_uuid(&user.mail), user_id);
+        assert_eq!(get_test_uuid(&user.mail).unwrap(), user_id);
     }
 
     #[actix::test]

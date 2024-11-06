@@ -24,7 +24,7 @@ async fn get_all_chargers_for_user(user_id: uuid::Uuid, state: &web::Data<AppSta
         }
     }).await?;
 
-    let charger_ids: Vec<i32> = allowed_users.into_iter().map(|u| u.charger_id).collect();
+    let charger_ids: Vec<uuid::Uuid> = allowed_users.into_iter().map(|u| u.charger_id).collect();
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
@@ -54,7 +54,7 @@ pub async fn delete_user(state: web::Data<AppState>, bridge_state: web::Data<Bri
     let _ = validate_password(&payload.login_key, FindBy::Uuid(user_id), conn).await?;
 
     let chargers = get_all_chargers_for_user(user_id, &state).await?;
-    let charger_ids: Vec<i32> = chargers.into_iter().map(|c| c.id).collect();
+    let charger_ids: Vec<uuid::Uuid> = chargers.into_iter().map(|c| c.id).collect();
     for id in charger_ids.into_iter() {
         delete_all_keys(id, &state).await?;
         delete_all_allowed_users(id, &state).await?;
@@ -81,6 +81,8 @@ pub async fn delete_user(state: web::Data<AppState>, bridge_state: web::Data<Bri
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::{models::{allowed_users::AllowedUser, chargers::Charger, users::User, wg_keys::WgKey}, test_connection_pool};
     use diesel::{prelude::*, result::Error::NotFound};
@@ -134,22 +136,25 @@ mod tests {
             let res = allowed_users.filter(user_id.eq(uid2)).select(AllowedUser::as_select()).get_result(&mut conn);
             assert!(res.is_ok());
         }
+        let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+        let uuid2 = uuid::Uuid::from_str(&charger2.uuid).unwrap();
         {
             use db_connector::schema::chargers::dsl::*;
 
-            let res = chargers.filter(id.eq(charger.0)).select(Charger::as_select()).get_result(&mut conn);
+            let res = chargers.filter(id.eq(uuid)).select(Charger::as_select()).get_result(&mut conn);
             assert_eq!(res, Err(NotFound));
 
-            let res = chargers.filter(id.eq(charger2.0)).select(Charger::as_select()).get_result(&mut conn);
+            let res = chargers.filter(id.eq(uuid2)).select(Charger::as_select()).get_result(&mut conn);
             assert!(res.is_ok());
         }
         {
             use db_connector::schema::wg_keys::dsl::*;
 
-            let res = wg_keys.filter(charger_id.eq(charger.0)).select(WgKey::as_select()).get_result(&mut conn);
+            let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+            let res = wg_keys.filter(charger_id.eq(uuid)).select(WgKey::as_select()).get_result(&mut conn);
             assert_eq!(res, Err(NotFound));
 
-            let res = wg_keys.filter(charger_id.eq(charger2.0)).select(WgKey::as_select()).get_result(&mut conn);
+            let res = wg_keys.filter(charger_id.eq(uuid2)).select(WgKey::as_select()).get_result(&mut conn);
             assert!(res.is_ok());
         }
         {
@@ -190,7 +195,7 @@ mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        assert_eq!(resp.status(), 400);
+        assert_eq!(resp.status(), 401);
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -204,22 +209,24 @@ mod tests {
             let res = allowed_users.filter(user_id.eq(uid2)).select(AllowedUser::as_select()).get_result(&mut conn);
             assert!(res.is_ok());
         }
+        let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+        let uuid2 = uuid::Uuid::from_str(&charger2.uuid).unwrap();
         {
             use db_connector::schema::chargers::dsl::*;
 
-            let res = chargers.filter(id.eq(charger.0)).select(Charger::as_select()).get_result(&mut conn);
+            let res = chargers.filter(id.eq(uuid)).select(Charger::as_select()).get_result(&mut conn);
             assert!(res.is_ok());
 
-            let res = chargers.filter(id.eq(charger2.0)).select(Charger::as_select()).get_result(&mut conn);
+            let res = chargers.filter(id.eq(uuid2)).select(Charger::as_select()).get_result(&mut conn);
             assert!(res.is_ok());
         }
         {
             use db_connector::schema::wg_keys::dsl::*;
 
-            let res = wg_keys.filter(charger_id.eq(charger.0)).select(WgKey::as_select()).get_result(&mut conn);
+            let res = wg_keys.filter(charger_id.eq(uuid)).select(WgKey::as_select()).get_result(&mut conn);
             assert!(res.is_ok());
 
-            let res = wg_keys.filter(charger_id.eq(charger2.0)).select(WgKey::as_select()).get_result(&mut conn);
+            let res = wg_keys.filter(charger_id.eq(uuid2)).select(WgKey::as_select()).get_result(&mut conn);
             assert!(res.is_ok());
         }
         {

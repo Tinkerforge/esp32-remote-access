@@ -34,7 +34,7 @@ pub struct DeleteChargerSchema {
     charger: String,
 }
 
-async fn delete_all_keys(cid: uuid::Uuid, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
+pub async fn delete_all_keys(cid: uuid::Uuid, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
     use db_connector::schema::wg_keys::dsl::*;
 
     let mut conn = get_connection(state)?;
@@ -49,7 +49,7 @@ async fn delete_all_keys(cid: uuid::Uuid, state: &web::Data<AppState>) -> Result
     Ok(())
 }
 
-async fn delete_all_allowed_users(
+pub async fn delete_all_allowed_users(
     cid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> Result<(), actix_web::Error> {
@@ -67,7 +67,7 @@ async fn delete_all_allowed_users(
     Ok(())
 }
 
-pub async fn delete_charger(charger: i32, state: &web::Data<AppState>) -> actix_web::Result<()> {
+pub async fn delete_charger(charger: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
     use db_connector::schema::chargers::dsl::*;
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
@@ -81,35 +81,7 @@ pub async fn delete_charger(charger: i32, state: &web::Data<AppState>) -> actix_
     Ok(())
 }
 
-pub fn remove_charger_from_state(charger: i32, state: &web::Data<BridgeState>) {
-    let socket = {
-        let mut map = state.charger_management_map_with_id.lock().unwrap();
-        map.remove(&charger)
-    };
-
-    if let Some(socket) = socket {
-        let socket = socket.lock().unwrap();
-        let remote_address = socket.get_remote_address();
-        let mut map = state.charger_management_map.lock().unwrap();
-        let _ = map.remove(&remote_address);
-    }
-}
-
-pub async fn delete_charger(charger: i32, state: &web::Data<AppState>) -> actix_web::Result<()> {
-    use db_connector::schema::chargers::dsl::*;
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
-        match diesel::delete(chargers.filter(id.eq(charger))).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
-
-    Ok(())
-}
-
-pub fn remove_charger_from_state(charger: i32, state: &web::Data<BridgeState>) {
+pub fn remove_charger_from_state(charger: uuid::Uuid, state: &web::Data<BridgeState>) {
     let socket = {
         let mut map = state.charger_management_map_with_id.lock().unwrap();
         map.remove(&charger)
@@ -200,8 +172,8 @@ pub async fn remove(
             }
         })
         .await?;
-        delete_charger(charger, &state).await?;
-        remove_charger_from_state(charger, state);
+        delete_charger(charger_id, &state).await?;
+        remove_charger_from_state(charger_id, &bridge_state);
     } else {
         delete_allowed_user(charger_id, user_id.clone().into(), &state).await?;
         delete_keys_for_user(charger_id, user_id.into(), &state).await?;

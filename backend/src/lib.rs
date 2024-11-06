@@ -70,7 +70,7 @@ pub struct BridgeState {
     pub port_discovery: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
-    pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<WgKey>>>,
+    pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<(i32, Recipient<Message>)>>>,
     pub socket: UdpSocket,
 }
 

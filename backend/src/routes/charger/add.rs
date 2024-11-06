@@ -531,10 +531,11 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         let keys = generate_random_keys();
-        let cid = OsRng.next_u32() as i32;
+        let cid = uuid::Uuid::new_v4().to_string();
+        let uid = OsRng.next_u32() as i32;
         let charger = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode(cid.to_be_bytes())
+                uid: bs58::encode(uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 name: "Test".as_bytes().to_owned(),
@@ -561,13 +562,13 @@ pub(crate) mod tests {
 
         let resp = test::call_service(&app, req).await;
         let _ = remove_test_keys(&mail);
-        remove_allowed_test_users(cid);
-        remove_test_charger(cid);
+        remove_allowed_test_users(&cid);
+        remove_test_charger(&cid);
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-        remove_test_keys(&mail);
+        let _ = remove_test_keys(&mail);
         remove_allowed_test_users(&body.charger_uuid);
         remove_test_charger(&body.charger_uuid);
     }

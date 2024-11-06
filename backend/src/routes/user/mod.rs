@@ -336,7 +336,7 @@ pub mod tests {
     impl Drop for TestUser {
         fn drop(&mut self) {
             while let Some(charger) = self.charger.pop() {
-                remove_test_keys(&self.mail);
+                let _ = remove_test_keys(&self.mail);
                 remove_allowed_test_users(&charger.uuid);
                 remove_test_charger(&charger.uuid);
             }
