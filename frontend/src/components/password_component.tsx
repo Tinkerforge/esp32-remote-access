@@ -20,7 +20,7 @@ export function PasswordComponent(props: PasswordComponentProps) {
             isInvalid={props.isInvalid} />
         <Button
             variant="outline-primary"
-            onClick={(e: InputEvent) => {
+            onClick={(e: Event) => {
                 e.preventDefault();
                 setShowPassword(!showPassword);
             }}>

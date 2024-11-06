@@ -198,21 +198,19 @@ export function User() {
         const loginSalt = Base64.toUint8Array(loginSaltBs64);
         const loginKey = await generate_hash(deleteUser.password, loginSalt)
 
-        const resp = await fetch(BACKEND + "/user/delete", {
+        const {response} = await fetchClient.DELETE("/user/delete", {
             credentials: "include",
-            method: "DELETE",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({login_key: [].slice.call(loginKey)})
+            body: {
+                login_key: [].slice.call(loginKey)
+            }
         });
 
-        if (resp.status === 200) {
+        if (response.status === 200) {
             location.reload();
-        } else  if (resp.status === 400) {
+        } else  if (response.status === 400) {
             setDeleteUser({...deleteUser, password_valid: false})
         } else {
-            showAlert(`${t("alert_default_text")}: ${resp.status} ${await resp.text()}`, "danger")
+            showAlert(`${t("alert_default_text")}: ${response.status} ${await response.text()}`, "danger")
             handleDelteUserClose();
         }
     }

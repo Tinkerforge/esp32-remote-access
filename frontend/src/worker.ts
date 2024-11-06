@@ -134,11 +134,6 @@ async function start_connection(setup_data: SetupMessage) {
         disconnect_cb();
         return;
     }
-    if (resp.status !== 200) {
-        disconnect_cb();
-        return;
-    }
-    const keys = await resp.json();
     const decrypted_keys = decrypt_keys(keys, setup_data.secret);
 
     wgClient = new Client(

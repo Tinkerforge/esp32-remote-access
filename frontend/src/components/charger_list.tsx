@@ -95,9 +95,9 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
     async get_decrypted_secret() {
         await sodium.ready;
         const t = i18n.t;
-        const {data, error} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
+        const {data, error, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
         if (error) {
-            showAlert(t("chargers.loading_secret_failed", {status: get_secret_resp.status, response: await get_secret_resp.text()}), "danger");
+            showAlert(t("chargers.loading_secret_failed", {status: response.status, response: await response.text()}), "danger");
             return;
         }
         const encoded_key = localStorage.getItem("secretKey");

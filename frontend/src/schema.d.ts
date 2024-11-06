@@ -255,6 +255,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/user/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_user"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/user/get_secret": {
         parameters: {
             query?: never;
@@ -361,10 +377,10 @@ export interface components {
         AllowUserSchema: {
             charger_id: string;
             charger_name: number[];
+            charger_password: string;
             email: string;
             key: number[];
             note: number[];
-            pass: string;
             user_auth: components["schemas"]["UserAuth"];
             wg_keys: components["schemas"]["Keys"][];
         };
@@ -381,6 +397,9 @@ export interface components {
         ChargerStatus: "Disconnected" | "Connected";
         DeleteChargerSchema: {
             charger: string;
+        };
+        DeleteUserSchema: {
+            login_key: number[];
         };
         FilteredUser: {
             email: string;
@@ -592,7 +611,7 @@ export interface operations {
                 content?: never;
             };
             /** @description Credentials were incorrect */
-            400: {
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -917,6 +936,40 @@ export interface operations {
             };
             /** @description The charger id and password do not match */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteUserSchema"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wrong password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

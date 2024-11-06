@@ -1,6 +1,6 @@
 import { useLocation } from "preact-iso";
 import Nav from "react-bootstrap/Nav";
-import { fetchClient } from "../utils";
+import { fetchClient, FRONTEND_URL } from "../utils";
 import { useTranslation } from "react-i18next";
 import { Navbar } from "react-bootstrap";
 import { connected} from "./charger_list";
@@ -19,12 +19,12 @@ export async function logout(logout_all: boolean) {
 export function setAppNavigation() {
     const items = [{
         label: i18n.t("navbar.chargers"),
-        url: `${FRONTEN_URL}/chargers`,
+        url: `${FRONTEND_URL}/chargers`,
         icon: "fas fa-server"
     },
     {
         label: i18n.t("navbar.user"),
-        url: `${FRONTEN_URL}/user`,
+        url: `${FRONTEND_URL}/user`,
         icon: "fas fa-user"
     }]
     Median.sidebar.setItems({items: items, enabled: true, persist: true});

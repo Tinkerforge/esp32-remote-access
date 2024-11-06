@@ -32,7 +32,7 @@ import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 import { ChargerList } from './pages/chargers.js';
 import { ErrorAlert } from './components/Alert.js';
-import { fetchClient } from './utils';
+import { refresh_access_token } from './utils';
 import { AppState, loggedIn } from './utils.js';
 import { Col, Spinner } from 'react-bootstrap';
 import { Recovery } from './pages/recovery.js';
@@ -41,26 +41,11 @@ import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
 
 import "./main.scss";
-
-async function refresh_access_token() {
-    if (window.location.pathname == "/recovery") {
-        loggedIn.value = AppState.Recovery;
-        return;
-    }
-
-    const {error} = await fetchClient.GET("/auth/jwt_refresh", {credentials: "same-origin"});
-
-    if (!error) {
-        loggedIn.value = AppState.LoggedIn;
-    } else {
-        loggedIn.value = AppState.LoggedOut;
-    }
-}
-
 refresh_access_token();
 setInterval(async () => {
     await refresh_access_token();
 }, 1000 * 60 * 5);
+
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});

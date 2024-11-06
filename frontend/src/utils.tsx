@@ -2,6 +2,7 @@ import { signal } from "@preact/signals";
 import { hash, ArgonType } from "argon2-browser";
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
+import { logout } from "./components/Navbar";
 
 export async function get_salt() {
     const {data, response} = await fetchClient.GET("/auth/generate_salt");
@@ -63,6 +64,7 @@ export const loggedIn = signal(AppState.Loading);
 
 export const PASSWORD_PATTERN = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/;
 export const BACKEND = import.meta.env.VITE_BACKEND_URL;
+export const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL;
 
 export const fetchClient = createClient<paths>({baseUrl: BACKEND});
 
@@ -83,21 +85,18 @@ export async function refresh_access_token() {
     refreshPromise = new Promise(async (resolve, reject) => {
         if (window.location.pathname == "/recovery") {
             loggedIn.value = AppState.Recovery;
+            resolve();
             return;
         }
-
-        const resp = await fetch(BACKEND + "/auth/jwt_refresh", {
-            method: "GET",
-            credentials: "include"
-        });
 
         if (localStorage.getItem("loginKey")) {
             localStorage.setItem("loginSalt", localStorage.getItem("loginKey"));
             localStorage.removeItem("loginKey");
         }
 
-        // prevent loggin out in developement when backend is restarting
-        if (resp.status == 200 || resp.status == 502) {
+        const {error, response} = await fetchClient.GET("/auth/jwt_refresh", {credentials: "same-origin"});
+
+        if (!error || response.status === 502) {
             if (!localStorage.getItem("loginSalt") || !localStorage.getItem("secretKey")) {
                 logout(false);
             }
