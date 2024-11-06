@@ -34,7 +34,7 @@ use rand_core::OsRng;
 use threadpool::ThreadPool;
 
 use crate::{
-    udp_server::packet::ManagementCommand,
+    udp_server::{management::RemoteConnMeta, packet::ManagementCommand},
     ws_udp_bridge::{open_connection, Message},
     BridgeState,
 };
@@ -233,9 +233,16 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                             v.insert(tunn_data.clone());
                             let tunn = tunn_data.clone();
                             let mut lost_map = state.lost_connections.lock().unwrap();
-                            if let Some(keys) = lost_map.remove(&id) {
-                                for key in keys.iter() {
-                                    open_connection(key.connection_no, id, tunn.clone(), state.port_discovery.clone()).ok();
+                            let mut undiscovered_clients = state.undiscovered_clients.lock().unwrap();
+                            if let Some(conns) = lost_map.remove(&id) {
+                                for (conn_no, recipient) in conns.into_iter() {
+                                    let meta = RemoteConnMeta {
+                                        charger_id: id,
+                                        conn_no
+                                    };
+                                    undiscovered_clients.insert(meta, recipient);
+
+                                    open_connection(conn_no, id, tunn.clone(), state.port_discovery.clone()).ok();
                                 }
                             }
                             log::debug!("Adding management connection from {}", addr);

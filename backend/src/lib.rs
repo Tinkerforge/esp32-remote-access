@@ -26,7 +26,7 @@ use std::{
 
 use actix::prelude::*;
 pub use boringtun::*;
-use db_connector::{models::wg_keys::WgKey, Pool};
+use db_connector::Pool;
 use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
 use serde::{ser::SerializeStruct, Serialize};
@@ -70,7 +70,7 @@ pub struct BridgeState {
     pub port_discovery: Arc<Mutex<HashMap<ManagementResponse, Instant>>>,
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
-    pub lost_connections: Mutex<HashMap<i32, Vec<WgKey>>>,
+    pub lost_connections: Mutex<HashMap<i32, Vec<(i32, Recipient<Message>)>>>,
     pub socket: UdpSocket,
 }
 

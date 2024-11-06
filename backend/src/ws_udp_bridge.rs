@@ -27,7 +27,6 @@ use db_connector::models::wg_keys::WgKey;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -61,7 +60,6 @@ fn validate_key_id(key_id: &str) -> Result<(), ValidationError> {
 pub struct WebClient {
     pub key_id: uuid::Uuid,
     pub charger_id: i32,
-    pub peer_sock_addr: Option<SocketAddr>,
     pub app_state: web::Data<AppState>,
     pub bridge_state: web::Data<BridgeState>,
     pub conn_no: i32,
@@ -88,9 +86,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
         match item {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
             Ok(ws::Message::Binary(msg)) => {
-                let peer_sock_addr = if let Some(addr) = self.peer_sock_addr {
-                    addr
-                } else {
+                let peer_sock_addr = {
                     let meta = RemoteConnMeta {
                         charger_id: self.charger_id.clone(),
                         conn_no: self.conn_no,
@@ -99,7 +95,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                     match map.get(&meta) {
                         Some(addr) => {
                             let addr = addr.to_owned();
-                            self.peer_sock_addr = Some(addr);
                             addr
                         }
                         None => {
@@ -179,19 +174,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
         };
         {
             let mut map = self.bridge_state.charger_remote_conn_map.lock().unwrap();
-
-            match self.peer_sock_addr {
-                Some(addr) => {
-                    let mut map = self.bridge_state.web_client_map.lock().unwrap();
-                    map.remove(&addr);
-                }
-                None => {
-                    if let Some(addr) = map.get(&meta) {
-                        let mut map = self.bridge_state.web_client_map.lock().unwrap();
-                        map.remove(&addr);
-                    }
-                }
-            };
+            if let Some(addr) = map.get(&meta) {
+                let mut map = self.bridge_state.web_client_map.lock().unwrap();
+                map.remove(&addr);
+            }
 
             map.remove(&meta);
         }
@@ -321,7 +307,6 @@ async fn start_ws(
         key_id: keys.id,
         charger_id: keys.charger_id,
         app_state: state.clone(),
-        peer_sock_addr: None,
         conn_no: keys.connection_no,
         bridge_state: bridge_state.clone(),
     };

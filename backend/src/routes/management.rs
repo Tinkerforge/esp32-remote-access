@@ -30,10 +30,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    error::Error,
-    routes::charger::add::get_charger_from_db,
-    utils::{get_connection, web_block_unpacked},
-    AppState, BridgeState,
+    error::Error, routes::charger::add::get_charger_from_db, utils::{get_connection, web_block_unpacked}, AppState, BridgeState
 };
 
 use super::charger::add::password_matches;
@@ -192,34 +189,34 @@ pub async fn management(
         }
     }
 
-    let mut conn = get_connection(&state)?;
-    let keys_in_use: Vec<WgKey> = web_block_unpacked(move || {
-        use db_connector::schema::wg_keys::dsl::*;
-
-        match WgKey::belonging_to(&charger)
-            .filter(in_use.eq(true))
-            .load(&mut conn)
-        {
-            Ok(k) => Ok(k),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
-
-    {
-            let mut lost_map = bridge_state.lost_connections.lock().unwrap();
-            let _ = lost_map.insert(data.id, keys_in_use);
-        }
-
-    {
+    let addresses = {
         let mut map = bridge_state.charger_remote_conn_map.lock().unwrap();
-        map.retain(|key, _| {
+        let mut addresses = Vec::new();
+        map.retain(|key, addr| {
             if key.charger_id == data.id {
+                addresses.push((*addr, key.conn_no));
                 false
             } else {
                 true
             }
         });
+        addresses
+    };
+
+    let losing_conns = {
+        let mut clients = bridge_state.web_client_map.lock().unwrap();
+        let mut losing_conns = Vec::new();
+        for (addr, conn_no) in addresses.into_iter() {
+            if let Some(recipient) = clients.remove(&addr) {
+                losing_conns.push((conn_no, recipient));
+            }
+        }
+        losing_conns
+    };
+
+    {
+        let mut lost_conns = bridge_state.lost_connections.lock().unwrap();
+        lost_conns.insert(data.id, losing_conns);
     }
 
     let (fw_version, port) = match &data.data {

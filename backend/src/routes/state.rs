@@ -4,7 +4,6 @@ use std::{
 };
 
 use actix_web::{get, web, HttpResponse, Responder};
-use db_connector::models::wg_keys::WgKey;
 use ipnetwork::IpNetwork;
 use serde::Serialize;
 
@@ -13,16 +12,16 @@ use crate::{
     BridgeState, DiscoveryCharger,
 };
 
-#[derive(Serialize, Debug)]
-struct ServerState {
-    clients: Vec<SocketAddr>,
-    undiscovered_clients: Vec<RemoteConnMeta>,
-    charger_management_map: Vec<SocketAddr>,
-    charger_management_map_with_id: Vec<i32>,
-    port_discovery: Vec<ManagementResponse>,
-    charger_remote_conn_map: Vec<RemoteConnMeta>,
-    undiscovered_chargers: HashMap<IpNetwork, HashSet<DiscoveryCharger>>,
-    lost_connections: Vec<(i32, Vec<WgKey>)>,
+#[derive(Serialize, Debug, PartialEq, Clone)]
+pub struct ServerState {
+    pub clients: Vec<SocketAddr>,
+    pub undiscovered_clients: Vec<RemoteConnMeta>,
+    pub charger_management_map: Vec<SocketAddr>,
+    pub charger_management_map_with_id: Vec<i32>,
+    pub port_discovery: Vec<ManagementResponse>,
+    pub charger_remote_conn_map: Vec<RemoteConnMeta>,
+    pub undiscovered_chargers: HashMap<IpNetwork, HashSet<DiscoveryCharger>>,
+    pub lost_connections: Vec<(i32, Vec<i32>)>,
 }
 
 #[get("/state")]
@@ -81,9 +80,9 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         map.clone()
     };
 
-    let lost_connections: Vec<(i32, Vec<WgKey>)> = {
+    let lost_connections: Vec<(i32, Vec<i32>)> = {
         let map = brige_state.lost_connections.lock().unwrap();
-        map.iter().map(|(id, key)| (id.to_owned(), key.clone())).collect()
+        map.iter().map(|(id, conns)| (id.to_owned(), conns.into_iter().map(|(conn_no, _)| *conn_no).collect())).collect()
     };
 
     let state = ServerState {
