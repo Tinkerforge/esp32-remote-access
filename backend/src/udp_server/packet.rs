@@ -7,7 +7,6 @@ use crate::utils::as_u8_slice;
 pub enum ManagementCommandId {
     Connect,
     Disconnect,
-    Ack,
 }
 
 #[repr(C, packed)]
