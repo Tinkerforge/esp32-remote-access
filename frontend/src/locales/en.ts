@@ -35,6 +35,8 @@ export const en = {
         "remove": "Remove",
         "close": "Close",
         "loading_secret_failed": "Loading secret failed with status code {{status}}: {{response}}",
+        "loading_keys_failed": "Loading connection keys failed with status code {{status}}: {{response}}",
+        "all_keys_in_use": "Currently all remote connections are in use",
         "no_keys": "You need to register this device again.",
         "connect_error_text": "Connecting to device {{charger_id}} failed with status code {{status}}: {{response}}",
         "remove_error_text": "Removing device {{charger_id}} failed with status code {{status}}: {{response}}",

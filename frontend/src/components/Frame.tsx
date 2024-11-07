@@ -1,6 +1,6 @@
 import { Component } from 'preact';
 import { signal } from '@preact/signals';
-import { Message, MessageType, SetupMessage } from '../types';
+import { ErrorMessage, Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
 import { connected, connected_to, secret } from './charger_list';
@@ -8,6 +8,7 @@ import { setAppNavigation } from './Navbar';
 import { enableLogging, refreshPromise } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
+import { showAlert } from './Alert';
 
 export const chargerID = signal("");
 export const chargerPort = signal(0);
@@ -85,6 +86,17 @@ export class Frame extends Component {
         }
     }
 
+    handleErrorMessage(msg: Message) {
+        connected.value = false;
+        connected_to.value = "";
+        if (msg.data.translation) {
+            const error = msg.data as ErrorMessage;
+            showAlert(i18n.t(error.translation, error.format) as string, "danger");
+        } else {
+            showAlert(msg.data, "danger");
+        }
+    }
+
     startWorker() {
         this.worker = new Worker();
         const message_event = (e: MessageEvent) => {
@@ -120,6 +132,10 @@ export class Frame extends Component {
                     case MessageType.FetchResponse:
                         navigator.serviceWorker.controller.postMessage(msg);
                         break;
+
+                    case MessageType.Error:
+                        this.handleErrorMessage(msg);
+                        break;
                 }
             }
         };
@@ -141,6 +157,16 @@ export class Frame extends Component {
 
                 if (enableLogging) {
                     this.worker.postMessage("enableLogging");
+                }
+            } else if (e.data.type) {
+                const msg = e.data as Message;
+                switch (msg.type) {
+                    case MessageType.Error:
+                        this.handleErrorMessage(msg);
+                        break;
+
+                    default:
+                        break;
                 }
             }
         }

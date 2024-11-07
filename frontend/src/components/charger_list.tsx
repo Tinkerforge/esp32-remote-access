@@ -107,14 +107,6 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
     }
 
     async connect_to_charger(charger: StateCharger) {
-        const t = i18n.t;
-
-        const {response} = await fetchClient.GET("/charger/get_key", {params:{query:{cid: charger.id}}, credentials: "same-origin"});
-        if (response.status !== 200) {
-            showAlert(t("chargers.connect_error_text", {charger_id: Base58.int_to_base58(charger.id), status: response.status, response: await response.text()}), "danger");
-            return;
-        }
-
         chargerID.value = charger.id;
         chargerPort.value = charger.port;
         connected_to.value = charger.name;

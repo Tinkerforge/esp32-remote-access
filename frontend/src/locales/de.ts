@@ -35,6 +35,8 @@ export const de ={
         "remove": "Löschen",
         "close": "Schließen",
         "loading_secret_failed": "Laden des Secrets ist mit dem code {{status}} fehlgeschlagen: {{response}}",
+        "loading_keys_failed": "Laden des Verbindungsschlüssels mit dem code {{status}} fehlgeschlagen: {{response}}",
+        "all_keys_in_use": "Zur Zeit sind alle Fernzugriffsverbindungen belegt",
         "no_keys": "Bitte lerne das Gerät erneut an",
         "connect_error_text": "Verbindung zu Gerät {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
         "remove_error_text": "Entfernen des Gerätes {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",

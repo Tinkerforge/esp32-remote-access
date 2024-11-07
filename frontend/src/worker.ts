@@ -20,7 +20,6 @@
 import { Client, set_pcap_logging } from "wg-webclient";
 import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } from "./types";
 import sodium from "libsodium-wrappers";
-import { fetchClient } from "./utils";
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -124,14 +123,38 @@ function disconnect_cb() {
 async function start_connection(setup_data: SetupMessage) {
     let keys: any;
     try {
-        const {data, error} = await fetchClient.GET("/charger/get_key", {params:{query:{cid:setup_data.chargerID}}, credentials: "same-origin"});
-        if (error) {
-            disconnect_cb();
+        const resp = await fetch(import.meta.env.VITE_BACKEND_URL + "/charger/get_key?cid=" + setup_data.chargerID, {credentials: "same-origin"});
+        if (resp.status === 404) {
+            const msg: Message = {
+                type: MessageType.Error,
+                data: {
+                    translation: "chargers.all_keys_in_use",
+                    format: undefined,
+                },
+            }
+            self.postMessage(msg);
+            return;
+        }else if (resp.status !== 200) {
+            const msg: Message = {
+                type: MessageType.Error,
+                data: {
+                    translation: "chargers.loading_keys_failed",
+                    format: {
+                        status: resp.status,
+                        response: resp.text(),
+                    },
+                },
+            }
+            self.postMessage(msg);
             return;
         }
-        keys = data;
+        keys = await resp.json();
     } catch (e) {
-        disconnect_cb();
+        const msg: Message = {
+            type: MessageType.Error,
+            data: `Getting connection key crashed: ${e}`,
+        }
+        self.postMessage(msg);
         return;
     }
     const decrypted_keys = decrypt_keys(keys, setup_data.secret);

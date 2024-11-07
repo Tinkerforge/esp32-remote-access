@@ -4,6 +4,7 @@ export enum MessageType {
     Fetch,
     FetchResponse,
     Setup,
+    Error
 }
 
 export interface Message {
@@ -31,4 +32,9 @@ export interface SetupMessage {
     chargerID: string,
     port: number,
     secret: Uint8Array,
+}
+
+export interface ErrorMessage {
+    translation: string,
+    format: any,
 }
