@@ -46,8 +46,6 @@ pub struct AllowUserSchema {
     user_auth: UserAuth,
     wg_keys: [Keys; 5],
     #[schema(value_type = Vec<u32>)]
-    key: Vec<u8>,
-    #[schema(value_type = Vec<u32>)]
     charger_name: Vec<u8>,
     #[schema(value_type = Vec<u32>)]
     note: Vec<u8>,
@@ -128,7 +126,6 @@ pub async fn allow_user(
             charger_id: cid,
             charger_uid: charger.uid,
             valid: false,
-            key: Some(allow_user.key),
             name: Some(allow_user.charger_name),
             note: Some(allow_user.note)
         };
@@ -175,7 +172,6 @@ pub mod tests {
             email: email.to_string(),
             charger_password: charger.password.clone(),
             wg_keys: generate_random_keys(),
-            key: Vec::new(),
             charger_name: Vec::new(),
             note: Vec::new(),
         };
@@ -209,7 +205,6 @@ pub mod tests {
             email: user2.mail.to_owned(),
             charger_password: charger.password,
             wg_keys: generate_random_keys(),
-            key: Vec::new(),
             charger_name: Vec::new(),
             note: Vec::new(),
         };
@@ -242,7 +237,6 @@ pub mod tests {
             email: user2.mail.to_owned(),
             charger_password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
             wg_keys: generate_random_keys(),
-            key: Vec::new(),
             charger_name: Vec::new(),
             note: Vec::new(),
         };
@@ -274,7 +268,6 @@ pub mod tests {
             email: uuid::Uuid::new_v4().to_string(),
             charger_password: String::new(),
             wg_keys: generate_random_keys(),
-            key: Vec::new(),
             charger_name: Vec::new(),
             note: Vec::new(),
         };

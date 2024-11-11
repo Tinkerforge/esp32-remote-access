@@ -70,7 +70,6 @@ pub struct ChargerSchema {
 pub struct AddChargerSchema {
     pub charger: ChargerSchema,
     pub keys: [Keys; 5],
-    pub key: Option<Vec<u8>>,
     pub name: Option<Vec<u8>>,
     pub note: Option<Vec<u8>>,
 }
@@ -360,7 +359,6 @@ async fn add_charger(
             charger_id: charger.id,
             charger_uid: charger.uid,
             valid: true,
-            key: schema.key,
             note: schema.note,
             name: schema.name,
         };
@@ -500,7 +498,6 @@ pub(crate) mod tests {
             },
             keys,
             name: None,
-            key: None,
             note: None,
         };
 
@@ -550,7 +547,6 @@ pub(crate) mod tests {
             },
             keys,
             name: None,
-            key: None,
             note: None,
         };
 
@@ -606,7 +602,6 @@ pub(crate) mod tests {
             },
             keys,
             name: None,
-            key: None,
             note: None,
         };
 
@@ -668,7 +663,6 @@ pub(crate) mod tests {
             },
             keys,
             name: None,
-            key: None,
             note: None,
         };
 
@@ -716,7 +710,6 @@ pub(crate) mod tests {
             },
             keys,
             name: None,
-            key: None,
             note: None,
         };
 
@@ -774,7 +767,6 @@ pub(crate) mod tests {
             },
             keys,
             name: None,
-            key: None,
             note: None,
         };
 

@@ -34,6 +34,10 @@ export default defineConfig({
 			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js"
 		}
 	},
+	build: {
+		minify: false,
+		sourcemap: true,
+	},
 	plugins: [
 		preact(),
 		wasm(),
