@@ -410,7 +410,7 @@ impl phy::Device for WgTunDevice {
 
     fn capabilities(&self) -> DeviceCapabilities {
         let mut caps = DeviceCapabilities::default();
-        caps.max_transmission_unit = 1500;
+        caps.max_transmission_unit = 1392;
         caps.medium = Medium::Ip;
         caps
     }
