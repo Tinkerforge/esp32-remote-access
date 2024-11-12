@@ -53,6 +53,7 @@ pub struct Keys {
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct ChargerSchema {
     pub id: String,
+    #[schema(value_type = Vec<u32>)]
     pub name: Vec<u8>,
     pub charger_pub: String,
     #[schema(value_type = SchemaType::String)]
