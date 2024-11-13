@@ -69,6 +69,7 @@ pub struct ManagementDataVersion1 {
 pub struct ManagementResponseSchema {
     pub time: u64,
     pub configured_connections: Vec<i32>,
+    pub uuid: Option<String>
 }
 
 async fn update_configured_connections(
@@ -163,9 +164,11 @@ pub async fn management(
     let ip = ip.unwrap();
 
     let charger_id;
+    let mut output_uuid = None;
     let charger = if let Some(charger_uid) = data.id {
         let charger = get_charger_by_uid(charger_uid, data.password.clone(), &state).await?;
         charger_id = charger.id;
+        output_uuid = Some(charger_id.to_string());
         charger
     } else {
         match &data.data {
@@ -280,6 +283,7 @@ pub async fn management(
     let resp = ManagementResponseSchema {
         time,
         configured_connections,
+        uuid: output_uuid,
     };
 
     Ok(HttpResponse::Ok().json(resp))
