@@ -189,6 +189,7 @@ pub(crate) mod tests {
 
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
+    use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::test_connection_pool;
     use diesel::r2d2::{ConnectionManager, PooledConnection};
     use rand::RngCore;
@@ -318,7 +319,7 @@ pub(crate) mod tests {
         let (mut user2, _) = TestUser::random().await;
         let token = user2.login().await.to_owned();
         let charger = user2.add_random_charger().await;
-        user2.allow_user(&user1.mail, UserAuth::LoginKey(user1.get_login_key().await), &charger).await;
+        user2.allow_user(&user1.mail, UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)), &charger).await;
 
         let charger_id = uuid::Uuid::from_str(&charger.uuid).unwrap();
         let body = DeleteChargerSchema { charger: charger.uuid };
@@ -350,7 +351,7 @@ pub(crate) mod tests {
         let charger_uid = OsRng.next_u32() as i32;
         user2.login().await;
         let charger = user2.add_charger(charger_uid).await;
-        user2.allow_user(&email, UserAuth::LoginKey(user1.get_login_key().await), &charger).await;
+        user2.allow_user(&email, UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)), &charger).await;
         let token = user1.login().await;
 
         let body = DeleteChargerSchema { charger: charger.uuid.clone() };

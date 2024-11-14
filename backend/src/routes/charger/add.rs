@@ -55,8 +55,6 @@ pub struct Keys {
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct ChargerSchema {
     pub uid: String,
-    #[schema(value_type = Vec<u32>)]
-    pub name: Vec<u8>,
     pub charger_pub: String,
     #[schema(value_type = SchemaType::String)]
     pub wg_charger_ip: IpNetwork,
@@ -70,8 +68,8 @@ pub struct ChargerSchema {
 pub struct AddChargerSchema {
     pub charger: ChargerSchema,
     pub keys: [Keys; 5],
-    pub name: Option<Vec<u8>>,
-    pub note: Option<Vec<u8>>,
+    pub name: String,
+    pub note: String,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Debug)]
@@ -275,7 +273,7 @@ async fn update_charger(
             id: charger_id,
             uid: charger_uid,
             password: hash,
-            name: Some(charger.name),
+            name: None,
             charger_pub: charger.charger_pub,
             management_private: private_key,
             wg_charger_ip: charger.wg_charger_ip,
@@ -335,7 +333,7 @@ async fn add_charger(
             id: charger_id,
             uid: charger_uid,
             password: hash,
-            name: Some(charger.name.clone()),
+            name: None,
             charger_pub: charger.charger_pub.clone(),
             management_private: private_key,
             wg_charger_ip: charger.wg_charger_ip,
@@ -359,8 +357,8 @@ async fn add_charger(
             charger_id: charger.id,
             charger_uid: charger.uid,
             valid: true,
-            note: schema.note,
-            name: schema.name,
+            note: Some(schema.note),
+            name: Some(schema.name),
         };
 
         match diesel::insert_into(allowed_users::allowed_users)
@@ -486,7 +484,6 @@ pub(crate) mod tests {
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 uid: uid_str,
-                name: uuid::Uuid::new_v4().as_bytes().to_vec(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -497,8 +494,8 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
-            name: None,
-            note: None,
+            name: String::new(),
+            note: String::new(),
         };
 
         let req = test::TestRequest::put()
@@ -535,7 +532,6 @@ pub(crate) mod tests {
                 uid: bs58::encode(uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -546,8 +542,8 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
-            name: None,
-            note: None,
+            name: String::new(),
+            note: String::new(),
         };
 
         let req = test::TestRequest::put()
@@ -590,7 +586,6 @@ pub(crate) mod tests {
                 uid: bs58::encode(charger.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".to_string().as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -601,8 +596,8 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
-            name: None,
-            note: None,
+            name: String::new(),
+            note: String::new(),
         };
 
         let req = test::TestRequest::put()
@@ -637,7 +632,7 @@ pub(crate) mod tests {
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
         let charger = user2.add_random_charger().await;
-        user2.allow_user(&email, UserAuth::LoginKey(user.get_login_key().await), &charger).await;
+        user2.allow_user(&email, UserAuth::LoginKey(BASE64_STANDARD.encode(user.get_login_key().await)), &charger).await;
 
         let app = App::new()
             .configure(configure)
@@ -651,7 +646,6 @@ pub(crate) mod tests {
                 uid: bs58::encode(charger.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -662,8 +656,8 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
-            name: None,
-            note: None,
+            name: String::new(),
+            note: String::new(),
         };
 
         let req = test::TestRequest::put()
@@ -698,7 +692,6 @@ pub(crate) mod tests {
                 uid: bs58::encode(charger.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -709,8 +702,8 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
-            name: None,
-            note: None,
+            name: String::new(),
+            note: String::new(),
         };
 
         let req = test::TestRequest::put()
@@ -755,7 +748,6 @@ pub(crate) mod tests {
                 uid: bs58::encode((OsRng.next_u32() as i32).to_le_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
-                name: "Test".as_bytes().to_owned(),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -766,8 +758,8 @@ pub(crate) mod tests {
                 psk: String::new(),
             },
             keys,
-            name: None,
-            note: None,
+            name: String::new(),
+            note: String::new(),
         };
 
         assert!(validate_add_charger_schema(&schema).is_ok());

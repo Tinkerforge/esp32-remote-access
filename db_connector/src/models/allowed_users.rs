@@ -12,6 +12,6 @@ pub struct AllowedUser {
     pub charger_id: uuid::Uuid,
     pub charger_uid: i32,
     pub valid: bool,
-    pub name: Option<Vec<u8>>,
-    pub note: Option<Vec<u8>>,
+    pub name: Option<String>,
+    pub note: Option<String>,
 }

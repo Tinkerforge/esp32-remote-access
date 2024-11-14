@@ -17,7 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use actix_web::{put, web, HttpResponse, Responder};
+use actix_web::{error::ErrorBadRequest, put, web, HttpResponse, Responder};
+use base64::Engine;
 use db_connector::models::{allowed_users::AllowedUser, wg_keys::WgKey};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -34,8 +35,7 @@ use super::add::{password_matches, Keys};
 
 #[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub enum UserAuth {
-    #[schema(value_type = Vec<u32>)]
-    LoginKey(Vec<u8>)
+    LoginKey(String)
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema, Clone)]
@@ -46,9 +46,8 @@ pub struct AllowUserSchema {
     user_auth: UserAuth,
     wg_keys: [Keys; 5],
     #[schema(value_type = Vec<u32>)]
-    charger_name: Vec<u8>,
-    #[schema(value_type = Vec<u32>)]
-    note: Vec<u8>,
+    charger_name: String,
+    note: String,
 }
 
 async fn add_keys(state: &web::Data<AppState>, keys: [super::add::Keys; 5], uid: uuid::Uuid, cid: uuid::Uuid) -> actix_web::Result<()> {
@@ -84,7 +83,13 @@ async fn authenticate_user(uid: uuid::Uuid, auth: &UserAuth, state: &web::Data<A
     match auth {
         UserAuth::LoginKey(key) => {
             let conn = get_connection(state)?;
-            let _ = validate_password(key, FindBy::Uuid(uid), conn).await?;
+            let key = match base64::engine::general_purpose::STANDARD.decode(key) {
+                Ok(v) => v,
+                Err(_) => {
+                    return Err(ErrorBadRequest("login_key is wrong base64"))
+                }
+            };
+            let _ = validate_password(&key, FindBy::Uuid(uid), conn).await?;
         }
     }
     Ok(())
@@ -125,7 +130,7 @@ pub async fn allow_user(
             user_id: allowed_uuid,
             charger_id: cid,
             charger_uid: charger.uid,
-            valid: false,
+            valid: true,
             name: Some(allow_user.charger_name),
             note: Some(allow_user.note)
         };
@@ -154,6 +159,7 @@ pub async fn allow_user(
 pub mod tests {
     use super::*;
     use actix_web::{test, App};
+    use base64::prelude::BASE64_STANDARD;
     use rand::{distributions::{Alphanumeric, DistString}, RngCore};
     use rand_core::OsRng;
 
@@ -172,8 +178,8 @@ pub mod tests {
             email: email.to_string(),
             charger_password: charger.password.clone(),
             wg_keys: generate_random_keys(),
-            charger_name: Vec::new(),
-            note: Vec::new(),
+            charger_name: String::new(),
+            note: String::new(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
@@ -201,12 +207,12 @@ pub mod tests {
 
         let allow = AllowUserSchema {
             charger_id: charger.uuid,
-            user_auth: UserAuth::LoginKey(user2.get_login_key().await),
+            user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
             email: user2.mail.to_owned(),
             charger_password: charger.password,
             wg_keys: generate_random_keys(),
-            charger_name: Vec::new(),
-            note: Vec::new(),
+            charger_name: String::new(),
+            note: String::new(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
@@ -233,12 +239,12 @@ pub mod tests {
 
         let allow = AllowUserSchema {
             charger_id: charger.uuid,
-            user_auth: UserAuth::LoginKey(user2.get_login_key().await),
+            user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
             email: user2.mail.to_owned(),
             charger_password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
             wg_keys: generate_random_keys(),
-            charger_name: Vec::new(),
-            note: Vec::new(),
+            charger_name: String::new(),
+            note: String::new(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
@@ -264,12 +270,12 @@ pub mod tests {
 
         let allow = AllowUserSchema {
             charger_id: charger.uuid,
-            user_auth: UserAuth::LoginKey(Vec::new()),
+            user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(Vec::new())),
             email: uuid::Uuid::new_v4().to_string(),
             charger_password: String::new(),
             wg_keys: generate_random_keys(),
-            charger_name: Vec::new(),
-            note: Vec::new(),
+            charger_name: String::new(),
+            note: String::new(),
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")

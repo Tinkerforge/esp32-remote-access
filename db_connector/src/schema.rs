@@ -5,8 +5,8 @@ diesel::table! {
         id -> Uuid,
         user_id -> Uuid,
         valid -> Bool,
-        name -> Nullable<Bytea>,
-        note -> Nullable<Bytea>,
+        name -> Nullable<Varchar>,
+        note -> Nullable<Varchar>,
         charger_uid -> Int4,
         charger_id -> Uuid,
     }

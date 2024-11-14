@@ -127,6 +127,7 @@ pub async fn get_chargers(
 #[cfg(test)]
 mod tests {
     use actix_web::{cookie::Cookie, test, App};
+    use base64::{prelude::BASE64_STANDARD, Engine};
     use rand::RngCore;
     use rand_core::OsRng;
 
@@ -143,7 +144,7 @@ mod tests {
         for _ in 0..5 {
             let _ = user1.add_random_charger().await;
             let charger = user2.add_random_charger().await;
-            user2.allow_user(&user1.mail, UserAuth::LoginKey(user1.get_login_key().await), &charger).await;
+            user2.allow_user(&user1.mail, UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)), &charger).await;
         }
         for _ in 0..5 {
             let uuid = OsRng.next_u32() as i32;

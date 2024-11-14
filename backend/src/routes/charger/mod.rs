@@ -39,6 +39,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(add::add)
         .service(remove::remove)
         .service(get_chargers::get_chargers)
+        .service(allow_user::allow_user)
         .service(get_key::get_key);
     cfg.service(scope);
     cfg.service(allow_user::allow_user);
