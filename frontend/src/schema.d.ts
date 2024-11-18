@@ -366,28 +366,21 @@ export interface components {
         };
         AddChargerSchema: {
             charger: components["schemas"]["ChargerSchema"];
-            /** Format: binary */
-            key?: string | null;
             keys: components["schemas"]["Keys"][];
-            /** Format: binary */
-            name?: string | null;
-            /** Format: binary */
-            note?: string | null;
+            name: string;
+            note: string;
         };
         AllowUserSchema: {
             charger_id: string;
             charger_name: number[];
             charger_password: string;
             email: string;
-            key: number[];
-            note: number[];
+            note: string;
             user_auth: components["schemas"]["UserAuth"];
             wg_keys: components["schemas"]["Keys"][];
         };
         ChargerSchema: {
             charger_pub: string;
-            /** Format: binary */
-            name: string;
             psk: string;
             uid: string;
             wg_charger_ip: string;
@@ -408,7 +401,8 @@ export interface components {
         };
         GetChargerSchema: {
             id: string;
-            name: number[];
+            name: string;
+            note?: string | null;
             /** Format: int32 */
             port: number;
             status: components["schemas"]["ChargerStatus"];
@@ -466,6 +460,7 @@ export interface components {
             configured_connections: number[];
             /** Format: int64 */
             time: number;
+            uuid?: string | null;
         };
         ManagementSchema: {
             data: components["schemas"]["ManagementDataVersion"];
@@ -506,7 +501,7 @@ export interface components {
             uuid?: string | null;
         };
         UserAuth: {
-            LoginKey: number[];
+            LoginKey: string;
         };
     };
     responses: never;

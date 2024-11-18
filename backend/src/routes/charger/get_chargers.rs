@@ -18,6 +18,7 @@
  */
 
 use actix_web::{get, web, HttpResponse, Responder};
+use base64::{prelude::BASE64_STANDARD, Engine};
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger};
 use diesel::{prelude::*, result::Error::NotFound};
 use serde::{Deserialize, Serialize};
@@ -40,8 +41,8 @@ pub enum ChargerStatus {
 pub struct GetChargerSchema {
     id: String,
     uid: i32,
-    #[schema(value_type = Vec<u32>)]
-    name: Option<Vec<u8>>,
+    name: String,
+    note: Option<String>,
     status: ChargerStatus,
     port: i32,
     valid: bool,
@@ -110,10 +111,19 @@ pub async fn get_chargers(
                 ChargerStatus::Disconnected
             };
 
+            let name = if let Some(name) = allowed_user.name {
+                name
+            } else if let Some(name) = c.name {
+                BASE64_STANDARD.encode(name)
+            } else {
+                String::new()
+            };
+
             GetChargerSchema {
                 id: c.id.to_string(),
                 uid: c.uid,
-                name: c.name,
+                name,
+                note: allowed_user.note,
                 status,
                 port: c.webinterface_port,
                 valid: allowed_user.valid,

@@ -15,7 +15,8 @@ import { Circle } from "./Circle";
 interface Charger {
     id: string,
     uid: number,
-    name: number[],
+    name: string,
+    note?: string,
     status: string,
     port: number,
     valid: boolean,
@@ -129,11 +130,12 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         }
     }
 
-    decrypt_name(name: number[]) {
+    decrypt_name(name: string) {
         if (!name) {
             return "";
         }
-        const decrypted_name =  sodium.crypto_box_seal_open(new Uint8Array(name), pub_key, secret);
+        const name_bytes = Base64.toUint8Array(name);
+        const decrypted_name =  sodium.crypto_box_seal_open(name_bytes, pub_key, secret);
         const decoder = new TextDecoder();
         return decoder.decode(decrypted_name);
     }
