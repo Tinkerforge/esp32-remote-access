@@ -3,7 +3,7 @@ export const en = {
     "alert_default_success": "Success!",
     "description": "This page provides remote access to registered Tinkerforge WARP-Devices. For more information click <0>here</0>",
     "user": {
-        "user_id": "User-id",
+        "user_id": "User-ID",
         "email": "Email-address",
         "name": "Name",
         "change": "Change",
@@ -16,7 +16,7 @@ export const en = {
         "delete_user": "Delete account",
         "password": "Password",
         "password_invalid": "Password is wrong",
-        "logout_all": "Logout from all devices"
+        "logout_all": "Logout from all sessions"
     },
     "recovery": {
         "recovery": "Password recovery",

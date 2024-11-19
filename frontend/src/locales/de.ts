@@ -3,8 +3,8 @@ export const de ={
     "alert_default_success": "Erfolg!",
     "description": "Diese Seite bietet einen Fernzugriff für Tinkerforge WARP-Geräte. Weitere Informationen findest du <0>hier</0>",
     "user": {
-        "user_id": "Nutzer Id",
-        "email": "E-mail-Adresse",
+        "user_id": "Nutzer-ID",
+        "email": "E-Mail-Adresse",
         "name": "Name",
         "change": "Ändern",
         "change_password": "Passwort ändern",
@@ -16,7 +16,7 @@ export const de ={
         "delete_user": "Account löschen",
         "password": "Passwort",
         "password_invalid": "Passwort falsch",
-        "logout_all": "Von allen Geräten ausloggen"
+        "logout_all": "Von allen Sessions ausloggen"
     },
     "recovery": {
         "recovery": "Passwort zurücksetzen",
