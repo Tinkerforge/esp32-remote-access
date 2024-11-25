@@ -88,8 +88,19 @@ async fn update_configured_users(
 
         let configured_users_cpy = configured_users.clone();
         let mut conn = get_connection(&state)?;
-        web_block_unpacked(move || {
+        let deleted_users = web_block_unpacked(move || {
             use db_connector::schema::allowed_users::dsl as allowed_users;
+
+            let users_to_delete: Vec<uuid::Uuid> = match allowed_users::allowed_users
+                .filter(allowed_users::charger_id.eq(&charger_id))
+                .filter(allowed_users::user_id.ne_all(&configured_users_cpy))
+                .select(AllowedUser::as_select())
+                .load(&mut conn)
+            {
+                Ok(v) => v.into_iter().map(|u: AllowedUser| u.user_id).collect(),
+                Err(NotFound) => return Ok(Vec::new()),
+                Err(_err) => return Err(Error::InternalError),
+            };
 
             match diesel::delete(allowed_users::allowed_users
                 .filter(allowed_users::charger_id.eq(&charger_id))
@@ -97,11 +108,27 @@ async fn update_configured_users(
                 )
                 .execute(&mut conn)
             {
-                Ok(_) => Ok(()),
-                Err(NotFound) => Ok(()),
+                Ok(_) => Ok(users_to_delete),
+                Err(NotFound) => Ok(users_to_delete),
                 Err(_err) => Err(Error::InternalError),
             }
         }).await?;
+
+        if deleted_users.len() > 0 {
+            let mut conn = get_connection(&state)?;
+            web_block_unpacked(move || {
+                use db_connector::schema::wg_keys::dsl as wg_keys;
+
+                match diesel::delete(wg_keys::wg_keys
+                    .filter(wg_keys::charger_id.eq(&charger_id))
+                    .filter(wg_keys::user_id.eq_any(deleted_users)))
+                    .execute(&mut conn)
+                {
+                    Ok(_) => Ok(()),
+                    Err(_err) => Err(Error::InternalError),
+                }
+            }).await?;
+        }
 
         let mut conn = get_connection(state)?;
         let server_users: Vec<uuid::Uuid> = web_block_unpacked(move || {
@@ -305,7 +332,7 @@ mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use base64::{prelude::BASE64_STANDARD, Engine};
-    use db_connector::{models::allowed_users::AllowedUser, test_connection_pool};
+    use db_connector::{models::{allowed_users::AllowedUser, wg_keys::WgKey}, test_connection_pool};
     use rand::distributions::{Alphanumeric, DistString};
 
     use crate::{
@@ -531,6 +558,16 @@ mod tests {
             user.user_id
         };
         assert_eq!(get_test_uuid(&user.mail).unwrap(), user_id);
+        let wg_keys: Vec<WgKey> = {
+            use db_connector::schema::wg_keys::dsl as wg_keys;
+
+            wg_keys::wg_keys
+                .filter(wg_keys::user_id.eq(get_test_uuid(&user2.mail).unwrap()))
+                .select(WgKey::as_select())
+                .load(&mut conn)
+                .unwrap()
+        };
+        assert_eq!(wg_keys.len(), 0);
     }
 
     #[actix::test]
