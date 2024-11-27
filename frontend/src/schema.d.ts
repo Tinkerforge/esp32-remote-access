@@ -449,7 +449,7 @@ export interface components {
             port: number;
         };
         ManagementDataVersion2: {
-            configured_connections: number[];
+            configured_users: string[];
             firmware_version: string;
             id: string;
             password: string;
@@ -457,7 +457,7 @@ export interface components {
             port: number;
         };
         ManagementResponseSchema: {
-            configured_connections: number[];
+            configured_users: number[];
             /** Format: int64 */
             time: number;
             uuid?: string | null;
