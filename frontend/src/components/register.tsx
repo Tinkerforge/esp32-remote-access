@@ -162,7 +162,7 @@ export class Register extends Component<{}, RegisterState> {
             secret_salt: [].slice.call(combined_secret_salt),
         }
 
-        const {response} = await fetchClient.POST("/auth/register",
+        const {response, error} = await fetchClient.POST("/auth/register",
             {
                 body: login_data,
                 headers: {
@@ -172,8 +172,7 @@ export class Register extends Component<{}, RegisterState> {
         if (response.status === 201) {
             showAlert(i18n.t("register.registration_successful"), "success", i18n.t("alert_default_success"));
         } else {
-            const body = await response.text();
-            const text = `Failed with status ${response.status}: ${body}`;
+            const text = `Failed with status ${response.status}: ${error}`;
             showAlert(text, "danger");
             return;
         }
