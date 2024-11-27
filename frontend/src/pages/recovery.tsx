@@ -93,12 +93,12 @@ export function Recovery() {
             reused_secret: secret_reuse,
         }
 
-        const {response} = await fetchClient.POST("/auth/recovery", {body: payload});
+        const {response, error} = await fetchClient.POST("/auth/recovery", {body: payload});
         if (response.status === 200) {
             showAlert("Your new password is set!", "success", "Success");
             showModal.value = true;
         } else {
-            showAlert(`Failed to recover account with code ${response.status}: ${await response.text()}`, "danger");
+            showAlert(`Failed to recover account with code ${response.status}: ${error}`, "danger");
         }
     }
 

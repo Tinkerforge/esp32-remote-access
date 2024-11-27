@@ -16,7 +16,11 @@ export const de ={
         "delete_user": "Account löschen",
         "password": "Passwort",
         "password_invalid": "Passwort falsch",
-        "logout_all": "Von allen Sessions ausloggen"
+        "logout_all": "Von allen Sessions ausloggen",
+        "get_user_failed": "Laden der Nutzerdaten mit dem Code {{status}} fehlgeschlagen: {{response}}",
+        "update_user_failed": "Aktualisieren der Nutzerdaten mit dem Code {{status}} fehlgeschlagen: {{response}}",
+        "update_password_failed": "Aktualisieren des Passwortes mit dem Code {{status}} fehlgeschlagen: {{response}}",
+        "delete_user_failed": "Löschen des Nutzers mit dem Code {{status}} fehlgeschlagen: {{response}}"
     },
     "recovery": {
         "recovery": "Passwort zurücksetzen",
@@ -34,7 +38,7 @@ export const de ={
         "connect": "Verbinden",
         "remove": "Löschen",
         "close": "Schließen",
-        "loading_secret_failed": "Laden des Secrets ist mit dem code {{status}} fehlgeschlagen: {{response}}",
+        "loading_secret_failed": "Laden des Secrets ist mit dem Code {{status}} fehlgeschlagen: {{response}}",
         "loading_keys_failed": "Laden des Verbindungsschlüssels mit dem code {{status}} fehlgeschlagen: {{response}}",
         "all_keys_in_use": "Zur Zeit sind alle Fernzugriffsverbindungen belegt",
         "no_keys": "Bitte lerne das Gerät erneut an",

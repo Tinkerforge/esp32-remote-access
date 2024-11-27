@@ -63,19 +63,23 @@ class UserComponent extends Component<{}, State> {
             user: state,
         }
 
-        fetchClient.GET("/user/me", {credentials: "same-origin"}).then(({data}) => {
+        fetchClient.GET("/user/me", {credentials: "same-origin"}).then(({data, error, response}) => {
             if (data) {
                 email = data.email;
                 this.setState({user: data});
+            } else if (error) {
+                showAlert(i18n.t("user.get_user_failed", {status: response.status, response: error}), "danger");
             }
         });
     }
 
     submit = async (e: SubmitEvent) => {
         e.preventDefault();
-        const {response} = await fetchClient.PUT("/user/update_user", {body: this.state.user, credentials: "same-origin"});
+        const {response, error} = await fetchClient.PUT("/user/update_user", {body: this.state.user, credentials: "same-origin"});
         if (response.status === 200) {
             window.location.reload();
+        } else if (error) {
+            showAlert(i18n.t("user.update_user_failed", {status: response.status, response: error}), "danger");
         }
     }
 
@@ -148,7 +152,11 @@ export function User() {
             return;
         }
 
-        const {data} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
+        const {data, error, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
+        if (error) {
+            showAlert(i18n.t("user.update_password_failed", {status: response.status, response: error}), "danger");
+            return;
+        }
 
         const {
             secret,
@@ -182,10 +190,14 @@ export function User() {
             new_encrypted_secret: [].slice.call(new Uint8Array(new_encrypted_secret)),
         };
 
-        const {response} = await fetchClient.PUT("/user/update_password", {body: payload, credentials: "same-origin"});
-        if (response.status === 200) {
-            logout(true);
-            handleUpdatePasswordClose();
+        {
+            const {response, error} = await fetchClient.PUT("/user/update_password", {body: payload, credentials: "same-origin"});
+            if (response.status === 200) {
+                logout(true);
+                handleUpdatePasswordClose();
+            } else {
+                showAlert(i18n.t("user.update_password_failed", {status: response.status, response: error}), "danger");
+            }
         }
     };
 
@@ -198,7 +210,7 @@ export function User() {
         const loginSalt = Base64.toUint8Array(loginSaltBs64);
         const loginKey = await generate_hash(deleteUser.password, loginSalt)
 
-        const {response} = await fetchClient.DELETE("/user/delete", {
+        const {response, error} = await fetchClient.DELETE("/user/delete", {
             credentials: "include",
             body: {
                 login_key: [].slice.call(loginKey)
@@ -210,7 +222,7 @@ export function User() {
         } else  if (response.status === 400) {
             setDeleteUser({...deleteUser, password_valid: false})
         } else {
-            showAlert(`${t("alert_default_text")}: ${response.status} ${await response.text()}`, "danger")
+            showAlert(i18n.t("delete_user", {status: response.status, response: error}), "danger")
             handleDelteUserClose();
         }
     }

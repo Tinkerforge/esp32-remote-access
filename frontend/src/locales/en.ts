@@ -16,7 +16,11 @@ export const en = {
         "delete_user": "Delete account",
         "password": "Password",
         "password_invalid": "Password is wrong",
-        "logout_all": "Logout from all sessions"
+        "logout_all": "Logout from all sessions",
+        "get_user_failed": "Loading user data failed with status code {{status}}: {{response}}",
+        "update_user_failed": "Updating the user-data failed with status code {{status}}: {{response}}",
+        "update_password_failed": "Updating the password failed with status code {{status}}: {{response}}",
+        "delete_user_failed": "Deleting user failed with status code {{status}}: {{response}}"
     },
     "recovery": {
         "recovery": "Password recovery",

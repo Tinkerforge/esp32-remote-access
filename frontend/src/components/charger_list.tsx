@@ -98,7 +98,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         const t = i18n.t;
         const {data, error, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
         if (error) {
-            showAlert(t("chargers.loading_secret_failed", {status: response.status, response: await response.text()}), "danger");
+            showAlert(t("chargers.loading_secret_failed", {status: response.status, response: error}), "danger");
             return;
         }
         const encoded_key = localStorage.getItem("secretKey");
@@ -120,13 +120,13 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         const body = {
             charger: charger.id
         };
-        const {response} = await fetchClient.DELETE("/charger/remove", {body: body, credentials: "same-origin"});
+        const {response, error} = await fetchClient.DELETE("/charger/remove", {body: body, credentials: "same-origin"});
 
         if (response.status === 200) {
             const chargers = this.state.chargers.filter((c) => c.id !== charger.id);
             this.setState({chargers: chargers});
         } else {
-            showAlert(t("remove_error_text", {charger_id: Base58.int_to_base58(charger.id), status: response.status, text: await response.text()}), "danger");
+            showAlert(t("remove_error_text", {charger_id: Base58.int_to_base58(charger.id), status: response.status, text: error}), "danger");
         }
     }
 

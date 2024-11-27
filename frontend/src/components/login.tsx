@@ -59,16 +59,17 @@ export class Login extends Component<{}, LoginState> {
             login_key: [].slice.call(login_key)
         };
 
-        const {error} = await fetchClient.POST("/auth/login", {body: login_schema, credentials: "same-origin"});
-        if (error) {
-            this.setState({credentials_wrong: true});
-            return;
+        {
+            const {error} = await fetchClient.POST("/auth/login", {body: login_schema, credentials: "same-origin"});
+            if (error) {
+                this.setState({credentials_wrong: true});
+                return;
+            }
         }
 
-        const {data, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
+        const {data, response, error} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
         if (200 !== response.status) {
-            const body = await response.text();
-            const text = `Failed with status ${response.status}: ${body}`;
+            const text = `Failed with status ${response.status}: ${error}`;
             showAlert(text, "danger");
             return;
         }
@@ -91,10 +92,10 @@ export class Login extends Component<{}, LoginState> {
                 </Modal.Header>
                 <Form onSubmit={async (e: SubmitEvent) => {
                     e.preventDefault();
-                    const {response} = await fetchClient.GET("/auth/start_recovery", {params:{query:{email:this.state.email}}, headers: {"X-Lang": i18n.language}});
+                    const {response, error} = await fetchClient.GET("/auth/start_recovery", {params:{query:{email:this.state.email}}, headers: {"X-Lang": i18n.language}});
                     if (response.status != 200) {
                         this.setState({show_modal: false});
-                        showAlert(t("error_alert_text", {status: response.status, text: await response.text(), interpolation: {escapeValue: false}}), "danger");
+                        showAlert(t("error_alert_text", {status: response.status, text: error, interpolation: {escapeValue: false}}), "danger");
                     } else {
                         showAlert(t("success_alert_text"), "success", t("success_alert_heading"));
                         this.setState({show_modal: false});
