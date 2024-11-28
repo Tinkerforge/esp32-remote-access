@@ -7,9 +7,9 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { fetchClient } from "../utils";
-import { Button, Card, Col, Container, Modal, Table } from "react-bootstrap";
+import { Button, Card, Col, Container, Modal, Row, Table } from "react-bootstrap";
 import i18n from "../i18n";
-import { Monitor, Trash2 } from "react-feather";
+import { ChevronDown, ChevronUp, Minus, Monitor, Trash2 } from "react-feather";
 import { Circle } from "./Circle";
 
 interface Charger {
@@ -31,9 +31,13 @@ interface StateCharger {
     valid: boolean,
 }
 
+type SortColumn = "name" | "uid" | "status" | "none";
+
 interface ChargerListComponentState {
     chargers: StateCharger[],
-    showModal: boolean
+    showModal: boolean,
+    sortColumn: SortColumn,
+    sortSequence: "asc" | "desc"
 }
 
 export const connected = signal(false);
@@ -60,6 +64,8 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         this.state = {
             chargers: [],
             showModal: false,
+            sortColumn: "none",
+            sortSequence: "asc",
         };
 
         this.updateChargers(this);
@@ -186,10 +192,54 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         </>
     }
 
+    get_icon(column: SortColumn) {
+        if (this.state.sortColumn !== column) {
+            // Updown Icon
+            return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-down"><polyline points="7 14 12 19 17 14"></polyline><polyline points="7 10 12 5 17 10"></polyline></svg>;
+        } else if (this.state.sortSequence === "asc") {
+            return <ChevronDown/>;
+        } else {
+            return <ChevronUp/>;
+        }
+    }
+
+    setSort(column: SortColumn) {
+        if (this.state.sortColumn !== column) {
+            this.setState({...this.state, sortColumn: column, sortSequence: "asc"});
+        } else if (this.state.sortSequence === "asc") {
+            this.setState({...this.state, sortSequence: "desc"});
+        } else {
+            this.setState({...this.state, sortColumn: "none", sortSequence: "asc"});
+        }
+    }
+
     render() {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         const table_list = [];
         const card_list = [];
+        const chargers = this.state.chargers;
+        chargers.sort((a, b) => {
+            let sortColumn = this.state.sortColumn;
+            if (sortColumn === "none") {
+                sortColumn = "name";
+            }
+            let ret: number;
+            const first = a[sortColumn];
+            const second = b[sortColumn];
+            switch (typeof first) {
+                case "string":
+                    ret = first.localeCompare(second as string);
+                    break;
+                case "number":
+                    ret = first - (second as number);
+                    break;
+            }
+            if (this.state.sortSequence === "asc") {
+                return ret;
+            } else {
+                return ret * -1;
+            }
+        })
         this.state.chargers.forEach((charger, index) => {
             const entry = <tr>
                 <td>{charger.name}</td>
@@ -229,9 +279,36 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 <Table striped hover>
                     <thead>
                         <tr>
-                            <th>{t("charger_name")}</th>
-                            <th>{t("charger_id")}</th>
-                            <th>{t("status")}</th>
+                            <th onClick={() => this.setSort("name")}>
+                                <Row>
+                                    <Col>
+                                        {t("charger_name")}
+                                    </Col>
+                                    <Col xs="auto">
+                                        {this.get_icon("name")}
+                                    </Col>
+                                </Row>
+                            </th>
+                            <th onClick={() => this.setSort("uid")}>
+                                <Row>
+                                    <Col>
+                                        {t("charger_id")}
+                                    </Col>
+                                    <Col xs="auto">
+                                        {this.get_icon("uid")}
+                                    </Col>
+                                </Row>
+                            </th>
+                            <th onClick={() => this.setSort("status")}>
+                                <Row>
+                                    <Col>
+                                        {t("status")}
+                                    </Col>
+                                    <Col xs="auto">
+                                        {this.get_icon("status")}
+                                    </Col>
+                                </Row>
+                                </th>
                             <th />
                             <th />
                         </tr>
