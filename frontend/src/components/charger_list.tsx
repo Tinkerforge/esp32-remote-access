@@ -242,16 +242,33 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         })
         this.state.chargers.forEach((charger, index) => {
             const entry = <tr>
-                <td>{charger.name}</td>
-                <td>{Base58.int_to_base58(charger.uid)}</td>
-                <td>{charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}</td>
-                <td><Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
-                    await this.connect_to_charger(charger);
-                }} variant="primary">{t("connect")}</Button><p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p></td>
-                <td><Button onClick={async () => {
-                    this.removal_charger = charger;
-                    this.setState({showModal: true})
-                }} variant="danger">{t("remove")}</Button></td>
+                <td class="align-middle">
+                    {charger.name}
+                </td>
+                <td class="align-middle">
+                    {Base58.int_to_base58(charger.uid)}
+                </td>
+                <td class="align-middle">
+                    {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
+                </td>
+                <td class="align-middle">
+                    <Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
+                        await this.connect_to_charger(charger);
+                        }} variant="primary">
+                        {t("connect")}
+                    </Button>
+                    <p style="color:red;" hidden={charger.valid}>
+                        {t("no_keys")}
+                    </p>
+                </td>
+                <td class="align-middle">
+                    <Button onClick={async () => {
+                        this.removal_charger = charger;
+                        this.setState({showModal: true})
+                    }} variant="danger">
+                        {t("remove")}
+                    </Button>
+                </td>
             </tr>
             table_list.push(entry);
             card_list.push(this.create_card(charger));
