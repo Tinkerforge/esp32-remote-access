@@ -328,7 +328,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                                 </Row>
                             </th>
                             <th onClick={() => this.setSort("uid")}>
-                                <Row>
+                                <Row className="g-1">
                                     <Col>
                                         {t("charger_id")}
                                     </Col>
@@ -339,9 +339,6 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                             </th>
                             <th onClick={() => this.setSort("status")}>
                                 <Row>
-                                    <Col>
-                                        {t("status")}
-                                    </Col>
                                     <Col xs="auto">
                                         {this.get_icon("status")}
                                     </Col>
