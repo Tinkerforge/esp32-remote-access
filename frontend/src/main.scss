@@ -77,3 +77,15 @@ $navbar-color: #555;
 th:hover {
   background-color: rgba(var(--bs-emphasis-color-rgb), 0.075);
 }
+
+
+.btn-group .dropdown-btn:first-child button {
+  border-bottom-right-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  margin-right: 1px;
+}
+
+.btn-group .dropdown-btn:not(:first-child) button {
+  border-bottom-left-radius: 0 !important;
+  border-top-left-radius: 0 !important;
+}

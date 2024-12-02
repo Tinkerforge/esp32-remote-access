@@ -45,7 +45,10 @@ export const en = {
         "connect_error_text": "Connecting to device {{charger_id}} failed with status code {{status}}: {{response}}",
         "remove_error_text": "Removing device {{charger_id}} failed with status code {{status}}: {{response}}",
         "delete_modal_heading": "Remove device {{name}}",
-        "delete_modal_body": "Are you sure you want to remove device {{name}}? This is permanently and the device can only be added again once you have direct access to the device again."
+        "delete_modal_body": "Are you sure you want to remove device {{name}}? This is permanently and the device can only be added again once you have direct access to the device again.",
+        "select_sorting": "Sort",
+        "sorting_sequence_asc": "Ascending",
+        "sorting_sequence_desc": "Descending"
     },
     "navbar": {
         "home": "Home",

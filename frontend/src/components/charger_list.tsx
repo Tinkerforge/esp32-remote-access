@@ -7,7 +7,7 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { fetchClient } from "../utils";
-import { Button, Card, Col, Container, Modal, Row, Table } from "react-bootstrap";
+import { Button, ButtonGroup, Card, Col, Container, Dropdown, DropdownButton, Modal, Row, Table } from "react-bootstrap";
 import i18n from "../i18n";
 import { ChevronDown, ChevronUp, Minus, Monitor, Trash2 } from "react-feather";
 import { Circle } from "./Circle";
@@ -213,6 +213,27 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         }
     }
 
+    setMobileSort(column: SortColumn) {
+        if (this.state.sortColumn !== column) {
+            this.setState({sortColumn: column});
+        } else {
+            this.setState({sortColumn: "none"});
+        }
+    }
+
+    getMobileSortName() {
+        switch (this.state.sortColumn) {
+            case "name":
+                return i18n.t("chargers.charger_name");
+            case "status":
+                return i18n.t("chargers.status");
+            case "uid":
+                return i18n.t("chargers.charger_id");
+            default:
+                return i18n.t("chargers.select_sorting");
+        }
+    }
+
     render() {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         const table_list = [];
@@ -336,6 +357,19 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 </Table>
             </Col>
             <Container fluid className="d-md-none">
+                <Col>
+                    <ButtonGroup>
+                        <DropdownButton className="dropdown-btn" title={this.getMobileSortName()}>
+                            <Dropdown.Item onClick={() => this.setMobileSort("name")}>{t("charger_name")}</Dropdown.Item>
+                            <Dropdown.Item onClick={() => this.setMobileSort("uid")}>{t("charger_id")}</Dropdown.Item>
+                            <Dropdown.Item onClick={() => this.setMobileSort("status")}>{t("status")}</Dropdown.Item>
+                        </DropdownButton>
+                        <DropdownButton className="dropdown-btn" title={this.state.sortSequence == "asc" ? t("sorting_sequence_asc") : t("sorting_sequence_desc")}>
+                            <Dropdown.Item onClick={() => this.setState({sortSequence: "asc"})}>{t("sorting_sequence_asc")}</Dropdown.Item>
+                            <Dropdown.Item onClick={() => this.setState({sortSequence: "desc"})}>{t("sorting_sequence_desc")}</Dropdown.Item>
+                        </DropdownButton>
+                    </ButtonGroup>
+                </Col>
                 {card_list}
             </Container>
         </>
