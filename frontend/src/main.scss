@@ -45,14 +45,6 @@ $navbar-color: #555;
     }
 }
 
-.navbar-brand {
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
-    font-size: 1rem;
-    background-color: $navbar-color;
-    /*box-shadow: inset -1px 0 0 rgba(0, 0, 0, .25);*/
-}
-
 .navbar {
     background-color: $navbar-color;
     box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15) !important;
@@ -74,7 +66,7 @@ $navbar-color: #555;
   }
 }
 
-th:hover {
+th:hover:has(div) {
   background-color: rgba(var(--bs-emphasis-color-rgb), 0.075);
 }
 
