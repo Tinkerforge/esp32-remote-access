@@ -32,6 +32,7 @@ export const en = {
     "chargers": {
         "charger_name": "Name",
         "charger_id": "Device-ID",
+        "mobile_charger_id": "ID",
         "status": "Status",
         "status_connected": "Connected",
         "status_disconnected": "Disconnected",

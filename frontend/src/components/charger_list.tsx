@@ -178,6 +178,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     }
                     await this.connect_to_charger(charger);
                 }} className="d-flex justify-content-between align-items-center p-2d5">
+                    {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
                     <h5 class="text-break" style="margin-bottom: 0;">{charger.name}</h5>
                     <div style="white-space: nowrap; vertical-align: middle;">
                         <Button className="me-2" variant="primary" disabled={!this.connection_possible(charger)} onClick={async () => {
@@ -190,16 +191,15 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     </div>
                 </Card.Header>
                 <Card.Body>
-                    <table class="table" style="margin-bottom: 0;">
-                        <tr>
-                            <td><b>{t("charger_id")}</b></td>
-                            <td>{Base58.int_to_base58(charger.uid)}</td>
-                        </tr>
-                        <tr>
-                            <td><b>{t("status")}</b></td>
-                            <td>{charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}</td>
-                        </tr>
-                    </table>
+                    <Row >
+                        <Col xs="3"><b>{t("mobile_charger_id")}</b></Col>
+                        <Col xs="9" className="text-end">{Base58.int_to_base58(charger.uid)}</Col>
+                    </Row>
+                    <hr style="margin-top: 5px;margin-bottom: 5px;"/>
+                    <Row>
+                        <Col xs="3"><b>{t("note")}</b></Col>
+                        <Col xs="9" className="text-end">{charger.note}</Col>
+                    </Row>
                     <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
                 </Card.Body>
             </Card>
@@ -279,6 +279,9 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         })
         this.state.chargers.forEach((charger, index) => {
             const entry = <tr>
+                <td class="align-middle text-center">
+                    {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
+                </td>
                 <td class="align-middle">
                     {charger.name}
                 </td>
@@ -333,6 +336,13 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 <Table striped hover>
                     <thead>
                         <tr>
+                            <th onClick={() => this.setSort("status")}>
+                                <Row>
+                                    <Col className="align-content-end text-end">
+                                        {this.get_icon("status")}
+                                    </Col>
+                                </Row>
+                            </th>
                             <th onClick={() => this.setSort("name")}>
                                 <Row>
                                     <Col>
