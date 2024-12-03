@@ -48,7 +48,8 @@ export const de ={
         "delete_modal_body": "Bist du sicher, dass du das Gerät {{name}} entfernen willst? Dies ist permanent und das Gerät kann nur wiederhergestellt werden wenn du direkten Zugriff auf das webinterface hast.",
         "select_sorting": "Sortieren",
         "sorting_sequence_asc": "Aufsteigend",
-        "sorting_sequence_desc": "Absteigend"
+        "sorting_sequence_desc": "Absteigend",
+        "note": "Notiz"
     },
     "navbar": {
         "home": "Home",

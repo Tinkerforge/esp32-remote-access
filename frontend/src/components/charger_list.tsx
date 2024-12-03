@@ -27,11 +27,12 @@ interface StateCharger {
     uid: number,
     name: string,
     status: string,
+    note: string,
     port: number,
     valid: boolean,
 }
 
-type SortColumn = "name" | "uid" | "status" | "none";
+type SortColumn = "name" | "uid" | "status" | "none" | "note";
 
 interface ChargerListComponentState {
     chargers: StateCharger[],
@@ -60,6 +61,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
             status: "",
             port: 0,
             valid: true,
+            note: "",
         };
         this.state = {
             chargers: [],
@@ -71,6 +73,17 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         this.updateChargers(this);
         const that = this;
         this.updatingInterval = setInterval(() => that.updateChargers(that), 5000);
+    }
+
+    decryptNote(note?: string) {
+        if (!note) {
+            return "";
+        }
+
+        const noteBytes = Base64.toUint8Array(note);
+        const decryptedNote = sodium.crypto_box_seal_open(noteBytes, pub_key, secret);
+        const decoder = new TextDecoder();
+        return decoder.decode(decryptedNote);
     }
 
     async updateChargers(that: any) {
@@ -85,6 +98,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     id: charger.id,
                     uid: charger.uid,
                     name: this.decrypt_name(charger.name),
+                    note: this.decryptNote(charger.note),
                     status: charger.status,
                     port: charger.port,
                     valid: charger.valid,
@@ -229,6 +243,8 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 return i18n.t("chargers.status");
             case "uid":
                 return i18n.t("chargers.charger_id");
+            case "note":
+                return i18n.t("chargers.note")
             default:
                 return i18n.t("chargers.select_sorting");
         }
@@ -270,7 +286,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     {Base58.int_to_base58(charger.uid)}
                 </td>
                 <td class="align-middle">
-                    {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
+                    {charger.note}
                 </td>
                 <td class="align-middle">
                     <Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
@@ -337,10 +353,13 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                                     </Col>
                                 </Row>
                             </th>
-                            <th onClick={() => this.setSort("status")}>
-                                <Row>
+                            <th onClick={() => this.setSort("note")}>
+                                <Row className="g1">
+                                    <Col>
+                                        {t("note")}
+                                    </Col>
                                     <Col xs="auto">
-                                        {this.get_icon("status")}
+                                        {this.get_icon("note")}
                                     </Col>
                                 </Row>
                                 </th>
@@ -360,6 +379,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                             <Dropdown.Item onClick={() => this.setMobileSort("name")}>{t("charger_name")}</Dropdown.Item>
                             <Dropdown.Item onClick={() => this.setMobileSort("uid")}>{t("charger_id")}</Dropdown.Item>
                             <Dropdown.Item onClick={() => this.setMobileSort("status")}>{t("status")}</Dropdown.Item>
+                            <Dropdown.Item onClick={() => this.setMobileSort("note")}>{t("note")}</Dropdown.Item>
                         </DropdownButton>
                         <DropdownButton className="dropdown-btn" title={this.state.sortSequence == "asc" ? t("sorting_sequence_asc") : t("sorting_sequence_desc")}>
                             <Dropdown.Item onClick={() => this.setState({sortSequence: "asc"})}>{t("sorting_sequence_asc")}</Dropdown.Item>

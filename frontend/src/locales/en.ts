@@ -48,7 +48,8 @@ export const en = {
         "delete_modal_body": "Are you sure you want to remove device {{name}}? This is permanently and the device can only be added again once you have direct access to the device again.",
         "select_sorting": "Sort",
         "sorting_sequence_asc": "Ascending",
-        "sorting_sequence_desc": "Descending"
+        "sorting_sequence_desc": "Descending",
+        "note": "Note"
     },
     "navbar": {
         "home": "Home",
