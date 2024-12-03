@@ -183,8 +183,12 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     }
                     await this.connect_to_charger(charger);
                 }} className="d-flex justify-content-between align-items-center p-2d5">
-                    {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
-                    <h5 class="text-break" style="margin-bottom: 0;">{charger.name}</h5>
+                    <Col xs="auto" className="d-flex">
+                        {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
+                    </Col>
+                    <Col className="ms-3">
+                        <h5 class="text-break" style="margin-bottom: 0;">{charger.name}</h5>
+                    </Col>
                     <div style="white-space: nowrap; vertical-align: middle;">
                         <Button className="me-2" variant="primary" disabled={!this.connection_possible(charger)} onClick={async () => {
                             await this.connect_to_charger(charger);
@@ -284,8 +288,10 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         })
         this.state.chargers.forEach((charger, index) => {
             const entry = <tr>
-                <td class="align-middle text-center">
-                    {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
+                <td class="align-middle">
+                    <Col className="d-flex justify-content-center align-items-center">
+                        {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
+                    </Col>
                 </td>
                 <td class="align-middle">
                     {charger.name}
