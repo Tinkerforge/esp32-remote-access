@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
-import { fetchClient } from "../utils";
+import { fetchClient, refresh_access_token } from "../utils";
 import { Button, ButtonGroup, Card, Col, Container, Dropdown, DropdownButton, Modal, Row, Table } from "react-bootstrap";
 import i18n from "../i18n";
 import { ChevronDown, ChevronUp, Minus, Monitor, Trash2 } from "react-feather";
@@ -90,7 +90,12 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         if (!secret) {
             await that.get_decrypted_secret();
         }
-        fetchClient.GET("/charger/get_chargers", {credentials: "same-origin"}).then(async ({data}) => {
+        fetchClient.GET("/charger/get_chargers", {credentials: "same-origin"}).then(async ({data, response}) => {
+            if (response.status === 401) {
+                await refresh_access_token();
+                this.updateChargers;
+                return;
+            }
             const chargers: Charger[] = data;
             const state_chargers = [];
             for (const charger of chargers) {
@@ -372,7 +377,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                                         {this.get_icon("note")}
                                     </Col>
                                 </Row>
-                                </th>
+                            </th>
                             <th />
                             <th />
                         </tr>
