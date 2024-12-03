@@ -186,10 +186,10 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     <Col xs="auto" className="d-flex">
                         {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
                     </Col>
-                    <Col className="ms-3">
+                    <Col className="mx-3">
                         <h5 class="text-break" style="margin-bottom: 0;">{charger.name}</h5>
                     </Col>
-                    <div style="white-space: nowrap; vertical-align: middle;">
+                    <Col>
                         <Button className="me-2" variant="primary" disabled={!this.connection_possible(charger)} onClick={async () => {
                             await this.connect_to_charger(charger);
                         }}><Monitor/></Button>
@@ -197,7 +197,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                             this.removal_charger = charger;
                             this.setState({showModal: true});
                         }}><Trash2/></Button>
-                    </div>
+                    </Col>
                 </Card.Header>
                 <Card.Body>
                     <Row >
