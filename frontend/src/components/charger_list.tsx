@@ -189,7 +189,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     <Col className="mx-3">
                         <h5 class="text-break" style="margin-bottom: 0;">{charger.name}</h5>
                     </Col>
-                    <Col>
+                    <Col className="d-flex justify-content-end">
                         <Button className="me-2" variant="primary" disabled={!this.connection_possible(charger)} onClick={async () => {
                             await this.connect_to_charger(charger);
                         }}><Monitor/></Button>
