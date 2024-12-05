@@ -7,9 +7,9 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { fetchClient, refresh_access_token } from "../utils";
-import { Button, ButtonGroup, Card, Col, Container, Dropdown, DropdownButton, Modal, Row, Table } from "react-bootstrap";
+import { Button, ButtonGroup, Card, Col, Container, Dropdown, DropdownButton, Form, Modal, Row, Table } from "react-bootstrap";
 import i18n from "../i18n";
-import { ChevronDown, ChevronUp, Minus, Monitor, Trash2 } from "react-feather";
+import { ChevronDown, ChevronUp, Edit, Minus, Monitor, Trash2 } from "react-feather";
 import { Circle } from "./Circle";
 
 interface Charger {
@@ -36,7 +36,10 @@ type SortColumn = "name" | "uid" | "status" | "none" | "note";
 
 interface ChargerListComponentState {
     chargers: StateCharger[],
-    showModal: boolean,
+    showDeleteModal: boolean,
+    showEditNoteModal: boolean,
+    editNote: string,
+    editChargerIdx: number,
     sortColumn: SortColumn,
     sortSequence: "asc" | "desc"
 }
@@ -65,7 +68,10 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         };
         this.state = {
             chargers: [],
-            showModal: false,
+            showDeleteModal: false,
+            showEditNoteModal: false,
+            editNote: "",
+            editChargerIdx: 0,
             sortColumn: "none",
             sortSequence: "asc",
         };
@@ -195,7 +201,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                         }}><Monitor/></Button>
                         <Button variant="danger" onClick={async () => {
                             this.removal_charger = charger;
-                            this.setState({showModal: true});
+                            this.setState({showDeleteModal: true});
                         }}><Trash2/></Button>
                     </Col>
                 </Card.Header>
@@ -300,7 +306,11 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     {Base58.int_to_base58(charger.uid)}
                 </td>
                 <td class="align-middle">
-                    {charger.note}
+                        <Button style="background-color:transparent;border:none;" className="me-2"
+                                onClick={() => this.setState({showEditNoteModal: true, editNote: charger.note, editChargerIdx: index})}>
+                            <Edit color="#333"/>
+                        </Button>
+                        {charger.note}
                 </td>
                 <td class="align-middle">
                     <Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
@@ -315,7 +325,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 <td class="align-middle">
                     <Button onClick={async () => {
                         this.removal_charger = charger;
-                        this.setState({showModal: true})
+                        this.setState({showDeleteModal: true})
                     }} variant="danger">
                         {t("remove")}
                     </Button>
@@ -326,7 +336,8 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
         })
 
         return <>
-            <Modal show={this.state.showModal} onHide={() => this.setState({showModal: false})}>
+            {/*Delete Charger Modal begin*/}
+            <Modal show={this.state.showDeleteModal} onHide={() => this.setState({showDeleteModal: false})}>
                 <Modal.Header>
                     {t("delete_modal_heading", {name: this.removal_charger.name})}
                 </Modal.Header>
@@ -336,13 +347,49 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 <Modal.Footer>
                     <Button variant="danger" onClick={async () => {
                         this.delete_charger();
-                        this.setState({showModal: false});
+                        this.setState({showDeleteModal: false});
                     }}>{t("remove")}</Button>
                     <Button variant="secondary" onClick={async () => {
-                        this.setState({showModal: false});
+                        this.setState({showDeleteModal: false});
                     }}>{t("close")}</Button>
                 </Modal.Footer>
             </Modal>
+            {/*Delete Charger Modal end*/}
+
+            {/*Edit Note Modal begin*/}
+            <Modal show={this.state.showEditNoteModal} onHide={() => this.setState({showEditNoteModal: false, editNote: "", editChargerIdx: -1})}>
+                <Form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const encryptedNote = sodium.crypto_box_seal(this.state.editNote, pub_key);
+                    const b64Note = Base64.fromUint8Array(encryptedNote);
+
+                    const {error} = await fetchClient.POST("/charger/update_note", {credentials: "same-origin", body: {note: b64Note, charger_id: this.state.chargers[this.state.editChargerIdx].id}});
+                    if (error) {
+                        showAlert(error, "danger", t("edit_note_failed"));
+                    }
+
+                    const chargers = this.state.chargers;
+                    chargers[this.state.editChargerIdx].note = this.state.editNote;
+                    this.setState({showEditNoteModal: false, editNote: "", editChargerIdx: -1, chargers: chargers});
+                }}>
+                    <Modal.Header>
+                        {t("edit_note_heading")}
+                    </Modal.Header>
+                    <Modal.Body>
+                        <Form.Control value={this.state.editNote} onChange={(e) => this.setState({editNote: (e.target as HTMLInputElement).value})}/>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => this.setState({showEditNoteModal: false, editNote: "", editChargerIdx: -1})}>
+                            {t("decline")}
+                        </Button>
+                        <Button type="submit">
+                            {t("accept")}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+            {/*Edit Note Modal end*/}
+
             <Col className="d-none d-md-block">
                 <Table striped hover>
                     <thead>

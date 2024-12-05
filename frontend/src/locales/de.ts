@@ -50,7 +50,11 @@ export const de ={
         "select_sorting": "Sortieren",
         "sorting_sequence_asc": "Aufsteigend",
         "sorting_sequence_desc": "Absteigend",
-        "note": "Notiz"
+        "note": "Notiz",
+        "edit_note_heading": "Notiz bearbeiten",
+        "edit_note_failed": "Notiz bearbeiten fehlgeschlagen",
+        "accept": "Bestätigen",
+        "decline": "Verwerfen"
     },
     "navbar": {
         "home": "Home",

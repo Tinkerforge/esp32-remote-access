@@ -50,7 +50,11 @@ export const en = {
         "select_sorting": "Sort",
         "sorting_sequence_asc": "Ascending",
         "sorting_sequence_desc": "Descending",
-        "note": "Note"
+        "note": "Note",
+        "edit_note_heading": "Edit note",
+        "edit_note_failed": "Editing note failed",
+        "accept": "Accept",
+        "decline": "Decline"
     },
     "navbar": {
         "home": "Home",
