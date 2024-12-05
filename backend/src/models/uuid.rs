@@ -30,9 +30,9 @@ impl Uuid {
     }
 }
 
-impl Into<uuid::Uuid> for Uuid {
-    fn into(self) -> uuid::Uuid {
-        self.0
+impl From<Uuid> for uuid::Uuid {
+    fn from(value: Uuid) -> Self {
+        value.0
     }
 }
 
