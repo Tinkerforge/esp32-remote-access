@@ -22,6 +22,7 @@ pub mod allow_user;
 pub mod get_chargers;
 pub mod get_key;
 pub mod remove;
+pub mod update_note;
 
 use crate::{
     error::Error,
@@ -40,6 +41,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(remove::remove)
         .service(get_chargers::get_chargers)
         .service(allow_user::allow_user)
+        .service(update_note::update_note)
         .service(get_key::get_key);
     cfg.service(scope);
     cfg.service(allow_user::allow_user);

@@ -238,6 +238,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/charger/update_note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["update_note"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management": {
         parameters: {
             query?: never;
@@ -499,6 +515,10 @@ export interface components {
             id?: number | null;
             password: string;
             uuid?: string | null;
+        };
+        UpdateNoteSchema: {
+            charger_id: string;
+            note: string;
         };
         UserAuth: {
             LoginKey: string;
@@ -893,6 +913,35 @@ export interface operations {
         responses: {
             /** @description Everything worked fine and the charger was deleted */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_note: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateNoteSchema"];
+            };
+        };
+        responses: {
+            /** @description Update was successful. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid charger-ID */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
