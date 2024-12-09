@@ -20,7 +20,7 @@ export function showAlert(text: string, variant: string, heading?: string) {
 }
 
 export function ErrorAlert() {
-    return <Alert variant={state.value.variant} onClose={(a, b) => {
+    return <Alert className="custom-alert" variant={state.value.variant} onClose={(a, b) => {
         state.value = {
             text: "",
             show: false,
