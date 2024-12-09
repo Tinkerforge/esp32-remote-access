@@ -9,8 +9,9 @@ import { Component } from "preact";
 import { fetchClient, refresh_access_token } from "../utils";
 import { Button, ButtonGroup, Card, Col, Container, Dropdown, DropdownButton, Form, Modal, Row, Table } from "react-bootstrap";
 import i18n from "../i18n";
-import { ChevronDown, ChevronUp, Edit, Minus, Monitor, Trash2 } from "react-feather";
+import { ChevronDown, ChevronUp, Edit, Monitor, Trash2 } from "react-feather";
 import { Circle } from "./Circle";
+import Median from "median-js-bridge";
 
 interface Charger {
     id: string,
@@ -441,7 +442,7 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 </Table>
             </Col>
             <Container fluid className="d-md-none">
-                <Col>
+                <Col className={Median.isNativeApp() ? "mt-2" : undefined}>
                     <ButtonGroup>
                         <DropdownButton className="dropdown-btn" title={this.getMobileSortName()}>
                             <Dropdown.Item onClick={() => this.setMobileSort("name")}>{t("charger_name")}</Dropdown.Item>
