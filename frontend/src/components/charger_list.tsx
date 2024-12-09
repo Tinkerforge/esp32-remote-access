@@ -307,11 +307,17 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                     {Base58.int_to_base58(charger.uid)}
                 </td>
                 <td class="align-middle">
-                        <Button style="background-color:transparent;border:none;" className="me-2"
-                                onClick={() => this.setState({showEditNoteModal: true, editNote: charger.note, editChargerIdx: index})}>
-                            <Edit color="#333"/>
-                        </Button>
-                        {charger.note}
+                    <Row>
+                        <Col className="p-0" sm="auto">
+                            <Button style="background-color:transparent;border:none;"
+                                    onClick={() => this.setState({showEditNoteModal: true, editNote: charger.note, editChargerIdx: index})}>
+                                <Edit color="#333"/>
+                            </Button>
+                        </Col>
+                        <Col sm="9" className="d-flex align-items-center p-0">
+                            {charger.note}
+                        </Col>
+                    </Row>
                 </td>
                 <td class="align-middle">
                     <Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
