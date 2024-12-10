@@ -20,7 +20,7 @@
 use actix_web::{cookie::Cookie, post, web, HttpResponse, Responder};
 use actix_web_validator::Json;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
-use chrono::{Duration, Utc};
+use chrono::{Days, TimeDelta, Utc};
 use db_connector::models::{refresh_tokens::RefreshToken, users::User};
 use diesel::{
     prelude::*,
@@ -122,7 +122,11 @@ pub async fn login(
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = (now + Duration::minutes(MAX_TOKEN_AGE_MINUTES)).timestamp() as usize;
+    let exp = if let Some(exp) = now.checked_add_signed(TimeDelta::minutes(super::login::MAX_TOKEN_AGE_MINUTES)) {
+        exp.timestamp() as usize
+    } else {
+        return Err(Error::InternalError.into())
+    };
     let claims = TokenClaims {
         iat,
         exp,
@@ -166,7 +170,11 @@ pub async fn create_refresh_token(
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = (now + Duration::days(MAX_REFRESH_TOKEN_AGE_DAYS)).timestamp() as usize;
+    let exp = if let Some(exp) = now.checked_add_days(Days::new(MAX_REFRESH_TOKEN_AGE_DAYS as u64)) {
+        exp.timestamp() as usize
+    } else {
+        return Err(Error::InternalError.into())
+    };
     let claims = TokenClaims {
         iat,
         exp,

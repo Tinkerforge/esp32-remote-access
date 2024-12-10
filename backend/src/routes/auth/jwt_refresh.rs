@@ -3,7 +3,7 @@ use std::str::FromStr;
 use actix_web::{
     cookie::Cookie, error::ErrorUnauthorized, get, web, HttpRequest, HttpResponse, Responder,
 };
-use chrono::{Duration, Utc};
+use chrono::{TimeDelta, Utc};
 use db_connector::models::{refresh_tokens::RefreshToken, users::User};
 use diesel::{prelude::*, result::Error::NotFound};
 use jsonwebtoken::{decode, DecodingKey, Validation};
@@ -139,7 +139,11 @@ pub async fn jwt_refresh(
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = (now + Duration::minutes(super::login::MAX_TOKEN_AGE_MINUTES)).timestamp() as usize;
+    let exp = if let Some(exp) = now.checked_add_signed(TimeDelta::minutes(super::login::MAX_TOKEN_AGE_MINUTES)) {
+        exp.timestamp() as usize
+    } else {
+        return Err(Error::InternalError.into())
+    };
     let claims = TokenClaims {
         iat,
         exp,
