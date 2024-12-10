@@ -46,7 +46,7 @@ use crate::{
 
 #[derive(Deserialize, Serialize, Validate)]
 struct WsQuery {
-    #[validate(custom = "validate_key_id")]
+    #[validate(custom(function = validate_key_id))]
     pub key_id: String,
 }
 

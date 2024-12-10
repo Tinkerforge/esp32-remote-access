@@ -11,9 +11,9 @@ name = "api_docs"
 path = "src/api_docs.rs"
 
 [dependencies]
-actix-web = "4.8.0"
+actix-web = "4.9.0"
 actix-web-actors = "4.3.0"
-actix-web-validator = "5.0.1"
+actix-web-validator = {git = "https://github.com/Tinkerforge/actix-web-validator"}
 actix = "0.13.3"
 
 dotenv = "0.15.0"
@@ -22,12 +22,12 @@ serde = { version = "1.0.196", features = ["derive"] }
 argon2 = "0.5.3"
 diesel = { version = "2.2.3", features = ["postgres", "r2d2", "uuid", "network-address"] }
 uuid = { version = "1.7.0", features = ["v4"] }
-validator = { version = "0.16.1", features = ["derive"] }
+validator = { version = "0.19", features = ["derive"] }
 chrono = "0.4.33"
 actix-cors = "0.7.0"
 jsonwebtoken = "9.2.0"
 futures-util = "0.3.30"
-lettre = { version = "0.11.4", features = ["native-tls"] }
+lettre = { version = "0.11.11", features = ["native-tls"] }
 derive_more = "0.99.17"
 simplelog = "0.12.1"
 base64 = "0.22"
