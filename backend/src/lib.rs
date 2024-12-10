@@ -26,7 +26,9 @@ use std::{
 
 use actix::prelude::*;
 pub use boringtun::*;
+use chrono::{TimeDelta, Utc};
 use db_connector::Pool;
+use diesel::{prelude::*, r2d2::PooledConnection};
 use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
 use serde::{ser::SerializeStruct, Serialize};
@@ -81,6 +83,24 @@ pub struct AppState {
     pub frontend_url: String,
 }
 
+pub fn clean_recovery_tokens(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
+    use db_connector::schema::recovery_tokens::dsl::*;
+
+    if let Some(time) = Utc::now().checked_sub_signed(TimeDelta::hours(1)) {
+        diesel::delete(recovery_tokens.filter(created.lt(time.timestamp())))
+            .execute(conn)
+            .ok();
+    }
+}
+
+pub fn clean_refresh_tokens(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
+    use db_connector::schema::refresh_tokens::dsl::*;
+
+    diesel::delete(refresh_tokens.filter(expiration.lt(Utc::now().timestamp())))
+        .execute(conn)
+        .ok();
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -91,6 +111,9 @@ pub(crate) mod tests {
         web::{self, ServiceConfig},
     };
     use lettre::transport::smtp::authentication::Credentials;
+    use chrono::Utc;
+    use db_connector::{models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken}, test_connection_pool};
+    use routes::user::tests::{get_test_uuid, TestUser};
 
     pub struct ScopeCall<F: FnMut()> {
         pub c: F,
@@ -160,5 +183,86 @@ pub(crate) mod tests {
         let bridge_state = web::Data::new(bridge_state);
         cfg.app_data(state);
         cfg.app_data(bridge_state);
+    }
+
+    #[actix_web::test]
+    async fn test_clean_recovery_tokens() {
+        use db_connector::schema::recovery_tokens::dsl::*;
+
+        let (user, _) = TestUser::random().await;
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+
+        let uid = get_test_uuid(&user.mail).unwrap();
+        let token1_id = uuid::Uuid::new_v4();
+        let token1 = RecoveryToken {
+            id: token1_id,
+            user_id: uid,
+            created: Utc::now().checked_sub_signed(TimeDelta::hours(1)).unwrap().timestamp() + 1,
+        };
+        let token2 = RecoveryToken {
+            id: uuid::Uuid::new_v4(),
+            user_id: uid,
+            created: Utc::now().checked_sub_signed(TimeDelta::hours(1)).unwrap().timestamp() - 1,
+        };
+        let token3 = RecoveryToken {
+            id: uuid::Uuid::new_v4(),
+            user_id: uid,
+            created: Utc::now().checked_sub_signed(TimeDelta::hours(2)).unwrap().timestamp(),
+        };
+
+        diesel::insert_into(recovery_tokens).values(vec![&token1, &token2, &token3])
+            .execute(&mut conn).unwrap();
+
+        clean_recovery_tokens(&mut conn);
+
+        let tokens: Vec<RecoveryToken> = recovery_tokens.filter(user_id.eq(uid))
+            .select(RecoveryToken::as_select())
+            .load(&mut conn)
+            .unwrap();
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].id, token1_id);
+
+        diesel::delete(recovery_tokens.filter(user_id.eq(uid))).execute(&mut conn).unwrap();
+    }
+
+    #[actix_web::test]
+    async fn test_clean_refresh_tokens() {
+        use db_connector::schema::refresh_tokens::dsl::*;
+
+        let (user, _) = TestUser::random().await;
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+
+        let uid = get_test_uuid(&user.mail).unwrap();
+        let token1_id = uuid::Uuid::new_v4();
+        let token1 = RefreshToken {
+            id: token1_id,
+            user_id: uid,
+            expiration: Utc::now().timestamp() + 1,
+        };
+        let token2 = RefreshToken {
+            id: uuid::Uuid::new_v4(),
+            user_id: uid,
+            expiration: Utc::now().timestamp() - 1,
+        };
+
+        diesel::insert_into(refresh_tokens).values(vec![&token1, &token2])
+            .execute(&mut conn).unwrap();
+
+        clean_refresh_tokens(&mut conn);
+
+        let tokens: Vec<RefreshToken> = refresh_tokens.filter(user_id.eq(uid))
+            .select(RefreshToken::as_select())
+            .load(&mut conn)
+            .unwrap();
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].id, token1_id);
+
+        diesel::delete(refresh_tokens.filter(user_id.eq(uid))).execute(&mut conn).unwrap();
     }
 }

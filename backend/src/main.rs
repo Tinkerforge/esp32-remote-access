@@ -30,7 +30,6 @@ use backend::utils::get_connection;
 pub use backend::*;
 
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use chrono::Utc;
 use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
@@ -52,8 +51,6 @@ fn reset_wg_keys(pool: &Pool) {
 
 fn cleanup_thread(state: web::Data<AppState>) {
     loop {
-        use db_connector::schema::refresh_tokens::dsl::*;
-
         std::thread::sleep(Duration::from_secs(60));
 
         let mut conn = match get_connection(&state) {
@@ -63,9 +60,9 @@ fn cleanup_thread(state: web::Data<AppState>) {
             }
         };
 
-        diesel::delete(refresh_tokens.filter(expiration.lt(Utc::now().timestamp())))
-            .execute(&mut conn)
-            .ok();
+        clean_refresh_tokens(&mut conn);
+
+        clean_recovery_tokens(&mut conn);
     }
 }
 
