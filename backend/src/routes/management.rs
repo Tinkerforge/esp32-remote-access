@@ -52,7 +52,7 @@ pub enum ManagementDataVersion {
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ConfiguredUser {
     pub email: String,
-    pub name: String,
+    pub name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -92,15 +92,17 @@ async fn update_configured_users(
                 Ok(u) => {
                     use db_connector::schema::allowed_users::dsl as allowed_users;
 
-                    // Update name of charger for each user
-                    let mut conn = get_connection(&state)?;
-                    match diesel::update(allowed_users::allowed_users.filter(allowed_users::user_id.eq(u)).filter(allowed_users::charger_id.eq(charger_id)))
-                        .set(allowed_users::name.eq(&user.name))
-                        .execute(&mut conn)
-                    {
-                        Ok(_) => (),
-                        Err(NotFound) => (),
-                        Err(_) => return Err(Error::InternalError.into()),
+                    if let Some(name) = &user.name {
+                        // Update name of charger for each user
+                        let mut conn = get_connection(&state)?;
+                        match diesel::update(allowed_users::allowed_users.filter(allowed_users::user_id.eq(u)).filter(allowed_users::charger_id.eq(charger_id)))
+                            .set(allowed_users::name.eq(name))
+                            .execute(&mut conn)
+                        {
+                            Ok(_) => (),
+                            Err(NotFound) => (),
+                            Err(_) => return Err(Error::InternalError.into()),
+                        }
                     }
 
 
@@ -381,7 +383,7 @@ mod tests {
             password: charger.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: String::new()}],
+            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}],
         });
 
         let body = ManagementSchema {
@@ -482,7 +484,7 @@ mod tests {
             password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: String::new()}],
+            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}],
         });
         let body = ManagementSchema {
             id: None,
@@ -551,7 +553,7 @@ mod tests {
             password: charger.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: String::new()}],
+            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}],
         });
 
         let body = ManagementSchema {
@@ -623,7 +625,7 @@ mod tests {
             password: charger.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: String::new()}, ConfiguredUser {email: mail2.clone(), name: String::new()}],
+            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}, ConfiguredUser {email: mail2.clone(), name: Some(String::new())}],
         });
 
         let body = ManagementSchema {
@@ -681,7 +683,7 @@ mod tests {
             password: charger.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: String::new()}, ConfiguredUser {email: mail2.clone(), name: String::new()}],
+            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}, ConfiguredUser {email: mail2.clone(), name: Some(String::new())}],
         });
 
         let body = ManagementSchema {
