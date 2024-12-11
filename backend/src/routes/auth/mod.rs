@@ -28,6 +28,8 @@ pub mod register;
 pub mod start_recovery;
 pub mod verify;
 
+pub const VERIFICATION_EXPIRATION_DAYS: u64 = 1;
+
 pub fn configure(cfg: &mut ServiceConfig) {
     let scope = web::scope("/auth")
         .service(register::register)

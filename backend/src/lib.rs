@@ -27,8 +27,8 @@ use std::{
 use actix::prelude::*;
 pub use boringtun::*;
 use chrono::{TimeDelta, Utc};
-use db_connector::Pool;
-use diesel::{prelude::*, r2d2::PooledConnection};
+use db_connector::{models::verification::Verification, Pool};
+use diesel::{prelude::*, r2d2::PooledConnection, result::Error::NotFound};
 use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
 use serde::{ser::SerializeStruct, Serialize};
@@ -101,6 +101,38 @@ pub fn clean_refresh_tokens(conn: &mut PooledConnection<diesel::r2d2::Connection
         .ok();
 }
 
+pub fn clean_verification_tokens(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
+    let awaiting_verification: Vec<uuid::Uuid> = {
+        use db_connector::schema::verification::dsl::*;
+
+        diesel::delete(verification.filter(expiration.lt(Utc::now().naive_utc())))
+            .execute(conn)
+            .ok();
+
+        match verification
+            .select(Verification::as_select())
+            .load(conn)
+        {
+            Ok(v) => v.into_iter().map(|v| v.user).collect(),
+            Err(NotFound) => Vec::new(),
+            Err(err) => {
+                log::error!("Failed to get Verification-Token from Database: {}", err);
+                return;
+            }
+        }
+    };
+    {
+        use db_connector::schema::users::dsl::*;
+
+        let _ = diesel::delete(users.filter(id.ne_all(awaiting_verification)).filter(email_verified.eq(false)))
+            .execute(conn)
+            .or_else(|e| {
+                log::error!("Failed to delete unverified users: {}", e);
+                Ok::<usize, diesel::result::Error>(0)
+            });
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -112,7 +144,7 @@ pub(crate) mod tests {
     };
     use lettre::transport::smtp::authentication::Credentials;
     use chrono::Utc;
-    use db_connector::{models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken}, test_connection_pool};
+    use db_connector::{models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken, users::User}, test_connection_pool};
     use routes::user::tests::{get_test_uuid, TestUser};
 
     pub struct ScopeCall<F: FnMut()> {
@@ -264,5 +296,121 @@ pub(crate) mod tests {
         assert_eq!(tokens[0].id, token1_id);
 
         diesel::delete(refresh_tokens.filter(user_id.eq(uid))).execute(&mut conn).unwrap();
+    }
+
+    #[actix_web::test]
+    async fn test_clean_verification_tokens() {
+        let user_id = uuid::Uuid::new_v4();
+        let user = User {
+            id: user_id,
+            name: user_id.to_string(),
+            email: format!("{}@invalid", user_id.to_string()),
+            login_key: String::new(),
+            email_verified: false,
+            secret: Vec::new(),
+            secret_nonce: Vec::new(),
+            secret_salt: Vec::new(),
+            login_salt: Vec::new(),
+        };
+
+        let user2_id = uuid::Uuid::new_v4();
+        let user2 = User {
+            id: user2_id,
+            name: user2_id.to_string(),
+            email: format!("{}@invalid", user2_id.to_string()),
+            login_key: String::new(),
+            email_verified: false,
+            secret: Vec::new(),
+            secret_nonce: Vec::new(),
+            secret_salt: Vec::new(),
+            login_salt: Vec::new(),
+        };
+
+        let user3_id = uuid::Uuid::new_v4();
+        let user3 = User {
+            id: user3_id,
+            name: user3_id.to_string(),
+            email: format!("{}@invalid", user3_id.to_string()),
+            login_key: String::new(),
+            email_verified: true,
+            secret: Vec::new(),
+            secret_nonce: Vec::new(),
+            secret_salt: Vec::new(),
+            login_salt: Vec::new(),
+        };
+
+        let verify_id = uuid::Uuid::new_v4();
+        let verify = Verification {
+            id: verify_id,
+            user: user_id,
+            expiration: Utc::now().checked_sub_signed(TimeDelta::seconds(1)).unwrap().naive_utc(),
+        };
+
+        let verify2_id = uuid::Uuid::new_v4();
+        let verify2 = Verification {
+            id: verify2_id,
+            user: user2_id,
+            expiration: Utc::now().checked_add_signed(TimeDelta::seconds(1)).unwrap().naive_local(),
+        };
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        {
+            use db_connector::schema::users::dsl::*;
+
+            diesel::insert_into(users).values(vec![&user, &user2, &user3])
+                .execute(&mut conn)
+                .unwrap();
+        }
+        {
+            use db_connector::schema::verification::dsl::*;
+
+            diesel::insert_into(verification).values(vec![&verify, &verify2])
+                .execute(&mut conn)
+                .unwrap();
+        }
+
+        clean_verification_tokens(&mut conn);
+
+        {
+            use db_connector::schema::verification::dsl::*;
+
+            let verifies: Vec<Verification> = verification
+                .filter(id.eq_any(vec![&verify_id, &verify2_id]))
+                .select(Verification::as_select())
+                .load(&mut conn)
+                .unwrap();
+
+            assert_eq!(verifies.len(), 1);
+            assert_eq!(verifies[0].id, verify2_id);
+        }
+        {
+            use db_connector::schema::users::dsl::*;
+
+            let u: Vec<User> = users
+                .filter(id.eq_any(vec![&user_id, &user2_id, &user3_id]))
+                .select(User::as_select())
+                .load(&mut conn)
+                .unwrap();
+
+            assert_eq!(u.len(), 2);
+            assert!(u[0].id == user2_id || u[0].id == user3_id);
+            assert!(u[1].id == user3_id || u[1].id == user3_id);
+        }
+
+        {
+            use db_connector::schema::verification::dsl::*;
+
+            diesel::delete(verification.filter(id.eq_any(vec![&verify_id, &verify2_id])))
+                .execute(&mut conn)
+                .unwrap();
+        }
+        {
+            use db_connector::schema::users::dsl::*;
+
+            diesel::delete(users.filter(id.eq_any(vec![&user_id, &user2_id, &user3_id])))
+                .execute(&mut conn)
+                .unwrap();
+        }
     }
 }

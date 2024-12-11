@@ -6,4 +6,5 @@ use diesel::{deserialize::Queryable, prelude::Insertable, Selectable};
 pub struct Verification {
     pub id: uuid::Uuid,
     pub user: uuid::Uuid,
+    pub expiration: chrono::NaiveDateTime,
 }

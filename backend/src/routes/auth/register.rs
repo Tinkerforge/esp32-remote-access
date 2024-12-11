@@ -24,6 +24,7 @@ use argon2::{
     Argon2, PasswordHasher,
 };
 use askama::Template;
+use chrono::Days;
 use db_connector::models::{users::User, verification::Verification};
 use diesel::{prelude::*, result::Error::NotFound};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
@@ -32,7 +33,7 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
-    error::Error, utils::{get_connection, web_block_unpacked}, AppState
+    error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{get_connection, web_block_unpacked}, AppState
 };
 
 #[derive(Template)]
@@ -143,15 +144,14 @@ pub async fn register(
     #[cfg(not(test))]
     lang: crate::models::lang::Lang,
 ) -> Result<impl Responder, actix_web::Error> {
-    use db_connector::schema::users::dsl::*;
-    use db_connector::schema::verification::dsl::*;
-
     let mut conn = get_connection(&state)?;
 
     let user_mail = data.email.to_lowercase();
     let mail_cpy = user_mail.clone();
 
     web_block_unpacked(move || {
+        use db_connector::schema::users::dsl::*;
+
         match users
             .filter(email.eq(mail_cpy))
             .select(User::as_select())
@@ -185,10 +185,20 @@ pub async fn register(
 
     let mut conn = get_connection(&state)?;
 
+    let exp = if let Some(expiration) = chrono::Utc::now().checked_add_days(Days::new(VERIFICATION_EXPIRATION_DAYS)) {
+        expiration.naive_utc()
+    } else {
+        return Err(Error::InternalError.into())
+    };
+
     let insert_result = match web::block(move || {
+        use db_connector::schema::verification::dsl::*;
+        use db_connector::schema::users::dsl::*;
+
         let verify = Verification {
             id: uuid::Uuid::new_v4(),
             user: user_insert.id.clone(),
+            expiration: exp,
         };
 
         // same as above

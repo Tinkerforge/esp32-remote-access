@@ -20,7 +20,7 @@ dotenv = "0.15.0"
 db_connector = { path = "../db_connector" }
 serde = { version = "1.0.196", features = ["derive"] }
 argon2 = "0.5.3"
-diesel = { version = "2.2.3", features = ["postgres", "r2d2", "uuid", "network-address"] }
+diesel = { version = "2.2.3", features = ["postgres", "r2d2", "uuid", "network-address", "chrono"] }
 uuid = { version = "1.7.0", features = ["v4"] }
 validator = { version = "0.19", features = ["derive"] }
 chrono = "0.4.33"

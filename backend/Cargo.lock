@@ -875,6 +875,7 @@ checksum = "04d2cd9c18b9f454ed67da600630b021a8a80bf33f8c95896ab33aaf1c26b728"
 name = "db_connector"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "diesel",
  "diesel_migrations",
  "dotenv",
@@ -958,6 +959,7 @@ checksum = "ccf1bedf64cdb9643204a36dd15b19a6ce8e7aa7f7b105868e9f1fad5ffa7d12"
 dependencies = [
  "bitflags 2.6.0",
  "byteorder",
+ "chrono",
  "diesel_derives",
  "ipnetwork",
  "itoa",

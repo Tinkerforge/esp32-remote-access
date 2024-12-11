@@ -65,6 +65,7 @@ diesel::table! {
     verification (id) {
         id -> Uuid,
         user -> Uuid,
+        expiration -> Timestamp,
     }
 }
 
