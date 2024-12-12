@@ -78,10 +78,16 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
 })
 
 // This promise is used to synchronize the timeout and Frame component refreshing the access token
-export let refreshPromise: Promise<void>;
+let refreshPromise: Promise<void>;
+let refreshPromiseResolved = true;
 
 // This function must be called only at one place. Use the promise instead if you need to ensure that you have a valid token.
-export async function refresh_access_token() {
+export function refresh_access_token() {
+    if (refreshPromiseResolved) {
+        refreshPromiseResolved = false;
+    } else {
+        return refreshPromise;
+    }
     refreshPromise = new Promise(async (resolve, reject) => {
         if (window.location.pathname == "/recovery") {
             loggedIn.value = AppState.Recovery;
@@ -106,7 +112,8 @@ export async function refresh_access_token() {
             localStorage.removeItem("secretKey");
             loggedIn.value = AppState.LoggedOut;
         }
+        refreshPromiseResolved = true;
         resolve();
     });
-    await refreshPromise;
+    return refreshPromise
 }

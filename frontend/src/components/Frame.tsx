@@ -54,7 +54,7 @@ export class Frame extends Component {
         window.addEventListener("appResumed", async () => {
             this.worker.terminate();
             this.worker = null;
-            await refreshPromise;
+            await refresh_access_token();
             this.startWorker();
             this.show_spinner.value = true;
 
