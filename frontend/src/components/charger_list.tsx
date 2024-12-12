@@ -208,13 +208,13 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 </Card.Header>
                 <Card.Body>
                     <Row >
-                        <Col xs="3"><b>{t("mobile_charger_id")}</b></Col>
-                        <Col xs="9" className="text-end">{Base58.int_to_base58(charger.uid)}</Col>
+                        <Col xs="auto"><b>{t("mobile_charger_id")}</b></Col>
+                        <Col className="text-end">{Base58.int_to_base58(charger.uid)}</Col>
                     </Row>
                     <hr style="margin-top: 5px;margin-bottom: 5px;"/>
                     <Row>
-                        <Col xs="3"><b>{t("note")}</b></Col>
-                        <Col xs="9" className="text-end">{charger.note}</Col>
+                        <Col xs="auto"><b>{t("note")}</b></Col>
+                        <Col className="text-end">{charger.note}</Col>
                     </Row>
                     <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
                 </Card.Body>
