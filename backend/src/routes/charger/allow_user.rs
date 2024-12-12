@@ -120,6 +120,22 @@ pub async fn allow_user(
     let allowed_uuid = get_user_id(&state, FindBy::Email(allow_user.email.clone())).await?;
     authenticate_user(allowed_uuid, &allow_user.user_auth, &state).await?;
 
+    // delete old allowed_user when existing
+    let mut conn = get_connection(&state)?;
+    let allow_user = allow_user.clone();
+    web_block_unpacked(move || {
+        use db_connector::schema::allowed_users::dsl::*;
+
+        match diesel::delete(allowed_users.filter(user_id.eq(allowed_uuid))
+            .filter(charger_id.eq(cid)))
+            .execute(&mut conn)
+        {
+            Ok(_) => Ok(()),
+            Err(_) => Err(Error::InternalError)
+        }
+    }).await?;
+
+    // add new allowed_user
     let mut conn = get_connection(&state)?;
     let allow_user = allow_user.clone();
     web_block_unpacked(move || {
@@ -157,13 +173,16 @@ pub async fn allow_user(
 
 #[cfg(test)]
 pub mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use actix_web::{test, App};
     use base64::prelude::BASE64_STANDARD;
+    use db_connector::test_connection_pool;
     use rand::{distributions::{Alphanumeric, DistString}, RngCore};
     use rand_core::OsRng;
 
-    use crate::{routes::{charger::{add::tests::generate_random_keys, tests::TestCharger}, user::tests::TestUser}, tests::configure};
+    use crate::{routes::{charger::{add::tests::generate_random_keys, tests::TestCharger}, user::tests::{get_test_uuid, TestUser}}, tests::configure};
 
     pub async fn add_allowed_test_user(email: &str, user_auth: UserAuth, charger: &TestCharger) {
 
@@ -284,5 +303,65 @@ pub mod tests {
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
+    }
+
+    #[actix_web::test]
+    async fn test_allow_already_allowed_user() {
+        let (mut user, _) = TestUser::random().await;
+        let (user2, _) = TestUser::random().await;
+        user.login().await;
+        let charger = user.add_random_charger().await;
+
+        let app = App::new()
+            .configure(configure)
+            .service(allow_user);
+        let app = test::init_service(app).await;
+
+        let allow = AllowUserSchema {
+            charger_id: charger.uuid.clone(),
+            user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
+            email: user2.mail.to_owned(),
+            charger_password: charger.password.clone(),
+            wg_keys: generate_random_keys(),
+            charger_name: String::new(),
+            note: String::new(),
+        };
+        let req = test::TestRequest::put()
+            .uri("/allow_user")
+            .set_json(allow)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert!(resp.status().is_success());
+
+        let allow = AllowUserSchema {
+            charger_id: charger.uuid.clone(),
+            user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
+            email: user2.mail.to_owned(),
+            charger_password: charger.password.clone(),
+            wg_keys: generate_random_keys(),
+            charger_name: String::new(),
+            note: String::new(),
+        };
+        let req = test::TestRequest::put()
+            .uri("/allow_user")
+            .set_json(allow)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        {
+            use db_connector::schema::allowed_users::dsl::*;
+
+            let users: Vec<AllowedUser> = allowed_users.filter(user_id.eq(get_test_uuid(&user2.mail).unwrap()))
+                .filter(charger_id.eq(uuid::Uuid::from_str(&charger.uuid).unwrap()))
+                .select(AllowedUser::as_select())
+                .load(&mut conn)
+                .unwrap();
+
+            assert_eq!(users.len(), 1);
+        }
     }
 }
