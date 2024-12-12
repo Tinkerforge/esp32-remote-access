@@ -27,6 +27,16 @@ const tunnel_url = import.meta.env.VITE_BACKEND_WS_URL + "/ws?key_id="
 let wgClient: Client | undefined = undefined;
 let setup_data: SetupMessage;
 
+self.addEventListener("unhandledrejection", (event) => {
+    const stack = event.reason.stack.split("\n");
+
+    const evt = {
+        message: event.reason.message,
+        stack: stack
+    }
+    self.postMessage({unresolved: true, msg: evt});
+});
+
 self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
         switch (e.data) {
@@ -122,8 +132,9 @@ function disconnect_cb() {
 
 async function start_connection(setup_data: SetupMessage) {
     let keys: any;
+    const url = import.meta.env.VITE_BACKEND_URL + "/charger/get_key?cid=" + setup_data.chargerID;
     try {
-        const resp = await fetch(import.meta.env.VITE_BACKEND_URL + "/charger/get_key?cid=" + setup_data.chargerID, {credentials: "same-origin"});
+        const resp = await fetch(url, {credentials: "same-origin"});
         if (resp.status === 404) {
             const msg: Message = {
                 type: MessageType.Error,
@@ -150,11 +161,6 @@ async function start_connection(setup_data: SetupMessage) {
         }
         keys = await resp.json();
     } catch (e) {
-        const msg: Message = {
-            type: MessageType.Error,
-            data: `Getting connection key crashed: ${e}`,
-        }
-        self.postMessage(msg);
         return;
     }
     const decrypted_keys = decrypt_keys(keys, setup_data.secret);

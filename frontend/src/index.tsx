@@ -46,6 +46,21 @@ setInterval(async () => {
     await refresh_access_token();
 }, 1000 * 60 * 5);
 
+addEventListener("unhandledrejection", (event) => {
+    const stack = event.reason.stack.split("\n");
+
+    const evt = {
+        message: event.reason.message,
+        stack: stack
+    }
+    const msg = JSON.stringify(evt);
+    const blob = new Blob([msg]);
+    const url = URL.createObjectURL(blob);
+    const filename = `mystaging_error_${Date.now()}.json`
+    if (Median.isNativeApp()) {
+        Median.share.downloadFile({url: url, filename: filename, open: true});
+    }
+});
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});

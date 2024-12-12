@@ -5,7 +5,7 @@ import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
 import { connected, connected_to, secret } from './charger_list';
 import { setAppNavigation } from './Navbar';
-import { enableLogging, refreshPromise } from '../utils';
+import { enableLogging, refresh_access_token } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
 import { showAlert } from './Alert';
@@ -89,12 +89,6 @@ export class Frame extends Component {
     handleErrorMessage(msg: Message) {
         connected.value = false;
         connected_to.value = "";
-        if (msg.data.translation) {
-            const error = msg.data as ErrorMessage;
-            showAlert(i18n.t(error.translation, error.format) as string, "danger");
-        } else {
-            showAlert(msg.data, "danger");
-        }
     }
 
     startWorker() {
@@ -109,6 +103,14 @@ export class Frame extends Component {
                     case "closed":
                         this.worker.terminate();
                         break;
+                }
+            } else if (e.data.unresolved) {
+                const msg = JSON.stringify(e.data.msg);
+                const blob = new Blob([msg]);
+                const url = URL.createObjectURL(blob);
+                const filename = `mystaging_error_${Date.now()}.json`;
+                if (Median.isNativeApp()) {
+                    Median.share.downloadFile({url: url, filename: filename, open: true});
                 }
             } else {
                 const msg = e.data as Message;
