@@ -135,7 +135,7 @@ fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
 pub async fn add(
     state: web::Data<AppState>,
     charger_schema: actix_web_validator::Json<AddChargerSchema>,
-    uid: crate::models::uuid::Uuid,
+    user_id: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
     // uwrapping here is safe since it got checked in the validator.
     let mut uid_bytes = bs58::decode(&charger_schema.charger.uid)
@@ -150,13 +150,13 @@ pub async fn add(
     let charger_uid = i32::from_le_bytes(charger_id);
     let charger_id;
 
-    let (pub_key, password) = if let Some(cid) = get_charger_uuid(&state, charger_uid, uid.clone().into()).await? {
+    let (pub_key, password) = if let Some(cid) = get_charger_uuid(&state, charger_uid, user_id.clone().into()).await? {
         charger_id = cid;
         update_charger(
             charger_schema.charger.clone(),
             charger_id,
             charger_uid,
-            uid.clone().into(),
+            user_id.clone().into(),
             &state,
         )
         .await?
@@ -166,14 +166,14 @@ pub async fn add(
             charger_schema.0.clone(),
             charger_id,
             charger_uid,
-            uid.clone().into(),
+            user_id.clone().into(),
             &state,
         )
         .await?
     };
 
     for keys in charger_schema.keys.iter() {
-        add_wg_key(charger_id, uid.clone().into(), keys.to_owned(), &state).await?;
+        add_wg_key(charger_id, user_id.clone().into(), keys.to_owned(), &state).await?;
     }
 
     let resp = AddChargerResponseSchema {
@@ -224,7 +224,7 @@ async fn update_charger(
     charger: ChargerSchema,
     charger_id: uuid::Uuid,
     charger_uid: i32,
-    uid: uuid::Uuid,
+    user_id: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<(String, String)> {
     use db_connector::schema::wg_keys::dsl as wg_keys;
@@ -251,7 +251,7 @@ async fn update_charger(
         match diesel::update(
             allowed_users::allowed_users
                 .filter(allowed_users::charger_id.eq(charger_id))
-                .filter(allowed_users::user_id.eq(uid)),
+                .filter(allowed_users::user_id.eq(user_id)),
         )
         .set(allowed_users::valid.eq(true))
         .execute(&mut conn)
