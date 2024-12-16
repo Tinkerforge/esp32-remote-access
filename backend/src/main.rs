@@ -18,6 +18,7 @@
  */
 
 mod monitoring;
+mod key_extractor;
 
 use std::{
     collections::HashMap,
@@ -26,12 +27,14 @@ use std::{
     time::Duration,
 };
 
+use actix_governor::{Governor, GovernorConfigBuilder};
 use backend::utils::get_connection;
 pub use backend::*;
 
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
+use key_extractor::Extractor;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use udp_server::packet::{
@@ -167,11 +170,20 @@ async fn main() -> std::io::Result<()> {
 
     udp_server::start_server(bridge_state.clone()).unwrap();
 
+    // Config for rate limitation
+    let governor_config = GovernorConfigBuilder::default()
+        .key_extractor(Extractor::new())
+        .requests_per_second(2)
+        .burst_size(20)
+        .finish()
+        .unwrap();
+
     HttpServer::new(move || {
         let cors = actix_cors::Cors::permissive();
         App::new()
             .wrap(cors)
             .wrap(Logger::default())
+            .wrap(Governor::new(&governor_config))
             .app_data(state.clone())
             .app_data(bridge_state.clone())
             .configure(routes::configure)
