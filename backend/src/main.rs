@@ -63,6 +63,7 @@ fn cleanup_thread(state: web::Data<AppState>) {
         clean_refresh_tokens(&mut conn);
         clean_recovery_tokens(&mut conn);
         clean_verification_tokens(&mut conn);
+        clean_chargers(&mut conn);
     }
 }
 

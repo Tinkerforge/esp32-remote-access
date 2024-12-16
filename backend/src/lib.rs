@@ -27,7 +27,7 @@ use std::{
 use actix::prelude::*;
 pub use boringtun::*;
 use chrono::{TimeDelta, Utc};
-use db_connector::{models::verification::Verification, Pool};
+use db_connector::{models::{allowed_users::AllowedUser, chargers::Charger, verification::Verification}, Pool};
 use diesel::{prelude::*, r2d2::PooledConnection, result::Error::NotFound};
 use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
@@ -133,8 +133,53 @@ pub fn clean_verification_tokens(conn: &mut PooledConnection<diesel::r2d2::Conne
     }
 }
 
+// Remove chargers that dont have allowed users
+pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
+
+    // Get all chargers in database
+    let chargers: Vec<Charger> = {
+        use db_connector::schema::chargers::dsl::*;
+
+        match chargers.select(Charger::as_select())
+            .load(conn)
+        {
+            Ok(c) => c,
+            Err(err) => {
+                log::error!("Failed to get chargers for cleanup: {}", err);
+                return
+            }
+        }
+    };
+
+    // Get allowed users for each charger and remove those without entries
+    for charger in chargers.into_iter() {
+        match AllowedUser::belonging_to(&charger)
+            .select(AllowedUser::as_select())
+            .load(conn)
+        {
+            Ok(users) => {
+                if users.len() == 0 {
+                    use db_connector::schema::chargers::dsl::*;
+
+                    let _ = diesel::delete(chargers.find(&charger.id))
+                        .execute(conn)
+                        .or_else(|e| {
+                            log::error!("Failed to remove unreferenced charger: {}", e);
+                            Ok::<usize, diesel::result::Error>(0)
+                        });
+                }
+            },
+            Err(err) => {
+                log::error!("Failed to get allowed user for charger cleanup: {}", err);
+            }
+        };
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::{net::Ipv4Addr, str::FromStr};
+
     use super::*;
     use actix_web::{
         body::BoxBody,
@@ -142,9 +187,12 @@ pub(crate) mod tests {
         test,
         web::{self, ServiceConfig},
     };
+    use ipnetwork::Ipv4Network;
     use lettre::transport::smtp::authentication::Credentials;
     use chrono::Utc;
     use db_connector::{models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken, users::User}, test_connection_pool};
+    use rand::RngCore;
+    use rand_core::OsRng;
     use routes::user::tests::{get_test_uuid, TestUser};
 
     pub struct ScopeCall<F: FnMut()> {
@@ -412,5 +460,51 @@ pub(crate) mod tests {
                 .execute(&mut conn)
                 .unwrap();
         }
+    }
+
+    #[actix_web::test]
+    async fn test_charger_cleanup() {
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
+        let charger = user.add_random_charger().await;
+        let charger2 = Charger {
+            id: uuid::Uuid::new_v4(),
+            uid: OsRng.next_u32() as i32,
+            password: String::new(),
+            name: None,
+            management_private: String::new(),
+            charger_pub: String::new(),
+            wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(123, 123, 123, 123), 24).unwrap()),
+            psk: String::new(),
+            wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(123, 123, 123, 123), 24).unwrap()),
+            webinterface_port: 80,
+            firmware_version: "2.6.6".to_string()
+        };
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        {
+            use db_connector::schema::chargers::dsl::*;
+
+            diesel::insert_into(chargers)
+                .values(&charger2)
+                .execute(&mut conn)
+                .unwrap();
+        }
+
+        clean_chargers(&mut conn);
+
+        let charger_id = uuid::Uuid::from_str(&charger.uuid).unwrap();
+        let chargers: Vec<Charger> = {
+            use db_connector::schema::chargers::dsl::*;
+
+            chargers.filter(id.eq_any(vec![&charger_id, &charger2.id]))
+                .select(Charger::as_select())
+                .load(&mut conn)
+                .unwrap()
+        };
+
+        assert_eq!(chargers.len(), 1);
+        assert_eq!(chargers[0].id, charger_id);
     }
 }
