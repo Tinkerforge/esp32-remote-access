@@ -88,7 +88,7 @@ services:
   postgres:
     container_name: postgres
     restart: always
-    image: postgres
+    image: postgres:16
     environment:
       - POSTGRES_PASSWORD=${PG_PASS}
       - POSTGRES_DB=${POSTGRES_DB}
