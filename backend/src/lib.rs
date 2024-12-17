@@ -44,6 +44,7 @@ pub mod routes;
 pub mod udp_server;
 pub mod utils;
 pub mod ws_udp_bridge;
+pub mod rate_limit;
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct DiscoveryCharger {
@@ -193,6 +194,7 @@ pub(crate) mod tests {
     use db_connector::{models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken, users::User}, test_connection_pool};
     use rand::RngCore;
     use rand_core::OsRng;
+    use rate_limit::LoginRateLimiter;
     use routes::user::tests::{get_test_uuid, TestUser};
 
     pub struct ScopeCall<F: FnMut()> {
@@ -261,6 +263,8 @@ pub(crate) mod tests {
 
         let state = web::Data::new(state);
         let bridge_state = web::Data::new(bridge_state);
+        let login_rate_limiter = web::Data::new(LoginRateLimiter::new());
+        cfg.app_data(login_rate_limiter);
         cfg.app_data(state);
         cfg.app_data(bridge_state);
     }

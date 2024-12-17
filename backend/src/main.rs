@@ -18,24 +18,20 @@
  */
 
 mod monitoring;
-mod key_extractor;
 
 use std::{
-    collections::HashMap,
-    net::UdpSocket,
-    sync::{Arc, Mutex},
-    time::Duration,
+    collections::HashMap, net::UdpSocket, num::NonZeroUsize, sync::{Arc, Mutex}, time::Duration
 };
 
-use actix_governor::{Governor, GovernorConfigBuilder};
 use backend::utils::get_connection;
 pub use backend::*;
 
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
-use key_extractor::Extractor;
+use rate_limit::LoginRateLimiter;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
+use lru::LruCache;
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use udp_server::packet::{
     ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
@@ -170,21 +166,19 @@ async fn main() -> std::io::Result<()> {
 
     udp_server::start_server(bridge_state.clone()).unwrap();
 
-    // Config for rate limitation
-    let governor_config = GovernorConfigBuilder::default()
-        .key_extractor(Extractor::new())
-        .requests_per_second(2)
-        .burst_size(20)
-        .finish()
-        .unwrap();
+    // Cache for random salts of non existing users
+    let cache: web::Data<Mutex<LruCache<String, Vec<u8>>>>  = web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
+
+    let login_ratelimiter = web::Data::new(LoginRateLimiter::new());
 
     HttpServer::new(move || {
         let cors = actix_cors::Cors::permissive();
         App::new()
             .wrap(cors)
             .wrap(Logger::default())
-            .wrap(Governor::new(&governor_config))
+            .app_data(cache.clone())
             .app_data(state.clone())
+            .app_data(login_ratelimiter.clone())
             .app_data(bridge_state.clone())
             .configure(routes::configure)
     })

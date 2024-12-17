@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use actix_web::{cookie::Cookie, post, web, HttpResponse, Responder};
+use actix_web::{cookie::Cookie, post, web, HttpRequest, HttpResponse, Responder};
 use actix_web_validator::Json;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use chrono::{Days, TimeDelta, Utc};
@@ -32,10 +32,7 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
-    error::Error,
-    models::token_claims::TokenClaims,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
+    error::Error, models::token_claims::TokenClaims, rate_limit::LoginRateLimiter, utils::{get_connection, web_block_unpacked}, AppState
 };
 
 pub const MAX_TOKEN_AGE_MINUTES: i64 = 6;
@@ -111,6 +108,8 @@ pub async fn validate_password(
 pub async fn login(
     state: web::Data<AppState>,
     data: Json<LoginSchema>,
+    rate_limiter: web::Data<LoginRateLimiter>,
+    req: HttpRequest,
 ) -> Result<impl Responder, actix_web::Error> {
     let conn = match state.pool.get() {
         Ok(conn) => conn,
@@ -118,6 +117,8 @@ pub async fn login(
     };
 
     let email = data.email.to_lowercase();
+    rate_limiter.check(email.clone(), &req)?;
+
     let uuid = validate_password(&data.login_key, FindBy::Email(email), conn).await?;
 
     let now = Utc::now();
@@ -245,6 +246,7 @@ pub(crate) mod tests {
         let req = test::TestRequest::post()
             .uri("/login")
             .insert_header(ContentType::json())
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
             .set_json(login_schema)
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -294,6 +296,7 @@ pub(crate) mod tests {
         let req = test::TestRequest::post()
             .uri("/login")
             .insert_header(ContentType::json())
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
             .set_json(login_schema)
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -329,6 +332,7 @@ pub(crate) mod tests {
         let req = test::TestRequest::post()
             .uri("/login")
             .insert_header(ContentType::json())
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
             .set_json(login_schema)
             .to_request();
         let resp = test::call_service(&app, req).await;
