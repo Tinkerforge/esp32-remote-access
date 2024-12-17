@@ -84,11 +84,10 @@ async fn update_configured_users(
     data: &ManagementDataVersion
 ) -> actix_web::Result<Vec<u32>> {
     let configured_users = if let ManagementDataVersion::V2(data) = data {
-
         // Get uuids of configured users on wallbox
         let mut configured_users: Vec<uuid::Uuid> = Vec::new();
         for user in data.configured_users.iter() {
-            match get_user_id(&state, FindBy::Email(user.email.to_string())).await {
+            match get_user_id(&state, FindBy::Email(user.email.to_string().to_lowercase())).await {
                 Ok(u) => {
                     use db_connector::schema::allowed_users::dsl as allowed_users;
 
