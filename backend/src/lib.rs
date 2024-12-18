@@ -27,7 +27,10 @@ use std::{
 use actix::prelude::*;
 pub use boringtun::*;
 use chrono::{TimeDelta, Utc};
-use db_connector::{models::{allowed_users::AllowedUser, chargers::Charger, verification::Verification}, Pool};
+use db_connector::{
+    models::{allowed_users::AllowedUser, chargers::Charger, verification::Verification},
+    Pool,
+};
 use diesel::{prelude::*, r2d2::PooledConnection, result::Error::NotFound};
 use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
@@ -40,11 +43,11 @@ use ws_udp_bridge::Message;
 pub mod error;
 pub mod middleware;
 pub mod models;
+pub mod rate_limit;
 pub mod routes;
 pub mod udp_server;
 pub mod utils;
 pub mod ws_udp_bridge;
-pub mod rate_limit;
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct DiscoveryCharger {
@@ -69,7 +72,8 @@ pub struct BridgeState {
     pub web_client_map: Mutex<HashMap<SocketAddr, Recipient<Message>>>,
     pub undiscovered_clients: Mutex<HashMap<RemoteConnMeta, Recipient<Message>>>,
     pub charger_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
-    pub charger_management_map_with_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket>>>>>,
+    pub charger_management_map_with_id:
+        Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket>>>>>,
     pub port_discovery: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
@@ -84,7 +88,9 @@ pub struct AppState {
     pub frontend_url: String,
 }
 
-pub fn clean_recovery_tokens(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
+pub fn clean_recovery_tokens(
+    conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>,
+) {
     use db_connector::schema::recovery_tokens::dsl::*;
 
     if let Some(time) = Utc::now().checked_sub_signed(TimeDelta::hours(1)) {
@@ -94,7 +100,9 @@ pub fn clean_recovery_tokens(conn: &mut PooledConnection<diesel::r2d2::Connectio
     }
 }
 
-pub fn clean_refresh_tokens(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
+pub fn clean_refresh_tokens(
+    conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>,
+) {
     use db_connector::schema::refresh_tokens::dsl::*;
 
     diesel::delete(refresh_tokens.filter(expiration.lt(Utc::now().timestamp())))
@@ -102,7 +110,9 @@ pub fn clean_refresh_tokens(conn: &mut PooledConnection<diesel::r2d2::Connection
         .ok();
 }
 
-pub fn clean_verification_tokens(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
+pub fn clean_verification_tokens(
+    conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>,
+) {
     let awaiting_verification: Vec<uuid::Uuid> = {
         use db_connector::schema::verification::dsl::*;
 
@@ -110,10 +120,7 @@ pub fn clean_verification_tokens(conn: &mut PooledConnection<diesel::r2d2::Conne
             .execute(conn)
             .ok();
 
-        match verification
-            .select(Verification::as_select())
-            .load(conn)
-        {
+        match verification.select(Verification::as_select()).load(conn) {
             Ok(v) => v.into_iter().map(|v| v.user).collect(),
             Err(NotFound) => Vec::new(),
             Err(err) => {
@@ -125,29 +132,30 @@ pub fn clean_verification_tokens(conn: &mut PooledConnection<diesel::r2d2::Conne
     {
         use db_connector::schema::users::dsl::*;
 
-        let _ = diesel::delete(users.filter(id.ne_all(awaiting_verification)).filter(email_verified.eq(false)))
-            .execute(conn)
-            .or_else(|e| {
-                log::error!("Failed to delete unverified users: {}", e);
-                Ok::<usize, diesel::result::Error>(0)
-            });
+        let _ = diesel::delete(
+            users
+                .filter(id.ne_all(awaiting_verification))
+                .filter(email_verified.eq(false)),
+        )
+        .execute(conn)
+        .or_else(|e| {
+            log::error!("Failed to delete unverified users: {}", e);
+            Ok::<usize, diesel::result::Error>(0)
+        });
     }
 }
 
 // Remove chargers that dont have allowed users
 pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
-
     // Get all chargers in database
     let chargers: Vec<Charger> = {
         use db_connector::schema::chargers::dsl::*;
 
-        match chargers.select(Charger::as_select())
-            .load(conn)
-        {
+        match chargers.select(Charger::as_select()).load(conn) {
             Ok(c) => c,
             Err(err) => {
                 log::error!("Failed to get chargers for cleanup: {}", err);
-                return
+                return;
             }
         }
     };
@@ -169,7 +177,7 @@ pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManage
                             Ok::<usize, diesel::result::Error>(0)
                         });
                 }
-            },
+            }
             Err(err) => {
                 log::error!("Failed to get allowed user for charger cleanup: {}", err);
             }
@@ -188,10 +196,13 @@ pub(crate) mod tests {
         test,
         web::{self, ServiceConfig},
     };
+    use chrono::Utc;
+    use db_connector::{
+        models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken, users::User},
+        test_connection_pool,
+    };
     use ipnetwork::Ipv4Network;
     use lettre::transport::smtp::authentication::Credentials;
-    use chrono::Utc;
-    use db_connector::{models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken, users::User}, test_connection_pool};
     use lru::LruCache;
     use rand::RngCore;
     use rand_core::OsRng;
@@ -262,7 +273,8 @@ pub(crate) mod tests {
             socket: UdpSocket::bind(("0", 0)).unwrap(),
         };
 
-        let cache: web::Data<Mutex<LruCache<String, Vec<u8>>>>  = web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
+        let cache: web::Data<Mutex<LruCache<String, Vec<u8>>>> =
+            web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
 
         let state = web::Data::new(state);
         let bridge_state = web::Data::new(bridge_state);
@@ -287,25 +299,39 @@ pub(crate) mod tests {
         let token1 = RecoveryToken {
             id: token1_id,
             user_id: uid,
-            created: Utc::now().checked_sub_signed(TimeDelta::hours(1)).unwrap().timestamp() + 1,
+            created: Utc::now()
+                .checked_sub_signed(TimeDelta::hours(1))
+                .unwrap()
+                .timestamp()
+                + 1,
         };
         let token2 = RecoveryToken {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
-            created: Utc::now().checked_sub_signed(TimeDelta::hours(1)).unwrap().timestamp() - 1,
+            created: Utc::now()
+                .checked_sub_signed(TimeDelta::hours(1))
+                .unwrap()
+                .timestamp()
+                - 1,
         };
         let token3 = RecoveryToken {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
-            created: Utc::now().checked_sub_signed(TimeDelta::hours(2)).unwrap().timestamp(),
+            created: Utc::now()
+                .checked_sub_signed(TimeDelta::hours(2))
+                .unwrap()
+                .timestamp(),
         };
 
-        diesel::insert_into(recovery_tokens).values(vec![&token1, &token2, &token3])
-            .execute(&mut conn).unwrap();
+        diesel::insert_into(recovery_tokens)
+            .values(vec![&token1, &token2, &token3])
+            .execute(&mut conn)
+            .unwrap();
 
         clean_recovery_tokens(&mut conn);
 
-        let tokens: Vec<RecoveryToken> = recovery_tokens.filter(user_id.eq(uid))
+        let tokens: Vec<RecoveryToken> = recovery_tokens
+            .filter(user_id.eq(uid))
             .select(RecoveryToken::as_select())
             .load(&mut conn)
             .unwrap();
@@ -313,7 +339,9 @@ pub(crate) mod tests {
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0].id, token1_id);
 
-        diesel::delete(recovery_tokens.filter(user_id.eq(uid))).execute(&mut conn).unwrap();
+        diesel::delete(recovery_tokens.filter(user_id.eq(uid)))
+            .execute(&mut conn)
+            .unwrap();
     }
 
     #[actix_web::test]
@@ -338,12 +366,15 @@ pub(crate) mod tests {
             expiration: Utc::now().timestamp() - 1,
         };
 
-        diesel::insert_into(refresh_tokens).values(vec![&token1, &token2])
-            .execute(&mut conn).unwrap();
+        diesel::insert_into(refresh_tokens)
+            .values(vec![&token1, &token2])
+            .execute(&mut conn)
+            .unwrap();
 
         clean_refresh_tokens(&mut conn);
 
-        let tokens: Vec<RefreshToken> = refresh_tokens.filter(user_id.eq(uid))
+        let tokens: Vec<RefreshToken> = refresh_tokens
+            .filter(user_id.eq(uid))
             .select(RefreshToken::as_select())
             .load(&mut conn)
             .unwrap();
@@ -351,7 +382,9 @@ pub(crate) mod tests {
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0].id, token1_id);
 
-        diesel::delete(refresh_tokens.filter(user_id.eq(uid))).execute(&mut conn).unwrap();
+        diesel::delete(refresh_tokens.filter(user_id.eq(uid)))
+            .execute(&mut conn)
+            .unwrap();
     }
 
     #[actix_web::test]
@@ -399,14 +432,20 @@ pub(crate) mod tests {
         let verify = Verification {
             id: verify_id,
             user: user_id,
-            expiration: Utc::now().checked_sub_signed(TimeDelta::seconds(1)).unwrap().naive_utc(),
+            expiration: Utc::now()
+                .checked_sub_signed(TimeDelta::seconds(1))
+                .unwrap()
+                .naive_utc(),
         };
 
         let verify2_id = uuid::Uuid::new_v4();
         let verify2 = Verification {
             id: verify2_id,
             user: user2_id,
-            expiration: Utc::now().checked_add_signed(TimeDelta::seconds(1)).unwrap().naive_local(),
+            expiration: Utc::now()
+                .checked_add_signed(TimeDelta::seconds(1))
+                .unwrap()
+                .naive_local(),
         };
 
         let pool = test_connection_pool();
@@ -414,14 +453,16 @@ pub(crate) mod tests {
         {
             use db_connector::schema::users::dsl::*;
 
-            diesel::insert_into(users).values(vec![&user, &user2, &user3])
+            diesel::insert_into(users)
+                .values(vec![&user, &user2, &user3])
                 .execute(&mut conn)
                 .unwrap();
         }
         {
             use db_connector::schema::verification::dsl::*;
 
-            diesel::insert_into(verification).values(vec![&verify, &verify2])
+            diesel::insert_into(verification)
+                .values(vec![&verify, &verify2])
                 .execute(&mut conn)
                 .unwrap();
         }
@@ -482,11 +523,15 @@ pub(crate) mod tests {
             name: None,
             management_private: String::new(),
             charger_pub: String::new(),
-            wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(123, 123, 123, 123), 24).unwrap()),
+            wg_charger_ip: IpNetwork::V4(
+                Ipv4Network::new(Ipv4Addr::new(123, 123, 123, 123), 24).unwrap(),
+            ),
             psk: String::new(),
-            wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(123, 123, 123, 123), 24).unwrap()),
+            wg_server_ip: IpNetwork::V4(
+                Ipv4Network::new(Ipv4Addr::new(123, 123, 123, 123), 24).unwrap(),
+            ),
             webinterface_port: 80,
-            firmware_version: "2.6.6".to_string()
+            firmware_version: "2.6.6".to_string(),
         };
 
         let pool = test_connection_pool();
@@ -506,7 +551,8 @@ pub(crate) mod tests {
         let chargers: Vec<Charger> = {
             use db_connector::schema::chargers::dsl::*;
 
-            chargers.filter(id.eq_any(vec![&charger_id, &charger2.id]))
+            chargers
+                .filter(id.eq_any(vec![&charger_id, &charger2.id]))
                 .select(Charger::as_select())
                 .load(&mut conn)
                 .unwrap()

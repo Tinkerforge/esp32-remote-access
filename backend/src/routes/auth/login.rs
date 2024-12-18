@@ -32,7 +32,11 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
-    error::Error, models::token_claims::TokenClaims, rate_limit::LoginRateLimiter, utils::{get_connection, web_block_unpacked}, AppState
+    error::Error,
+    models::token_claims::TokenClaims,
+    rate_limit::LoginRateLimiter,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
 };
 
 pub const MAX_TOKEN_AGE_MINUTES: i64 = 6;
@@ -123,10 +127,12 @@ pub async fn login(
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = if let Some(exp) = now.checked_add_signed(TimeDelta::minutes(super::login::MAX_TOKEN_AGE_MINUTES)) {
+    let exp = if let Some(exp) =
+        now.checked_add_signed(TimeDelta::minutes(super::login::MAX_TOKEN_AGE_MINUTES))
+    {
         exp.timestamp() as usize
     } else {
-        return Err(Error::InternalError.into())
+        return Err(Error::InternalError.into());
     };
     let claims = TokenClaims {
         iat,
@@ -171,10 +177,11 @@ pub async fn create_refresh_token(
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = if let Some(exp) = now.checked_add_days(Days::new(MAX_REFRESH_TOKEN_AGE_DAYS as u64)) {
+    let exp = if let Some(exp) = now.checked_add_days(Days::new(MAX_REFRESH_TOKEN_AGE_DAYS as u64))
+    {
         exp.timestamp() as usize
     } else {
-        return Err(Error::InternalError.into())
+        return Err(Error::InternalError.into());
     };
     let claims = TokenClaims {
         iat,

@@ -30,7 +30,10 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    error::Error, routes::{auth::login::FindBy, charger::add::get_charger_from_db, user::get_user_id}, utils::{get_charger_by_uid, get_connection, parse_uuid, web_block_unpacked}, AppState, BridgeState
+    error::Error,
+    routes::{auth::login::FindBy, charger::add::get_charger_from_db, user::get_user_id},
+    utils::{get_charger_by_uid, get_connection, parse_uuid, web_block_unpacked},
+    AppState, BridgeState,
 };
 
 use super::charger::add::password_matches;
@@ -75,13 +78,13 @@ pub struct ManagementDataVersion1 {
 pub struct ManagementResponseSchema {
     pub time: u64,
     pub configured_users: Vec<u32>,
-    pub uuid: Option<String>
+    pub uuid: Option<String>,
 }
 
 async fn update_configured_users(
     state: &web::Data<AppState>,
     charger_id: uuid::Uuid,
-    data: &ManagementDataVersion
+    data: &ManagementDataVersion,
 ) -> actix_web::Result<Vec<u32>> {
     let configured_users = if let ManagementDataVersion::V2(data) = data {
         // Get uuids of configured users on wallbox
@@ -94,9 +97,13 @@ async fn update_configured_users(
                     if let Some(name) = &user.name {
                         // Update name of charger for each user
                         let mut conn = get_connection(&state)?;
-                        match diesel::update(allowed_users::allowed_users.filter(allowed_users::user_id.eq(u)).filter(allowed_users::charger_id.eq(charger_id)))
-                            .set(allowed_users::name.eq(name))
-                            .execute(&mut conn)
+                        match diesel::update(
+                            allowed_users::allowed_users
+                                .filter(allowed_users::user_id.eq(u))
+                                .filter(allowed_users::charger_id.eq(charger_id)),
+                        )
+                        .set(allowed_users::name.eq(name))
+                        .execute(&mut conn)
                         {
                             Ok(_) => (),
                             Err(NotFound) => (),
@@ -104,10 +111,9 @@ async fn update_configured_users(
                         }
                     }
 
-
                     configured_users.push(u);
-                },
-                Err(_err) => continue
+                }
+                Err(_err) => continue,
             }
         }
 
@@ -128,32 +134,37 @@ async fn update_configured_users(
                 Err(_err) => return Err(Error::InternalError),
             };
 
-            match diesel::delete(allowed_users::allowed_users
-                .filter(allowed_users::charger_id.eq(&charger_id))
-                .filter(allowed_users::user_id.ne_all(configured_users_cpy))
-                )
-                .execute(&mut conn)
+            match diesel::delete(
+                allowed_users::allowed_users
+                    .filter(allowed_users::charger_id.eq(&charger_id))
+                    .filter(allowed_users::user_id.ne_all(configured_users_cpy)),
+            )
+            .execute(&mut conn)
             {
                 Ok(_) => Ok(users_to_delete),
                 Err(NotFound) => Ok(users_to_delete),
                 Err(_err) => Err(Error::InternalError),
             }
-        }).await?;
+        })
+        .await?;
 
         if deleted_users.len() > 0 {
             let mut conn = get_connection(&state)?;
             web_block_unpacked(move || {
                 use db_connector::schema::wg_keys::dsl as wg_keys;
 
-                match diesel::delete(wg_keys::wg_keys
-                    .filter(wg_keys::charger_id.eq(&charger_id))
-                    .filter(wg_keys::user_id.eq_any(deleted_users)))
-                    .execute(&mut conn)
+                match diesel::delete(
+                    wg_keys::wg_keys
+                        .filter(wg_keys::charger_id.eq(&charger_id))
+                        .filter(wg_keys::user_id.eq_any(deleted_users)),
+                )
+                .execute(&mut conn)
                 {
                     Ok(_) => Ok(()),
                     Err(_err) => Err(Error::InternalError),
                 }
-            }).await?;
+            })
+            .await?;
         }
 
         // Get uuid of configured users on the server
@@ -168,9 +179,10 @@ async fn update_configured_users(
             {
                 Ok(u) => Ok(u.into_iter().map(|u: AllowedUser| u.user_id).collect()),
                 Err(NotFound) => Ok(Vec::new()),
-                Err(_err) => Err(Error::InternalError)
+                Err(_err) => Err(Error::InternalError),
             }
-        }).await?;
+        })
+        .await?;
 
         // Resolve the E-Mail for each user
         let mut conn = get_connection(state)?;
@@ -186,7 +198,8 @@ async fn update_configured_users(
                 Err(NotFound) => Ok(Vec::new()),
                 Err(_err) => Err(Error::InternalError),
             }
-        }).await?;
+        })
+        .await?;
 
         let mut configured_users = Vec::new();
         for u in data.configured_users.iter() {
@@ -246,7 +259,7 @@ pub async fn management(
                 charger_id = parse_uuid(&data.id)?;
                 let charger = get_charger_from_db(charger_id, &state).await?;
                 if !password_matches(&data.password, &charger.password)? {
-                    return Err(Error::ChargerCredentialsWrong.into())
+                    return Err(Error::ChargerCredentialsWrong.into());
                 }
                 charger
             }
@@ -360,11 +373,17 @@ mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use base64::{prelude::BASE64_STANDARD, Engine};
-    use db_connector::{models::{allowed_users::AllowedUser, wg_keys::WgKey}, test_connection_pool};
+    use db_connector::{
+        models::{allowed_users::AllowedUser, wg_keys::WgKey},
+        test_connection_pool,
+    };
     use rand::distributions::{Alphanumeric, DistString};
 
     use crate::{
-        routes::{charger::allow_user::UserAuth, user::tests::{get_test_uuid, TestUser}},
+        routes::{
+            charger::allow_user::UserAuth,
+            user::tests::{get_test_uuid, TestUser},
+        },
         tests::configure,
     };
 
@@ -382,7 +401,10 @@ mod tests {
             password: charger.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}],
+            configured_users: vec![ConfiguredUser {
+                email: mail,
+                name: Some(String::new()),
+            }],
         });
 
         let body = ManagementSchema {
@@ -483,7 +505,10 @@ mod tests {
             password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}],
+            configured_users: vec![ConfiguredUser {
+                email: mail,
+                name: Some(String::new()),
+            }],
         });
         let body = ManagementSchema {
             id: None,
@@ -542,7 +567,12 @@ mod tests {
         let charger = user.add_random_charger().await;
         let (mut user2, mail2) = TestUser::random().await;
         user2.login().await;
-        user.allow_user(&mail2, UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)), &charger).await;
+        user.allow_user(
+            &mail2,
+            UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)),
+            &charger,
+        )
+        .await;
 
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
@@ -552,7 +582,10 @@ mod tests {
             password: charger.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}],
+            configured_users: vec![ConfiguredUser {
+                email: mail,
+                name: Some(String::new()),
+            }],
         });
 
         let body = ManagementSchema {
@@ -605,7 +638,12 @@ mod tests {
         let charger = user.add_random_charger().await;
         let (mut user2, mail2) = TestUser::random().await;
         user2.login().await;
-        user.allow_user(&mail2, UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)), &charger).await;
+        user.allow_user(
+            &mail2,
+            UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)),
+            &charger,
+        )
+        .await;
 
         {
             use db_connector::schema::allowed_users::dsl::*;
@@ -613,7 +651,9 @@ mod tests {
             let pool = test_connection_pool();
             let mut conn = pool.get().unwrap();
             let uuid = get_test_uuid(&mail2).unwrap();
-            diesel::delete(allowed_users.filter(user_id.eq(&uuid))).execute(&mut conn).unwrap();
+            diesel::delete(allowed_users.filter(user_id.eq(&uuid)))
+                .execute(&mut conn)
+                .unwrap();
         }
 
         let app = App::new().configure(configure).service(management);
@@ -624,7 +664,16 @@ mod tests {
             password: charger.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}, ConfiguredUser {email: mail2.clone(), name: Some(String::new())}],
+            configured_users: vec![
+                ConfiguredUser {
+                    email: mail,
+                    name: Some(String::new()),
+                },
+                ConfiguredUser {
+                    email: mail2.clone(),
+                    name: Some(String::new()),
+                },
+            ],
         });
 
         let body = ManagementSchema {
@@ -669,7 +718,12 @@ mod tests {
         let mail2 = {
             let (mut user2, mail2) = TestUser::random().await;
             user2.login().await;
-            user.allow_user(&mail2, UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)), &charger).await;
+            user.allow_user(
+                &mail2,
+                UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)),
+                &charger,
+            )
+            .await;
 
             mail2
         };
@@ -682,7 +736,16 @@ mod tests {
             password: charger.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
-            configured_users: vec![ConfiguredUser {email: mail, name: Some(String::new())}, ConfiguredUser {email: mail2.clone(), name: Some(String::new())}],
+            configured_users: vec![
+                ConfiguredUser {
+                    email: mail,
+                    name: Some(String::new()),
+                },
+                ConfiguredUser {
+                    email: mail2.clone(),
+                    name: Some(String::new()),
+                },
+            ],
         });
 
         let body = ManagementSchema {

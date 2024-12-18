@@ -17,12 +17,12 @@
  * Boston, MA 02111-1307, USA.
  */
 
+pub mod delete;
 pub mod get_secret;
 pub mod logout;
 pub mod me;
 pub mod update_password;
 pub mod update_user;
-pub mod delete;
 
 use crate::{
     error::Error,
@@ -150,7 +150,8 @@ pub mod tests {
             charger::{
                 add::tests::add_test_charger,
                 allow_user::{tests::add_allowed_test_user, UserAuth},
-                remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys}, tests::TestCharger,
+                remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
+                tests::TestCharger,
             },
         },
         tests::configure,
@@ -320,7 +321,12 @@ pub mod tests {
             charger
         }
 
-        pub async fn allow_user(&mut self, email: &str, user_auth: UserAuth, charger: &TestCharger) {
+        pub async fn allow_user(
+            &mut self,
+            email: &str,
+            user_auth: UserAuth,
+            charger: &TestCharger,
+        ) {
             add_allowed_test_user(email, user_auth, charger).await;
         }
 

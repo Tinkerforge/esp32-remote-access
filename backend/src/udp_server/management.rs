@@ -35,39 +35,44 @@ pub struct RemoteConnMeta {
 
 impl Serialize for RemoteConnMeta {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer {
-        let mut s =serializer.serialize_struct("RemoteConnMeta", 2)?;
+    where
+        S: serde::Serializer,
+    {
+        let mut s = serializer.serialize_struct("RemoteConnMeta", 2)?;
         s.serialize_field("charger_id", &self.charger_id.to_string())?;
         s.serialize_field("conn_no", &self.conn_no)?;
         s.end()
     }
 }
 
-fn process_old_packet(state: &web::Data<BridgeState>, data: &[u8]) -> anyhow::Result<ManagementResponseV2> {
-    let packet: OldManagementResponse = unsafe {
-        std::ptr::read(data.as_ptr() as *const _)
-    };
+fn process_old_packet(
+    state: &web::Data<BridgeState>,
+    data: &[u8],
+) -> anyhow::Result<ManagementResponseV2> {
+    let packet: OldManagementResponse = unsafe { std::ptr::read(data.as_ptr() as *const _) };
 
     let map = state.port_discovery.lock().unwrap();
     for (meta, _) in map.iter() {
-        if meta.connection_no == packet.connection_no && meta.connection_uuid == packet.connection_uuid {
-            return Ok(meta.clone())
+        if meta.connection_no == packet.connection_no
+            && meta.connection_uuid == packet.connection_uuid
+        {
+            return Ok(meta.clone());
         }
     }
 
     Err(Error::msg("Unknown connection"))
 }
 
-fn unpack_packet(state: &web::Data<BridgeState>, data: &[u8]) -> anyhow::Result<ManagementResponseV2> {
+fn unpack_packet(
+    state: &web::Data<BridgeState>,
+    data: &[u8],
+) -> anyhow::Result<ManagementResponseV2> {
     if data.len() == ::core::mem::size_of::<OldManagementResponse>() {
         process_old_packet(state, data)
     } else if data.len() == ::core::mem::size_of::<ManagementResponsePacket>() {
-        let packet: ManagementResponsePacket = unsafe {
-            std::ptr::read(data.as_ptr() as *const _)
-        };
+        let packet: ManagementResponsePacket = unsafe { std::ptr::read(data.as_ptr() as *const _) };
         if packet.header.magic != 0x1234 || packet.header.version != 1 {
-            return Err(Error::msg("Not a valid ManagementResponse packet"))
+            return Err(Error::msg("Not a valid ManagementResponse packet"));
         }
 
         Ok(packet.data)
@@ -76,7 +81,11 @@ fn unpack_packet(state: &web::Data<BridgeState>, data: &[u8]) -> anyhow::Result<
     }
 }
 
-pub fn try_port_discovery(state: &web::Data<BridgeState>, data: &[u8], addr: SocketAddr) -> anyhow::Result<()> {
+pub fn try_port_discovery(
+    state: &web::Data<BridgeState>,
+    data: &[u8],
+    addr: SocketAddr,
+) -> anyhow::Result<()> {
     let response = unpack_packet(state, data)?;
 
     {

@@ -78,21 +78,23 @@ pub async fn get_key(
 
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
-        let conns_in_use: Vec<WgKey> = match wg_keys.filter(charger_id.eq(&cid))
+        let conns_in_use: Vec<WgKey> = match wg_keys
+            .filter(charger_id.eq(&cid))
             .filter(in_use.eq(true))
             .select(WgKey::as_select())
             .load(&mut conn)
-            {
-                Ok(used) => used,
-                Err(NotFound) => return Ok(()),
-                Err(_err) => return Err(Error::InternalError)
-            };
+        {
+            Ok(used) => used,
+            Err(NotFound) => return Ok(()),
+            Err(_err) => return Err(Error::InternalError),
+        };
         if conns_in_use.len() >= 5 {
             Err(Error::AllKeysInUse)
         } else {
             Ok(())
         }
-    }).await?;
+    })
+    .await?;
 
     let mut conn = get_connection(&state)?;
     let key: Option<WgKey> = web_block_unpacked(move || {

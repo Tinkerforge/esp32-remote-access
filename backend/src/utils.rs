@@ -21,11 +21,13 @@ use std::str::FromStr;
 
 use actix_web::web;
 use db_connector::models::chargers::Charger;
+use diesel::prelude::*;
 use diesel::{
-    r2d2::{ConnectionManager, PooledConnection}, result::Error::NotFound, PgConnection
+    r2d2::{ConnectionManager, PooledConnection},
+    result::Error::NotFound,
+    PgConnection,
 };
 use rand::Rng;
-use diesel::prelude::*;
 
 use crate::{error::Error, routes::charger::add::password_matches, AppState};
 
@@ -70,30 +72,40 @@ pub fn parse_uuid(uuid: &str) -> actix_web::Result<uuid::Uuid> {
     }
 }
 
-pub async fn get_charger_by_uid(uid: i32, password: Option<String>, state: &web::Data<AppState>) -> actix_web::Result<Charger> {
+pub async fn get_charger_by_uid(
+    uid: i32,
+    password: Option<String>,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<Charger> {
     let password = if let Some(password) = password {
         password
     } else {
-        return Err(actix_web::error::ErrorBadRequest("Password is missing"))
+        return Err(actix_web::error::ErrorBadRequest("Password is missing"));
     };
 
     let mut conn = get_connection(state)?;
     let chargers: Vec<Charger> = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl as chargers;
 
-        match chargers::chargers.filter(chargers::uid.eq(uid)).select(Charger::as_select()).load(&mut conn) {
+        match chargers::chargers
+            .filter(chargers::uid.eq(uid))
+            .select(Charger::as_select())
+            .load(&mut conn)
+        {
             Ok(c) => Ok(c),
             Err(NotFound) => {
                 println!("C");
-                Err(Error::ChargerCredentialsWrong)},
+                Err(Error::ChargerCredentialsWrong)
+            }
             Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     for c in chargers.into_iter() {
         println!("D");
         if password_matches(&password, &c.password)? {
-            return Ok(c)
+            return Ok(c);
         }
     }
 

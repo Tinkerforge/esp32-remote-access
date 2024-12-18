@@ -34,7 +34,10 @@ pub struct DeleteChargerSchema {
     charger: String,
 }
 
-pub async fn delete_all_keys(cid: uuid::Uuid, state: &web::Data<AppState>) -> Result<(), actix_web::Error> {
+pub async fn delete_all_keys(
+    cid: uuid::Uuid,
+    state: &web::Data<AppState>,
+) -> Result<(), actix_web::Error> {
     use db_connector::schema::wg_keys::dsl::*;
 
     let mut conn = get_connection(state)?;
@@ -67,7 +70,10 @@ pub async fn delete_all_allowed_users(
     Ok(())
 }
 
-pub async fn delete_charger(charger: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+pub async fn delete_charger(
+    charger: uuid::Uuid,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<()> {
     use db_connector::schema::chargers::dsl::*;
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
@@ -100,37 +106,60 @@ async fn is_last_user(cid: uuid::Uuid, state: &web::Data<AppState>) -> actix_web
     let count: i64 = web_block_unpacked(move || {
         use db_connector::schema::allowed_users::dsl::*;
 
-        match allowed_users.filter(charger_id.eq(cid)).count().get_result(&mut conn) {
+        match allowed_users
+            .filter(charger_id.eq(cid))
+            .count()
+            .get_result(&mut conn)
+        {
             Ok(c) => Ok(c),
-            Err(_err) => Err(Error::InternalError)
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(count == 1)
 }
 
-async fn delete_keys_for_user(cid: uuid::Uuid, uid: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+async fn delete_keys_for_user(
+    cid: uuid::Uuid,
+    uid: uuid::Uuid,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<()> {
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         use db_connector::schema::wg_keys::dsl::*;
-        match diesel::delete(wg_keys.filter(user_id.eq(uid)).filter(charger_id.eq(cid))).execute(&mut conn) {
+        match diesel::delete(wg_keys.filter(user_id.eq(uid)).filter(charger_id.eq(cid)))
+            .execute(&mut conn)
+        {
             Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError)
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }
 
-async fn delete_allowed_user(cid: uuid::Uuid, uid: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+async fn delete_allowed_user(
+    cid: uuid::Uuid,
+    uid: uuid::Uuid,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<()> {
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         use db_connector::schema::allowed_users::dsl::*;
-        match diesel::delete(allowed_users.filter(user_id.eq(uid)).filter(charger_id.eq(cid))).execute(&mut conn) {
+        match diesel::delete(
+            allowed_users
+                .filter(user_id.eq(uid))
+                .filter(charger_id.eq(cid)),
+        )
+        .execute(&mut conn)
+        {
             Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError)
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }
@@ -153,7 +182,6 @@ pub async fn remove(
     data: web::Json<DeleteChargerSchema>,
     bridge_state: web::Data<BridgeState>,
 ) -> Result<impl Responder, actix_web::Error> {
-
     let charger_id = parse_uuid(&data.charger)?;
     if !user_is_allowed(&state, user_id.clone().into(), charger_id).await? {
         return Err(Error::Unauthorized.into());
@@ -166,7 +194,9 @@ pub async fn remove(
         let mut conn = get_connection(&state)?;
         web_block_unpacked(move || {
             use db_connector::schema::chargers::dsl as chargers;
-            match diesel::delete(chargers::chargers.filter(chargers::id.eq(charger_id))).execute(&mut conn) {
+            match diesel::delete(chargers::chargers.filter(chargers::id.eq(charger_id)))
+                .execute(&mut conn)
+            {
                 Ok(_) => Ok(()),
                 Err(_err) => Err(Error::InternalError),
             }
@@ -197,7 +227,10 @@ pub(crate) mod tests {
 
     use crate::{
         middleware::jwt::JwtMiddleware,
-        routes::{charger::allow_user::UserAuth, user::tests::{get_test_uuid, TestUser}},
+        routes::{
+            charger::allow_user::UserAuth,
+            user::tests::{get_test_uuid, TestUser},
+        },
         tests::configure,
     };
 
@@ -208,8 +241,7 @@ pub(crate) mod tests {
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
-        diesel::delete(wg_keys.filter(user_id.eq(uid)))
-            .execute(&mut conn)?;
+        diesel::delete(wg_keys.filter(user_id.eq(uid))).execute(&mut conn)?;
 
         Ok(())
     }
@@ -240,9 +272,11 @@ pub(crate) mod tests {
         {
             use db_connector::schema::allowed_users::dsl as allowed_users;
 
-            diesel::delete(allowed_users::allowed_users.filter(allowed_users::charger_id.eq(charger_id)))
-                .execute(&mut conn)
-                .unwrap();
+            diesel::delete(
+                allowed_users::allowed_users.filter(allowed_users::charger_id.eq(charger_id)),
+            )
+            .execute(&mut conn)
+            .unwrap();
         }
         {
             use db_connector::schema::chargers::dsl as chargers;
@@ -252,18 +286,32 @@ pub(crate) mod tests {
         }
     }
 
-    fn get_allowed_users_count(charger_id: uuid::Uuid, conn: &mut PooledConnection<ConnectionManager<PgConnection>>) -> i64 {
+    fn get_allowed_users_count(
+        charger_id: uuid::Uuid,
+        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    ) -> i64 {
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
-        let count: i64 = allowed_users::allowed_users.filter(allowed_users::charger_id.eq(charger_id)).count().get_result(conn).unwrap();
+        let count: i64 = allowed_users::allowed_users
+            .filter(allowed_users::charger_id.eq(charger_id))
+            .count()
+            .get_result(conn)
+            .unwrap();
 
         count
     }
 
-    fn get_wg_key_count(charger_id: uuid::Uuid, conn: &mut PooledConnection<ConnectionManager<PgConnection>>) -> i64 {
+    fn get_wg_key_count(
+        charger_id: uuid::Uuid,
+        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    ) -> i64 {
         use db_connector::schema::wg_keys::dsl as wg_keys;
 
-        let count: i64 = wg_keys::wg_keys.filter(wg_keys::charger_id.eq(charger_id)).count().get_result(conn).unwrap();
+        let count: i64 = wg_keys::wg_keys
+            .filter(wg_keys::charger_id.eq(charger_id))
+            .count()
+            .get_result(conn)
+            .unwrap();
 
         count
     }
@@ -319,10 +367,18 @@ pub(crate) mod tests {
         let (mut user2, _) = TestUser::random().await;
         let token = user2.login().await.to_owned();
         let charger = user2.add_random_charger().await;
-        user2.allow_user(&user1.mail, UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)), &charger).await;
+        user2
+            .allow_user(
+                &user1.mail,
+                UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)),
+                &charger,
+            )
+            .await;
 
         let charger_id = uuid::Uuid::from_str(&charger.uuid).unwrap();
-        let body = DeleteChargerSchema { charger: charger.uuid };
+        let body = DeleteChargerSchema {
+            charger: charger.uuid,
+        };
         let req = test::TestRequest::delete()
             .uri("/remove")
             .cookie(Cookie::new("access_token", token))
@@ -351,10 +407,18 @@ pub(crate) mod tests {
         let charger_uid = OsRng.next_u32() as i32;
         user2.login().await;
         let charger = user2.add_charger(charger_uid).await;
-        user2.allow_user(&email, UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)), &charger).await;
+        user2
+            .allow_user(
+                &email,
+                UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)),
+                &charger,
+            )
+            .await;
         let token = user1.login().await;
 
-        let body = DeleteChargerSchema { charger: charger.uuid.clone() };
+        let body = DeleteChargerSchema {
+            charger: charger.uuid.clone(),
+        };
         let req = test::TestRequest::delete()
             .uri("/remove")
             .set_json(body)
@@ -387,7 +451,9 @@ pub(crate) mod tests {
         let charger = user2.add_charger(charger_uid).await;
         let token = user1.login().await;
 
-        let body = DeleteChargerSchema { charger: charger.uuid };
+        let body = DeleteChargerSchema {
+            charger: charger.uuid,
+        };
         let req = test::TestRequest::delete()
             .uri("/remove")
             .set_json(body)

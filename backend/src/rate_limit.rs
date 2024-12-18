@@ -21,8 +21,11 @@ use std::num::NonZeroU32;
 
 use actix_governor::{KeyExtractor, SimpleKeyExtractionError};
 use actix_web::{http::StatusCode, HttpRequest, HttpResponse, ResponseError};
-use governor::{clock::{Clock, QuantaClock, QuantaInstant}, state::InMemoryState, NotUntil, Quota, RateLimiter};
-
+use governor::{
+    clock::{Clock, QuantaClock, QuantaInstant},
+    state::InMemoryState,
+    NotUntil, Quota, RateLimiter,
+};
 
 /**
  * The struct used to extract ip for ratelimiting
@@ -34,7 +37,10 @@ impl KeyExtractor for IPExtractor {
     type Key = String;
     type KeyExtractionError = SimpleKeyExtractionError<&'static str>;
 
-    fn extract(&self, req: &actix_web::dev::ServiceRequest) -> Result<Self::Key, Self::KeyExtractionError> {
+    fn extract(
+        &self,
+        req: &actix_web::dev::ServiceRequest,
+    ) -> Result<Self::Key, Self::KeyExtractionError> {
         let info = req.connection_info();
         if let Some(ip) = info.realip_remote_addr() {
             Ok(ip.to_string())
@@ -74,13 +80,21 @@ const REQUESTS_BURST: u32 = 25;
 
 // RateLimiter for the login route
 pub struct LoginRateLimiter {
-    rate_limiter: RateLimiter<LoginRateLimitKey, dashmap::DashMap<LoginRateLimitKey, InMemoryState>, QuantaClock, governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>>,
+    rate_limiter: RateLimiter<
+        LoginRateLimitKey,
+        dashmap::DashMap<LoginRateLimitKey, InMemoryState>,
+        QuantaClock,
+        governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
+    >,
 }
 
 impl LoginRateLimiter {
     pub fn new() -> Self {
         Self {
-            rate_limiter: RateLimiter::keyed(Quota::per_second(NonZeroU32::new(REQUESTS_PER_SECOND).unwrap()).allow_burst(NonZeroU32::new(REQUESTS_BURST).unwrap())),
+            rate_limiter: RateLimiter::keyed(
+                Quota::per_second(NonZeroU32::new(REQUESTS_PER_SECOND).unwrap())
+                    .allow_burst(NonZeroU32::new(REQUESTS_BURST).unwrap()),
+            ),
         }
     }
 
@@ -88,13 +102,10 @@ impl LoginRateLimiter {
         let ip = if let Some(ip) = req.connection_info().realip_remote_addr() {
             ip.to_string()
         } else {
-            return Err(crate::error::Error::InternalError.into())
+            return Err(crate::error::Error::InternalError.into());
         };
 
-        let key = LoginRateLimitKey {
-            user: email,
-            ip
-        };
+        let key = LoginRateLimitKey { user: email, ip };
         if let Err(err) = self.rate_limiter.check_key(&key) {
             log::warn!("RateLimiter triggered for {:?}", key);
             let now = self.rate_limiter.clock().now();
@@ -105,7 +116,6 @@ impl LoginRateLimiter {
         }
     }
 }
-
 
 #[derive(Debug)]
 struct RateLimitError {

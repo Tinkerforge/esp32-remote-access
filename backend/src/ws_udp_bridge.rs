@@ -341,7 +341,8 @@ async fn start_ws(
                 return Err(Error::InternalError);
             }
             Ok(())
-        }).await?;
+        })
+        .await?;
     }
 
     resp

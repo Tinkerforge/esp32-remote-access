@@ -150,27 +150,28 @@ pub async fn add(
     let charger_uid = i32::from_le_bytes(charger_id);
     let charger_id;
 
-    let (pub_key, password) = if let Some(cid) = get_charger_uuid(&state, charger_uid, user_id.clone().into()).await? {
-        charger_id = cid;
-        update_charger(
-            charger_schema.charger.clone(),
-            charger_id,
-            charger_uid,
-            user_id.clone().into(),
-            &state,
-        )
-        .await?
-    } else {
-        charger_id = uuid::Uuid::new_v4();
-        add_charger(
-            charger_schema.0.clone(),
-            charger_id,
-            charger_uid,
-            user_id.clone().into(),
-            &state,
-        )
-        .await?
-    };
+    let (pub_key, password) =
+        if let Some(cid) = get_charger_uuid(&state, charger_uid, user_id.clone().into()).await? {
+            charger_id = cid;
+            update_charger(
+                charger_schema.charger.clone(),
+                charger_id,
+                charger_uid,
+                user_id.clone().into(),
+                &state,
+            )
+            .await?
+        } else {
+            charger_id = uuid::Uuid::new_v4();
+            add_charger(
+                charger_schema.0.clone(),
+                charger_id,
+                charger_uid,
+                user_id.clone().into(),
+                &state,
+            )
+            .await?
+        };
 
     for keys in charger_schema.keys.iter() {
         add_wg_key(charger_id, user_id.clone().into(), keys.to_owned(), &state).await?;
@@ -437,9 +438,11 @@ pub(crate) mod tests {
     use crate::{
         middleware::jwt::JwtMiddleware,
         routes::{
-            charger::{allow_user::UserAuth, remove::tests::{
-                remove_allowed_test_users, remove_test_charger, remove_test_keys,
-            }, tests::TestCharger},
+            charger::{
+                allow_user::UserAuth,
+                remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
+                tests::TestCharger,
+            },
             user::tests::TestUser,
         },
         tests::configure,
@@ -632,7 +635,13 @@ pub(crate) mod tests {
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
         let charger = user2.add_random_charger().await;
-        user2.allow_user(&email, UserAuth::LoginKey(BASE64_STANDARD.encode(user.get_login_key().await)), &charger).await;
+        user2
+            .allow_user(
+                &email,
+                UserAuth::LoginKey(BASE64_STANDARD.encode(user.get_login_key().await)),
+                &charger,
+            )
+            .await;
 
         let app = App::new()
             .configure(configure)

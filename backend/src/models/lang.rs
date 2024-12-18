@@ -19,8 +19,8 @@
 
 use std::future::{ready, Ready};
 
- #[derive(Clone, Debug)]
- pub struct Lang(String);
+#[derive(Clone, Debug)]
+pub struct Lang(String);
 
 impl From<Lang> for String {
     fn from(value: Lang) -> Self {
@@ -36,7 +36,7 @@ impl actix_web::FromRequest for Lang {
         for (name, value) in req.headers().iter() {
             if name == "X-Lang" {
                 if let Ok(value) = value.to_str() {
-                    return ready(Ok(Lang(value.to_string())))
+                    return ready(Ok(Lang(value.to_string())));
                 }
                 break;
             }

@@ -33,7 +33,10 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
-    error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{get_connection, web_block_unpacked}, AppState
+    error::Error,
+    routes::auth::VERIFICATION_EXPIRATION_DAYS,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
 };
 
 #[derive(Template)]
@@ -141,8 +144,7 @@ fn send_verification_mail(
 pub async fn register(
     state: web::Data<AppState>,
     data: Json<RegisterSchema>,
-    #[cfg(not(test))]
-    lang: crate::models::lang::Lang,
+    #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> Result<impl Responder, actix_web::Error> {
     let mut conn = get_connection(&state)?;
 
@@ -185,15 +187,17 @@ pub async fn register(
 
     let mut conn = get_connection(&state)?;
 
-    let exp = if let Some(expiration) = chrono::Utc::now().checked_add_days(Days::new(VERIFICATION_EXPIRATION_DAYS)) {
+    let exp = if let Some(expiration) =
+        chrono::Utc::now().checked_add_days(Days::new(VERIFICATION_EXPIRATION_DAYS))
+    {
         expiration.naive_utc()
     } else {
-        return Err(Error::InternalError.into())
+        return Err(Error::InternalError.into());
     };
 
     let insert_result = match web::block(move || {
-        use db_connector::schema::verification::dsl::*;
         use db_connector::schema::users::dsl::*;
+        use db_connector::schema::verification::dsl::*;
 
         let verify = Verification {
             id: uuid::Uuid::new_v4(),
@@ -284,11 +288,11 @@ pub(crate) mod tests {
     }
 
     pub fn delete_user(mail: &str) {
+        use db_connector::schema::allowed_users::dsl as allowed_users;
         use db_connector::schema::refresh_tokens::dsl::*;
         use db_connector::schema::users::dsl::*;
         use db_connector::schema::verification::dsl::*;
         use db_connector::schema::wg_keys::dsl as wg_keys;
-        use db_connector::schema::allowed_users::dsl as allowed_users;
         use diesel::prelude::*;
 
         let pool = db_connector::test_connection_pool();

@@ -20,7 +20,11 @@
 mod monitoring;
 
 use std::{
-    collections::HashMap, net::UdpSocket, num::NonZeroUsize, sync::{Arc, Mutex}, time::Duration
+    collections::HashMap,
+    net::UdpSocket,
+    num::NonZeroUsize,
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use backend::utils::get_connection;
@@ -29,9 +33,9 @@ pub use backend::*;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
-use rate_limit::LoginRateLimiter;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use lru::LruCache;
+use rate_limit::LoginRateLimiter;
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use udp_server::packet::{
     ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
@@ -167,7 +171,8 @@ async fn main() -> std::io::Result<()> {
     udp_server::start_server(bridge_state.clone()).unwrap();
 
     // Cache for random salts of non existing users
-    let cache: web::Data<Mutex<LruCache<String, Vec<u8>>>>  = web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
+    let cache: web::Data<Mutex<LruCache<String, Vec<u8>>>> =
+        web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
 
     let login_ratelimiter = web::Data::new(LoginRateLimiter::new());
 

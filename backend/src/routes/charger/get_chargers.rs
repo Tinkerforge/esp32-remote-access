@@ -142,7 +142,11 @@ mod tests {
     use rand_core::OsRng;
 
     use super::*;
-    use crate::{middleware::jwt::JwtMiddleware, routes::{charger::allow_user::UserAuth, user::tests::TestUser}, tests::configure};
+    use crate::{
+        middleware::jwt::JwtMiddleware,
+        routes::{charger::allow_user::UserAuth, user::tests::TestUser},
+        tests::configure,
+    };
 
     /// Test if only the chargers the user has access to will be returned.
     #[actix_web::test]
@@ -154,7 +158,13 @@ mod tests {
         for _ in 0..5 {
             let _ = user1.add_random_charger().await;
             let charger = user2.add_random_charger().await;
-            user2.allow_user(&user1.mail, UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)), &charger).await;
+            user2
+                .allow_user(
+                    &user1.mail,
+                    UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)),
+                    &charger,
+                )
+                .await;
         }
         for _ in 0..5 {
             let uuid = OsRng.next_u32() as i32;

@@ -233,16 +233,23 @@ pub fn run_server(state: web::Data<BridgeState>, thread_pool: ThreadPool) {
                             v.insert(tunn_data.clone());
                             let tunn = tunn_data.clone();
                             let mut lost_map = state.lost_connections.lock().unwrap();
-                            let mut undiscovered_clients = state.undiscovered_clients.lock().unwrap();
+                            let mut undiscovered_clients =
+                                state.undiscovered_clients.lock().unwrap();
                             if let Some(conns) = lost_map.remove(&id) {
                                 for (conn_no, recipient) in conns.into_iter() {
                                     let meta = RemoteConnMeta {
                                         charger_id: id,
-                                        conn_no
+                                        conn_no,
                                     };
                                     undiscovered_clients.insert(meta, recipient);
 
-                                    open_connection(conn_no, id, tunn.clone(), state.port_discovery.clone()).ok();
+                                    open_connection(
+                                        conn_no,
+                                        id,
+                                        tunn.clone(),
+                                        state.port_discovery.clone(),
+                                    )
+                                    .ok();
                                 }
                             }
                             log::debug!("Adding management connection from {}", addr);

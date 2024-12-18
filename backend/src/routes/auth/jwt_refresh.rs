@@ -139,10 +139,12 @@ pub async fn jwt_refresh(
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = if let Some(exp) = now.checked_add_signed(TimeDelta::minutes(super::login::MAX_TOKEN_AGE_MINUTES)) {
+    let exp = if let Some(exp) =
+        now.checked_add_signed(TimeDelta::minutes(super::login::MAX_TOKEN_AGE_MINUTES))
+    {
         exp.timestamp() as usize
     } else {
-        return Err(Error::InternalError.into())
+        return Err(Error::InternalError.into());
     };
     let claims = TokenClaims {
         iat,

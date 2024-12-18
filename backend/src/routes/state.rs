@@ -82,7 +82,14 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
 
     let lost_connections: Vec<(String, Vec<i32>)> = {
         let map = brige_state.lost_connections.lock().unwrap();
-        map.iter().map(|(id, conns)| (id.to_string(), conns.into_iter().map(|(conn_no, _)| *conn_no).collect())).collect()
+        map.iter()
+            .map(|(id, conns)| {
+                (
+                    id.to_string(),
+                    conns.into_iter().map(|(conn_no, _)| *conn_no).collect(),
+                )
+            })
+            .collect()
     };
 
     let state = ServerState {

@@ -18,18 +18,21 @@ pub struct SelfdestructSchema {
     pub password: String,
 }
 
-async fn get_charger(schema: SelfdestructSchema, state: &web::Data<AppState>) -> actix_web::Result<Charger> {
+async fn get_charger(
+    schema: SelfdestructSchema,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<Charger> {
     if let Some(uuid) = schema.uuid {
         let charger_id = parse_uuid(&uuid)?;
         let charger = get_charger_from_db(charger_id, state).await?;
         if !password_matches(&schema.password, &charger.password)? {
-            return Err(Error::ChargerCredentialsWrong.into())
+            return Err(Error::ChargerCredentialsWrong.into());
         }
         Ok(charger)
     } else if let Some(uid) = schema.id {
         Ok(get_charger_by_uid(uid, Some(schema.password), state).await?)
     } else {
-        return Err(Error::ChargerCredentialsWrong.into())
+        return Err(Error::ChargerCredentialsWrong.into());
     }
 }
 

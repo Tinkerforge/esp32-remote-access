@@ -4,37 +4,61 @@ use diesel::{prelude::*, result::Error::NotFound};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, routes::{auth::login::{validate_password, FindBy}, charger::remove::{delete_all_allowed_users, delete_all_keys, delete_charger, remove_charger_from_state}, user::logout::delete_all_refresh_tokens}, utils::{get_connection, web_block_unpacked}, AppState, BridgeState};
+use crate::{
+    error::Error,
+    routes::{
+        auth::login::{validate_password, FindBy},
+        charger::remove::{
+            delete_all_allowed_users, delete_all_keys, delete_charger, remove_charger_from_state,
+        },
+        user::logout::delete_all_refresh_tokens,
+    },
+    utils::{get_connection, web_block_unpacked},
+    AppState, BridgeState,
+};
 
 #[derive(ToSchema, Serialize, Deserialize)]
 pub struct DeleteUserSchema {
     #[schema(value_type = Vec<u32>)]
-    pub login_key: Vec<u8>
+    pub login_key: Vec<u8>,
 }
 
-async fn get_all_chargers_for_user(user_id: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<Vec<Charger>> {
+async fn get_all_chargers_for_user(
+    user_id: uuid::Uuid,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<Vec<Charger>> {
     let mut conn = get_connection(state)?;
     let allowed_users: Vec<AllowedUser> = web_block_unpacked(move || {
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
-        match allowed_users::allowed_users.filter(allowed_users::user_id.eq(user_id)).select(AllowedUser::as_select()).load(&mut conn) {
+        match allowed_users::allowed_users
+            .filter(allowed_users::user_id.eq(user_id))
+            .select(AllowedUser::as_select())
+            .load(&mut conn)
+        {
             Ok(v) => Ok(v),
             Err(NotFound) => Ok(Vec::new()),
             Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     let charger_ids: Vec<uuid::Uuid> = allowed_users.into_iter().map(|u| u.charger_id).collect();
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
 
-        match chargers.filter(id.eq_any(charger_ids)).select(Charger::as_select()).load(&mut conn) {
+        match chargers
+            .filter(id.eq_any(charger_ids))
+            .select(Charger::as_select())
+            .load(&mut conn)
+        {
             Ok(v) => Ok(v),
             Err(NotFound) => Ok(Vec::new()),
             Err(_err) => Err(Error::InternalError),
         }
-    }).await
+    })
+    .await
 }
 
 #[utoipa::path(
@@ -47,7 +71,12 @@ async fn get_all_chargers_for_user(user_id: uuid::Uuid, state: &web::Data<AppSta
     )
 )]
 #[delete("/delete")]
-pub async fn delete_user(state: web::Data<AppState>, bridge_state: web::Data<BridgeState>, user_id: crate::models::uuid::Uuid, payload: web::Json<DeleteUserSchema>) -> actix_web::Result<impl Responder> {
+pub async fn delete_user(
+    state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState>,
+    user_id: crate::models::uuid::Uuid,
+    payload: web::Json<DeleteUserSchema>,
+) -> actix_web::Result<impl Responder> {
     let user_id = user_id.into();
 
     let conn = get_connection(&state)?;
@@ -72,9 +101,10 @@ pub async fn delete_user(state: web::Data<AppState>, bridge_state: web::Data<Bri
             Err(_err) => {
                 println!("err: {:?}", _err);
                 Err(Error::InternalError)
-            },
+            }
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(HttpResponse::Ok())
 }
@@ -84,13 +114,23 @@ mod tests {
     use std::str::FromStr;
 
     use actix_web::{cookie::Cookie, test, App};
-    use db_connector::{models::{allowed_users::AllowedUser, chargers::Charger, users::User, wg_keys::WgKey}, test_connection_pool};
+    use db_connector::{
+        models::{allowed_users::AllowedUser, chargers::Charger, users::User, wg_keys::WgKey},
+        test_connection_pool,
+    };
     use diesel::{prelude::*, result::Error::NotFound};
 
-    use crate::{middleware::jwt::JwtMiddleware, routes::{auth::get_login_salt::tests::get_test_login_salt, user::tests::{get_test_uuid, hash_test_key, TestUser}}, tests::configure, utils::generate_random_bytes};
+    use crate::{
+        middleware::jwt::JwtMiddleware,
+        routes::{
+            auth::get_login_salt::tests::get_test_login_salt,
+            user::tests::{get_test_uuid, hash_test_key, TestUser},
+        },
+        tests::configure,
+        utils::generate_random_bytes,
+    };
 
     use super::{delete_user, DeleteUserSchema};
-
 
     //TODO: add test for shared charger once it is merged
     #[actix_web::test]
@@ -112,9 +152,7 @@ mod tests {
 
         let login_salt = get_test_login_salt(&user1_mail).await;
         let login_key = hash_test_key(&user1.password, &login_salt, None);
-        let schema = DeleteUserSchema {
-            login_key
-        };
+        let schema = DeleteUserSchema { login_key };
         let req = test::TestRequest::delete()
             .uri("/delete")
             .cookie(Cookie::new("access_token", token))
@@ -130,10 +168,16 @@ mod tests {
         {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let res = allowed_users.filter(user_id.eq(uid1)).select(AllowedUser::as_select()).get_result(&mut conn);
+            let res = allowed_users
+                .filter(user_id.eq(uid1))
+                .select(AllowedUser::as_select())
+                .get_result(&mut conn);
             assert_eq!(res, Err(NotFound));
 
-            let res = allowed_users.filter(user_id.eq(uid2)).select(AllowedUser::as_select()).get_result(&mut conn);
+            let res = allowed_users
+                .filter(user_id.eq(uid2))
+                .select(AllowedUser::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
         }
         let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
@@ -141,29 +185,47 @@ mod tests {
         {
             use db_connector::schema::chargers::dsl::*;
 
-            let res = chargers.filter(id.eq(uuid)).select(Charger::as_select()).get_result(&mut conn);
+            let res = chargers
+                .filter(id.eq(uuid))
+                .select(Charger::as_select())
+                .get_result(&mut conn);
             assert_eq!(res, Err(NotFound));
 
-            let res = chargers.filter(id.eq(uuid2)).select(Charger::as_select()).get_result(&mut conn);
+            let res = chargers
+                .filter(id.eq(uuid2))
+                .select(Charger::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
         }
         {
             use db_connector::schema::wg_keys::dsl::*;
 
             let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
-            let res = wg_keys.filter(charger_id.eq(uuid)).select(WgKey::as_select()).get_result(&mut conn);
+            let res = wg_keys
+                .filter(charger_id.eq(uuid))
+                .select(WgKey::as_select())
+                .get_result(&mut conn);
             assert_eq!(res, Err(NotFound));
 
-            let res = wg_keys.filter(charger_id.eq(uuid2)).select(WgKey::as_select()).get_result(&mut conn);
+            let res = wg_keys
+                .filter(charger_id.eq(uuid2))
+                .select(WgKey::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
         }
         {
             use db_connector::schema::users::dsl::*;
 
-            let res = users.find(uid1).select(User::as_select()).get_result(&mut conn);
+            let res = users
+                .find(uid1)
+                .select(User::as_select())
+                .get_result(&mut conn);
             assert_eq!(res, Err(NotFound));
 
-            let res = users.find(uid2).select(User::as_select()).get_result(&mut conn);
+            let res = users
+                .find(uid2)
+                .select(User::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
         }
     }
@@ -186,7 +248,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let schema = DeleteUserSchema {
-            login_key: generate_random_bytes()
+            login_key: generate_random_bytes(),
         };
         let req = test::TestRequest::delete()
             .uri("/delete")
@@ -203,10 +265,16 @@ mod tests {
         {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let res = allowed_users.filter(user_id.eq(uid1)).select(AllowedUser::as_select()).get_result(&mut conn);
+            let res = allowed_users
+                .filter(user_id.eq(uid1))
+                .select(AllowedUser::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
 
-            let res = allowed_users.filter(user_id.eq(uid2)).select(AllowedUser::as_select()).get_result(&mut conn);
+            let res = allowed_users
+                .filter(user_id.eq(uid2))
+                .select(AllowedUser::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
         }
         let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
@@ -214,28 +282,46 @@ mod tests {
         {
             use db_connector::schema::chargers::dsl::*;
 
-            let res = chargers.filter(id.eq(uuid)).select(Charger::as_select()).get_result(&mut conn);
+            let res = chargers
+                .filter(id.eq(uuid))
+                .select(Charger::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
 
-            let res = chargers.filter(id.eq(uuid2)).select(Charger::as_select()).get_result(&mut conn);
+            let res = chargers
+                .filter(id.eq(uuid2))
+                .select(Charger::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
         }
         {
             use db_connector::schema::wg_keys::dsl::*;
 
-            let res = wg_keys.filter(charger_id.eq(uuid)).select(WgKey::as_select()).get_result(&mut conn);
+            let res = wg_keys
+                .filter(charger_id.eq(uuid))
+                .select(WgKey::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
 
-            let res = wg_keys.filter(charger_id.eq(uuid2)).select(WgKey::as_select()).get_result(&mut conn);
+            let res = wg_keys
+                .filter(charger_id.eq(uuid2))
+                .select(WgKey::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
         }
         {
             use db_connector::schema::users::dsl::*;
 
-            let res = users.find(uid1).select(User::as_select()).get_result(&mut conn);
+            let res = users
+                .find(uid1)
+                .select(User::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
 
-            let res = users.find(uid2).select(User::as_select()).get_result(&mut conn);
+            let res = users
+                .find(uid2)
+                .select(User::as_select())
+                .get_result(&mut conn);
             assert!(res.is_ok());
         }
     }

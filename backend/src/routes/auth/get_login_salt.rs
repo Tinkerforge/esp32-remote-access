@@ -8,7 +8,10 @@ use serde::Deserialize;
 use utoipa::IntoParams;
 
 use crate::{
-    error::Error, rate_limit::LoginRateLimiter, utils::{generate_random_bytes, get_connection, web_block_unpacked}, AppState
+    error::Error,
+    rate_limit::LoginRateLimiter,
+    utils::{generate_random_bytes, get_connection, web_block_unpacked},
+    AppState,
 };
 
 #[derive(Deserialize, IntoParams)]
@@ -48,7 +51,11 @@ pub async fn get_login_salt(
             .get_result(&mut conn)
         {
             Ok(user) => Ok(user.login_salt),
-            Err(NotFound) => Ok(cache.lock().unwrap().get_or_insert(mail, || generate_random_bytes()).to_vec()),
+            Err(NotFound) => Ok(cache
+                .lock()
+                .unwrap()
+                .get_or_insert(mail, || generate_random_bytes())
+                .to_vec()),
             Err(_err) => Err(Error::InternalError),
         }
     })
@@ -145,5 +152,4 @@ pub mod tests {
         let second_salt: Vec<u8> = test::read_body_json(resp).await;
         assert_ne!(second_salt, first_salt);
     }
-
 }

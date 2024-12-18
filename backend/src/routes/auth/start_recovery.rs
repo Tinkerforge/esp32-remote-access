@@ -103,8 +103,7 @@ fn send_email(
 pub async fn start_recovery(
     query: web::Query<StartRecoveryQuery>,
     state: web::Data<AppState>,
-    #[cfg(not(test))]
-    lang: crate::models::lang::Lang,
+    #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> actix_web::Result<impl Responder> {
     let user_id = get_user_id(
         &state,

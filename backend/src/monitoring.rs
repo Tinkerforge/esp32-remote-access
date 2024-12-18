@@ -1,11 +1,14 @@
 use std::time::Duration;
 
-use askama::Template;
-use diesel::prelude::*;
 use actix_web::web;
 use anyhow::Error;
+use askama::Template;
 use backend::{utils::get_connection, AppState};
-use diesel::{r2d2::{ConnectionManager, PooledConnection}, PgConnection, QueryDsl};
+use diesel::prelude::*;
+use diesel::{
+    r2d2::{ConnectionManager, PooledConnection},
+    PgConnection, QueryDsl,
+};
 use lettre::{message::header::ContentType, Message, Transport};
 
 #[derive(Template)]
@@ -16,9 +19,11 @@ struct MonitoringMail<'a> {
     server_name: &'a str,
 }
 
-fn get_numbers(mut conn: PooledConnection<ConnectionManager<PgConnection>>) -> Result<(i64, i64), Error> {
-    use db_connector::schema::users::dsl::*;
+fn get_numbers(
+    mut conn: PooledConnection<ConnectionManager<PgConnection>>,
+) -> Result<(i64, i64), Error> {
     use db_connector::schema::chargers::dsl::*;
+    use db_connector::schema::users::dsl::*;
 
     let num_users: i64 = users.count().get_result(&mut conn)?;
     let num_chargers: i64 = chargers.count().get_result(&mut conn)?;
@@ -55,22 +60,20 @@ pub fn start_monitoring(state: web::Data<AppState>) {
         return;
     }
 
-    std::thread::spawn(move || {
-        loop {
-            if let Ok(conn) = get_connection(&state) {
-                let (num_users, num_chargers) = match get_numbers(conn) {
-                    Ok(v) => v,
-                    Err(_err) => {
-                        continue;
-                    }
-                };
-                match send_mail(&state, num_users, num_chargers) {
-                    Ok(()) => (),
-                    Err(err) => log::error!("Failed to send monitoring mail: {}", err)
+    std::thread::spawn(move || loop {
+        if let Ok(conn) = get_connection(&state) {
+            let (num_users, num_chargers) = match get_numbers(conn) {
+                Ok(v) => v,
+                Err(_err) => {
+                    continue;
                 }
+            };
+            match send_mail(&state, num_users, num_chargers) {
+                Ok(()) => (),
+                Err(err) => log::error!("Failed to send monitoring mail: {}", err),
             }
-
-            std::thread::sleep(Duration::from_secs(60 * 60 * 24));
         }
+
+        std::thread::sleep(Duration::from_secs(60 * 60 * 24));
     });
 }
