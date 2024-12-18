@@ -308,14 +308,14 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
                 </td>
                 <td class="align-middle">
                     <Row>
+                        <Col className="d-flex align-items-center p-0">
+                            {charger.note}
+                        </Col>
                         <Col className="p-0" sm="auto">
                             <Button style="background-color:transparent;border:none;"
                                     onClick={() => this.setState({showEditNoteModal: true, editNote: charger.note, editChargerIdx: index})}>
                                 <Edit color="#333"/>
                             </Button>
-                        </Col>
-                        <Col sm="9" className="d-flex align-items-center p-0">
-                            {charger.note}
                         </Col>
                     </Row>
                 </td>
