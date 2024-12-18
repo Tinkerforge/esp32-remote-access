@@ -102,6 +102,7 @@ impl LoginRateLimiter {
         let ip = if let Some(ip) = req.connection_info().realip_remote_addr() {
             ip.to_string()
         } else {
+            println!("No ip found for route {}", req.path());
             return Err(crate::error::Error::InternalError.into());
         };
 

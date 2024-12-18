@@ -83,6 +83,7 @@ pub mod tests {
 
         let req = TestRequest::get()
             .uri(&format!("/get_login_salt?email={}", mail))
+            .append_header(("X-Forwarded-For", "123.123.123.2"))
             .to_request();
         let resp = test::call_and_read_body_json(&app, req).await;
 
@@ -101,6 +102,7 @@ pub mod tests {
 
         let req = test::TestRequest::get()
             .uri(&format!("/get_login_salt?email={}", mail))
+            .append_header(("X-Forwarded-For", "123.123.123.2"))
             .to_request();
         let resp = test::call_service(&app, req).await;
         println!("{}", resp.status());
@@ -128,6 +130,7 @@ pub mod tests {
 
         let req = test::TestRequest::get()
             .uri(&format!("/get_login_salt?email={}", mail))
+            .append_header(("X-Forwarded-For", "123.123.123.2"))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
@@ -137,6 +140,7 @@ pub mod tests {
 
         let req = test::TestRequest::get()
             .uri(&format!("/get_login_salt?email={}", mail))
+            .append_header(("X-Forwarded-For", "123.123.123.2"))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
@@ -146,6 +150,7 @@ pub mod tests {
         let mail = format!("{}@example.invalid", uuid::Uuid::new_v4().to_string());
         let req = test::TestRequest::get()
             .uri(&format!("/get_login_salt?email={}", mail))
+            .append_header(("X-Forwarded-For", "123.123.123.2"))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
