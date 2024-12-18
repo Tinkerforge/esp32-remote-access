@@ -179,7 +179,7 @@ pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManage
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{net::Ipv4Addr, str::FromStr};
+    use std::{net::Ipv4Addr, num::NonZeroUsize, str::FromStr};
 
     use super::*;
     use actix_web::{
@@ -192,6 +192,7 @@ pub(crate) mod tests {
     use lettre::transport::smtp::authentication::Credentials;
     use chrono::Utc;
     use db_connector::{models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken, users::User}, test_connection_pool};
+    use lru::LruCache;
     use rand::RngCore;
     use rand_core::OsRng;
     use rate_limit::LoginRateLimiter;
@@ -261,12 +262,15 @@ pub(crate) mod tests {
             socket: UdpSocket::bind(("0", 0)).unwrap(),
         };
 
+        let cache: web::Data<Mutex<LruCache<String, Vec<u8>>>>  = web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
+
         let state = web::Data::new(state);
         let bridge_state = web::Data::new(bridge_state);
         let login_rate_limiter = web::Data::new(LoginRateLimiter::new());
         cfg.app_data(login_rate_limiter);
         cfg.app_data(state);
         cfg.app_data(bridge_state);
+        cfg.app_data(cache);
     }
 
     #[actix_web::test]

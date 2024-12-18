@@ -1,12 +1,15 @@
+use std::sync::Mutex;
+
 use actix_web::{get, web, HttpResponse, Responder};
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound};
+use lru::LruCache;
 use serde::Deserialize;
 use utoipa::IntoParams;
 
 use crate::{
     error::Error,
-    utils::{get_connection, web_block_unpacked},
+    utils::{generate_random_bytes, get_connection, web_block_unpacked},
     AppState,
 };
 
@@ -30,24 +33,26 @@ pub struct GetSaltQuery {
 pub async fn get_login_salt(
     state: web::Data<AppState>,
     query: web::Query<GetSaltQuery>,
+    cache: web::Data<Mutex<LruCache<String, Vec<u8>>>>,
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::users::dsl::*;
 
+    let mail = query.email.to_lowercase();
     let mut conn = get_connection(&state)?;
-    let user: User = web_block_unpacked(move || {
+    let salt: Vec<u8> = web_block_unpacked(move || {
         match users
-            .filter(email.eq(&query.email.to_lowercase()))
+            .filter(email.eq(&mail))
             .select(User::as_select())
             .get_result(&mut conn)
         {
-            Ok(user) => Ok(user),
-            Err(NotFound) => Err(Error::UserDoesNotExist),
+            Ok(user) => Ok(user.login_salt),
+            Err(NotFound) => Ok(cache.lock().unwrap().get_or_insert(mail, || generate_random_bytes()).to_vec()),
             Err(_err) => Err(Error::InternalError),
         }
     })
     .await?;
 
-    Ok(HttpResponse::Ok().json(user.login_salt))
+    Ok(HttpResponse::Ok().json(salt))
 }
 
 #[cfg(test)]
@@ -104,4 +109,39 @@ pub mod tests {
         let resp: Vec<u8> = test::read_body_json(resp).await;
         assert_eq!(user.login_salt, resp);
     }
+
+    #[actix_web::test]
+    async fn test_nonexisting_user() {
+        let app = App::new().configure(configure).service(get_login_salt);
+        let app = test::init_service(app).await;
+
+        let mail = format!("{}@example.invalid", uuid::Uuid::new_v4().to_string());
+
+        let req = test::TestRequest::get()
+            .uri(&format!("/get_login_salt?email={}", mail))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        let first_salt: Vec<u8> = test::read_body_json(resp).await;
+        assert_eq!(first_salt.len(), 24);
+
+        let req = test::TestRequest::get()
+            .uri(&format!("/get_login_salt?email={}", mail))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+        let second_salt: Vec<u8> = test::read_body_json(resp).await;
+        assert_eq!(second_salt, first_salt);
+
+        let mail = format!("{}@example.invalid", uuid::Uuid::new_v4().to_string());
+        let req = test::TestRequest::get()
+            .uri(&format!("/get_login_salt?email={}", mail))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+        let second_salt: Vec<u8> = test::read_body_json(resp).await;
+        assert_ne!(second_salt, first_salt);
+    }
+
 }
