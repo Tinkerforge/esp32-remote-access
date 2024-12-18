@@ -183,6 +183,7 @@ pub async fn register(
         secret_nonce: data.secret_nonce.clone(),
         login_salt: data.login_salt.clone(),
         secret_salt: data.secret_salt.clone(),
+        delivery_email: Some(data.email.clone()),
     };
 
     let mut conn = get_connection(&state)?;
@@ -226,7 +227,7 @@ pub async fn register(
             send_verification_mail(
                 user_insert.name,
                 verify,
-                mail,
+                data.email.clone(),
                 state.mailer.clone(),
                 state.frontend_url.clone(),
                 lang.into(),

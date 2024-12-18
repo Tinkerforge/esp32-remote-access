@@ -137,10 +137,16 @@ pub async fn start_recovery(
 
     #[cfg(not(test))]
     std::thread::spawn(move || {
+        let email = if let Some(email) = user.delivery_email {
+            email
+        } else {
+            user.email
+        };
+
         send_email(
             user.name,
             token_id,
-            user.email,
+            email,
             state.mailer.clone(),
             state.frontend_url.clone(),
             lang.into(),

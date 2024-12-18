@@ -390,16 +390,18 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_clean_verification_tokens() {
         let user_id = uuid::Uuid::new_v4();
+        let email = format!("{}@invalid", user_id.to_string());
         let user = User {
             id: user_id,
             name: user_id.to_string(),
-            email: format!("{}@invalid", user_id.to_string()),
+            email: email.clone(),
             login_key: String::new(),
             email_verified: false,
             secret: Vec::new(),
             secret_nonce: Vec::new(),
             secret_salt: Vec::new(),
             login_salt: Vec::new(),
+            delivery_email: Some(email),
         };
 
         let user2_id = uuid::Uuid::new_v4();
@@ -413,6 +415,7 @@ pub(crate) mod tests {
             secret_nonce: Vec::new(),
             secret_salt: Vec::new(),
             login_salt: Vec::new(),
+            delivery_email: None,
         };
 
         let user3_id = uuid::Uuid::new_v4();
@@ -426,6 +429,7 @@ pub(crate) mod tests {
             secret_nonce: Vec::new(),
             secret_salt: Vec::new(),
             login_salt: Vec::new(),
+            delivery_email: None,
         };
 
         let verify_id = uuid::Uuid::new_v4();

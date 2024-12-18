@@ -13,4 +13,5 @@ pub struct User {
     pub secret_nonce: Vec<u8>,
     pub secret_salt: Vec<u8>,
     pub login_salt: Vec<u8>,
+    pub delivery_email: Option<String>,
 }

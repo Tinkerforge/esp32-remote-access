@@ -58,6 +58,7 @@ diesel::table! {
         secret_salt -> Bytea,
         #[sql_name = "login-salt"]
         login_salt -> Bytea,
+        delivery_email -> Nullable<Varchar>,
     }
 }
 
