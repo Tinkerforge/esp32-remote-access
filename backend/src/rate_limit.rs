@@ -60,6 +60,18 @@ pub struct LoginRateLimitKey {
     ip: String,
 }
 
+#[cfg(test)]
+const REQUESTS_PER_SECOND: u32 = 1;
+
+#[cfg(test)]
+const REQUESTS_BURST: u32 = 5;
+
+#[cfg(not(test))]
+const REQUESTS_PER_SECOND: u32 = 5;
+
+#[cfg(not(test))]
+const REQUESTS_BURST: u32 = 25;
+
 // RateLimiter for the login route
 pub struct LoginRateLimiter {
     rate_limiter: RateLimiter<LoginRateLimitKey, dashmap::DashMap<LoginRateLimitKey, InMemoryState>, QuantaClock, governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>>,
@@ -68,7 +80,7 @@ pub struct LoginRateLimiter {
 impl LoginRateLimiter {
     pub fn new() -> Self {
         Self {
-            rate_limiter: RateLimiter::keyed(Quota::per_second(NonZeroU32::new(1).unwrap()).allow_burst(NonZeroU32::new(5).unwrap())),
+            rate_limiter: RateLimiter::keyed(Quota::per_second(NonZeroU32::new(REQUESTS_PER_SECOND).unwrap()).allow_burst(NonZeroU32::new(REQUESTS_BURST).unwrap())),
         }
     }
 

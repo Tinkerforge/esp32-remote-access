@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use actix_web::{get, web, HttpResponse, Responder};
+use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound};
 use lru::LruCache;
@@ -8,9 +8,7 @@ use serde::Deserialize;
 use utoipa::IntoParams;
 
 use crate::{
-    error::Error,
-    utils::{generate_random_bytes, get_connection, web_block_unpacked},
-    AppState,
+    error::Error, rate_limit::LoginRateLimiter, utils::{generate_random_bytes, get_connection, web_block_unpacked}, AppState
 };
 
 #[derive(Deserialize, IntoParams)]
@@ -34,10 +32,14 @@ pub async fn get_login_salt(
     state: web::Data<AppState>,
     query: web::Query<GetSaltQuery>,
     cache: web::Data<Mutex<LruCache<String, Vec<u8>>>>,
+    rate_limiter: web::Data<LoginRateLimiter>,
+    req: HttpRequest,
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::users::dsl::*;
 
     let mail = query.email.to_lowercase();
+    rate_limiter.check(mail.clone(), &req)?;
+
     let mut conn = get_connection(&state)?;
     let salt: Vec<u8> = web_block_unpacked(move || {
         match users
