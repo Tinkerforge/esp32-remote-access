@@ -203,7 +203,7 @@ async fn update_configured_users(
 
         let mut configured_users = Vec::new();
         for u in data.configured_users.iter() {
-            if !server_users.contains(&u.email) {
+            if !server_users.contains(&u.email.to_lowercase()) {
                 configured_users.push(0);
             } else {
                 configured_users.push(1)
@@ -402,7 +402,7 @@ mod tests {
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
-                email: mail,
+                email: mail.to_uppercase(),
                 name: Some(String::new()),
             }],
         });
