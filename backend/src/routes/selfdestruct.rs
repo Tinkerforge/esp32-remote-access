@@ -1,4 +1,4 @@
-use actix_web::{delete, web, HttpResponse, Responder};
+use actix_web::{delete, web, HttpRequest, HttpResponse, Responder};
 use db_connector::models::chargers::Charger;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -6,6 +6,7 @@ use utoipa::ToSchema;
 
 use crate::{
     error::Error,
+    rate_limit::ChargerRateLimiter,
     routes::charger::add::{get_charger_from_db, password_matches},
     utils::{get_charger_by_uid, get_connection, parse_uuid, web_block_unpacked},
     AppState,
@@ -21,8 +22,11 @@ pub struct SelfdestructSchema {
 async fn get_charger(
     schema: SelfdestructSchema,
     state: &web::Data<AppState>,
+    rate_limiter: &web::Data<ChargerRateLimiter>,
+    req: &HttpRequest,
 ) -> actix_web::Result<Charger> {
     if let Some(uuid) = schema.uuid {
+        rate_limiter.check(uuid.clone(), req)?;
         let charger_id = parse_uuid(&uuid)?;
         let charger = get_charger_from_db(charger_id, state).await?;
         if !password_matches(&schema.password, &charger.password)? {
@@ -30,12 +34,14 @@ async fn get_charger(
         }
         Ok(charger)
     } else if let Some(uid) = schema.id {
+        rate_limiter.check(uid.to_string(), req)?;
         Ok(get_charger_by_uid(uid, Some(schema.password), state).await?)
     } else {
         return Err(Error::ChargerCredentialsWrong.into());
     }
 }
 
+// Chargers can delete themselves via this route
 #[utoipa::path(
     context_path = "/charger",
     request_body = SelfdestructSchema,
@@ -47,8 +53,11 @@ async fn get_charger(
 pub async fn selfdestruct(
     payload: web::Json<SelfdestructSchema>,
     state: web::Data<AppState>,
+    rate_limiter: web::Data<ChargerRateLimiter>,
+    req: HttpRequest,
 ) -> actix_web::Result<impl Responder> {
-    let charger = get_charger(payload.0, &state).await?;
+    // funtion does also the rate limiting
+    let charger = get_charger(payload.0, &state, &rate_limiter, &req).await?;
 
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
@@ -127,6 +136,7 @@ mod tests {
 
         let req = TestRequest::delete()
             .uri("/selfdestruct")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
             .set_json(schema)
             .to_request();
 
@@ -187,6 +197,7 @@ mod tests {
 
         let req = TestRequest::delete()
             .uri("/selfdestruct")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
             .set_json(schema)
             .to_request();
 

@@ -60,6 +60,17 @@ impl IPExtractor {
     }
 }
 
+fn ip_from_req(req: &HttpRequest) -> actix_web::Result<String> {
+    let ip = if let Some(ip) = req.connection_info().realip_remote_addr() {
+        ip.to_string()
+    } else {
+        println!("No ip found for route {}", req.path());
+        return Err(crate::error::Error::InternalError.into());
+    };
+
+    Ok(ip)
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct LoginRateLimitKey {
     user: String,
@@ -79,37 +90,69 @@ const REQUESTS_PER_SECOND: u32 = 5;
 const REQUESTS_BURST: u32 = 25;
 
 // RateLimiter for the login route
-pub struct LoginRateLimiter {
-    rate_limiter: RateLimiter<
+pub struct LoginRateLimiter(
+    RateLimiter<
         LoginRateLimitKey,
         dashmap::DashMap<LoginRateLimitKey, InMemoryState>,
         QuantaClock,
         governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
     >,
-}
+);
 
 impl LoginRateLimiter {
     pub fn new() -> Self {
-        Self {
-            rate_limiter: RateLimiter::keyed(
-                Quota::per_second(NonZeroU32::new(REQUESTS_PER_SECOND).unwrap())
-                    .allow_burst(NonZeroU32::new(REQUESTS_BURST).unwrap()),
-            ),
-        }
+        Self(RateLimiter::keyed(
+            Quota::per_second(NonZeroU32::new(REQUESTS_PER_SECOND).unwrap())
+                .allow_burst(NonZeroU32::new(REQUESTS_BURST).unwrap()),
+        ))
     }
 
     pub fn check(&self, email: String, req: &HttpRequest) -> actix_web::Result<()> {
-        let ip = if let Some(ip) = req.connection_info().realip_remote_addr() {
-            ip.to_string()
-        } else {
-            println!("No ip found for route {}", req.path());
-            return Err(crate::error::Error::InternalError.into());
-        };
+        let ip = ip_from_req(req)?;
 
         let key = LoginRateLimitKey { user: email, ip };
-        if let Err(err) = self.rate_limiter.check_key(&key) {
+        if let Err(err) = self.0.check_key(&key) {
             log::warn!("RateLimiter triggered for {:?}", key);
-            let now = self.rate_limiter.clock().now();
+            let now = self.0.clock().now();
+
+            Err(RateLimitError::new(err, now).into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ChargerRateLimitKey {
+    charger_id: String,
+    ip: String,
+}
+
+// Rate limiter for all routes that get called by chargers
+pub struct ChargerRateLimiter(
+    RateLimiter<
+        ChargerRateLimitKey,
+        dashmap::DashMap<ChargerRateLimitKey, InMemoryState>,
+        QuantaClock,
+        governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
+    >,
+);
+
+impl ChargerRateLimiter {
+    pub fn new() -> Self {
+        Self(RateLimiter::keyed(
+            Quota::per_second(NonZeroU32::new(REQUESTS_PER_SECOND).unwrap())
+                .allow_burst(NonZeroU32::new(REQUESTS_BURST).unwrap()),
+        ))
+    }
+
+    pub fn check(&self, charger_id: String, req: &HttpRequest) -> actix_web::Result<()> {
+        let ip = ip_from_req(req)?;
+
+        let key = ChargerRateLimitKey { charger_id, ip };
+        if let Err(err) = self.0.check_key(&key) {
+            log::warn!("RateLimiter triggered for {:?}", key);
+            let now = self.0.clock().now();
 
             Err(RateLimitError::new(err, now).into())
         } else {
@@ -155,6 +198,8 @@ impl ResponseError for RateLimitError {
 mod tests {
     use actix_web::test;
 
+    use crate::rate_limit::ChargerRateLimiter;
+
     use super::LoginRateLimiter;
 
     #[actix_web::test]
@@ -185,6 +230,45 @@ mod tests {
         assert!(ret.is_err());
 
         let email2 = "gf@edc.ba".to_string();
+        let ret = limiter.check(email2.clone(), &req);
+        assert!(ret.is_ok());
+
+        let req = test::TestRequest::get()
+            .uri("/login")
+            .insert_header(("X-Forwarded-For", "123.123.123.3"))
+            .to_http_request();
+        let ret = limiter.check(email.clone(), &req);
+        assert!(ret.is_ok());
+    }
+
+    #[actix_web::test]
+    async fn test_charger_rate_limiter() {
+        let limiter = ChargerRateLimiter::new();
+        let req = test::TestRequest::get()
+            .uri("/login")
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
+            .to_http_request();
+        let email = uuid::Uuid::new_v4().to_string();
+
+        let ret = limiter.check(email.clone(), &req);
+        assert!(ret.is_ok());
+
+        let ret = limiter.check(email.clone(), &req);
+        assert!(ret.is_ok());
+
+        let ret = limiter.check(email.clone(), &req);
+        assert!(ret.is_ok());
+
+        let ret = limiter.check(email.clone(), &req);
+        assert!(ret.is_ok());
+
+        let ret = limiter.check(email.clone(), &req);
+        assert!(ret.is_ok());
+
+        let ret = limiter.check(email.clone(), &req);
+        assert!(ret.is_err());
+
+        let email2 = uuid::Uuid::new_v4().to_string();
         let ret = limiter.check(email2.clone(), &req);
         assert!(ret.is_ok());
 

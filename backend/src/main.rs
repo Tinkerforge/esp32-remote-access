@@ -35,7 +35,7 @@ use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use lru::LruCache;
-use rate_limit::LoginRateLimiter;
+use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use udp_server::packet::{
     ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
@@ -175,6 +175,7 @@ async fn main() -> std::io::Result<()> {
         web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
 
     let login_ratelimiter = web::Data::new(LoginRateLimiter::new());
+    let charger_ratelimiter = web::Data::new(ChargerRateLimiter::new());
 
     HttpServer::new(move || {
         let cors = actix_cors::Cors::permissive();
@@ -184,6 +185,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(cache.clone())
             .app_data(state.clone())
             .app_data(login_ratelimiter.clone())
+            .app_data(charger_ratelimiter.clone())
             .app_data(bridge_state.clone())
             .configure(routes::configure)
     })

@@ -31,6 +31,7 @@ use utoipa::ToSchema;
 
 use crate::{
     error::Error,
+    rate_limit::ChargerRateLimiter,
     routes::{auth::login::FindBy, charger::add::get_charger_from_db, user::get_user_id},
     utils::{get_charger_by_uid, get_connection, parse_uuid, web_block_unpacked},
     AppState, BridgeState,
@@ -52,7 +53,7 @@ pub enum ManagementDataVersion {
     V2(ManagementDataVersion2),
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema, Debug)]
 pub struct ConfiguredUser {
     pub email: String,
     pub name: Option<String>,
@@ -233,6 +234,7 @@ pub async fn management(
     state: web::Data<AppState>,
     data: web::Json<ManagementSchema>,
     bridge_state: web::Data<BridgeState>,
+    rate_limiter: web::Data<ChargerRateLimiter>,
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::chargers::dsl as chargers;
 
@@ -248,6 +250,8 @@ pub async fn management(
     let charger_id;
     let mut output_uuid = None;
     let charger = if let Some(charger_uid) = data.id {
+        rate_limiter.check(charger_uid.to_string(), &req)?;
+
         let charger = get_charger_by_uid(charger_uid, data.password.clone(), &state).await?;
         charger_id = charger.id;
         output_uuid = Some(charger_id.to_string());
@@ -256,6 +260,8 @@ pub async fn management(
         match &data.data {
             ManagementDataVersion::V1(_) => return Err(Error::ChargerCredentialsWrong.into()),
             ManagementDataVersion::V2(data) => {
+                rate_limiter.check(data.id.clone(), &req)?;
+
                 charger_id = parse_uuid(&data.id)?;
                 let charger = get_charger_from_db(charger_id, &state).await?;
                 if !password_matches(&data.password, &charger.password)? {
@@ -415,7 +421,6 @@ mod tests {
         let req = test::TestRequest::put()
             .uri("/management")
             .append_header(("X-Forwarded-For", "123.123.123.3"))
-            .cookie(Cookie::new("X-Forwarded-For", "123.123.123.3"))
             .set_json(body)
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
@@ -447,7 +452,6 @@ mod tests {
         let req = test::TestRequest::put()
             .uri("/management")
             .append_header(("X-Forwarded-For", "123.123.123.3"))
-            .cookie(Cookie::new("X-Forwarded-For", "123.123.123.3"))
             .set_json(body)
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
@@ -482,7 +486,6 @@ mod tests {
         let req = test::TestRequest::put()
             .uri("/management")
             .append_header(("X-Forwarded-For", "123.123.123.3"))
-            .cookie(Cookie::new("X-Forwarded-For", "123.123.123.3"))
             .set_json(body)
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;

@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use actix_web::{error::ErrorBadRequest, put, web, HttpResponse, Responder};
+use actix_web::{error::ErrorBadRequest, put, web, HttpRequest, HttpResponse, Responder};
 use base64::Engine;
 use db_connector::models::{allowed_users::AllowedUser, wg_keys::WgKey};
 use diesel::prelude::*;
@@ -26,6 +26,7 @@ use utoipa::ToSchema;
 
 use crate::{
     error::Error,
+    rate_limit::ChargerRateLimiter,
     routes::{
         auth::login::{validate_password, FindBy},
         charger::add::get_charger_from_db,
@@ -124,7 +125,11 @@ async fn authenticate_user(
 pub async fn allow_user(
     state: web::Data<AppState>,
     allow_user: web::Json<AllowUserSchema>,
+    rate_limiter: web::Data<ChargerRateLimiter>,
+    req: HttpRequest,
 ) -> Result<impl Responder, actix_web::Error> {
+    rate_limiter.check(allow_user.charger_id.clone(), &req)?;
+
     let cid = parse_uuid(&allow_user.charger_id)?;
 
     let charger = get_charger_from_db(cid, &state).await?;
@@ -226,6 +231,7 @@ pub mod tests {
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
             .set_json(body)
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -257,6 +263,7 @@ pub mod tests {
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
             .set_json(allow)
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -287,6 +294,7 @@ pub mod tests {
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
             .set_json(allow)
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -316,6 +324,7 @@ pub mod tests {
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
             .set_json(allow)
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -344,6 +353,7 @@ pub mod tests {
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
             .set_json(allow)
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -361,6 +371,7 @@ pub mod tests {
         };
         let req = test::TestRequest::put()
             .uri("/allow_user")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
             .set_json(allow)
             .to_request();
         let resp = test::call_service(&app, req).await;
