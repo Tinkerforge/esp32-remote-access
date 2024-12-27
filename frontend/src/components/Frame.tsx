@@ -108,7 +108,7 @@ export class Frame extends Component {
                 const msg = JSON.stringify(e.data.msg);
                 const blob = new Blob([msg]);
                 const url = URL.createObjectURL(blob);
-                const filename = `mystaging_error_${Date.now()}.json`;
+                const filename = `warp_charger_error_${Date.now()}.json`;
                 if (Median.isNativeApp()) {
                     Median.share.downloadFile({url: url, filename: filename, open: true});
                 }
