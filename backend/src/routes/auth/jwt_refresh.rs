@@ -166,8 +166,8 @@ pub async fn jwt_refresh(
         .max_age(actix_web::cookie::time::Duration::minutes(
             super::login::MAX_TOKEN_AGE_MINUTES,
         ))
-        .http_only(false)
-        .same_site(actix_web::cookie::SameSite::None)
+        .http_only(true)
+        .same_site(actix_web::cookie::SameSite::Strict)
         .secure(true)
         .finish();
 
