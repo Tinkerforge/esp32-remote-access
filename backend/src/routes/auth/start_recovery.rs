@@ -107,7 +107,7 @@ pub async fn start_recovery(
 ) -> actix_web::Result<impl Responder> {
     let user_id = get_user_id(
         &state,
-        crate::routes::auth::login::FindBy::Email(query.email.clone()),
+        crate::routes::auth::login::FindBy::Email(query.email.to_lowercase()),
     )
     .await?;
 
