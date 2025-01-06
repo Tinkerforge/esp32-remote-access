@@ -24,6 +24,9 @@ pub struct GetSecretResponse {
     context_path = "/user",
     responses(
         (status = 200, body = GetSecretResponse),
+    ),
+    security(
+        ("jwt" = [])
     )
 )]
 #[get("/get_secret")]
