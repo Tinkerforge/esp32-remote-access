@@ -23,7 +23,6 @@ interface FrameState {
 export class Frame extends Component<FrameProps, FrameState> {
 
     worker: Worker;
-    show_spinner = signal(true);
     id: string;
     abort: AbortController;
     constructor() {
@@ -38,6 +37,10 @@ export class Frame extends Component<FrameProps, FrameState> {
                 this.worker.postMessage(msg);
             }
         });
+
+        this.state = {
+            show_spinner: true,
+        };
 
         this.startWorker();
 
@@ -61,7 +64,7 @@ export class Frame extends Component<FrameProps, FrameState> {
             this.worker = null;
             await refresh_access_token();
             this.startWorker();
-            this.show_spinner.value = true;
+            this.setState({show_spinner: true});
 
             const t = i18n.t;
             Median.sidebar.setItems({
@@ -194,7 +197,7 @@ export class Frame extends Component<FrameProps, FrameState> {
                     return;
 
                 case "webinterface_loaded":
-                    this.show_spinner.value = false;
+                    this.setState({show_spinner: false});
                     iframe.contentWindow.postMessage({
                         connection_id: this.id,
                     });
@@ -252,10 +255,10 @@ export class Frame extends Component<FrameProps, FrameState> {
     render() {
         return (
             <>
-                <Row hidden={!this.show_spinner.value} className="align-content-center justify-content-center m-0 h-100">
+                <Row hidden={!this.state.show_spinner} className="align-content-center justify-content-center m-0 h-100">
                     <Spinner className="p-3"animation='border' variant='primary'/>
                 </Row>
-                <iframe hidden={this.show_spinner.value} width="100%" height="100%" id="interface"></iframe>
+                <iframe hidden={this.state.show_spinner} width="100%" height="100%" id="interface"></iframe>
                 {/* <button onClick={() => {
                     this.worker.postMessage("download");
                 }}>Download Pcap log</button> */}
