@@ -271,6 +271,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/user/create_authorization_token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_authorization_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/user/delete": {
         parameters: {
             query?: never;
@@ -282,6 +298,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["delete_user"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/user/get_authorization_tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_authorization_tokens"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -404,6 +436,16 @@ export interface components {
         };
         /** @enum {string} */
         ChargerStatus: "Disconnected" | "Connected";
+        ConfiguredUser: {
+            email: string;
+            name?: string | null;
+        };
+        CreateAuthorizationTokenResponseSchema: {
+            token: string;
+        };
+        CreateAuthorizationTokenSchema: {
+            use_once: boolean;
+        };
         DeleteChargerSchema: {
             charger: string;
         };
@@ -414,6 +456,9 @@ export interface components {
             email: string;
             id: string;
             name: string;
+        };
+        GetAuthorizationTokensResponseSchema: {
+            tokens: components["schemas"]["StrippedToken"][];
         };
         GetChargerSchema: {
             id: string;
@@ -465,7 +510,7 @@ export interface components {
             port: number;
         };
         ManagementDataVersion2: {
-            configured_users: string[];
+            configured_users: components["schemas"]["ConfiguredUser"][];
             firmware_version: string;
             id: string;
             password: string;
@@ -516,12 +561,18 @@ export interface components {
             password: string;
             uuid?: string | null;
         };
+        StrippedToken: {
+            token: string;
+            use_once: boolean;
+        };
         UpdateNoteSchema: {
             charger_id: string;
             note: string;
         };
         UserAuth: {
             LoginKey: string;
+        } | {
+            AuthToken: string;
         };
     };
     responses: never;
@@ -987,6 +1038,29 @@ export interface operations {
             };
         };
     };
+    create_authorization_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAuthorizationTokenSchema"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAuthorizationTokenResponseSchema"];
+                };
+            };
+        };
+    };
     delete_user: {
         parameters: {
             query?: never;
@@ -1018,6 +1092,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_authorization_tokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetAuthorizationTokensResponseSchema"];
+                };
             };
         };
     };

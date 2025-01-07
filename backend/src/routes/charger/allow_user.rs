@@ -32,7 +32,7 @@ use crate::{
         charger::add::get_charger_from_db,
         user::get_user_id,
     },
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid, validate_auth_token, web_block_unpacked},
     AppState,
 };
 
@@ -41,6 +41,7 @@ use super::add::{password_matches, Keys};
 #[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub enum UserAuth {
     LoginKey(String),
+    AuthToken(String),
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema, Clone)]
@@ -107,6 +108,9 @@ async fn authenticate_user(
                 Err(_) => return Err(ErrorBadRequest("login_key is wrong base64")),
             };
             let _ = validate_password(&key, FindBy::Uuid(uid), conn).await?;
+        },
+        UserAuth::AuthToken(token) => {
+            validate_auth_token(token.to_owned(), uid, state).await?;
         }
     }
     Ok(())
@@ -255,6 +259,40 @@ pub mod tests {
         let allow = AllowUserSchema {
             charger_id: charger.uuid,
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
+            email: user2.mail.to_owned(),
+            charger_password: charger.password,
+            wg_keys: generate_random_keys(),
+            charger_name: String::new(),
+            note: String::new(),
+        };
+        let req = test::TestRequest::put()
+            .uri("/allow_user")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .set_json(allow)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert!(resp.status().is_success());
+    }
+
+    #[actix_web::test]
+    async fn test_allow_users_auth_token() {
+        let (mut user2, _) = TestUser::random().await;
+        let (mut user1, _) = TestUser::random().await;
+
+        let charger = OsRng.next_u32() as i32;
+        user1.login().await;
+        let charger = user1.add_charger(charger).await;
+
+        user2.login().await;
+        let auth_token = user2.create_authorization_token(true).await;
+
+        let app = App::new().configure(configure).service(allow_user);
+        let app = test::init_service(app).await;
+
+        let allow = AllowUserSchema {
+            charger_id: charger.uuid,
+            user_auth: UserAuth::AuthToken(auth_token),
             email: user2.mail.to_owned(),
             charger_password: charger.password,
             wg_keys: generate_random_keys(),

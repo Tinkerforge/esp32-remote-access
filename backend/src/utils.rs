@@ -20,6 +20,7 @@
 use std::str::FromStr;
 
 use actix_web::web;
+use db_connector::models::authorization_tokens::AuthorizationToken;
 use db_connector::models::chargers::Charger;
 use diesel::prelude::*;
 use diesel::{
@@ -111,4 +112,60 @@ pub async fn get_charger_by_uid(
 
     println!("E");
     Err(Error::ChargerCredentialsWrong.into())
+}
+
+pub async fn validate_auth_token(token: String, user_id: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<()> {
+    let mut conn = get_connection(state)?;
+    let token: AuthorizationToken = web_block_unpacked(move || {
+        use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
+
+        match authorization_tokens::authorization_tokens
+            .filter(authorization_tokens::user_id.eq(user_id))
+            .filter(authorization_tokens::token.eq(token))
+            .select(AuthorizationToken::as_select())
+            .get_result(&mut conn)
+        {
+            Ok(v) => Ok(v),
+            Err(NotFound) => Err(Error::Unauthorized),
+            Err(_err) => Err(Error::InternalError),
+        }
+    }).await?;
+
+    if token.use_once {
+        let mut conn = get_connection(state)?;
+
+        web_block_unpacked(move || {
+            use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
+
+            match diesel::delete(authorization_tokens::authorization_tokens
+                .filter(authorization_tokens::id.eq(token.id)))
+                .execute(&mut conn)
+            {
+                Ok(_) => Ok(()),
+                Err(_err) => Err(Error::InternalError),
+            }
+        }).await?;
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{routes::user::tests::{get_test_uuid, TestUser}, tests::create_test_state, utils::validate_auth_token};
+
+    #[actix_web::test]
+    async fn test_validate_auth_token() {
+        let (mut user, mail) = TestUser::random().await;
+        user.login().await;
+        let token = user.create_authorization_token(true).await;
+        let user_id = get_test_uuid(&mail).unwrap();
+        let state = create_test_state(None);
+        assert!(validate_auth_token(token.clone(), user_id, &state).await.is_ok());
+        assert!(validate_auth_token(token, user_id, &state).await.is_err());
+
+        let token = user.create_authorization_token(false).await;
+        assert!(validate_auth_token(token.clone(), user_id, &state).await.is_ok());
+        assert!(validate_auth_token(token, user_id, &state).await.is_ok());
+    }
 }

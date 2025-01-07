@@ -151,6 +151,8 @@ pub async fn add(
     let charger_id;
 
     let (pub_key, password) =
+        // Updating a charger here is safe since we already had this combination of user and charger
+        // and the user_id is not fakable except someone stole our signing key for jwt.
         if let Some(cid) = get_charger_uuid(&state, charger_uid, user_id.clone().into()).await? {
             charger_id = cid;
             update_charger(

@@ -201,6 +201,7 @@ pub(crate) mod tests {
         models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken, users::User},
         test_connection_pool,
     };
+    use diesel::r2d2::ConnectionManager;
     use ipnetwork::Ipv4Network;
     use lettre::transport::smtp::authentication::Credentials;
     use lru::LruCache;
@@ -242,8 +243,8 @@ pub(crate) mod tests {
         }
     }
 
-    pub fn configure(cfg: &mut ServiceConfig) {
-        let pool = db_connector::test_connection_pool();
+    pub fn create_test_state(pool: Option<diesel::r2d2::Pool<ConnectionManager<PgConnection>>>) -> web::Data<AppState> {
+        let pool = pool.unwrap_or_else(|| db_connector::test_connection_pool());
 
         let mail = std::env::var("MAIL_USER").expect("MAIL must be set");
         let pass = std::env::var("MAIL_PASS").expect("MAIL_PASS must be set");
@@ -260,8 +261,14 @@ pub(crate) mod tests {
             frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
         };
 
+        web::Data::new(state)
+    }
+
+    pub fn configure(cfg: &mut ServiceConfig) {
+        let pool = db_connector::test_connection_pool();
+
         let bridge_state = BridgeState {
-            pool,
+            pool: pool.clone(),
             charger_management_map: Arc::new(Mutex::new(HashMap::new())),
             charger_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
             port_discovery: Arc::new(Mutex::new(HashMap::new())),
@@ -276,7 +283,7 @@ pub(crate) mod tests {
         let cache: web::Data<Mutex<LruCache<String, Vec<u8>>>> =
             web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
 
-        let state = web::Data::new(state);
+        let state = create_test_state(Some(pool));
         let bridge_state = web::Data::new(bridge_state);
         let login_rate_limiter = web::Data::new(LoginRateLimiter::new());
         let charger_rate_limiter = web::Data::new(ChargerRateLimiter::new());

@@ -23,6 +23,8 @@ pub mod logout;
 pub mod me;
 pub mod update_password;
 pub mod update_user;
+pub mod create_authorization_token;
+pub mod get_authorization_tokens;
 
 use crate::{
     error::Error,
@@ -44,6 +46,8 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .service(get_secret::get_secret)
         .service(logout::logout)
         .service(delete::delete_user)
+        .service(create_authorization_token::create_authorization_token)
+        .service(get_authorization_tokens::get_authorization_tokens)
         .service(me::me);
     cfg.service(scope);
 }
@@ -156,6 +160,8 @@ pub mod tests {
         },
         tests::configure,
     };
+
+    use super::create_authorization_token::tests::create_test_auth_token;
 
     // Get the uuid for an test user.
     pub fn get_test_uuid(mail: &str) -> Result<uuid::Uuid, anyhow::Error> {
@@ -336,6 +342,10 @@ pub mod tests {
 
         pub fn get_refresh_token(&mut self) -> &str {
             self.refresh_token.as_ref().unwrap()
+        }
+
+        pub async fn create_authorization_token(&self, use_once: bool) -> String {
+            create_test_auth_token(self, use_once).await
         }
     }
 
