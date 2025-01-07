@@ -17,18 +17,38 @@
  * Boston, MA 02111-1307, USA.
  */
 
+import { useEffect, useState } from "preact/hooks";
 import { Frame } from "../components/Frame";
-import { connected, ChargerListComponent } from "../components/charger_list";
+import { ChargerListComponent } from "../components/charger_list";
+import { connected } from "../components/Navbar";
+
+export interface ChargersState {
+    connected: boolean;
+    connectedName: string;
+    connectedId: string;
+    connectedPort: number;
+}
 
 export function ChargerList() {
+    const [state, setState] = useState<ChargersState>({
+        connected: false,
+        connectedName: "",
+        connectedId: "",
+        connectedPort: 0,
+    })
 
-    if (!connected.value) {
+    useEffect(() => {
+        connected.value = state.connected;
+        document.title = state.connectedName == "" ?  "Remote Access" : state.connectedName;
+    }, [state])
+
+    if (!state.connected) {
         return <>
-            <ChargerListComponent />
+            <ChargerListComponent setParentState={setState} parentState={state} />
         </>
     } else {
         return <>
-            <Frame />
+            <Frame setParentState={setState} parentState={state} />
         </>
     }
 }

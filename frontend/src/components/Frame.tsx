@@ -1,19 +1,26 @@
 import { Component } from 'preact';
 import { signal } from '@preact/signals';
-import { ErrorMessage, Message, MessageType, SetupMessage } from '../types';
+import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
-import { connected, connected_to, secret } from './charger_list';
+import { secret } from './charger_list';
 import { setAppNavigation } from './Navbar';
 import { enableLogging, refresh_access_token } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
-import { showAlert } from './Alert';
+import { ChargersState } from '../pages/chargers';
+import { Dispatch, StateUpdater } from 'preact/hooks';
 
-export const chargerID = signal("");
-export const chargerPort = signal(0);
+interface FrameProps {
+    parentState: ChargersState,
+    setParentState: Dispatch<StateUpdater<ChargersState>>,
+}
 
-export class Frame extends Component {
+interface FrameState {
+    show_spinner: boolean,
+}
+
+export class Frame extends Component<FrameProps, FrameState> {
 
     worker: Worker;
     show_spinner = signal(true);
@@ -23,8 +30,6 @@ export class Frame extends Component {
         super();
 
         this.abort = new AbortController();
-
-        document.title = connected_to.value;
 
         this.id = crypto.randomUUID();
         navigator.serviceWorker.addEventListener("message", (e: MessageEvent) => {
@@ -73,8 +78,12 @@ export class Frame extends Component {
 
         // this is used by the app to close the remote connection via the native app menu.
         (window as any).close = () => {
-            connected.value = false;
-            connected_to.value = "";
+            this.props.setParentState({
+                connected: false,
+                connectedId: "",
+                connectedName: "",
+                connectedPort: 0,
+            });
             setAppNavigation();
         }
 
@@ -87,8 +96,12 @@ export class Frame extends Component {
     }
 
     handleErrorMessage(msg: Message) {
-        connected.value = false;
-        connected_to.value = "";
+        this.props.setParentState({
+            connected: false,
+            connectedId: "",
+            connectedName: "",
+            connectedPort: 0,
+        });
     }
 
     startWorker() {
@@ -146,8 +159,8 @@ export class Frame extends Component {
             if (e.data === "started") {
                 this.worker.onmessage = message_event;
                 const message_data: SetupMessage = {
-                    chargerID: chargerID.value,
-                    port: chargerPort.value,
+                    chargerID: this.props.parentState.connectedId,
+                    port: this.props.parentState.connectedPort,
                     secret: secret
                 };
                 const message: Message = {
@@ -192,16 +205,24 @@ export class Frame extends Component {
                     return;
 
                 case "close":
-                    connected.value = false;
-                    connected_to.value = "";
+                    this.props.setParentState({
+                        connected: false,
+                        connectedId: "",
+                        connectedName: "",
+                        connectedPort: 0,
+                    });
                     return;
             }
         });
 
         // this is used by the app to close the remote connection via the native app menu.
         (window as any).close = () => {
-            connected.value = false;
-            connected_to.value = "";
+            this.props.setParentState({
+                connected: false,
+                connectedId: "",
+                connectedName: "",
+                connectedPort: 0,
+            });
             setAppNavigation();
         }
 

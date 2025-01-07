@@ -1,6 +1,5 @@
 import { signal } from "@preact/signals";
 import * as Base58 from "base58";
-import { chargerID, chargerPort } from "./Frame";
 import sodium from "libsodium-wrappers";
 import { useTranslation } from "react-i18next";
 import { showAlert } from "../components/Alert";
@@ -12,6 +11,8 @@ import i18n from "../i18n";
 import { ChevronDown, ChevronUp, Edit, Monitor, Trash2 } from "react-feather";
 import { Circle } from "./Circle";
 import Median from "median-js-bridge";
+import { Dispatch, StateUpdater, useState } from "preact/hooks";
+import { ChargersState } from "../pages/chargers";
 
 interface Charger {
     id: string,
@@ -45,13 +46,15 @@ interface ChargerListComponentState {
     sortSequence: "asc" | "desc"
 }
 
-export const connected = signal(false);
-export const connected_to = signal("");
+interface ChargerListProps {
+    parentState: ChargersState,
+    setParentState: Dispatch<StateUpdater<ChargersState>>,
+}
 
 export let secret: Uint8Array;
 export let pub_key: Uint8Array
 
-export class ChargerListComponent extends Component<{}, ChargerListComponentState> {
+export class ChargerListComponent extends Component<ChargerListProps, ChargerListComponentState> {
 
     removal_charger: StateCharger;
     updatingInterval: any;
@@ -140,10 +143,12 @@ export class ChargerListComponent extends Component<{}, ChargerListComponentStat
     }
 
     async connect_to_charger(charger: StateCharger) {
-        chargerID.value = charger.id;
-        chargerPort.value = charger.port;
-        connected_to.value = charger.name;
-        connected.value = true;
+        this.props.setParentState({
+            connected: true,
+            connectedId: charger.id,
+            connectedName: charger.name,
+            connectedPort: charger.port,
+        });
     }
 
     async delete_charger() {

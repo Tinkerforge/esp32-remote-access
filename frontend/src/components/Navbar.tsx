@@ -3,11 +3,13 @@ import Nav from "react-bootstrap/Nav";
 import { fetchClient, FRONTEND_URL } from "../utils";
 import { useTranslation } from "react-i18next";
 import { Navbar } from "react-bootstrap";
-import { connected} from "./charger_list";
 import Median from "median-js-bridge";
 import i18n from "../i18n";
 import { useState } from "preact/hooks";
 import { LogOut, Server, User } from "react-feather";
+import { signal } from "@preact/signals";
+
+export const connected = signal(false);
 
 export async function logout(logout_all: boolean) {
         await fetchClient.GET("/user/logout", {params:{query:{logout_all: logout_all}}, credentials: "same-origin"});
