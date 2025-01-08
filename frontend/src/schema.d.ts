@@ -303,6 +303,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/user/delete_authorization_token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_authorization_token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/user/get_authorization_tokens": {
         parameters: {
             query?: never;
@@ -440,11 +456,11 @@ export interface components {
             email: string;
             name?: string | null;
         };
-        CreateAuthorizationTokenResponseSchema: {
-            token: string;
-        };
         CreateAuthorizationTokenSchema: {
             use_once: boolean;
+        };
+        DeleteAuthorizationTokenSchema: {
+            id: string;
         };
         DeleteChargerSchema: {
             charger: string;
@@ -458,7 +474,7 @@ export interface components {
             name: string;
         };
         GetAuthorizationTokensResponseSchema: {
-            tokens: components["schemas"]["StrippedToken"][];
+            tokens: components["schemas"]["ResponseAuthorizationToken"][];
         };
         GetChargerSchema: {
             id: string;
@@ -555,15 +571,16 @@ export interface components {
             secret_nonce: number[];
             secret_salt: number[];
         };
+        ResponseAuthorizationToken: {
+            id: string;
+            token: string;
+            use_once: boolean;
+        };
         SelfdestructSchema: {
             /** Format: int32 */
             id?: number | null;
             password: string;
             uuid?: string | null;
-        };
-        StrippedToken: {
-            token: string;
-            use_once: boolean;
         };
         UpdateNoteSchema: {
             charger_id: string;
@@ -1056,7 +1073,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CreateAuthorizationTokenResponseSchema"];
+                    "application/json": components["schemas"]["ResponseAuthorizationToken"];
                 };
             };
         };
@@ -1088,6 +1105,27 @@ export interface operations {
                 content?: never;
             };
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_authorization_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteAuthorizationTokenSchema"];
+            };
+        };
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

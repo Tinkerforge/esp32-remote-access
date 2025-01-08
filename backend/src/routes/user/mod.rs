@@ -25,6 +25,7 @@ pub mod update_password;
 pub mod update_user;
 pub mod create_authorization_token;
 pub mod get_authorization_tokens;
+pub mod delete_authorization_token;
 
 use crate::{
     error::Error,
@@ -48,6 +49,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .service(delete::delete_user)
         .service(create_authorization_token::create_authorization_token)
         .service(get_authorization_tokens::get_authorization_tokens)
+        .service(delete_authorization_token::delete_authorization_token)
         .service(me::me);
     cfg.service(scope);
 }
