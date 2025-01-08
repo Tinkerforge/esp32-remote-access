@@ -1,6 +1,6 @@
 import { signal } from "@preact/signals";
 import { hash, ArgonType } from "argon2-browser";
-import createClient from "openapi-fetch";
+import createClient, { Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import { logout } from "./components/Navbar";
 
@@ -66,7 +66,24 @@ export const PASSWORD_PATTERN = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/;
 export const BACKEND = import.meta.env.VITE_BACKEND_URL;
 export const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL;
 
+let auth_already_failed = false;
 export const fetchClient = createClient<paths>({baseUrl: BACKEND});
+const AuthMiddleware: Middleware = {
+    async onResponse({request, response, options}) {
+        // Ingnore jwt refresh route since it will cause a deadlock when failing
+        if (request.url.indexOf("/jwt_refresh") !== -1) {
+            return undefined;
+        }
+
+        if (response.status === 401 && !auth_already_failed) {
+            await refresh_access_token();
+            return await fetch(request);
+        } else {
+            return response;
+        }
+    }
+}
+fetchClient.use(AuthMiddleware);
 
 export let enableLogging = false;
 
@@ -108,6 +125,7 @@ export function refresh_access_token() {
             }
             loggedIn.value = AppState.LoggedIn;
         } else {
+            auth_already_failed = true;
             localStorage.removeItem("loginSalt");
             localStorage.removeItem("secretKey");
             loggedIn.value = AppState.LoggedOut;
