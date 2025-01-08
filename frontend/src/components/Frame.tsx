@@ -232,7 +232,11 @@ export class Frame extends Component<FrameProps, FrameState> {
             }
 
             await refresh_access_token();
-            this.interface = new VirtualNetworkInterface({parentState: this.setState, chargersState: this.props.setParentState}, this.props.parentState);
+            this.interface = new VirtualNetworkInterface({
+                    parentState: (s) => this.setState(s),
+                    chargersState: (s) => this.props.setParentState(s),
+                },
+                this.props.parentState);
             this.setState({show_spinner: true});
 
             const t = i18n.t;
