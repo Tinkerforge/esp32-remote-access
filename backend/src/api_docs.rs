@@ -122,9 +122,7 @@ async fn main() {
             routes::user::update_password::PasswordUpdateSchema,
             routes::user::get_secret::GetSecretResponse,
             routes::user::delete::DeleteUserSchema,
-            routes::user::create_authorization_token::CreateAuthorizationTokenResponseSchema,
             routes::user::create_authorization_token::CreateAuthorizationTokenSchema,
-            routes::user::get_authorization_tokens::StrippedToken,
             routes::user::get_authorization_tokens::GetAuthorizationTokensResponseSchema,
             routes::management::ManagementSchema,
             routes::management::ManagementResponseSchema,
@@ -133,6 +131,7 @@ async fn main() {
             routes::management::ManagementDataVersion2,
             routes::management::ConfiguredUser,
             models::filtered_user::FilteredUser,
+            models::response_auth_token::ResponseAuthorizationToken,
         )),
         modifiers(&JwtToken, &RefreshToken)
     )]

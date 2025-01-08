@@ -292,7 +292,7 @@ pub mod tests {
 
         let allow = AllowUserSchema {
             charger_id: charger.uuid,
-            user_auth: UserAuth::AuthToken(auth_token),
+            user_auth: UserAuth::AuthToken(auth_token.token),
             email: user2.mail.to_owned(),
             charger_password: charger.password,
             wg_keys: generate_random_keys(),

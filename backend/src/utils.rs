@@ -161,11 +161,11 @@ mod tests {
         let token = user.create_authorization_token(true).await;
         let user_id = get_test_uuid(&mail).unwrap();
         let state = create_test_state(None);
-        assert!(validate_auth_token(token.clone(), user_id, &state).await.is_ok());
-        assert!(validate_auth_token(token, user_id, &state).await.is_err());
+        assert!(validate_auth_token(token.token.clone(), user_id, &state).await.is_ok());
+        assert!(validate_auth_token(token.token, user_id, &state).await.is_err());
 
         let token = user.create_authorization_token(false).await;
-        assert!(validate_auth_token(token.clone(), user_id, &state).await.is_ok());
-        assert!(validate_auth_token(token, user_id, &state).await.is_ok());
+        assert!(validate_auth_token(token.token.clone(), user_id, &state).await.is_ok());
+        assert!(validate_auth_token(token.token, user_id, &state).await.is_ok());
     }
 }

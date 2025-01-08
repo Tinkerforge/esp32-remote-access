@@ -144,7 +144,7 @@ pub mod tests {
     use rand_core::OsRng;
 
     use crate::{
-        routes::{
+        models::response_auth_token::ResponseAuthorizationToken, routes::{
             auth::{
                 get_login_salt::tests::get_test_login_salt,
                 login::tests::login_user,
@@ -157,8 +157,7 @@ pub mod tests {
                 remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
                 tests::TestCharger,
             },
-        },
-        tests::configure,
+        }, tests::configure
     };
 
     use super::create_authorization_token::tests::create_test_auth_token;
@@ -344,7 +343,7 @@ pub mod tests {
             self.refresh_token.as_ref().unwrap()
         }
 
-        pub async fn create_authorization_token(&self, use_once: bool) -> String {
+        pub async fn create_authorization_token(&self, use_once: bool) -> ResponseAuthorizationToken {
             create_test_auth_token(self, use_once).await
         }
     }

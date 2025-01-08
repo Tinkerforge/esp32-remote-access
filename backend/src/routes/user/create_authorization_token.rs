@@ -6,12 +6,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use diesel::prelude::*;
 
-use crate::{error::Error, utils::{get_connection, web_block_unpacked}, AppState};
-
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct CreateAuthorizationTokenResponseSchema {
-    token: String,
-}
+use crate::{error::Error, models::response_auth_token::ResponseAuthorizationToken, utils::{get_connection, web_block_unpacked}, AppState};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct CreateAuthorizationTokenSchema {
@@ -22,7 +17,7 @@ pub struct CreateAuthorizationTokenSchema {
     context_path = "/user",
     request_body = CreateAuthorizationTokenSchema,
     responses(
-        (status = 201, body = CreateAuthorizationTokenResponseSchema),
+        (status = 201, body = ResponseAuthorizationToken),
     ),
     security(
         ("jwt" = [])
@@ -58,8 +53,10 @@ pub async fn create_authorization_token(
             }
     }).await?;
 
-    let response = CreateAuthorizationTokenResponseSchema {
+    let response = ResponseAuthorizationToken {
+        id: id.to_string(),
         token,
+        use_once: schema.use_once,
     };
     Ok(HttpResponse::Created().json(response))
 }
@@ -68,11 +65,11 @@ pub async fn create_authorization_token(
 pub mod tests {
     use actix_web::{cookie::Cookie, test::{self, TestRequest}, App};
 
-    use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
+    use crate::{middleware::jwt::JwtMiddleware, models::response_auth_token::ResponseAuthorizationToken, routes::user::tests::TestUser, tests::configure};
 
-    use super::{create_authorization_token, CreateAuthorizationTokenResponseSchema, CreateAuthorizationTokenSchema};
+    use super::{create_authorization_token, CreateAuthorizationTokenSchema};
 
-    pub async fn create_test_auth_token(user: &TestUser, use_once: bool) -> String {
+    pub async fn create_test_auth_token(user: &TestUser, use_once: bool) -> ResponseAuthorizationToken {
         let token = user.access_token.as_ref().unwrap();
 
         let app = App::new().configure(configure)
@@ -89,8 +86,8 @@ pub mod tests {
             })
             .to_request();
 
-        let resp: CreateAuthorizationTokenResponseSchema = test::call_and_read_body_json(&app, req).await;
-        resp.token
+        let resp: ResponseAuthorizationToken = test::call_and_read_body_json(&app, req).await;
+        resp
     }
 
     #[actix_web::test]

@@ -4,17 +4,11 @@ use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, utils::{get_connection, web_block_unpacked}, AppState};
-
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct StrippedToken {
-    token: String,
-    use_once: bool,
-}
+use crate::{error::Error, models::response_auth_token::ResponseAuthorizationToken, utils::{get_connection, web_block_unpacked}, AppState};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetAuthorizationTokensResponseSchema {
-    tokens: Vec<StrippedToken>,
+    tokens: Vec<ResponseAuthorizationToken>,
 }
 
 #[utoipa::path(
@@ -47,8 +41,9 @@ pub async fn get_authorization_tokens(
         }
     }).await?;
 
-    let tokens: Vec<StrippedToken> = user_tokens.into_iter().map(|t| {
-        StrippedToken {
+    let tokens: Vec<ResponseAuthorizationToken> = user_tokens.into_iter().map(|t| {
+        ResponseAuthorizationToken {
+            id: t.id.to_string(),
             token: t.token,
             use_once: t.use_once,
         }
@@ -63,7 +58,7 @@ pub async fn get_authorization_tokens(
 mod tests {
     use actix_web::{cookie::Cookie, test, App};
 
-    use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
+    use crate::{middleware::jwt::JwtMiddleware, models::response_auth_token::ResponseAuthorizationToken, routes::user::tests::TestUser, tests::configure};
 
     use super::{get_authorization_tokens, GetAuthorizationTokensResponseSchema};
 
@@ -73,7 +68,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let access_token = user.login().await.to_string();
 
-        let mut auth_tokens = vec![String::new(); 5];
+        let mut auth_tokens = vec![ResponseAuthorizationToken{id: String::new(), token: String::new(), use_once: false}; 5];
         for token in auth_tokens.iter_mut() {
             *token = user.create_authorization_token(true).await;
         }
@@ -91,7 +86,6 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
         let resp: GetAuthorizationTokensResponseSchema = test::read_body_json(resp).await;
-        let resp_tokens: Vec<String> = resp.tokens.into_iter().map(|token| token.token).collect();
-        assert_eq!(auth_tokens, resp_tokens);
+        assert_eq!(auth_tokens, resp.tokens);
     }
 }
