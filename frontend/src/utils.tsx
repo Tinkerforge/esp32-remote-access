@@ -2,7 +2,11 @@ import { signal } from "@preact/signals";
 import { hash, ArgonType } from "argon2-browser";
 import createClient, { Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
+import sodium from "libsodium-wrappers";
 import { logout } from "./components/Navbar";
+import i18n from "./i18n";
+import { showAlert } from "./components/Alert";
+import { Base64 } from "js-base64";
 
 export async function get_salt() {
     const {data, response} = await fetchClient.GET("/auth/generate_salt");
@@ -134,4 +138,21 @@ export function refresh_access_token() {
         resolve();
     });
     return refreshPromise
+}
+
+export let secret: Uint8Array;
+export let pub_key: Uint8Array
+
+export async function get_decrypted_secret() {
+    await sodium.ready;
+    const t = i18n.t;
+    const {data, error, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
+    if (error) {
+        showAlert(t("chargers.loading_secret_failed", {status: response.status, response: error}), "danger");
+        return;
+    }
+    const encoded_key = localStorage.getItem("secretKey");
+    const secret_key = Base64.toUint8Array(encoded_key);
+    secret = sodium.crypto_secretbox_open_easy(new Uint8Array(data.secret), new Uint8Array(data.secret_nonce), secret_key);
+    pub_key = sodium.crypto_scalarmult_base(secret);
 }

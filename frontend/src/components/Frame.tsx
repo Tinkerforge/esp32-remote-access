@@ -2,9 +2,8 @@ import { Component } from 'preact';
 import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
-import { secret } from './charger_list';
 import { setAppNavigation } from './Navbar';
-import { enableLogging, refresh_access_token } from '../utils';
+import { enableLogging, refresh_access_token, secret } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
 import { ChargersState } from '../pages/chargers';

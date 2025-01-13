@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
-import { fetchClient, refresh_access_token } from "../utils";
+import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
 import { Button, ButtonGroup, Card, Col, Container, Dropdown, DropdownButton, Form, Modal, Row, Table } from "react-bootstrap";
 import i18n from "../i18n";
 import { ChevronDown, ChevronUp, Edit, Monitor, Trash2 } from "react-feather";
@@ -51,9 +51,6 @@ interface ChargerListProps {
     setParentState: Dispatch<StateUpdater<ChargersState>>,
 }
 
-export let secret: Uint8Array;
-export let pub_key: Uint8Array
-
 export class ChargerListComponent extends Component<ChargerListProps, ChargerListComponentState> {
 
     removal_charger: StateCharger;
@@ -98,14 +95,9 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
 
     async updateChargers(that: any) {
         if (!secret) {
-            await that.get_decrypted_secret();
+            await get_decrypted_secret();
         }
-        fetchClient.GET("/charger/get_chargers", {credentials: "same-origin"}).then(async ({data, response}) => {
-            if (response.status === 401) {
-                await refresh_access_token();
-                this.updateChargers;
-                return;
-            }
+        fetchClient.GET("/charger/get_chargers", {credentials: "same-origin"}).then(async ({data}) => {
             const chargers: Charger[] = data;
             const state_chargers = [];
             for (const charger of chargers) {
@@ -126,20 +118,6 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
 
     componentWillUnmount() {
         clearInterval(this.updatingInterval);
-    }
-
-    async get_decrypted_secret() {
-        await sodium.ready;
-        const t = i18n.t;
-        const {data, error, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
-        if (error) {
-            showAlert(t("chargers.loading_secret_failed", {status: response.status, response: error}), "danger");
-            return;
-        }
-        const encoded_key = localStorage.getItem("secretKey");
-        const secret_key = Base64.toUint8Array(encoded_key);
-        secret = sodium.crypto_secretbox_open_easy(new Uint8Array(data.secret), new Uint8Array(data.secret_nonce), secret_key);
-        pub_key = sodium.crypto_scalarmult_base(secret);
     }
 
     async connect_to_charger(charger: StateCharger) {
