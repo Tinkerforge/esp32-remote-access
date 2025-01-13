@@ -39,6 +39,7 @@ import { Recovery } from './pages/recovery.js';
 import { Trans, useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
+import { Tokens } from './pages/tokens';
 
 import "./main.scss";
 refresh_access_token();
@@ -112,6 +113,7 @@ export function App() {
                     <Col>
                         <LocationProvider>
                             <Router>
+                                <Route path="/tokens" component={Tokens} />
                                 <Route path="/user" component={User} />
                                 <Route default path="/chargers" component={ChargerList} />
                             </Router>

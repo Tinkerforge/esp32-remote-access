@@ -99,5 +99,21 @@ export const de ={
     },
     "app": {
         "close_remote_access": "Fernzugriff schließen"
+    },
+    "tokens": {
+        "fetch_user_failed": "Benutzer konnte nicht abgerufen werden",
+        "fetch_tokens_failed": "Token konnten nicht abgerufen werden",
+        "unexpected_error": "Ein unerwarteter Fehler ist aufgetreten",
+        "create_token_failed": "Token konnte nicht erstellt werden",
+        "delete_token_failed": "Token konnte nicht gelöscht werden",
+        "copy_success": "Token in die Zwischenablage kopiert",
+        "copy_failed": "Token konnte nicht kopiert werden",
+        "create_token": "Autorisierungstoken erstellen",
+        "use_once": "Einmal verwenden",
+        "create": "Token erstellen",
+        "existing_tokens": "Vorhandene Tokens",
+        "reusable": "Wiederverwendbar",
+        "copy": "Kopieren",
+        "delete": "Löschen"
     }
 };

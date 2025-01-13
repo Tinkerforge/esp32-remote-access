@@ -99,5 +99,21 @@ export const en = {
     },
     "app": {
         "close_remote_access": "Close Remote-Access"
+    },
+    tokens: {
+        fetch_user_failed: "Failed to fetch user",
+        fetch_tokens_failed: "Failed to fetch tokens",
+        unexpected_error: "An unexpected error occurred",
+        create_token_failed: "Failed to create token",
+        delete_token_failed: "Failed to delete token",
+        copy_success: "Token copied to clipboard",
+        copy_failed: "Failed to copy token",
+        create_token: "Create Authorization Token",
+        use_once: "Use Once",
+        create: "Create Token",
+        existing_tokens: "Existing Tokens",
+        reusable: "Reusable",
+        copy: "Copy",
+        delete: "Delete"
     }
 };
