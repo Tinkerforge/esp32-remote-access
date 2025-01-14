@@ -3,6 +3,9 @@ export const de ={
     "alert_default_success": "Erfolg!",
     "description": "Diese Seite bietet einen Fernzugriff für Tinkerforge WARP-Geräte. Weitere Informationen findest du <0>hier</0>",
     "user": {
+        "account_actions": "Kontoaktionen",
+        "profile_information": "Profileinstellungen",
+        "save_changes": "Änderungen speichern",
         "user_id": "Nutzer-ID",
         "email": "E-Mail-Adresse",
         "name": "Name",
@@ -20,7 +23,8 @@ export const de ={
         "get_user_failed": "Laden der Nutzerdaten mit dem Code {{status}} fehlgeschlagen: {{response}}",
         "update_user_failed": "Aktualisieren der Nutzerdaten mit dem Code {{status}} fehlgeschlagen: {{response}}",
         "update_password_failed": "Aktualisieren des Passwortes mit dem Code {{status}} fehlgeschlagen: {{response}}",
-        "delete_user_failed": "Löschen des Nutzers mit dem Code {{status}} fehlgeschlagen: {{response}}"
+        "delete_user_failed": "Löschen des Nutzers mit dem Code {{status}} fehlgeschlagen: {{response}}",
+        "email_change_warning": "Wenn du deine E-Mail-Adresse änderst, verlierst du den Zugriff auf alle verbundenen Geräte. Du musst sie dann erneut registrieren."
     },
     "recovery": {
         "recovery": "Passwort zurücksetzen",

@@ -3,6 +3,8 @@ export const en = {
     "alert_default_success": "Success!",
     "description": "This page provides remote access to registered Tinkerforge WARP-Devices. For more information click <0>here</0>",
     "user": {
+        "profile_information": "Profile Information",
+        "save_changes": "Save Changes",
         "user_id": "User-ID",
         "email": "Email-address",
         "name": "Name",
@@ -20,7 +22,9 @@ export const en = {
         "get_user_failed": "Loading user data failed with status code {{status}}: {{response}}",
         "update_user_failed": "Updating the user-data failed with status code {{status}}: {{response}}",
         "update_password_failed": "Updating the password failed with status code {{status}}: {{response}}",
-        "delete_user_failed": "Deleting user failed with status code {{status}}: {{response}}"
+        "delete_user_failed": "Deleting user failed with status code {{status}}: {{response}}",
+        "account_actions": "Account Actions",
+        "email_change_warning": "Changing your email address will remove access to all connected devices. You will need to register them again."
     },
     "recovery": {
         "recovery": "Password recovery",

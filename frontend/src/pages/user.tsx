@@ -88,22 +88,27 @@ class UserComponent extends Component<{}, State> {
         return (<>
             <Form onSubmit={this.submit}>
                 <Form.Group className="pb-3" controlId="userId">
-                    <Form.Label>{t("user_id")}</Form.Label>
-                    <Form.Control type="text" disabled value={this.state.user.id} />
+                    <Form.Label className="text-muted">{t("user_id")}</Form.Label>
+                    <Form.Control type="text" disabled value={this.state.user.id} className="bg-light" />
                 </Form.Group>
                 <Form.Group className="pb-3" controlId="userEmail">
-                    <Form.Label>{t("email")}</Form.Label>
+                    <Form.Label className="text-muted">{t("email")}</Form.Label>
                     <Form.Control type="email" value={this.state.user.email} onChange={(e) => {
                         this.setState({user: {...this.state.user, email: (e.target as HTMLInputElement).value}, isDirty: true});
                     }} />
+                    <Form.Text>
+                        {t("email_change_warning")}
+                    </Form.Text>
                 </Form.Group>
                 <Form.Group className="pb-3" controlId="userName">
-                    <Form.Label>{t("name")}</Form.Label>
+                    <Form.Label className="text-muted">{t("name")}</Form.Label>
                     <Form.Control type="text" value={this.state.user.name} onChange={(e) => {
                         this.setState({user: {...this.state.user, name: (e.target as HTMLInputElement).value}, isDirty: true});
                     }} />
                 </Form.Group>
-                <Button type="submit" variant="primary" disabled={!this.state.isDirty} className="mb-3" >{t("change")}</Button>
+                <Button type="submit" variant="primary" disabled={!this.state.isDirty}>
+                    {t("save_changes")}
+                </Button>
             </Form>
         </>)
     }
@@ -230,19 +235,30 @@ export function User() {
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "user"});
 
     return (<>
-        <Container fluid>
-            <Card className="p-3 my-3">
-            <UserComponent/>
-            <Button variant="primary" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-3" onClick={handleUpdatePasswordShow}>
-                {t("change_password")}
-            </Button>
-
-            <Button variant="primary" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-3" onClick={() => logout(true)}>
-                {t("logout_all")}
-            </Button>
-            <Button variant="danger" className="col col-sm-6 col-md-4 col-lg-3 col-xl-2" onClick={handleDeleteUserShow}>
-                {t("delete_user")}
-            </Button>
+        <Container>
+            <Card className="my-4 shadow-sm">
+                <Card.Header className="pb-2">
+                    <h5 className="mb-0">{t("profile_information")}</h5>
+                </Card.Header>
+                <Card.Body>
+                    <UserComponent/>
+                </Card.Body>
+                <Card.Header className="border-top pb-2">
+                    <h5 className="mb-0">{t("account_actions")}</h5>
+                </Card.Header>
+                <Card.Body className="pt-3">
+                    <div className="d-flex flex-wrap gap-3">
+                        <Button variant="outline-primary" onClick={handleUpdatePasswordShow}>
+                            {t("change_password")}
+                        </Button>
+                        <Button variant="outline-warning" onClick={() => logout(true)}>
+                            {t("logout_all")}
+                        </Button>
+                        <Button variant="outline-danger" onClick={handleDeleteUserShow}>
+                            {t("delete_user")}
+                        </Button>
+                    </div>
+                </Card.Body>
             </Card>
         </Container>
 
@@ -261,7 +277,7 @@ export function User() {
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={handleDelteUserClose}>
+                    <Button variant="outline-secondary" onClick={handleDelteUserClose}>
                         {t("close")}
                     </Button>
                     <Button variant="danger" type="submit">
@@ -292,7 +308,7 @@ export function User() {
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={handleUpdatePasswordClose}>
+                    <Button variant="outline-secondary" onClick={handleUpdatePasswordClose}>
                         {t("close")}
                     </Button>
                     <Button variant="primary" type="submit">
