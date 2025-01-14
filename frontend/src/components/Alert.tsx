@@ -20,7 +20,7 @@ export function showAlert(text: string, variant: string, heading?: string) {
 }
 
 export function ErrorAlert() {
-    return <Alert className="custom-alert" variant={state.value.variant} onClose={(a, b) => {
+    return <Alert className="custom-alert small" variant={state.value.variant} onClose={(a, b) => {
         state.value = {
             text: "",
             show: false,
@@ -29,6 +29,6 @@ export function ErrorAlert() {
         }
     }} show={state.value.show} id="errorAlert" dismissible>
         <Alert.Heading>{state.value.heading}</Alert.Heading>
-        <p>{state.value.text}</p>
+        <p className="mb-0">{state.value.text}</p>
     </Alert>
 }

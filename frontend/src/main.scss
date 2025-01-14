@@ -93,3 +93,16 @@ th:hover:has(div) {
   z-index: 1021;
   margin: 0;
 }
+
+.alert.small {
+  padding: 0.5rem 1rem;
+}
+
+.alert.small .alert-heading {
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.alert.small p {
+  font-size: 0.875rem;
+}
