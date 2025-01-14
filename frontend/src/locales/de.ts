@@ -118,6 +118,6 @@ export const de ={
         "copy": "Kopieren",
         "delete": "Löschen",
         "single_use_description": "Dieses Token kann nur einmal verwendet werden und läuft nach der ersten Verwendung automatisch ab",
-        "multi_use_description": "Dieses Token kann mehrfach verwendet werden, bis er manuell gelöscht wird"
+        "multi_use_description": "Dieses Token kann mehrfach verwendet werden, bis es manuell gelöscht wird"
     }
 };
