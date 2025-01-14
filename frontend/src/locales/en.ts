@@ -24,7 +24,7 @@ export const en = {
         "update_password_failed": "Updating the password failed with status code {{status}}: {{response}}",
         "delete_user_failed": "Deleting user failed with status code {{status}}: {{response}}",
         "account_actions": "Account Actions",
-        "email_change_warning": "Changing your email address will remove access to all connected devices. You will need to register them again."
+        "email_change_warning": "Changing the email-address is currently not possible due to technical reasons"
     },
     "recovery": {
         "recovery": "Password recovery",

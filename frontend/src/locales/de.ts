@@ -24,7 +24,7 @@ export const de ={
         "update_user_failed": "Aktualisieren der Nutzerdaten mit dem Code {{status}} fehlgeschlagen: {{response}}",
         "update_password_failed": "Aktualisieren des Passwortes mit dem Code {{status}} fehlgeschlagen: {{response}}",
         "delete_user_failed": "Löschen des Nutzers mit dem Code {{status}} fehlgeschlagen: {{response}}",
-        "email_change_warning": "Wenn du deine E-Mail-Adresse änderst, verlierst du den Zugriff auf alle verbundenen Geräte. Du musst sie dann erneut registrieren."
+        "email_change_warning": "Ändern der E-Mail-Adresse zurzeit aus technischen Gründen nicht möglich"
     },
     "recovery": {
         "recovery": "Passwort zurücksetzen",
