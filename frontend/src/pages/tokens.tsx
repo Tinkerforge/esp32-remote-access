@@ -5,7 +5,7 @@ import { showAlert } from '../components/Alert';
 import { Base64 } from 'js-base64';
 import { encodeBase58Flickr } from '../base58';
 import { useTranslation } from 'react-i18next';
-import { Clipboard } from 'react-feather';
+import { Clipboard, Trash2 } from 'react-feather';
 
 interface Token {
     user_email: string;
@@ -174,34 +174,42 @@ export function Tokens() {
                 <Card.Header>{t("tokens.existing_tokens")}</Card.Header>
                 <Card.Body>
                     {tokens.map((token, index) => (
-                        <InputGroup key={index} className="mb-2">
+                        <>
+                        <InputGroup key={index} className="mb-3 token-group">
                             <Form.Control
                                 type="text"
                                 readOnly
                                 value={encodeBase58Flickr(JSON.stringify(token.token))}
+                                className="mb-2 mb-md-0 token-txt"
                             />
-                            <Button
-                                variant={token.use_once ? "success" : "warning"}
-                                disabled
-                                size='sm'
-                            >
-                                {token.use_once ? t("tokens.use_once") : t("tokens.reusable")}
-                            </Button>
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleCopyToken(encodeBase58Flickr(JSON.stringify(token.token)))}
-                            >
-                                <Clipboard />
-                            </Button>
-                            <Button
-                                variant="danger"
-                                size="sm"
-                                onClick={() => handleDeleteToken(token.id)}
-                            >
-                                {t("tokens.delete")}
-                            </Button>
+                            <div className="d-flex flex-wrap gap-2 gap-md-0 mt-2 mt-md-0">
+                                <Button
+                                    variant={token.use_once ? "success" : "warning"}
+                                    disabled
+                                    className="flex-grow-1 flex-md-grow-0"
+                                >
+                                    {token.use_once ? t("tokens.use_once") : t("tokens.reusable")}
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    className="flex-grow-1 flex-md-grow-0 d-flex align-items-center justify-content-center gap-2"
+                                    onClick={() => handleCopyToken(encodeBase58Flickr(JSON.stringify(token.token)))}
+                                >
+                                    <Clipboard size={18} />
+                                    {t("tokens.copy")}
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    className="flex-grow-1 flex-md-grow-0 d-flex align-items-center justify-content-center gap-2"
+                                    onClick={() => handleDeleteToken(token.id)}
+                                >
+                                    <Trash2 />
+                                    {t("tokens.delete")}
+                                </Button>
+                            </div>
                         </InputGroup>
+                        <hr class="d-block d-md-none"/>
+                        </>
                     ))}
                 </Card.Body>
             </Card>

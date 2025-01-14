@@ -74,6 +74,21 @@ th:hover:has(div) {
   background-color: rgba(var(--bs-emphasis-color-rgb), 0.075);
 }
 
+.charger-head th {
+  width: min-content;
+  white-space: nowrap;
+}
+
+.charger-head th:last-of-type {
+  @media (max-width: 1600px) {
+    width: 50% !important;
+  }
+  @media (max-width: 1200px) {
+    width: 40% !important;
+  }
+  width: 60%;
+}
+
 .btn-group .dropdown-btn:first-child button {
   border-bottom-right-radius: 0 !important;
   border-top-right-radius: 0 !important;
@@ -105,4 +120,29 @@ th:hover:has(div) {
 
 .alert.small p {
   font-size: 0.875rem;
+}
+
+.token-group {
+  @media (min-width: 768px) {
+    gap: 0 !important;
+
+    .btn {
+      border-radius: 0 !important;
+      margin-left: 0;
+      margin-right: 0;
+    }
+    .btn:last-of-type {
+      margin-right: 0 !important;
+      border-top-right-radius: 0.25rem !important;
+      border-bottom-right-radius: 0.25rem !important;
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    .token-txt {
+      width: 100%;
+      border-top-right-radius: 0.25rem !important;
+      border-bottom-right-radius: 0.25rem !important;
+    }
+  }
 }
