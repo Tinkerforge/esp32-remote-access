@@ -144,21 +144,29 @@ export function Tokens() {
 
     return (
         <Container>
-            <Card className="my-3">
-                <Card.Header>{t("tokens.create_token")}</Card.Header>
-                <Card.Body>
+            <Card className="my-2">
+                <Card.Header className="py-2">{t("tokens.create_token")}</Card.Header>
+                <Card.Body className="py-2">
                     <Form onSubmit={handleCreateToken}>
-                        <Form.Group controlId="useOnce">
+                        <div className="d-flex align-items-center justify-content-between">
                             <Form.Check
-                                type="checkbox"
+                                type="switch"
+                                id="useOnce"
                                 label={t("tokens.use_once")}
                                 checked={useOnce}
                                 onChange={(e) => setUseOnce((e.target as HTMLInputElement).checked)}
                             />
-                        </Form.Group>
-                        <Button variant="primary" type="submit">
-                            {t("tokens.create")}
-                        </Button>
+                            <Button
+                                variant="primary"
+                                type="submit"
+                                className="px-4"
+                            >
+                                {t("tokens.create")}
+                            </Button>
+                        </div>
+                        <Form.Text className="text-muted small">
+                            {useOnce ? t("tokens.single_use_description") : t("tokens.multi_use_description")}
+                        </Form.Text>
                     </Form>
                 </Card.Body>
             </Card>

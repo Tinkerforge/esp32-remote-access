@@ -116,6 +116,8 @@ export const de ={
         "existing_tokens": "Vorhandene Token",
         "reusable": "Wiederverwendbar",
         "copy": "Kopieren",
-        "delete": "Löschen"
+        "delete": "Löschen",
+        "single_use_description": "Dieses Token kann nur einmal verwendet werden und läuft nach der ersten Verwendung automatisch ab",
+        "multi_use_description": "Dieses Token kann mehrfach verwendet werden, bis er manuell gelöscht wird"
     }
 };

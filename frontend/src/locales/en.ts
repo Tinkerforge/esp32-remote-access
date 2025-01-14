@@ -116,6 +116,8 @@ export const en = {
         existing_tokens: "Existing tokens",
         reusable: "Reusable",
         copy: "Copy",
-        delete: "Delete"
+        delete: "Delete",
+        single_use_description: "This token can only be used once and will automatically expire after first use",
+        multi_use_description: "This token can be used multiple times until manually deleted"
     }
 };
