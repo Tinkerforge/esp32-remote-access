@@ -144,9 +144,11 @@ export function Tokens() {
 
     return (
         <Container>
-            <Card className="my-2">
-                <Card.Header className="py-2">{t("tokens.create_token")}</Card.Header>
-                <Card.Body className="py-2">
+            <Card className="my-4">
+                <Card.Header className="pb-2">
+                    <h5 className="mb-0">{t("tokens.create_token")}</h5>
+                </Card.Header>
+                <Card.Body>
                     <Form onSubmit={handleCreateToken}>
                         <div className="d-flex align-items-center justify-content-between">
                             <Form.Check
@@ -169,13 +171,13 @@ export function Tokens() {
                         </Form.Text>
                     </Form>
                 </Card.Body>
-            </Card>
-            <Card className="my-3">
-                <Card.Header>{t("tokens.existing_tokens")}</Card.Header>
+                <Card.Header className="border-top pb-2">
+                    <h5 className="mb-0">{t("tokens.existing_tokens")}</h5>
+                </Card.Header>
                 <Card.Body>
                     {tokens.map((token, index) => (
                         <>
-                        <InputGroup key={index} className="mb-3 token-group">
+                        <InputGroup key={index} className={`token-group ${index !== tokens.length - 1 ? 'mb-3' : ''}`}>
                             <Form.Control
                                 type="text"
                                 readOnly
@@ -208,7 +210,7 @@ export function Tokens() {
                                 </Button>
                             </div>
                         </InputGroup>
-                        <hr class="d-block d-md-none"/>
+                        {index !== tokens.length - 1 ? <hr class="d-block d-md-none"/> : <></>}
                         </>
                     ))}
                 </Card.Body>

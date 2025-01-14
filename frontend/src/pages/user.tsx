@@ -236,7 +236,7 @@ export function User() {
 
     return (<>
         <Container>
-            <Card className="my-4 shadow-sm">
+            <Card className="my-4">
                 <Card.Header className="pb-2">
                     <h5 className="mb-0">{t("profile_information")}</h5>
                 </Card.Header>
