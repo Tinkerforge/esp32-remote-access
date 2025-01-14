@@ -58,12 +58,6 @@ export function CustomNavbar() {
                 <Navbar.Toggle onClick={() => setExpanded(!expanded)} id="navbar-toggler" aria-controls="basic-navbar-nav"/>
                 <Navbar.Collapse id="navbar-nav" className="sidebar px-2 py-1">
                     <Nav className="me-auto">
-                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/user" active={url === "/user"}>
-                            <User/>
-                            <p class="ms-1 mb-0">
-                                {t("user")}
-                            </p>
-                        </Nav.Link>
                         <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/chargers" active={url === "/chargers"}>
                             <Server/>
                             <p class="ms-1 mb-0">
@@ -74,6 +68,12 @@ export function CustomNavbar() {
                             <Key/>
                             <p class="ms-1 mb-0">
                                 Token
+                            </p>
+                        </Nav.Link>
+                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/user" active={url === "/user"}>
+                            <User/>
+                            <p class="ms-1 mb-0">
+                                {t("user")}
                             </p>
                         </Nav.Link>
                     </Nav>
