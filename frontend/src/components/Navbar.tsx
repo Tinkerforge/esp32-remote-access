@@ -6,7 +6,7 @@ import { Navbar } from "react-bootstrap";
 import Median from "median-js-bridge";
 import i18n from "../i18n";
 import { useState } from "preact/hooks";
-import { LogOut, Server, User } from "react-feather";
+import { Key, LogOut, Server, User } from "react-feather";
 import { signal } from "@preact/signals";
 
 export const connected = signal(false);
@@ -21,18 +21,25 @@ export async function logout(logout_all: boolean) {
     }
 
 export function setAppNavigation() {
-    const items = [{
-        label: i18n.t("navbar.chargers"),
-        url: `${FRONTEND_URL}/chargers`,
-        icon: "fas fa-server"
-    },
-    {
-        label: i18n.t("navbar.user"),
-        url: `${FRONTEND_URL}/user`,
-        icon: "fas fa-user"
-    }]
-    Median.sidebar.setItems({items: items, enabled: true, persist: true});
-    return <></>
+    const items = [
+        {
+            label: i18n.t("navbar.chargers"),
+            url: `${FRONTEND_URL}/chargers`,
+            icon: "fas fa-server"
+        },
+        {
+            label: i18n.t("navbar.user"),
+            url: `${FRONTEND_URL}/user`,
+            icon: "fas fa-user"
+        },
+        {
+            label: i18n.t("navbar.tokens"),
+            url: `${FRONTEND_URL}/tokens`,
+            icon: "fas fa-key"
+        }
+    ];
+    Median.sidebar.setItems({ items: items, enabled: true, persist: true });
+    return <></>;
 }
 
 export function CustomNavbar() {
@@ -61,6 +68,12 @@ export function CustomNavbar() {
                             <Server/>
                             <p class="ms-1 mb-0">
                                 {t("chargers")}
+                            </p>
+                        </Nav.Link>
+                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/tokens" active={url === "/tokens"}>
+                            <Key/>
+                            <p class="ms-1 mb-0">
+                                Token
                             </p>
                         </Nav.Link>
                     </Nav>
