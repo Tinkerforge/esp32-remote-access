@@ -93,10 +93,10 @@ class UserComponent extends Component<{}, State> {
                 </Form.Group>
                 <Form.Group className="pb-3" controlId="userEmail">
                     <Form.Label className="text-muted">{t("email")}</Form.Label>
-                    <Form.Control type="email" value={this.state.user.email} onChange={(e) => {
+                    <Form.Control disabled type="email" value={this.state.user.email} onChange={(e) => {
                         this.setState({user: {...this.state.user, email: (e.target as HTMLInputElement).value}, isDirty: true});
                     }} />
-                    <Form.Text>
+                    <Form.Text className="text-danger">
                         {t("email_change_warning")}
                     </Form.Text>
                 </Form.Group>
