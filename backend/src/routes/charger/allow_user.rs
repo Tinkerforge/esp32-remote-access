@@ -118,7 +118,6 @@ async fn authenticate_user(
 
 /// Give another user permission to access a charger owned by the user.
 #[utoipa::path(
-    context_path = "/charger",
     request_body = AllowUserSchema,
     responses(
         (status = 200, description = "Allowing the user to access the charger was successful."),
