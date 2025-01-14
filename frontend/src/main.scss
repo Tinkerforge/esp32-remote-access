@@ -113,15 +113,6 @@ th:hover:has(div) {
   padding: 0.5rem 1rem;
 }
 
-.alert.small .alert-heading {
-  font-size: 1rem;
-  margin-bottom: 0.25rem;
-}
-
-.alert.small p {
-  font-size: 0.875rem;
-}
-
 .token-group {
   @media (min-width: 768px) {
     gap: 0 !important;
