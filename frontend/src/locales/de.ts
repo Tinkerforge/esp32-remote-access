@@ -111,7 +111,7 @@ export const de ={
         "copy_success": "Token in die Zwischenablage kopiert",
         "copy_failed": "Token konnte nicht kopiert werden",
         "create_token": "Autorisierungstoken erstellen",
-        "use_once": "Einmal verwenden",
+        "use_once": "Einmal verwendbar",
         "create": "Token erstellen",
         "existing_tokens": "Vorhandene Token",
         "reusable": "Wiederverwendbar",

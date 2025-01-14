@@ -5,6 +5,7 @@ import { showAlert } from '../components/Alert';
 import { Base64 } from 'js-base64';
 import { encodeBase58Flickr } from '../base58';
 import { useTranslation } from 'react-i18next';
+import { Clipboard } from 'react-feather';
 
 interface Token {
     user_email: string;
@@ -169,14 +170,21 @@ export function Tokens() {
                             <Form.Control
                                 type="text"
                                 readOnly
-                                value={`${encodeBase58Flickr(JSON.stringify(token.token))} - ${token.use_once ? t("tokens.use_once") : t("tokens.reusable")}`}
+                                value={encodeBase58Flickr(JSON.stringify(token.token))}
                             />
+                            <Button
+                                variant={token.use_once ? "success" : "warning"}
+                                disabled
+                                size='sm'
+                            >
+                                {token.use_once ? t("tokens.use_once") : t("tokens.reusable")}
+                            </Button>
                             <Button
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => handleCopyToken(encodeBase58Flickr(JSON.stringify(token.token)))}
                             >
-                                {t("tokens.copy")}
+                                <Clipboard />
                             </Button>
                             <Button
                                 variant="danger"
