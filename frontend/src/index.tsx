@@ -113,7 +113,7 @@ export function App() {
                     <Col>
                         <LocationProvider>
                             <Router>
-                                <Route path="/tokens" component={Tokens} />
+                                {/* <Route path="/tokens" component={Tokens} /> */}
                                 <Route path="/user" component={User} />
                                 <Route default path="/chargers" component={ChargerList} />
                             </Router>
