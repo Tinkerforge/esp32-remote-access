@@ -77,7 +77,7 @@ export function CustomNavbar() {
                             </p>
                         </Nav.Link>
                     </Nav>
-                    <hr class="d-block d-md-none my-1" />
+                    <hr class="d-block d-md-none my-1" style={{color: "#5a6268"}}/>
                     <Nav>
                         <Nav.Link className="d-flex align-items-center" onClick={(e) => {
                             e.preventDefault();
