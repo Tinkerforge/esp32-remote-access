@@ -54,7 +54,9 @@ export const de ={
         "edit_note_heading": "Notiz bearbeiten",
         "edit_note_failed": "Notiz bearbeiten fehlgeschlagen",
         "accept": "Bestätigen",
-        "decline": "Verwerfen"
+        "decline": "Verwerfen",
+        "show_more": "Mehr anzeigen",
+        "show_less": "Weniger anzeigen"
     },
     "navbar": {
         "home": "Home",
@@ -111,7 +113,7 @@ export const de ={
         "create_token": "Autorisierungstoken erstellen",
         "use_once": "Einmal verwenden",
         "create": "Token erstellen",
-        "existing_tokens": "Vorhandene Tokens",
+        "existing_tokens": "Vorhandene Token",
         "reusable": "Wiederverwendbar",
         "copy": "Kopieren",
         "delete": "Löschen"

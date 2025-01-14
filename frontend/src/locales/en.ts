@@ -54,7 +54,9 @@ export const en = {
         "edit_note_heading": "Edit note",
         "edit_note_failed": "Editing note failed",
         "accept": "Accept",
-        "decline": "Decline"
+        "decline": "Decline",
+        "show_more": "Show more",
+        "show_less": "Show less"
     },
     "navbar": {
         "home": "Home",
@@ -108,10 +110,10 @@ export const en = {
         delete_token_failed: "Failed to delete token",
         copy_success: "Token copied to clipboard",
         copy_failed: "Failed to copy token",
-        create_token: "Create Authorization Token",
-        use_once: "Use Once",
-        create: "Create Token",
-        existing_tokens: "Existing Tokens",
+        create_token: "Create authorization token",
+        use_once: "Use once",
+        create: "Create token",
+        existing_tokens: "Existing tokens",
         reusable: "Reusable",
         copy: "Copy",
         delete: "Delete"
