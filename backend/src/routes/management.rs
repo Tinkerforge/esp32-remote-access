@@ -55,7 +55,9 @@ pub enum ManagementDataVersion {
 
 #[derive(Serialize, Deserialize, ToSchema, Debug)]
 pub struct ConfiguredUser {
-    pub email: String,
+    pub email: Option<String>,
+    pub user_id: Option<String>,
+    // Encrypted charger name
     pub name: Option<String>,
 }
 
@@ -78,44 +80,77 @@ pub struct ManagementDataVersion1 {
 #[derive(Serialize, Deserialize, ToSchema, Debug)]
 pub struct ManagementResponseSchema {
     pub time: u64,
-    pub configured_users: Vec<u32>,
+    pub configured_users: Vec<i32>,
+    pub configured_users_emails: Vec<String>,
     pub uuid: Option<String>,
+}
+
+async fn identify_configured_user(
+    user: &ConfiguredUser,
+    state: &web::Data<AppState>,
+) -> Option<uuid::Uuid> {
+    let user_id = if let Some(email) = &user.email {
+        match get_user_id(&state, FindBy::Email(email.to_string().to_lowercase())).await {
+            Ok(u) => u,
+            Err(_err) => return None,
+        }
+    } else if let Some(user_id) = &user.user_id {
+        let user_id = match parse_uuid(user_id) {
+            Ok(u) => u,
+            Err(_err) => return None,
+        };
+        match get_user_id(&state, FindBy::Uuid(user_id)).await {
+            Ok(u) => u,
+            Err(_err) => return None,
+        }
+    }
+    else {
+        return None
+    };
+
+    Some(user_id)
 }
 
 async fn update_configured_users(
     state: &web::Data<AppState>,
     charger_id: uuid::Uuid,
     data: &ManagementDataVersion,
-) -> actix_web::Result<Vec<u32>> {
+) -> actix_web::Result<(Vec<i32>, Vec<String>)> {
     let configured_users = if let ManagementDataVersion::V2(data) = data {
+
         // Get uuids of configured users on wallbox
         let mut configured_users: Vec<uuid::Uuid> = Vec::new();
         for user in data.configured_users.iter() {
-            match get_user_id(&state, FindBy::Email(user.email.to_string().to_lowercase())).await {
-                Ok(u) => {
-                    use db_connector::schema::allowed_users::dsl as allowed_users;
+            use db_connector::schema::allowed_users::dsl as allowed_users;
 
-                    if let Some(name) = &user.name {
-                        // Update name of charger for each user
-                        let mut conn = get_connection(&state)?;
-                        match diesel::update(
-                            allowed_users::allowed_users
-                                .filter(allowed_users::user_id.eq(u))
-                                .filter(allowed_users::charger_id.eq(charger_id)),
-                        )
-                        .set(allowed_users::name.eq(name))
-                        .execute(&mut conn)
-                        {
-                            Ok(_) => (),
-                            Err(NotFound) => (),
-                            Err(_) => return Err(Error::InternalError.into()),
-                        }
-                    }
+            let user_id = match identify_configured_user(user, state).await {
+                Some(u) => u,
+                // Users could probe if a user is configured on the charger
+                // So we add a random uuid to the list
+                None => {
+                    configured_users.push(uuid::Uuid::new_v4());
+                    continue;
+                },
+            };
 
-                    configured_users.push(u);
+            if let Some(name) = &user.name {
+                // Update name of charger for each user
+                let mut conn = get_connection(&state)?;
+                match diesel::update(
+                    allowed_users::allowed_users
+                        .filter(allowed_users::user_id.eq(user_id))
+                        .filter(allowed_users::charger_id.eq(charger_id)),
+                )
+                .set(allowed_users::name.eq(name))
+                .execute(&mut conn)
+                {
+                    Ok(_) => (),
+                    Err(NotFound) => (),
+                    Err(_) => return Err(Error::InternalError.into()),
                 }
-                Err(_err) => continue,
             }
+
+            configured_users.push(user_id);
         }
 
         // Delete allowed users not configured on the charger
@@ -187,7 +222,7 @@ async fn update_configured_users(
 
         // Resolve the E-Mail for each user
         let mut conn = get_connection(state)?;
-        let server_users: Vec<String> = web_block_unpacked(move || {
+        let server_users: Vec<User> = web_block_unpacked(move || {
             use db_connector::schema::users::dsl::*;
 
             match users
@@ -195,25 +230,31 @@ async fn update_configured_users(
                 .select(User::as_select())
                 .load(&mut conn)
             {
-                Ok(u) => Ok(u.into_iter().map(|u| u.email).collect()),
+                Ok(u) => Ok(u),
                 Err(NotFound) => Ok(Vec::new()),
                 Err(_err) => Err(Error::InternalError),
             }
         })
         .await?;
 
-        let mut configured_users = Vec::new();
-        for u in data.configured_users.iter() {
-            if !server_users.contains(&u.email.to_lowercase()) {
-                configured_users.push(0);
+        // Used by the old api
+        // TODO: Deprecate this
+        let mut common_users_old = Vec::new();
+        // Used by the new api
+        let mut common_users_emails = Vec::new();
+        for u in configured_users.iter() {
+            if let Some(server_u) = server_users.iter().position(|su| su.id == *u) {
+                common_users_emails.push(server_users[server_u].email.clone());
+                common_users_old.push(1);
             } else {
-                configured_users.push(1)
+                common_users_emails.push(String::new());
+                common_users_old.push(0)
             }
         }
 
-        configured_users
+        (common_users_old, common_users_emails)
     } else {
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
 
     Ok(configured_users)
@@ -365,7 +406,8 @@ pub async fn management(
     let time = time.as_secs();
     let resp = ManagementResponseSchema {
         time,
-        configured_users,
+        configured_users: configured_users.0,
+        configured_users_emails: configured_users.1,
         uuid: output_uuid,
     };
 
@@ -402,13 +444,52 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
+        let user_id = get_test_uuid(&mail).unwrap();
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
             id: charger.uuid,
             password: charger.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
-                email: mail.to_uppercase(),
+                email: None,
+                user_id: Some(user_id.to_string()),
+                name: Some(String::new()),
+            }],
+        });
+
+        let body = ManagementSchema {
+            id: None,
+            password: None,
+            data,
+        };
+        let req = test::TestRequest::put()
+            .uri("/management")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .set_json(body)
+            .to_request();
+        let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
+
+        println!("{:?}", resp);
+        assert_eq!([1], *resp.configured_users);
+    }
+
+    #[actix_web::test]
+    async fn test_management_old_api() {
+        let (mut user, mail) = TestUser::random().await;
+        user.login().await;
+        let charger = user.add_random_charger().await;
+
+        let app = App::new().configure(configure).service(management);
+        let app = test::init_service(app).await;
+
+        let data = ManagementDataVersion::V2(ManagementDataVersion2 {
+            id: charger.uuid,
+            password: charger.password,
+            port: 0,
+            firmware_version: "2.3.1".to_string(),
+            configured_users: vec![ConfiguredUser {
+                email: Some(mail.to_uppercase()),
+                user_id: None,
                 name: Some(String::new()),
             }],
         });
@@ -509,7 +590,8 @@ mod tests {
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
-                email: mail,
+                email: None,
+                user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
                 name: Some(String::new()),
             }],
         });
@@ -586,7 +668,8 @@ mod tests {
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
-                email: mail,
+                email: None,
+                user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
                 name: Some(String::new()),
             }],
         });
@@ -669,11 +752,13 @@ mod tests {
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![
                 ConfiguredUser {
-                    email: mail,
+                    email: None,
+                    user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
                     name: Some(String::new()),
                 },
                 ConfiguredUser {
-                    email: mail2.clone(),
+                    email: None,
+                    user_id: Some(get_test_uuid(&mail2).unwrap().to_string()),
                     name: Some(String::new()),
                 },
             ],
@@ -741,11 +826,13 @@ mod tests {
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![
                 ConfiguredUser {
-                    email: mail,
+                    email: None,
+                    user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
                     name: Some(String::new()),
                 },
                 ConfiguredUser {
-                    email: mail2.clone(),
+                    email: Some(mail2),
+                    user_id: None,
                     name: Some(String::new()),
                 },
             ],
@@ -830,5 +917,59 @@ mod tests {
             user.user_id
         };
         assert_eq!(get_test_uuid(&user.mail).unwrap(), user_id);
+    }
+
+    #[actix_web::test]
+    async fn test_management_invalid_users() {
+        let (mut owner, _) = TestUser::random().await;
+        owner.login().await;
+        let charger = owner.add_random_charger().await;
+
+        let (mut user2, mail2) = TestUser::random().await;
+        user2.login().await;
+        owner
+            .allow_user(
+                &mail2,
+                UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)),
+                &charger,
+            )
+            .await;
+
+        let app = App::new().configure(configure).service(management);
+        let app = test::init_service(app).await;
+
+        let body = ManagementSchema {
+            id: None,
+            password: None,
+            data: ManagementDataVersion::V2(ManagementDataVersion2 {
+                id: charger.uuid.clone(),
+                password: charger.password,
+                port: 4321,
+                firmware_version: String::new(),
+                configured_users: vec![
+                    ConfiguredUser {
+                        email: None,
+                        name: Some(String::new()),
+                        user_id: None,
+                    },
+                    ConfiguredUser {
+                        email: None,
+                        name: Some("Renamed".to_string()),
+                        user_id: None,
+                    },
+                ],
+            }),
+        };
+
+        let req = test::TestRequest::put()
+            .uri("/management")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .set_json(body)
+            .to_request();
+
+        let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
+        // We expect no configured users recognized
+        assert_eq!(resp.configured_users, [0, 0]);
+        assert_eq!(resp.configured_users_emails, [String::new(), String::new()]);
     }
 }
