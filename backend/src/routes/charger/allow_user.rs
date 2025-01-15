@@ -315,6 +315,8 @@ pub mod tests {
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_success());
+        let body: AllowUserResponse = test::read_body_json(resp).await;
+        assert_eq!(body.user_id, get_test_uuid(&user2.mail).unwrap().to_string());
     }
 
     #[actix_web::test]
