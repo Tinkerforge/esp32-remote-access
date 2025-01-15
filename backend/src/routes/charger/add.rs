@@ -77,6 +77,7 @@ pub struct AddChargerResponseSchema {
     pub management_pub: String,
     pub charger_uuid: String,
     pub charger_password: String,
+    pub user_id: String,
 }
 
 fn validate_add_charger_schema(schema: &AddChargerSchema) -> Result<(), ValidationError> {
@@ -179,10 +180,12 @@ pub async fn add(
         add_wg_key(charger_id, user_id.clone().into(), keys.to_owned(), &state).await?;
     }
 
+    let user_id: uuid::Uuid = user_id.into();
     let resp = AddChargerResponseSchema {
         management_pub: pub_key,
         charger_uuid: charger_id.to_string(),
         charger_password: password,
+        user_id: user_id.to_string(),
     };
 
     Ok(HttpResponse::Ok().json(resp))
@@ -445,7 +448,7 @@ pub(crate) mod tests {
                 remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
                 tests::TestCharger,
             },
-            user::tests::TestUser,
+            user::tests::{TestUser, get_test_uuid}, // ← add import for UUID check
         },
         tests::configure,
         utils::generate_random_bytes,
@@ -520,7 +523,7 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_valid_charger() {
-        let (mut user, mail) = TestUser::random().await;
+        let (mut user, mail) = TestUser::random().await; // store mail
         let token = user.login().await;
 
         let app = App::new()
@@ -564,10 +567,10 @@ pub(crate) mod tests {
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
+
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-        let _ = remove_test_keys(&mail);
-        remove_allowed_test_users(&body.charger_uuid);
-        remove_test_charger(&body.charger_uuid);
+        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        assert_eq!(body.user_id, user_uuid);
     }
 
     #[actix_web::test]
@@ -575,7 +578,7 @@ pub(crate) mod tests {
         use db_connector::schema::wg_keys::dsl as wg_keys;
         use diesel::prelude::*;
 
-        let (mut user, _) = TestUser::random().await;
+        let (mut user, mail) = TestUser::random().await; // store mail
         let token = user.login().await.to_owned();
         let charger = user.add_random_charger().await;
 
@@ -615,7 +618,10 @@ pub(crate) mod tests {
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
+
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
+        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        assert_eq!(body.user_id, user_uuid);
 
         let uuid = uuid::Uuid::from_str(&body.charger_uuid).unwrap();
         let pool = test_connection_pool();
@@ -632,14 +638,14 @@ pub(crate) mod tests {
     async fn test_update_unowned_charger() {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_owned();
-        let email = user.get_mail().to_owned();
+        let mail = user.get_mail().to_owned(); // get mail for UUID check
 
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
         let charger = user2.add_random_charger().await;
         user2
             .allow_user(
-                &email,
+                &mail,
                 UserAuth::LoginKey(BASE64_STANDARD.encode(user.get_login_key().await)),
                 &charger,
             )
@@ -681,6 +687,10 @@ pub(crate) mod tests {
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
         assert_eq!(resp.status(), 200);
+
+        let body: AddChargerResponseSchema = test::read_body_json(resp).await;
+        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        assert_eq!(body.user_id, user_uuid);
     }
 
     #[actix_web::test]
@@ -688,7 +698,9 @@ pub(crate) mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
         let charger = user.add_random_charger().await;
+
         let (mut user2, _) = TestUser::random().await;
+        let user2_mail = user2.get_mail().to_owned(); // store user2 mail
         let token = user2.login().await.to_owned();
 
         let app = App::new()
@@ -727,6 +739,10 @@ pub(crate) mod tests {
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
         assert_eq!(resp.status().as_u16(), 200);
+
+        let body: AddChargerResponseSchema = test::read_body_json(resp).await;
+        let user2_uuid = get_test_uuid(&user2_mail).unwrap().to_string();
+        assert_eq!(body.user_id, user2_uuid);
     }
 
     #[actix_web::test]
