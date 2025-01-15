@@ -82,6 +82,7 @@ pub struct ManagementResponseSchema {
     pub time: u64,
     pub configured_users: Vec<i32>,
     pub configured_users_emails: Vec<String>,
+    pub configured_users_uuids: Vec<String>,
     pub uuid: Option<String>,
 }
 
@@ -115,7 +116,7 @@ async fn update_configured_users(
     state: &web::Data<AppState>,
     charger_id: uuid::Uuid,
     data: &ManagementDataVersion,
-) -> actix_web::Result<(Vec<i32>, Vec<String>)> {
+) -> actix_web::Result<(Vec<i32>, Vec<String>, Vec<String>)> {
     let configured_users = if let ManagementDataVersion::V2(data) = data {
 
         // Get uuids of configured users on wallbox
@@ -242,19 +243,22 @@ async fn update_configured_users(
         let mut common_users_old = Vec::new();
         // Used by the new api
         let mut common_users_emails = Vec::new();
+        let mut common_users_uuids = Vec::new();
         for u in configured_users.iter() {
-            if let Some(server_u) = server_users.iter().position(|su| su.id == *u) {
-                common_users_emails.push(server_users[server_u].email.clone());
+            if let Some(idx) = server_users.iter().position(|su| su.id == *u) {
+                common_users_emails.push(server_users[idx].email.clone());
+                common_users_uuids.push(server_users[idx].id.to_string());
                 common_users_old.push(1);
             } else {
                 common_users_emails.push(String::new());
+                common_users_uuids.push(String::new());
                 common_users_old.push(0)
             }
         }
 
-        (common_users_old, common_users_emails)
+        (common_users_old, common_users_emails, common_users_uuids)
     } else {
-        (Vec::new(), Vec::new())
+        (Vec::new(), Vec::new(), Vec::new())
     };
 
     Ok(configured_users)
@@ -408,6 +412,7 @@ pub async fn management(
         time,
         configured_users: configured_users.0,
         configured_users_emails: configured_users.1,
+        configured_users_uuids: configured_users.2,
         uuid: output_uuid,
     };
 
@@ -471,6 +476,7 @@ mod tests {
 
         println!("{:?}", resp);
         assert_eq!([1], *resp.configured_users);
+        assert_eq!(vec![user_id.to_string()], resp.configured_users_uuids);
     }
 
     #[actix_web::test]
@@ -508,6 +514,8 @@ mod tests {
 
         println!("{:?}", resp);
         assert_eq!([1], *resp.configured_users);
+        let user_id = get_test_uuid(&mail).unwrap();
+        assert_eq!(vec![user_id.to_string()], resp.configured_users_uuids);
     }
 
     #[actix_web::test]
@@ -539,6 +547,7 @@ mod tests {
 
         println!("{:?}", resp);
         assert_eq!([0; 0], *resp.configured_users);
+        assert!(resp.configured_users_uuids.is_empty());
     }
 
     #[actix_web::test]
@@ -573,6 +582,7 @@ mod tests {
 
         println!("{:?}", resp);
         assert_eq!([0; 0], *resp.configured_users);
+        assert!(resp.configured_users_uuids.is_empty());
     }
 
     #[actix_web::test]
@@ -689,6 +699,7 @@ mod tests {
 
         println!("{:?}", resp);
         assert_eq!([1], *resp.configured_users);
+        assert_eq!(vec![get_test_uuid(&mail).unwrap().to_string()], resp.configured_users_uuids);
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -779,6 +790,10 @@ mod tests {
 
         println!("{:?}", resp);
         assert_eq!([1, 0], *resp.configured_users);
+        assert_eq!(
+            vec![get_test_uuid(&mail).unwrap().to_string(), String::new()],
+            resp.configured_users_uuids
+        );
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -853,6 +868,10 @@ mod tests {
 
         println!("{:?}", resp);
         assert_eq!([1, 0], *resp.configured_users);
+        assert_eq!(
+            vec![get_test_uuid(&mail).unwrap().to_string(), String::new()],
+            resp.configured_users_uuids
+        );
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -901,6 +920,7 @@ mod tests {
 
         println!("{:?}", resp);
         assert_eq!([0; 0], *resp.configured_users);
+        assert!(resp.configured_users_uuids.is_empty());
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -971,5 +991,6 @@ mod tests {
         // We expect no configured users recognized
         assert_eq!(resp.configured_users, [0, 0]);
         assert_eq!(resp.configured_users_emails, [String::new(), String::new()]);
+        assert_eq!(vec![String::new(), String::new()], resp.configured_users_uuids);
     }
 }
