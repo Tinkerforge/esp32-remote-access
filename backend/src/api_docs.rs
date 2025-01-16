@@ -126,6 +126,7 @@ async fn main() {
             routes::user::create_authorization_token::CreateAuthorizationTokenSchema,
             routes::user::get_authorization_tokens::GetAuthorizationTokensResponseSchema,
             routes::user::delete_authorization_token::DeleteAuthorizationTokenSchema,
+            routes::user::update_user::UpdateUserSchema,
             routes::management::ManagementSchema,
             routes::management::ManagementResponseSchema,
             routes::management::ManagementDataVersion,

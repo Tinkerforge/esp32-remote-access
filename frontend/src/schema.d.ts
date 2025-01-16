@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/allow_user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Give another user permission to access a charger owned by the user. */
+        put: operations["allow_user"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/generate_salt": {
         parameters: {
             query?: never;
@@ -149,23 +166,6 @@ export interface paths {
         get?: never;
         /** Add a new charger. */
         put: operations["add"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/charger/allow_user": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Give another user permission to access a charger owned by the user. */
-        put: operations["allow_user"];
         post?: never;
         delete?: never;
         options?: never;
@@ -427,6 +427,7 @@ export interface components {
             charger_password: string;
             charger_uuid: string;
             management_pub: string;
+            user_id: string;
         };
         AddChargerSchema: {
             charger: components["schemas"]["ChargerSchema"];
@@ -453,8 +454,9 @@ export interface components {
         /** @enum {string} */
         ChargerStatus: "Disconnected" | "Connected";
         ConfiguredUser: {
-            email: string;
+            email?: string | null;
             name?: string | null;
+            user_id?: string | null;
         };
         CreateAuthorizationTokenSchema: {
             use_once: boolean;
@@ -470,6 +472,7 @@ export interface components {
         };
         FilteredUser: {
             email: string;
+            has_old_charger: boolean;
             id: string;
             name: string;
         };
@@ -535,6 +538,8 @@ export interface components {
         };
         ManagementResponseSchema: {
             configured_users: number[];
+            configured_users_emails: string[];
+            configured_users_uuids: string[];
             /** Format: int64 */
             time: number;
             uuid?: string | null;
@@ -586,6 +591,10 @@ export interface components {
             charger_id: string;
             note: string;
         };
+        UpdateUserSchema: {
+            email: string;
+            name: string;
+        };
         UserAuth: {
             LoginKey: string;
         } | {
@@ -600,6 +609,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    allow_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllowUserSchema"];
+            };
+        };
+        responses: {
+            /** @description Allowing the user to access the charger was successful. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user does not exist. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     generate_salt: {
         parameters: {
             query?: never;
@@ -839,35 +877,6 @@ export interface operations {
             };
             /** @description The charger already exists with another owner */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    allow_user: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AllowUserSchema"];
-            };
-        };
-        responses: {
-            /** @description Allowing the user to access the charger was successful. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The user does not exist. */
-            400: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1255,7 +1264,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["FilteredUser"];
+                "application/json": components["schemas"]["UpdateUserSchema"];
             };
         };
         responses: {
