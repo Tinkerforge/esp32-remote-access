@@ -38,7 +38,8 @@ import { Base64 } from "js-base64";
 interface UserState {
     id: string,
     name: string,
-    email: string
+    email: string,
+    has_old_charger: boolean,
 }
 
 interface State {
@@ -56,6 +57,7 @@ class UserComponent extends Component<{}, State> {
             id: "",
             name: "",
             email: "",
+            has_old_charger: false,
         };
 
         this.state = {
@@ -65,7 +67,6 @@ class UserComponent extends Component<{}, State> {
 
         fetchClient.GET("/user/me", {credentials: "same-origin"}).then(({data, error, response}) => {
             if (data) {
-                email = data.email;
                 this.setState({user: data});
             } else if (error) {
                 showAlert(i18n.t("user.get_user_failed", {status: response.status, response: error}), "danger");
@@ -93,12 +94,14 @@ class UserComponent extends Component<{}, State> {
                 </Form.Group>
                 <Form.Group className="pb-3" controlId="userEmail">
                     <Form.Label className="text-muted">{t("email")}</Form.Label>
-                    <Form.Control disabled type="email" value={this.state.user.email} onChange={(e) => {
+                    <Form.Control type="email" value={this.state.user.email} onChange={(e) => {
                         this.setState({user: {...this.state.user, email: (e.target as HTMLInputElement).value}, isDirty: true});
-                    }} />
-                    <Form.Text className="text-danger">
-                        {t("email_change_warning")}
-                    </Form.Text>
+                    }} disabled={this.state.user.has_old_charger} />
+                    {this.state.user.has_old_charger &&
+                        <Form.Text className="text-danger">
+                            {t("email_change_disabled")}
+                        </Form.Text>
+                    }
                 </Form.Group>
                 <Form.Group className="pb-3" controlId="userName">
                     <Form.Label className="text-muted">{t("name")}</Form.Label>
