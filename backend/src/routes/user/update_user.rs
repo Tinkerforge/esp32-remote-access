@@ -19,18 +19,28 @@
 
 use crate::{
     error::Error,
-    models::filtered_user::FilteredUser,
     utils::{get_connection, web_block_unpacked},
     AppState,
 };
 use actix_web::{put, web, HttpResponse, Responder};
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound};
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+use validator::Validate;
+
+#[derive(Serialize, Deserialize, ToSchema, Validate)]
+pub struct UpdateUserSchema {
+    #[validate(length(min = 3))]
+    pub name: String,
+    #[validate(email)]
+    pub email: String,
+}
 
 /// Update basic user information.
 #[utoipa::path(
     context_path = "/user",
-    request_body = FilteredUser,
+    request_body = UpdateUserSchema,
     responses(
         (status = 200, description = "Update was successful.")
     ),
@@ -41,7 +51,7 @@ use diesel::{prelude::*, result::Error::NotFound};
 #[put("/update_user")]
 pub async fn update_user(
     state: web::Data<AppState>,
-    user: actix_web_validator::Json<FilteredUser>,
+    user: actix_web_validator::Json<UpdateUserSchema>,
     uid: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
@@ -98,7 +108,7 @@ mod tests {
                 register::tests::{create_user, delete_user},
             },
             user::{
-                me::tests::{get_test_user, get_test_user_by_email},
+                me::tests::get_test_user,
                 tests::TestUser,
             },
         },
@@ -120,9 +130,13 @@ mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let user = get_test_user_by_email(mail);
-        let mut user = FilteredUser::from(user);
+        let user = get_test_user(mail);
+        let mut user = user;
         user.email = update_mail.clone();
+        let user = UpdateUserSchema {
+            name: user.name,
+            email: user.email,
+        };
 
         let (token, _) = verify_and_login_user(mail, key).await;
         let req = test::TestRequest::put()
@@ -133,7 +147,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        let _ = get_test_user_by_email(&update_mail);
+        let _ = get_test_user(&update_mail);
     }
 
     #[actix_web::test]
@@ -148,8 +162,13 @@ mod tests {
         let app = test::init_service(app).await;
 
         let user = get_test_user(&mail);
-        let mut user = FilteredUser::from(user);
+        let mut user =user;
         user.email = mail2;
+        let user = UpdateUserSchema {
+            name: user.name,
+            email: user.email,
+        };
+
         let req = test::TestRequest::put()
             .uri("/update_user")
             .set_json(user)

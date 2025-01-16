@@ -51,7 +51,6 @@ pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::models::users::User;
-    use diesel::{prelude::*, SelectableHelper};
 
     use crate::{
         defer,
@@ -63,18 +62,6 @@ pub(crate) mod tests {
     };
 
     pub fn get_test_user(mail: &str) -> User {
-        use db_connector::schema::users::dsl::*;
-
-        let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        users
-            .filter(email.eq(mail))
-            .select(User::as_select())
-            .get_result(&mut conn)
-            .unwrap()
-    }
-
-    pub fn get_test_user_by_email(mail: &str) -> User {
         use db_connector::schema::users::dsl::*;
 
         let pool = db_connector::test_connection_pool();
