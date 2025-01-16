@@ -470,12 +470,6 @@ export interface components {
         DeleteUserSchema: {
             login_key: number[];
         };
-        FilteredUser: {
-            email: string;
-            has_old_charger: boolean;
-            id: string;
-            name: string;
-        };
         GetAuthorizationTokensResponseSchema: {
             tokens: components["schemas"]["ResponseAuthorizationToken"][];
         };
@@ -599,6 +593,12 @@ export interface components {
             LoginKey: string;
         } | {
             AuthToken: string;
+        };
+        UserInfo: {
+            email: string;
+            has_old_charger: boolean;
+            id: string;
+            name: string;
         };
     };
     responses: never;
@@ -1214,7 +1214,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FilteredUser"];
+                    "application/json": components["schemas"]["UserInfo"];
                 };
             };
             /** @description The jwt token was somehow valid but contained a non valid uuid. */
