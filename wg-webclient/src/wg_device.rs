@@ -17,6 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
+use boringtun::noise::errors::WireGuardError;
 use boringtun::noise::rate_limiter::RateLimiter;
 use boringtun::{
     noise::{Tunn, TunnResult},
@@ -255,7 +256,11 @@ impl WgTunDevice {
                         return;
                     }
                     TunnResult::Err(e) => {
-                        log::error!("Error: {:?}", e);
+                        if let WireGuardError::InvalidPacket = e {
+                            log::debug!("Invalid packet");
+                        } else {
+                            log::debug!("Error: {:?}", e);
+                        }
                         return;
                     }
                     TunnResult::WriteToTunnelV4(d, _) => {
