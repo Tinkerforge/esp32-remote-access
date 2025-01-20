@@ -4,7 +4,7 @@ export const de ={
     "description": "Diese Seite bietet einen Fernzugriff für Tinkerforge WARP-Geräte. Weitere Informationen findest du <0>hier</0>",
     "user": {
         "account_actions": "Kontoaktionen",
-        "profile_information": "Profileinstellungen",
+        "profile_information": "Nutzer Informationen",
         "save_changes": "Änderungen speichern",
         "user_id": "Nutzer-ID",
         "email": "E-Mail-Adresse",
