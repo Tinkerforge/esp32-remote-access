@@ -53,7 +53,8 @@ struct AllowUserResponse {
 pub struct AllowUserSchema {
     charger_id: String,
     charger_password: String,
-    email: String,
+    email: Option<String>,
+    user_uuid: Option<String>,
     user_auth: UserAuth,
     wg_keys: [Keys; 5],
     #[schema(value_type = Vec<u32>)]
@@ -146,7 +147,13 @@ pub async fn allow_user(
         return Err(Error::Unauthorized.into());
     }
 
-    let allowed_uuid = get_user_id(&state, FindBy::Email(allow_user.email.clone())).await?;
+    let allowed_uuid = if let Some(uuid) = allow_user.user_uuid.clone() {
+        parse_uuid(&uuid)?
+    } else if let Some(email) = allow_user.email.clone() {
+        get_user_id(&state, FindBy::Email(email)).await?
+    } else {
+        return Err(ErrorBadRequest("No user_uuid or email provided"));
+    };
     authenticate_user(allowed_uuid, &allow_user.user_auth, &state).await?;
 
     // delete old allowed_user when existing
@@ -233,7 +240,8 @@ pub mod tests {
         let body = AllowUserSchema {
             charger_id: charger.uuid.to_string(),
             user_auth,
-            email: email.to_string(),
+            email: Some(email.to_string()),
+            user_uuid: None,
             charger_password: charger.password.clone(),
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
@@ -265,7 +273,8 @@ pub mod tests {
         let allow = AllowUserSchema {
             charger_id: charger.uuid,
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
-            email: user2.mail.to_owned(),
+            email: Some(user2.mail.to_owned()),
+            user_uuid: None,
             charger_password: charger.password,
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
@@ -304,7 +313,8 @@ pub mod tests {
         let allow = AllowUserSchema {
             charger_id: charger.uuid,
             user_auth: UserAuth::AuthToken(auth_token.token),
-            email: user2.mail.to_owned(),
+            email: Some(user2.mail.to_owned()),
+            user_uuid: None,
             charger_password: charger.password,
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
@@ -340,7 +350,8 @@ pub mod tests {
         let allow = AllowUserSchema {
             charger_id: charger.uuid,
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
-            email: user2.mail.to_owned(),
+            email: Some(user2.mail.to_owned()),
+            user_uuid: None,
             charger_password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
@@ -370,7 +381,8 @@ pub mod tests {
         let allow = AllowUserSchema {
             charger_id: charger.uuid,
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(Vec::new())),
-            email: uuid::Uuid::new_v4().to_string(),
+            email: Some(uuid::Uuid::new_v4().to_string()),
+            user_uuid: None,
             charger_password: String::new(),
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
@@ -399,7 +411,8 @@ pub mod tests {
         let allow = AllowUserSchema {
             charger_id: charger.uuid.clone(),
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
-            email: user2.mail.to_owned(),
+            email: Some(user2.mail.to_owned()),
+            user_uuid: None,
             charger_password: charger.password.clone(),
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
@@ -417,7 +430,8 @@ pub mod tests {
         let allow = AllowUserSchema {
             charger_id: charger.uuid.clone(),
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
-            email: user2.mail.to_owned(),
+            email: Some(user2.mail.to_owned()),
+            user_uuid: None,
             charger_password: charger.password.clone(),
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
@@ -445,5 +459,42 @@ pub mod tests {
 
             assert_eq!(users.len(), 1);
         }
+    }
+
+    #[actix_web::test]
+    async fn test_allow_users_by_uuid() {
+        let (user2, _) = TestUser::random().await;
+        let (mut user1, _) = TestUser::random().await;
+
+        let charger = OsRng.next_u32() as i32;
+        user1.login().await.to_string();
+        let charger = user1.add_charger(charger).await;
+
+        let app = App::new().configure(configure).service(allow_user);
+        let app = test::init_service(app).await;
+
+        let allow = AllowUserSchema {
+            charger_id: charger.uuid,
+            user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
+            email: None,
+            user_uuid: Some(get_test_uuid(&user2.mail).unwrap().to_string()),
+            charger_password: charger.password,
+            wg_keys: generate_random_keys(),
+            charger_name: String::new(),
+            note: String::new(),
+        };
+        let req = test::TestRequest::put()
+            .uri("/allow_user")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .set_json(allow)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert!(resp.status().is_success());
+        let body: AllowUserResponse = test::read_body_json(resp).await;
+        assert_eq!(
+            body.user_id,
+            get_test_uuid(&user2.mail).unwrap().to_string()
+        );
     }
 }
