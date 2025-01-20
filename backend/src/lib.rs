@@ -243,7 +243,9 @@ pub(crate) mod tests {
         }
     }
 
-    pub fn create_test_state(pool: Option<diesel::r2d2::Pool<ConnectionManager<PgConnection>>>) -> web::Data<AppState> {
+    pub fn create_test_state(
+        pool: Option<diesel::r2d2::Pool<ConnectionManager<PgConnection>>>,
+    ) -> web::Data<AppState> {
         let pool = pool.unwrap_or_else(|| db_connector::test_connection_pool());
 
         let mail = std::env::var("MAIL_USER").expect("MAIL must be set");

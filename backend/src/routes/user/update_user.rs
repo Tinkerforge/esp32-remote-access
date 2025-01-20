@@ -107,10 +107,7 @@ mod tests {
                 login::tests::verify_and_login_user,
                 register::tests::{create_user, delete_user},
             },
-            user::{
-                me::tests::get_test_user,
-                tests::TestUser,
-            },
+            user::{me::tests::get_test_user, tests::TestUser},
         },
         tests::configure,
     };
@@ -162,7 +159,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let user = get_test_user(&mail);
-        let mut user =user;
+        let mut user = user;
         user.email = mail2;
         let user = UpdateUserSchema {
             name: user.name,

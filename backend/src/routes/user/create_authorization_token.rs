@@ -1,12 +1,17 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use base64::Engine;
 use db_connector::models::authorization_tokens::AuthorizationToken;
+use diesel::prelude::*;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use diesel::prelude::*;
 
-use crate::{error::Error, models::response_auth_token::ResponseAuthorizationToken, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    models::response_auth_token::ResponseAuthorizationToken,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct CreateAuthorizationTokenSchema {
@@ -28,8 +33,7 @@ pub async fn create_authorization_token(
     state: web::Data<AppState>,
     user_id: crate::models::uuid::Uuid,
     schema: web::Json<CreateAuthorizationTokenSchema>,
-) -> actix_web::Result<impl Responder>
-{
+) -> actix_web::Result<impl Responder> {
     let id = uuid::Uuid::new_v4();
     let mut token = vec![0u8; 32];
     rand::thread_rng().fill_bytes(&mut token);
@@ -47,11 +51,13 @@ pub async fn create_authorization_token(
 
         match diesel::insert_into(authorization_tokens::authorization_tokens)
             .values(&auth_token)
-            .execute(&mut conn) {
-                Ok(_) => Ok(()),
-                Err(_err) => Err(Error::InternalError)
-            }
-    }).await?;
+            .execute(&mut conn)
+        {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError),
+        }
+    })
+    .await?;
 
     let response = ResponseAuthorizationToken {
         id: id.to_string(),
@@ -63,16 +69,27 @@ pub async fn create_authorization_token(
 
 #[cfg(test)]
 pub mod tests {
-    use actix_web::{cookie::Cookie, test::{self, TestRequest}, App};
+    use actix_web::{
+        cookie::Cookie,
+        test::{self, TestRequest},
+        App,
+    };
 
-    use crate::{middleware::jwt::JwtMiddleware, models::response_auth_token::ResponseAuthorizationToken, routes::user::tests::TestUser, tests::configure};
+    use crate::{
+        middleware::jwt::JwtMiddleware, models::response_auth_token::ResponseAuthorizationToken,
+        routes::user::tests::TestUser, tests::configure,
+    };
 
     use super::{create_authorization_token, CreateAuthorizationTokenSchema};
 
-    pub async fn create_test_auth_token(user: &TestUser, use_once: bool) -> ResponseAuthorizationToken {
+    pub async fn create_test_auth_token(
+        user: &TestUser,
+        use_once: bool,
+    ) -> ResponseAuthorizationToken {
         let token = user.access_token.as_ref().unwrap();
 
-        let app = App::new().configure(configure)
+        let app = App::new()
+            .configure(configure)
             .wrap(JwtMiddleware)
             .service(create_authorization_token);
         let app = test::init_service(app).await;
@@ -81,9 +98,7 @@ pub mod tests {
         let req = TestRequest::post()
             .uri("/create_authorization_token")
             .cookie(Cookie::new("access_token", token))
-            .set_json(CreateAuthorizationTokenSchema {
-                use_once
-            })
+            .set_json(CreateAuthorizationTokenSchema { use_once })
             .to_request();
 
         let resp: ResponseAuthorizationToken = test::call_and_read_body_json(&app, req).await;
@@ -95,7 +110,8 @@ pub mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await;
 
-        let app = App::new().configure(configure)
+        let app = App::new()
+            .configure(configure)
             .wrap(JwtMiddleware)
             .service(create_authorization_token);
         let app = test::init_service(app).await;
@@ -103,9 +119,7 @@ pub mod tests {
         let req = TestRequest::post()
             .uri("/create_authorization_token")
             .cookie(Cookie::new("access_token", token))
-            .set_json(CreateAuthorizationTokenSchema {
-                use_once: true
-            })
+            .set_json(CreateAuthorizationTokenSchema { use_once: true })
             .to_request();
 
         let resp = test::call_service(&app, req).await;

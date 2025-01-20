@@ -23,7 +23,9 @@ pub struct AddChargerWithTokenSchema {
     pub note: String,
 }
 
-fn validate_add_charger_with_token_schema(schema: &AddChargerWithTokenSchema) -> Result<(), ValidationError> {
+fn validate_add_charger_with_token_schema(
+    schema: &AddChargerWithTokenSchema,
+) -> Result<(), ValidationError> {
     for key in schema.keys.iter() {
         validate_wg_key(&key.charger_public)?;
     }
@@ -99,13 +101,20 @@ mod tests {
     use std::net::Ipv4Addr;
 
     use super::*;
+    use crate::{
+        routes::{
+            charger::{
+                add::{tests::generate_random_keys, AddChargerResponseSchema},
+                remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
+            },
+            user::tests::{get_test_uuid, TestUser},
+        },
+        tests::configure,
+    };
     use actix_web::{test, App};
     use ipnetwork::{IpNetwork, Ipv4Network};
     use rand::RngCore;
     use rand_core::OsRng;
-    use crate::{
-        routes::{charger::{add::{tests::generate_random_keys, AddChargerResponseSchema}, remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys}}, user::tests::{get_test_uuid, TestUser}}, tests::configure
-    };
 
     #[actix_web::test]
     async fn test_valid_charger() {
@@ -113,9 +122,7 @@ mod tests {
         user.login().await;
         let auth_token = user.create_authorization_token(true).await;
 
-        let app = App::new()
-            .configure(configure)
-            .service(add_with_token);
+        let app = App::new().configure(configure).service(add_with_token);
         let app = test::init_service(app).await;
 
         let keys = generate_random_keys();
@@ -166,9 +173,7 @@ mod tests {
         user.login().await;
         let auth_token = "invalid_token".to_string();
 
-        let app = App::new()
-            .configure(configure)
-            .service(add_with_token);
+        let app = App::new().configure(configure).service(add_with_token);
         let app = test::init_service(app).await;
 
         let keys = generate_random_keys();
@@ -207,6 +212,5 @@ mod tests {
         println!("{:?}", resp);
         println!("{:?}", resp.response().body());
         assert_eq!(resp.status(), 401);
-
     }
 }

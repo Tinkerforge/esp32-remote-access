@@ -104,9 +104,8 @@ async fn identify_configured_user(
             Ok(u) => u,
             Err(_err) => return None,
         }
-    }
-    else {
-        return None
+    } else {
+        return None;
     };
 
     Some(user_id)
@@ -118,7 +117,6 @@ async fn update_configured_users(
     data: &ManagementDataVersion,
 ) -> actix_web::Result<(Vec<i32>, Vec<String>, Vec<String>)> {
     let configured_users = if let ManagementDataVersion::V2(data) = data {
-
         // Get uuids of configured users on wallbox
         let mut configured_users: Vec<uuid::Uuid> = Vec::new();
         for user in data.configured_users.iter() {
@@ -131,7 +129,7 @@ async fn update_configured_users(
                 None => {
                     configured_users.push(uuid::Uuid::new_v4());
                     continue;
-                },
+                }
             };
 
             if let Some(name) = &user.name {
@@ -699,7 +697,10 @@ mod tests {
 
         println!("{:?}", resp);
         assert_eq!([1], *resp.configured_users);
-        assert_eq!(vec![get_test_uuid(&mail).unwrap().to_string()], resp.configured_users_uuids);
+        assert_eq!(
+            vec![get_test_uuid(&mail).unwrap().to_string()],
+            resp.configured_users_uuids
+        );
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -991,6 +992,9 @@ mod tests {
         // We expect no configured users recognized
         assert_eq!(resp.configured_users, [0, 0]);
         assert_eq!(resp.configured_users_emails, [String::new(), String::new()]);
-        assert_eq!(vec![String::new(), String::new()], resp.configured_users_uuids);
+        assert_eq!(
+            vec![String::new(), String::new()],
+            resp.configured_users_uuids
+        );
     }
 }

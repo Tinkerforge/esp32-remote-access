@@ -17,15 +17,15 @@
  * Boston, MA 02111-1307, USA.
  */
 
+pub mod create_authorization_token;
 pub mod delete;
+pub mod delete_authorization_token;
+pub mod get_authorization_tokens;
 pub mod get_secret;
 pub mod logout;
 pub mod me;
 pub mod update_password;
 pub mod update_user;
-pub mod create_authorization_token;
-pub mod get_authorization_tokens;
-pub mod delete_authorization_token;
 
 use crate::{
     error::Error,
@@ -146,7 +146,8 @@ pub mod tests {
     use rand_core::OsRng;
 
     use crate::{
-        models::response_auth_token::ResponseAuthorizationToken, routes::{
+        models::response_auth_token::ResponseAuthorizationToken,
+        routes::{
             auth::{
                 get_login_salt::tests::get_test_login_salt,
                 login::tests::login_user,
@@ -159,7 +160,8 @@ pub mod tests {
                 remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
                 tests::TestCharger,
             },
-        }, tests::configure
+        },
+        tests::configure,
     };
 
     use super::create_authorization_token::tests::create_test_auth_token;
@@ -345,7 +347,10 @@ pub mod tests {
             self.refresh_token.as_ref().unwrap()
         }
 
-        pub async fn create_authorization_token(&self, use_once: bool) -> ResponseAuthorizationToken {
+        pub async fn create_authorization_token(
+            &self,
+            use_once: bool,
+        ) -> ResponseAuthorizationToken {
             create_test_auth_token(self, use_once).await
         }
     }

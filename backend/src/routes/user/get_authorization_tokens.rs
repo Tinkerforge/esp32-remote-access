@@ -4,7 +4,12 @@ use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, models::response_auth_token::ResponseAuthorizationToken, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    models::response_auth_token::ResponseAuthorizationToken,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetAuthorizationTokensResponseSchema {
@@ -25,7 +30,6 @@ pub async fn get_authorization_tokens(
     state: web::Data<AppState>,
     user_id: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
-
     let mut conn = get_connection(&state)?;
     let user_tokens: Vec<AuthorizationToken> = web_block_unpacked(move || {
         use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
@@ -37,43 +41,53 @@ pub async fn get_authorization_tokens(
             .load(&mut conn)
         {
             Ok(u) => Ok(u),
-            Err(_err) => Err(Error::InternalError)
+            Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
-    let tokens: Vec<ResponseAuthorizationToken> = user_tokens.into_iter().map(|t| {
-        ResponseAuthorizationToken {
+    let tokens: Vec<ResponseAuthorizationToken> = user_tokens
+        .into_iter()
+        .map(|t| ResponseAuthorizationToken {
             id: t.id.to_string(),
             token: t.token,
             use_once: t.use_once,
-        }
-    }).collect();
+        })
+        .collect();
 
-    Ok(HttpResponse::Ok().json(GetAuthorizationTokensResponseSchema {
-        tokens
-    }))
+    Ok(HttpResponse::Ok().json(GetAuthorizationTokensResponseSchema { tokens }))
 }
 
 #[cfg(test)]
 mod tests {
     use actix_web::{cookie::Cookie, test, App};
 
-    use crate::{middleware::jwt::JwtMiddleware, models::response_auth_token::ResponseAuthorizationToken, routes::user::tests::TestUser, tests::configure};
+    use crate::{
+        middleware::jwt::JwtMiddleware, models::response_auth_token::ResponseAuthorizationToken,
+        routes::user::tests::TestUser, tests::configure,
+    };
 
     use super::{get_authorization_tokens, GetAuthorizationTokensResponseSchema};
-
 
     #[actix_web::test]
     async fn test_get_authorization_tokens() {
         let (mut user, _) = TestUser::random().await;
         let access_token = user.login().await.to_string();
 
-        let mut auth_tokens = vec![ResponseAuthorizationToken{id: String::new(), token: String::new(), use_once: false}; 5];
+        let mut auth_tokens = vec![
+            ResponseAuthorizationToken {
+                id: String::new(),
+                token: String::new(),
+                use_once: false
+            };
+            5
+        ];
         for token in auth_tokens.iter_mut() {
             *token = user.create_authorization_token(true).await;
         }
 
-        let app = App::new().configure(configure)
+        let app = App::new()
+            .configure(configure)
             .wrap(JwtMiddleware)
             .service(get_authorization_tokens);
         let app = test::init_service(app).await;

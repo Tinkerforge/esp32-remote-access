@@ -113,7 +113,7 @@ async fn authenticate_user(
                 Err(_) => return Err(ErrorBadRequest("login_key is wrong base64")),
             };
             let _ = validate_password(&key, FindBy::Uuid(uid), conn).await?;
-        },
+        }
         UserAuth::AuthToken(token) => {
             validate_auth_token(token.to_owned(), uid, state).await?;
         }
@@ -280,7 +280,10 @@ pub mod tests {
 
         assert!(resp.status().is_success());
         let body: AllowUserResponse = test::read_body_json(resp).await;
-        assert_eq!(body.user_id, get_test_uuid(&user2.mail).unwrap().to_string());
+        assert_eq!(
+            body.user_id,
+            get_test_uuid(&user2.mail).unwrap().to_string()
+        );
     }
 
     #[actix_web::test]
@@ -316,7 +319,10 @@ pub mod tests {
 
         assert!(resp.status().is_success());
         let body: AllowUserResponse = test::read_body_json(resp).await;
-        assert_eq!(body.user_id, get_test_uuid(&user2.mail).unwrap().to_string());
+        assert_eq!(
+            body.user_id,
+            get_test_uuid(&user2.mail).unwrap().to_string()
+        );
     }
 
     #[actix_web::test]

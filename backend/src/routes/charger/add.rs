@@ -458,7 +458,7 @@ pub(crate) mod tests {
                 remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
                 tests::TestCharger,
             },
-            user::tests::{TestUser, get_test_uuid}, // ← add import for UUID check
+            user::tests::{get_test_uuid, TestUser}, // ← add import for UUID check
         },
         tests::configure,
         utils::generate_random_bytes,

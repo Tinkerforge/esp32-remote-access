@@ -24,7 +24,10 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    error::Error, routes::user::get_user, utils::{get_connection, web_block_unpacked}, AppState
+    error::Error,
+    routes::user::get_user,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
 };
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -66,13 +69,17 @@ async fn me(
             Ok(allowed_users) => Ok(allowed_users),
             Err(_e) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     let mut conn = get_connection(&state)?;
     let chargers = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl as c;
 
-        let ids = allowed_users.iter().map(|au| au.charger_id).collect::<Vec<_>>();
+        let ids = allowed_users
+            .iter()
+            .map(|au| au.charger_id)
+            .collect::<Vec<_>>();
         match c::chargers
             .filter(c::id.eq_any(ids))
             .select(Charger::as_select())
@@ -81,12 +88,13 @@ async fn me(
             Ok(chargers) => Ok(chargers),
             Err(_e) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     let mut has_old_charger = false;
     for charger in chargers.into_iter() {
         if let Ok(version) = semver::Version::parse(&charger.firmware_version) {
-            let required_version = semver::Version::new(2,6,7);
+            let required_version = semver::Version::new(2, 6, 7);
             if version < required_version {
                 has_old_charger = true;
             }
@@ -172,10 +180,10 @@ pub(crate) mod tests {
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
 
-        use db_connector::schema::chargers::dsl as c;
-        use db_connector::schema::allowed_users::dsl as au;
-        use db_connector::models::chargers::Charger;
         use db_connector::models::allowed_users::AllowedUser;
+        use db_connector::models::chargers::Charger;
+        use db_connector::schema::allowed_users::dsl as au;
+        use db_connector::schema::chargers::dsl as c;
         use uuid::Uuid;
 
         // Insert test charger with old firmware
@@ -248,10 +256,10 @@ pub(crate) mod tests {
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
 
-        use db_connector::schema::chargers::dsl as c;
-        use db_connector::schema::allowed_users::dsl as au;
-        use db_connector::models::chargers::Charger;
         use db_connector::models::allowed_users::AllowedUser;
+        use db_connector::models::chargers::Charger;
+        use db_connector::schema::allowed_users::dsl as au;
+        use db_connector::schema::chargers::dsl as c;
         use uuid::Uuid;
 
         // Insert test charger with new firmware
@@ -324,10 +332,10 @@ pub(crate) mod tests {
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
 
-        use db_connector::schema::chargers::dsl as c;
-        use db_connector::schema::allowed_users::dsl as au;
-        use db_connector::models::chargers::Charger;
         use db_connector::models::allowed_users::AllowedUser;
+        use db_connector::models::chargers::Charger;
+        use db_connector::schema::allowed_users::dsl as au;
+        use db_connector::schema::chargers::dsl as c;
         use uuid::Uuid;
 
         // Insert test charger with invalid firmware version
