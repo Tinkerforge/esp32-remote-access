@@ -8,9 +8,10 @@ import { useTranslation } from 'react-i18next';
 import { Clipboard, Trash2 } from 'react-feather';
 
 interface Token {
+    token: string;
+    user_uuid: string;
     user_email: string;
     user_public_key: string;
-    token: string;
 }
 
 export function Tokens() {
@@ -56,6 +57,7 @@ export function Tokens() {
                     const newToken: Token = {
                         token: token.token,
                         user_email: userData.email,
+                        user_uuid: userData.id,
                         user_public_key: Base64.fromUint8Array(pub_key),
                     }
                     newTokens.push({
@@ -96,6 +98,7 @@ export function Tokens() {
                 token: {
                     token: data.token,
                     user_email: user.email,
+                    user_uuid: user.id,
                     user_public_key: Base64.fromUint8Array(pub_key),
                 },
                 use_once: data.use_once,
