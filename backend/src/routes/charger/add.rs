@@ -138,6 +138,16 @@ pub async fn add(
     charger_schema: actix_web_validator::Json<AddChargerSchema>,
     user_id: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
+    let resp = register_charger(state, charger_schema.0, user_id.into()).await?;
+
+    Ok(HttpResponse::Ok().json(resp))
+}
+
+pub async fn register_charger(
+    state: web::Data<AppState>,
+    charger_schema: AddChargerSchema,
+    user_id: uuid::Uuid,
+) -> actix_web::Result<AddChargerResponseSchema> {
     // uwrapping here is safe since it got checked in the validator.
     let mut uid_bytes = bs58::decode(&charger_schema.charger.uid)
         .with_alphabet(bs58::Alphabet::FLICKR)
@@ -167,7 +177,7 @@ pub async fn add(
         } else {
             charger_id = uuid::Uuid::new_v4();
             add_charger(
-                charger_schema.0.clone(),
+                charger_schema.clone(),
                 charger_id,
                 charger_uid,
                 user_id.clone().into(),
@@ -188,7 +198,7 @@ pub async fn add(
         user_id: user_id.to_string(),
     };
 
-    Ok(HttpResponse::Ok().json(resp))
+    Ok(resp)
 }
 
 pub async fn get_charger_from_db(
@@ -315,7 +325,7 @@ async fn generate_password() -> actix_web::Result<(String, String)> {
     Ok((password, hash))
 }
 
-async fn add_charger(
+pub async fn add_charger(
     schema: AddChargerSchema,
     charger_id: uuid::Uuid,
     charger_uid: i32,

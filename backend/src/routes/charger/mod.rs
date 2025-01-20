@@ -23,6 +23,7 @@ pub mod get_chargers;
 pub mod get_key;
 pub mod remove;
 pub mod update_note;
+pub mod add_with_token;
 
 use crate::{
     error::Error,
