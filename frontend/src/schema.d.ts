@@ -173,6 +173,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/charger/add_with_token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add a charger using an authorization token instead of JWT authentication */
+        put: operations["add_with_token"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/charger/get_chargers": {
         parameters: {
             query?: never;
@@ -434,6 +451,14 @@ export interface components {
             keys: components["schemas"]["Keys"][];
             name: string;
             note: string;
+        };
+        AddChargerWithTokenSchema: {
+            charger: components["schemas"]["ChargerSchema"];
+            keys: components["schemas"]["Keys"][];
+            name: string;
+            note: string;
+            token: string;
+            user_id: string;
         };
         AllowUserSchema: {
             charger_id: string;
@@ -876,6 +901,44 @@ export interface operations {
                 };
             };
             /** @description The charger already exists with another owner */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    add_with_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddChargerWithTokenSchema"];
+            };
+        };
+        responses: {
+            /** @description Charger was added successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddChargerResponseSchema"];
+                };
+            };
+            /** @description The request contains invalid data */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The authorization token is invalid */
             401: {
                 headers: {
                     [name: string]: unknown;
