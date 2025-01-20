@@ -46,6 +46,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(allow_user::allow_user)
         .service(get_key::get_key);
     cfg.service(scope);
+    cfg.service(add_with_token::add_with_token);
     cfg.service(allow_user::allow_user);
 }
 
