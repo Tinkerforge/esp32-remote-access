@@ -67,7 +67,6 @@ fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
 
 /// Add a charger using an authorization token instead of JWT authentication
 #[utoipa::path(
-    context_path = "/charger",
     request_body = AddChargerWithTokenSchema,
     responses(
         (status = 200, description = "Charger was added successfully", body = AddChargerResponseSchema),
