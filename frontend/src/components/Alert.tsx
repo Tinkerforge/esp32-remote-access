@@ -9,7 +9,18 @@ const state = signal({
     heading: "",
 });
 
-export function showAlert(text: string, variant: string, heading?: string) {
+let alertTimeout: number | undefined;
+
+const clearAlertTimeout = () => {
+    if (alertTimeout) {
+        window.clearTimeout(alertTimeout);
+        alertTimeout = undefined;
+    }
+};
+
+export function showAlert(text: string, variant: string, heading?: string, timeout_ms?: number) {
+    clearAlertTimeout();
+
     state.value = {
         text: text,
         show: true,
@@ -17,10 +28,23 @@ export function showAlert(text: string, variant: string, heading?: string) {
         heading: heading ? heading : i18n.t("alert_default_text"),
     }
     window.scrollTo(0,0);
+
+    if (timeout_ms) {
+        alertTimeout = window.setTimeout(() => {
+            state.value = {
+                text: "",
+                show: false,
+                variant: "",
+                heading: "",
+
+            };
+        }, timeout_ms);
+    }
 }
 
 export function ErrorAlert() {
-    return <Alert className="custom-alert small" variant={state.value.variant} onClose={(a, b) => {
+    return <Alert className="custom-alert small" variant={state.value.variant} onClose={() => {
+        clearAlertTimeout();
         state.value = {
             text: "",
             show: false,
