@@ -97,16 +97,21 @@ th:hover:has(div) {
   border-top-left-radius: 0 !important;
 }
 
-.custom-alert {
-  position: absolute;
+.alert-container {
+  position: fixed;
   top: 0;
   right: 0;
   left: 0;
   z-index: 1021;
-  margin: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.25rem;
 }
 
-.alert.small {
+.custom-alert {
+  pointer-events: auto;
+  width: 100%;
   padding: 0.5rem 1rem;
 }
 
