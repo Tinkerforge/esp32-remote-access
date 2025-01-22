@@ -40,14 +40,14 @@ use crate::{
 };
 
 #[derive(Template)]
-#[template(path = "register_en.html")]
+#[template(path = "email_verification_en.html")]
 struct RegisterENTemplate<'a> {
     name: &'a str,
     link: &'a str,
 }
 
 #[derive(Template)]
-#[template(path = "register_de.html")]
+#[template(path = "email_verification_de.html")]
 struct RegisterDETemplate<'a> {
     name: &'a str,
     link: &'a str,
