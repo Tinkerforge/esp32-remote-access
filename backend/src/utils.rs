@@ -28,6 +28,8 @@ use diesel::{
     result::Error::NotFound,
     PgConnection,
 };
+use lettre::message::header::ContentType;
+use lettre::{Message, Transport};
 use rand::Rng;
 
 use crate::{error::Error, routes::charger::add::password_matches, AppState};
@@ -156,6 +158,22 @@ pub async fn validate_auth_token(
     }
 
     Ok(())
+}
+
+pub fn send_email(email: &str, subject: &str, body: String, mailer: &lettre::SmtpTransport) {
+
+    let email = Message::builder()
+        .from("Warp <warp@tinkerforge.com>".parse().unwrap())
+        .to(email.parse().unwrap())
+        .subject(subject)
+        .header(ContentType::TEXT_HTML)
+        .body(body)
+        .unwrap();
+
+    match mailer.send(&email) {
+        Ok(_) => println!("Email sent successfully!"),
+        Err(e) => panic!("Could not send email: {e:?}"),
+    }
 }
 
 #[cfg(test)]

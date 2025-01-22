@@ -19,17 +19,49 @@
 
 use crate::{
     error::Error,
-    utils::{get_connection, web_block_unpacked},
+    utils::{get_connection, send_email, web_block_unpacked},
     AppState,
 };
 use actix_web::{put, web, HttpResponse, Responder};
+use askama::Template;
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
-#[derive(Serialize, Deserialize, ToSchema, Validate)]
+#[allow(unused)]
+#[derive(Template)]
+#[template(path = "email_change_notification_en.html")]
+struct EmailChangeNotificationEn {
+    name: String,
+}
+
+#[allow(unused)]
+#[derive(Template)]
+#[template(path = "email_change_notification_de.html")]
+struct EmailChangeNotificationDe {
+    name: String,
+}
+
+#[allow(unused)]
+fn send_email_change_notification(name: String, old_email: String, lang: String, state: web::Data<AppState>) {
+    std::thread::spawn(move || {
+        let (body, subject) = match lang.as_str() {
+            "de" => {
+                let template = EmailChangeNotificationDe { name: name.to_string() };
+                (template.render().unwrap(), "E-Mail-Adresse geändert")
+            },
+            _ =>{
+                let template = EmailChangeNotificationEn { name: name.to_string() };
+                (template.render().unwrap(), "Email address changed")
+            },
+        };
+        send_email(&old_email, subject, body, &state.mailer);
+    });
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Validate, Clone)]
 pub struct UpdateUserSchema {
     #[validate(length(min = 3))]
     pub name: String,
@@ -51,38 +83,50 @@ pub struct UpdateUserSchema {
 #[put("/update_user")]
 pub async fn update_user(
     state: web::Data<AppState>,
-    user: actix_web_validator::Json<UpdateUserSchema>,
+    update_user: actix_web_validator::Json<UpdateUserSchema>,
     uid: crate::models::uuid::Uuid,
+    #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
+    let uid: uuid::Uuid = uid.into();
+    let user_cpy = update_user.clone();
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         match users
-            .filter(email.eq(&user.email))
+            .filter(email.eq(&user_cpy.email))
             .select(User::as_select())
             .get_result(&mut conn) as Result<User, diesel::result::Error>
         {
             Err(NotFound) => (),
             Ok(u) => {
-                if u.id != uid.clone().into() {
+                if u.id != uid {
                     return Err(Error::UserAlreadyExists);
                 }
             }
             Err(_err) => return Err(Error::InternalError),
         }
 
-        match diesel::update(users.find::<uuid::Uuid>(uid.clone().into()))
-            .set(email.eq(&user.email))
-            .execute(&mut conn)
+        Ok(())
+    }).await?;
+
+    let mut conn = get_connection(&state)?;
+    #[allow(unused_variables)]
+    let old_user: User = web_block_unpacked(move || {
+        match users.find::<uuid::Uuid>(uid)
+            .select(User::as_select())
+            .get_result(&mut conn)
         {
-            Ok(_) => (),
+            Ok(u) => Ok(u),
             Err(NotFound) => return Err(Error::Unauthorized),
             Err(_err) => return Err(Error::InternalError),
         }
+    }).await?;
 
-        match diesel::update(users.find::<uuid::Uuid>(uid.into()))
-            .set(name.eq(&user.name))
+    let mut conn = get_connection(&state)?;
+    web_block_unpacked(move || {
+        match diesel::update(users.find::<uuid::Uuid>(uid))
+            .set((email.eq(&update_user.email), name.eq(&update_user.name)))
             .execute(&mut conn)
         {
             Ok(_) => (),
@@ -93,6 +137,9 @@ pub async fn update_user(
         Ok(())
     })
     .await?;
+
+    #[cfg(not(test))]
+    send_email_change_notification(old_user.name, old_user.email, lang.into(), state);
 
     Ok(HttpResponse::Ok())
 }
