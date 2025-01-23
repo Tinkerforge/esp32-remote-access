@@ -22,7 +22,7 @@ use crate::{
     utils::{get_connection, send_email, web_block_unpacked},
     AppState,
 };
-use actix_web::{put, web, HttpResponse, Responder};
+use actix_web::{error::ErrorConflict, put, web, HttpResponse, Responder};
 use askama::Template;
 use db_connector::models::users::User;
 use diesel::{prelude::*, result::Error::NotFound};
@@ -61,6 +61,30 @@ fn send_email_change_notification(name: String, old_email: String, lang: String,
     });
 }
 
+#[allow(unused)]
+fn send_verification_mail(name: String, email: String, lang: String, state: web::Data<AppState>, verification_id: uuid::Uuid) {
+    std::thread::spawn(move || {
+        let (body, subject) = match lang.as_str() {
+            "de" => {
+                let template = crate::routes::auth::register::VerifyEmailDETemplate {
+                    name: &name,
+                    link: &format!("{}/api/auth/verify?id={}", state.frontend_url, verification_id),
+                };
+                (template.render().unwrap(), "E-Mail-Adresse bestätigen")
+            },
+            _ => {
+                let template = crate::routes::auth::register::VerifyEmailENTemplate {
+                    name: &name,
+                    link: &format!("{}/api/auth/verify?id={}", state.frontend_url, verification_id),
+                };
+                (template.render().unwrap(), "Verify email address")
+            },
+        };
+
+        send_email(&email, subject, body, &state.mailer);
+    });
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Validate, Clone)]
 pub struct UpdateUserSchema {
     #[validate(length(min = 3))]
@@ -83,14 +107,14 @@ pub struct UpdateUserSchema {
 #[put("/update_user")]
 pub async fn update_user(
     state: web::Data<AppState>,
-    update_user: actix_web_validator::Json<UpdateUserSchema>,
+    new_user: actix_web_validator::Json<UpdateUserSchema>,
     uid: crate::models::uuid::Uuid,
     #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
     let uid: uuid::Uuid = uid.into();
-    let user_cpy = update_user.clone();
+    let user_cpy = new_user.clone();
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         match users
@@ -111,9 +135,9 @@ pub async fn update_user(
     }).await?;
 
     let mut conn = get_connection(&state)?;
-    #[allow(unused_variables)]
     let old_user: User = web_block_unpacked(move || {
-        match users.find::<uuid::Uuid>(uid)
+        match users
+            .find::<uuid::Uuid>(uid)
             .select(User::as_select())
             .get_result(&mut conn)
         {
@@ -124,9 +148,33 @@ pub async fn update_user(
     }).await?;
 
     let mut conn = get_connection(&state)?;
+    // Only set up verification if email changed
+    let exp = if new_user.email != old_user.email {
+        if !old_user.old_email.is_none() {
+            return Err(ErrorConflict("Another email change is already pending.").into());
+        }
+
+        if let Some(expiration) =
+            chrono::Utc::now().checked_add_signed(chrono::TimeDelta::minutes(2))
+        {
+            Some(expiration.naive_utc())
+        } else {
+            return Err(Error::InternalError.into());
+        }
+    } else {
+        None
+    };
+
     web_block_unpacked(move || {
+        // Update user fields
         match diesel::update(users.find::<uuid::Uuid>(uid))
-            .set((email.eq(&update_user.email), name.eq(&update_user.name)))
+            .set((
+                name.eq(&new_user.name),
+                email.eq(&new_user.email),
+                email_verified.eq(new_user.email == old_user.email),
+                old_email.eq(&old_user.email),
+                old_delivery_email.eq(&old_user.delivery_email),
+            ))
             .execute(&mut conn)
         {
             Ok(_) => (),
@@ -134,18 +182,41 @@ pub async fn update_user(
             Err(_err) => return Err(Error::InternalError),
         }
 
+        if let Some(exp) = exp {
+            use db_connector::schema::verification::dsl::*;
+
+            let verify = db_connector::models::verification::Verification {
+                id: uuid::Uuid::new_v4(),
+                user: uid,
+                expiration: exp,
+            };
+
+            // Insert verification record
+            match diesel::insert_into(verification)
+                .values(&verify)
+                .execute(&mut conn)
+            {
+                Ok(_) => (),
+                Err(_err) => return Err(Error::InternalError),
+            }
+
+            #[cfg(not(test))]
+            {
+                let lang: String = lang.into();
+                send_verification_mail(new_user.name.clone(), new_user.email.clone(), lang.clone(), state.clone(), verify.id);
+                send_email_change_notification(old_user.name, old_user.email, lang, state);
+            }
+        }
+
         Ok(())
     })
     .await?;
-
-    #[cfg(not(test))]
-    send_email_change_notification(old_user.name, old_user.email, lang.into(), state);
 
     Ok(HttpResponse::Ok())
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::{
         defer,
@@ -159,6 +230,26 @@ mod tests {
         tests::configure,
     };
     use actix_web::{cookie::Cookie, test, App};
+    use db_connector::test_connection_pool;
+
+    pub async fn update_test_user(
+        token: String,
+        update: UpdateUserSchema,
+    ) {
+        let app = App::new()
+            .configure(configure)
+            .service(update_user)
+            .wrap(crate::middleware::jwt::JwtMiddleware);
+        let app = test::init_service(app).await;
+
+        let req = test::TestRequest::put()
+            .uri("/update_user")
+            .set_json(update)
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+
+        test::call_service(&app, req).await;
+    }
 
     #[actix_web::test]
     async fn test_update_email() {
@@ -191,7 +282,22 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        let _ = get_test_user(&update_mail);
+        // Check that email_verified is false after email change
+        let updated_user = get_test_user(&update_mail);
+        assert!(!updated_user.email_verified);
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        {
+            // Check that verification record was created
+            use db_connector::schema::verification::dsl::*;
+            let verify_record = verification
+                .filter(user.eq(updated_user.id))
+                .select(db_connector::models::verification::Verification::as_select())
+                .get_result(&mut conn)
+                .unwrap();
+            assert!(verify_record.expiration > chrono::Utc::now().naive_utc());
+        }
     }
 
     #[actix_web::test]
@@ -220,5 +326,94 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_client_error());
+    }
+
+    #[actix_web::test]
+    async fn test_update_name_keeps_verification() {
+        let (mut user, mail) = TestUser::random().await;
+        let token = user.login().await;
+
+        let app = App::new()
+            .configure(configure)
+            .service(update_user)
+            .wrap(crate::middleware::jwt::JwtMiddleware);
+        let app = test::init_service(app).await;
+
+        // Get current user and change only name
+        let db_user = get_test_user(&mail);
+        let update = UpdateUserSchema {
+            name: "New Name".to_string(),
+            email: db_user.email.clone(),
+        };
+
+        let req = test::TestRequest::put()
+            .uri("/update_user")
+            .set_json(update)
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        // Check that email_verified is still true
+        let updated_user = get_test_user(&mail);
+        assert!(updated_user.email_verified);
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        {
+            // Verify no verification record was created
+            use db_connector::schema::verification::dsl::*;
+            let verify_records = verification
+                .filter(user.eq(updated_user.id))
+                .select(db_connector::models::verification::Verification::as_select())
+                .load::<db_connector::models::verification::Verification>(&mut conn)
+                .unwrap();
+            assert!(verify_records.is_empty());
+        }
+    }
+
+    #[actix_web::test]
+    async fn test_pending_email_change() {
+        let (mut user, mail) = TestUser::random().await;
+        let token = user.login().await;
+
+        let app = App::new()
+            .configure(configure)
+            .service(update_user)
+            .wrap(crate::middleware::jwt::JwtMiddleware);
+        let app = test::init_service(app).await;
+
+        // Get current user and change email first time
+        let db_user = get_test_user(&mail);
+        let new_email = format!("changed_{}", mail);
+        let update = UpdateUserSchema {
+            name: db_user.name.clone(),
+            email: new_email.clone(),
+        };
+
+        defer!(delete_user(&new_email));
+
+        let req = test::TestRequest::put()
+            .uri("/update_user")
+            .set_json(update)
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        // Attempt second email change while first is pending
+        let another_email = format!("another_{}", mail);
+        let update = UpdateUserSchema {
+            name: db_user.name,
+            email: another_email,
+        };
+
+        let req = test::TestRequest::put()
+            .uri("/update_user")
+            .set_json(update)
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status().as_u16(), 409); // Conflict status code
     }
 }
