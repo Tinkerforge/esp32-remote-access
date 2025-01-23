@@ -28,7 +28,9 @@ use actix::prelude::*;
 pub use boringtun::*;
 use chrono::{TimeDelta, Utc};
 use db_connector::{
-    models::{allowed_users::AllowedUser, chargers::Charger, verification::Verification},
+    models::{
+        allowed_users::AllowedUser, chargers::Charger, users::User, verification::Verification,
+    },
     Pool,
 };
 use diesel::{prelude::*, r2d2::PooledConnection, result::Error::NotFound};
@@ -113,6 +115,7 @@ pub fn clean_refresh_tokens(
 pub fn clean_verification_tokens(
     conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>,
 ) {
+    // Remove all verification tokens that are expired
     let awaiting_verification: Vec<uuid::Uuid> = {
         use db_connector::schema::verification::dsl::*;
 
@@ -129,6 +132,48 @@ pub fn clean_verification_tokens(
             }
         }
     };
+
+    // Reset all changed email addresses that timeouted
+    let awaiting_verification: Vec<uuid::Uuid> = {
+        use db_connector::schema::users::dsl as users;
+
+        let users: Vec<User> = match users::users
+            .filter(users::id.ne_all(&awaiting_verification))
+            .filter(users::email_verified.eq(false))
+            .filter(users::old_email.is_not_null())
+            .select(User::as_select())
+            .load(conn)
+        {
+            Ok(u) => u,
+            Err(NotFound) => Vec::new(),
+            Err(err) => {
+                log::error!("Failed to get users for cleanup: {}", err);
+                return;
+            }
+        };
+        for user in users.iter() {
+            let _ = diesel::update(users::users.find(&user.id))
+                .set((
+                    users::email.eq(&user.old_email.as_ref().unwrap()),
+                    users::delivery_email.eq(&user.old_delivery_email),
+                    users::old_email.eq::<Option<String>>(None),
+                    users::old_delivery_email.eq::<Option<String>>(None),
+                    users::email_verified.eq(true),
+                ))
+                .execute(conn)
+                .or_else(|e| {
+                    log::error!("Failed to update user: {}", e);
+                    Ok::<usize, diesel::result::Error>(0)
+                });
+        }
+
+        awaiting_verification
+            .into_iter()
+            .filter(|v| !users.iter().any(|u| &u.id == v))
+            .collect()
+    };
+
+    // Remove all users that are not verified and have no verification token
     {
         use db_connector::schema::users::dsl::*;
 
@@ -449,6 +494,22 @@ pub(crate) mod tests {
             old_delivery_email: None,
         };
 
+        let user4_id = uuid::Uuid::new_v4();
+        let user4 = User {
+            id: user4_id,
+            name: user4_id.to_string(),
+            email: format!("{}@invalid", user4_id.to_string()),
+            login_key: String::new(),
+            email_verified: false,
+            secret: Vec::new(),
+            secret_nonce: Vec::new(),
+            secret_salt: Vec::new(),
+            login_salt: Vec::new(),
+            delivery_email: Some(email.clone()),
+            old_email: Some(email.clone()),
+            old_delivery_email: Some(email.clone()),
+        };
+
         let verify_id = uuid::Uuid::new_v4();
         let verify = Verification {
             id: verify_id,
@@ -469,22 +530,38 @@ pub(crate) mod tests {
                 .naive_local(),
         };
 
+        let verify4_id = uuid::Uuid::new_v4();
+        let verify4 = Verification {
+            id: verify4_id,
+            user: user4_id,
+            expiration: Utc::now()
+                .checked_sub_signed(TimeDelta::seconds(1))
+                .unwrap()
+                .naive_utc(),
+        };
+
         let cleanup = || {
             let pool = test_connection_pool();
             let mut conn = pool.get().unwrap();
             {
                 use db_connector::schema::verification::dsl::*;
 
-                diesel::delete(verification.filter(id.eq_any(vec![&verify_id, &verify2_id])))
-                    .execute(&mut conn)
-                    .unwrap();
+                diesel::delete(verification.filter(id.eq_any(vec![
+                    &verify_id,
+                    &verify2_id,
+                    &verify4_id,
+                ])))
+                .execute(&mut conn)
+                .unwrap();
             }
             {
                 use db_connector::schema::users::dsl::*;
 
-                diesel::delete(users.filter(id.eq_any(vec![&user_id, &user2_id, &user3_id])))
-                    .execute(&mut conn)
-                    .unwrap();
+                diesel::delete(
+                    users.filter(id.eq_any(vec![&user_id, &user2_id, &user3_id, &user4_id])),
+                )
+                .execute(&mut conn)
+                .unwrap();
             }
         };
         defer!(cleanup());
@@ -495,7 +572,7 @@ pub(crate) mod tests {
             use db_connector::schema::users::dsl::*;
 
             diesel::insert_into(users)
-                .values(vec![&user, &user2, &user3])
+                .values(vec![&user, &user2, &user3, &user4])
                 .execute(&mut conn)
                 .unwrap();
         }
@@ -503,7 +580,7 @@ pub(crate) mod tests {
             use db_connector::schema::verification::dsl::*;
 
             diesel::insert_into(verification)
-                .values(vec![&verify, &verify2])
+                .values(vec![&verify, &verify2, &verify4])
                 .execute(&mut conn)
                 .unwrap();
         }
@@ -514,7 +591,7 @@ pub(crate) mod tests {
             use db_connector::schema::verification::dsl::*;
 
             let verifies: Vec<Verification> = verification
-                .filter(id.eq_any(vec![&verify_id, &verify2_id]))
+                .filter(id.eq_any(vec![&verify_id, &verify2_id, &verify4_id]))
                 .select(Verification::as_select())
                 .load(&mut conn)
                 .unwrap();
@@ -522,19 +599,25 @@ pub(crate) mod tests {
             assert_eq!(verifies.len(), 1);
             assert_eq!(verifies[0].id, verify2_id);
         }
-        {
+        let user = {
             use db_connector::schema::users::dsl::*;
 
             let u: Vec<User> = users
-                .filter(id.eq_any(vec![&user_id, &user2_id, &user3_id]))
+                .filter(id.eq_any(vec![&user_id, &user2_id, &user3_id, &user4_id]))
                 .select(User::as_select())
                 .load(&mut conn)
                 .unwrap();
 
-            assert_eq!(u.len(), 2);
-            assert!(u[0].id == user2_id || u[0].id == user3_id);
-            assert!(u[1].id == user3_id || u[1].id == user3_id);
-        }
+            assert_eq!(u.len(), 3);
+            assert!(u.iter().any(|u| u.id == user2_id));
+            assert!(u.iter().any(|u| u.id == user3_id));
+            assert!(u.iter().any(|u| u.id == user4_id));
+
+            let user = u.into_iter().find(|u| u.id == user4_id).unwrap();
+            user
+        };
+
+        assert_eq!(user.email, email);
     }
 
     #[actix_web::test]
