@@ -161,7 +161,6 @@ pub async fn validate_auth_token(
 }
 
 pub fn send_email(email: &str, subject: &str, body: String, mailer: &lettre::SmtpTransport) {
-
     let email = Message::builder()
         .from("Warp <warp@tinkerforge.com>".parse().unwrap())
         .to(email.parse().unwrap())

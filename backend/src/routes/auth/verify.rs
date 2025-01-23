@@ -127,7 +127,10 @@ pub(crate) mod tests {
 
     use crate::{
         defer,
-        routes::{auth::register::tests::{create_user, delete_user}, user::{me::tests::get_test_user, tests::TestUser}},
+        routes::{
+            auth::register::tests::{create_user, delete_user},
+            user::{me::tests::get_test_user, tests::TestUser},
+        },
         tests::configure,
     };
 

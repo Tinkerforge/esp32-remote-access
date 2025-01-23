@@ -45,40 +45,61 @@ struct EmailChangeNotificationDe {
 }
 
 #[allow(unused)]
-fn send_email_change_notification(name: String, old_email: String, lang: String, state: web::Data<AppState>) {
+fn send_email_change_notification(
+    name: String,
+    old_email: String,
+    lang: String,
+    state: web::Data<AppState>,
+) {
     std::thread::spawn(move || {
         let (body, subject) = match lang.as_str() {
             "de" => {
-                let template = EmailChangeNotificationDe { name: name.to_string() };
+                let template = EmailChangeNotificationDe {
+                    name: name.to_string(),
+                };
                 (template.render().unwrap(), "E-Mail-Adresse geändert")
-            },
-            _ =>{
-                let template = EmailChangeNotificationEn { name: name.to_string() };
+            }
+            _ => {
+                let template = EmailChangeNotificationEn {
+                    name: name.to_string(),
+                };
                 (template.render().unwrap(), "Email address changed")
-            },
+            }
         };
         send_email(&old_email, subject, body, &state.mailer);
     });
 }
 
 #[allow(unused)]
-fn send_verification_mail(name: String, email: String, lang: String, state: web::Data<AppState>, verification_id: uuid::Uuid) {
+fn send_verification_mail(
+    name: String,
+    email: String,
+    lang: String,
+    state: web::Data<AppState>,
+    verification_id: uuid::Uuid,
+) {
     std::thread::spawn(move || {
         let (body, subject) = match lang.as_str() {
             "de" => {
                 let template = crate::routes::auth::register::VerifyEmailDETemplate {
                     name: &name,
-                    link: &format!("{}/api/auth/verify?id={}", state.frontend_url, verification_id),
+                    link: &format!(
+                        "{}/api/auth/verify?id={}",
+                        state.frontend_url, verification_id
+                    ),
                 };
                 (template.render().unwrap(), "E-Mail-Adresse bestätigen")
-            },
+            }
             _ => {
                 let template = crate::routes::auth::register::VerifyEmailENTemplate {
                     name: &name,
-                    link: &format!("{}/api/auth/verify?id={}", state.frontend_url, verification_id),
+                    link: &format!(
+                        "{}/api/auth/verify?id={}",
+                        state.frontend_url, verification_id
+                    ),
                 };
                 (template.render().unwrap(), "Verify email address")
-            },
+            }
         };
 
         send_email(&email, subject, body, &state.mailer);
@@ -132,7 +153,8 @@ pub async fn update_user(
         }
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     let mut conn = get_connection(&state)?;
     let old_user: User = web_block_unpacked(move || {
@@ -145,7 +167,8 @@ pub async fn update_user(
             Err(NotFound) => return Err(Error::Unauthorized),
             Err(_err) => return Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     let mut conn = get_connection(&state)?;
     // Only set up verification if email changed
@@ -203,7 +226,13 @@ pub async fn update_user(
             #[cfg(not(test))]
             {
                 let lang: String = lang.into();
-                send_verification_mail(new_user.name.clone(), new_user.email.clone(), lang.clone(), state.clone(), verify.id);
+                send_verification_mail(
+                    new_user.name.clone(),
+                    new_user.email.clone(),
+                    lang.clone(),
+                    state.clone(),
+                    verify.id,
+                );
                 send_email_change_notification(old_user.name, old_user.email, lang, state);
             }
         }
@@ -232,10 +261,7 @@ pub mod tests {
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::test_connection_pool;
 
-    pub async fn update_test_user(
-        token: String,
-        update: UpdateUserSchema,
-    ) {
+    pub async fn update_test_user(token: String, update: UpdateUserSchema) {
         let app = App::new()
             .configure(configure)
             .service(update_user)
