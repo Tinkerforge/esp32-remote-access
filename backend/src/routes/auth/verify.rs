@@ -77,7 +77,7 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
         Ok(verify) => verify,
         Err(_err) => {
             return Err(ErrorBadRequest(
-                "Account was already veryfied or does not exist",
+                "Account was already verified or does not exist",
             ))
         }
     };
@@ -86,14 +86,18 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
 
     match web::block(move || {
         if let Err(_err) = diesel::update(users.find(verify.user))
-            .set(email_verified.eq(true))
+            .set((
+                email_verified.eq(true),
+                old_email.eq::<Option<String>>(None),
+                old_delivery_email.eq::<Option<String>>(None),
+            ))
             .execute(&mut conn)
         {
-            return Err::<(), Error>(Error::InternalError.into());
+            return Err(Error::InternalError);
         }
 
         if let Err(_err) = diesel::delete(verification.find(verify.id)).execute(&mut conn) {
-            return Err::<(), Error>(Error::InternalError.into());
+            return Err(Error::InternalError);
         }
 
         Ok(())
@@ -123,7 +127,7 @@ pub(crate) mod tests {
 
     use crate::{
         defer,
-        routes::auth::register::tests::{create_user, delete_user},
+        routes::{auth::register::tests::{create_user, delete_user}, user::{me::tests::get_test_user, tests::TestUser}},
         tests::configure,
     };
 
@@ -260,5 +264,67 @@ pub(crate) mod tests {
 
         assert!(resp.status().is_client_error());
         assert_eq!(true, check_for_verify(&mut conn, &verify_id));
+    }
+
+    #[actix_web::test]
+    async fn test_verify_changed_email() {
+        let (mut user, mail) = TestUser::random().await;
+        user.login().await.to_string();
+
+        let changed_mail = format!("changed_{}", mail);
+        let changed_mail_cpy = changed_mail.clone();
+        defer!(delete_user(&changed_mail_cpy));
+        let pool = db_connector::test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        {
+            use db_connector::schema::users::dsl::*;
+
+            diesel::update(users.filter(email.eq(&mail)))
+                .set((
+                    old_email.eq(Some(&mail)),
+                    old_delivery_email.eq(Some(&mail)),
+                    email_verified.eq(false),
+                    email.eq(&changed_mail),
+                    delivery_email.eq(&changed_mail),
+                ))
+                .execute(&mut conn)
+                .unwrap();
+        }
+
+        let verify = {
+            use db_connector::schema::verification::dsl::*;
+
+            let verify = Verification::new(get_test_user(&changed_mail).id);
+            diesel::insert_into(verification)
+                .values(&verify)
+                .execute(&mut conn)
+                .unwrap();
+            verify
+        };
+
+        let app = App::new().configure(configure).service(super::verify);
+        let app = test::init_service(app).await;
+
+        let req = test::TestRequest::get()
+            .uri(&format!("/verify?id={}", verify.id.to_string()))
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_redirection());
+
+        {
+            use db_connector::schema::users::dsl::*;
+
+            let u: User = users
+                .filter(email.eq(changed_mail))
+                .select(User::as_select())
+                .get_result(&mut conn)
+                .unwrap();
+            assert_eq!(true, u.email_verified);
+            assert_eq!(None, u.old_email);
+            assert_eq!(None, u.old_delivery_email);
+        }
+
+        assert_eq!(false, check_for_verify(&mut conn, &verify.id));
     }
 }

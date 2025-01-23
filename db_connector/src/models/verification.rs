@@ -8,3 +8,13 @@ pub struct Verification {
     pub user: uuid::Uuid,
     pub expiration: chrono::NaiveDateTime,
 }
+
+impl Verification {
+    pub fn new(user: uuid::Uuid) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            user,
+            expiration: chrono::Utc::now().naive_utc() + chrono::Duration::days(1),
+        }
+    }
+}
