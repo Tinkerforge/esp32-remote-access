@@ -412,7 +412,9 @@ pub(crate) mod tests {
             secret_nonce: Vec::new(),
             secret_salt: Vec::new(),
             login_salt: Vec::new(),
-            delivery_email: Some(email),
+            delivery_email: Some(email.clone()),
+            old_email: None,
+            old_delivery_email: None,
         };
 
         let user2_id = uuid::Uuid::new_v4();
@@ -427,6 +429,8 @@ pub(crate) mod tests {
             secret_salt: Vec::new(),
             login_salt: Vec::new(),
             delivery_email: None,
+            old_email: None,
+            old_delivery_email: None,
         };
 
         let user3_id = uuid::Uuid::new_v4();
@@ -441,6 +445,8 @@ pub(crate) mod tests {
             secret_salt: Vec::new(),
             login_salt: Vec::new(),
             delivery_email: None,
+            old_email: None,
+            old_delivery_email: None,
         };
 
         let verify_id = uuid::Uuid::new_v4();
@@ -462,6 +468,26 @@ pub(crate) mod tests {
                 .unwrap()
                 .naive_local(),
         };
+
+        let cleanup = || {
+            let pool = test_connection_pool();
+            let mut conn = pool.get().unwrap();
+            {
+                use db_connector::schema::verification::dsl::*;
+
+                diesel::delete(verification.filter(id.eq_any(vec![&verify_id, &verify2_id])))
+                    .execute(&mut conn)
+                    .unwrap();
+            }
+            {
+                use db_connector::schema::users::dsl::*;
+
+                diesel::delete(users.filter(id.eq_any(vec![&user_id, &user2_id, &user3_id])))
+                    .execute(&mut conn)
+                    .unwrap();
+            }
+        };
+        defer!(cleanup());
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -508,21 +534,6 @@ pub(crate) mod tests {
             assert_eq!(u.len(), 2);
             assert!(u[0].id == user2_id || u[0].id == user3_id);
             assert!(u[1].id == user3_id || u[1].id == user3_id);
-        }
-
-        {
-            use db_connector::schema::verification::dsl::*;
-
-            diesel::delete(verification.filter(id.eq_any(vec![&verify_id, &verify2_id])))
-                .execute(&mut conn)
-                .unwrap();
-        }
-        {
-            use db_connector::schema::users::dsl::*;
-
-            diesel::delete(users.filter(id.eq_any(vec![&user_id, &user2_id, &user3_id])))
-                .execute(&mut conn)
-                .unwrap();
         }
     }
 

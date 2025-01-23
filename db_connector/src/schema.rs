@@ -68,6 +68,8 @@ diesel::table! {
         #[sql_name = "login-salt"]
         login_salt -> Bytea,
         delivery_email -> Nullable<Varchar>,
+        old_email -> Nullable<Varchar>,
+        old_delivery_email -> Nullable<Varchar>,
     }
 }
 

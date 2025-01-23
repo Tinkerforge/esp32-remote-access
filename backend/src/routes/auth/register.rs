@@ -41,16 +41,16 @@ use crate::{
 
 #[derive(Template)]
 #[template(path = "email_verification_en.html")]
-struct RegisterENTemplate<'a> {
-    name: &'a str,
-    link: &'a str,
+pub struct VerifyEmailENTemplate<'a> {
+    pub name: &'a str,
+    pub link: &'a str,
 }
 
 #[derive(Template)]
 #[template(path = "email_verification_de.html")]
-struct RegisterDETemplate<'a> {
-    name: &'a str,
-    link: &'a str,
+pub struct VerifyEmailDETemplate<'a> {
+    pub name: &'a str,
+    pub link: &'a str,
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate, Clone, ToSchema)]
@@ -95,7 +95,7 @@ fn send_verification_mail(
 
     let body = match lang.as_str() {
         "de" | "de-DE" => {
-            let template = RegisterDETemplate {
+            let template = VerifyEmailDETemplate {
                 name: &name,
                 link: &link,
             };
@@ -105,7 +105,7 @@ fn send_verification_mail(
             }
         }
         _ => {
-            let template = RegisterENTemplate {
+            let template = VerifyEmailENTemplate {
                 name: &name,
                 link: &link,
             };
@@ -184,6 +184,8 @@ pub async fn register(
         login_salt: data.login_salt.clone(),
         secret_salt: data.secret_salt.clone(),
         delivery_email: Some(data.email.clone()),
+        old_delivery_email: None,
+        old_email: None,
     };
 
     let mut conn = get_connection(&state)?;
