@@ -18,9 +18,7 @@
  */
 
 use crate::{
-    error::Error,
-    utils::{get_connection, send_email, web_block_unpacked},
-    AppState,
+    error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{get_connection, send_email, web_block_unpacked}, AppState
 };
 use actix_web::{error::ErrorConflict, put, web, HttpResponse, Responder};
 use askama::Template;
@@ -178,7 +176,7 @@ pub async fn update_user(
         }
 
         if let Some(expiration) =
-            chrono::Utc::now().checked_add_signed(chrono::TimeDelta::minutes(2))
+            chrono::Utc::now().checked_add_days(chrono::Days::new(VERIFICATION_EXPIRATION_DAYS))
         {
             Some(expiration.naive_utc())
         } else {
