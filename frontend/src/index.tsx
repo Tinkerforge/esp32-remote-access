@@ -40,6 +40,8 @@ import { Trans, useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
 import { Tokens } from './pages/tokens';
+import warpIcon from "./assets/warp_favicon.png?base64";
+import sebIcon from "./assets/seb_favicon.png?base64";
 
 import "./styles/main.scss";
 refresh_access_token();
@@ -62,6 +64,9 @@ addEventListener("unhandledrejection", (event) => {
         Median.share.downloadFile({url: url, filename: filename, open: true});
     }
 });
+
+const icon: HTMLLinkElement = document.querySelector('link[rel="icon"]');
+icon.href = import.meta.env.VITE_IS_SEB ? sebIcon : warpIcon;
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
