@@ -8,6 +8,8 @@ import i18n from "../i18n";
 import { useState } from "preact/hooks";
 import { Key, LogOut, Server, User } from "react-feather";
 import { signal } from "@preact/signals";
+import warpLogo from "../assets/warp_logo.png?base64";
+import sebLogo from "../assets/seb_logo.png?base64";
 
 export const connected = signal(false);
 
@@ -51,10 +53,9 @@ export function CustomNavbar() {
         return setAppNavigation()
     }
 
-
     return (
         <Navbar id="remote_access_navbar" expanded={expanded} expand="md" hidden={connected.value} className="navbar-dark sticky-top flex-row flex-md-nowrap p-2 mb-2">
-                <a href="/"><img class="pt-2 pb-2 pl-3" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ0AAAAjAQMAAAC0Dc25AAAABlBMVEXwH1b///+8ndbpAAAAAXRSTlMAQObYZgAAAE1JREFUOMtjeMDAwM7AwFDA/h8CDshDGQz1EPoHA3WVMEAA4wEogx1KM1iMKhlCSuiWXthhbpGBOQLmvOGihB1FCXKADwMl0Hj9QGslAM2l6A72PC0DAAAAAElFTkSuQmCC" style="max-width: calc(100vw - 80px); image-rendering: crisp-edges" alt="logo"/></a>
+                <a href="/"><img class="pt-2 pb-2 pl-3" src={import.meta.env.VITE_IS_SEB ? sebLogo : warpLogo} style="max-width: calc(100vw - 80px); image-rendering: crisp-edges" alt="logo"/></a>
                 <Navbar.Toggle onClick={() => setExpanded(!expanded)} id="navbar-toggler" aria-controls="basic-navbar-nav"/>
                 <Navbar.Collapse id="navbar-nav" className="sidebar px-2 py-1">
                     <Nav className="me-auto">

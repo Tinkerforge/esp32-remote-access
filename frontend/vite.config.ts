@@ -4,6 +4,8 @@ import wasm from "vite-plugin-wasm"
 import topLevelAwait from 'vite-plugin-top-level-await';
 import { buildSync } from "esbuild";
 import { join } from "node:path";
+import { readFileSync } from "node:fs";
+
 
 function plugins() {
 	return [
@@ -24,6 +26,20 @@ const swBuildPlugin: Plugin = {
 			outfile: join(process.cwd(), "dist", "sw.js"),
 			format: "esm",
 		})
+	}
+}
+
+const imgLoader: Plugin = {
+	name: "imgLoader",
+	transform(_, id) {
+		const [path, query] = id.split("?");
+		if (query != "base64") {
+			return null;
+		}
+		const data = readFileSync(path);
+		const base64 = data.toString("base64");
+
+		return `export default "data:image/png;base64,${base64}";`;
 	}
 }
 
@@ -49,7 +65,8 @@ export default defineConfig({
 		preact(),
 		wasm(),
 		topLevelAwait(),
-		swBuildPlugin
+		swBuildPlugin,
+		imgLoader,
 	],
 	worker: {
 		plugins: plugins
