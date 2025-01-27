@@ -29,9 +29,16 @@ const swBuildPlugin: Plugin = {
 
 // https://vitejs.dev/config/
 export default defineConfig({
+	css: {
+		preprocessorOptions: {
+			scss: {
+				additionalData: process.env.IS_SEB ? `@import "./src/styles/_seb.scss";` : `@import "./src/styles/_default.scss";`
+			}
+		}
+	},
 	resolve: {
 		alias: {
-			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js"
+			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js",
 		}
 	},
 	build: {

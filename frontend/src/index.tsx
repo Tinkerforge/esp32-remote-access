@@ -21,7 +21,7 @@ import "./i18n";
 import { render } from 'preact';
 import { LocationProvider, Router, Route } from 'preact-iso';
 
-import { CustomNavbar, logout } from './components/Navbar.js';
+import { CustomNavbar } from './components/Navbar.js';
 import { NotFound } from './pages/_404.jsx';
 import { Login } from './components/login.js';
 import { Register } from './components/register.js';
@@ -41,7 +41,7 @@ import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
 import { Tokens } from './pages/tokens';
 
-import "./main.scss";
+import "./styles/main.scss";
 refresh_access_token();
 setInterval(async () => {
     await refresh_access_token();
