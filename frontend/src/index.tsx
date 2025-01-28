@@ -40,8 +40,8 @@ import { Trans, useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
 import { Tokens } from './pages/tokens';
-import warpIcon from "./assets/warp_favicon.png?base64";
-import sebIcon from "./assets/seb_favicon.png?base64";
+import favicon from "favicon";
+import logo from "logo";
 
 import "./styles/main.scss";
 refresh_access_token();
@@ -66,7 +66,7 @@ addEventListener("unhandledrejection", (event) => {
 });
 
 const icon: HTMLLinkElement = document.querySelector('link[rel="icon"]');
-icon.href = import.meta.env.VITE_IS_SEB ? sebIcon : warpIcon;
+icon.href = favicon;
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
@@ -85,7 +85,7 @@ export function App() {
             }
             return <>
                 <nav hidden={Median.isNativeApp()} id="logo-nav" class="navbar navbar-expand-md navbar-dark sticky-top flex-md-nowrap p-0 pb-2 pt-2 ps-2">
-                    <a href="/"><img class="pt-2 pb-2 pl-3" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ0AAAAjAQMAAAC0Dc25AAAABlBMVEXwH1b///+8ndbpAAAAAXRSTlMAQObYZgAAAE1JREFUOMtjeMDAwM7AwFDA/h8CDshDGQz1EPoHA3WVMEAA4wEogx1KM1iMKhlCSuiWXthhbpGBOQLmvOGihB1FCXKADwMl0Hj9QGslAM2l6A72PC0DAAAAAElFTkSuQmCC" style="max-width: calc(100vw - 72px);" alt="logo"/></a>
+                    <a href="/"><img class="pt-2 pb-2 pl-3" src={logo} style="max-width: calc(100vw - 72px);" alt="logo"/></a>
                 </nav>
                 <ErrorAlert/>
                 <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3">

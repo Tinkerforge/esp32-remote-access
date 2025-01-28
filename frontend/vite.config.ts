@@ -29,32 +29,20 @@ const swBuildPlugin: Plugin = {
 	}
 }
 
-const imgLoader: Plugin = {
-	name: "imgLoader",
-	transform(_, id) {
-		const [path, query] = id.split("?");
-		if (query != "base64") {
-			return null;
-		}
-		const data = readFileSync(path);
-		const base64 = data.toString("base64");
-
-		return `export default "data:image/png;base64,${base64}";`;
-	}
-}
-
 // https://vitejs.dev/config/
 export default defineConfig({
 	css: {
 		preprocessorOptions: {
 			scss: {
-				additionalData: process.env.IS_SEB ? `@import "./src/styles/_seb.scss";` : `@import "./src/styles/_default.scss";`
+				additionalData: process.env.IS_SEB === "true" ? `@import "./src/styles/_seb.scss";` : `@import "./src/styles/_default.scss";`
 			}
 		}
 	},
 	resolve: {
 		alias: {
 			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js",
+			"logo": process.env.IS_SEB === "true" ? "src/assets/seb_logo.png" : "src/assets/warp_logo.png",
+			"favicon": process.env.IS_SEB === "true" ? "src/assets/seb_favicon.png" : "src/assets/warp_favicon.png",
 		}
 	},
 	build: {
@@ -66,7 +54,6 @@ export default defineConfig({
 		wasm(),
 		topLevelAwait(),
 		swBuildPlugin,
-		imgLoader,
 	],
 	worker: {
 		plugins: plugins
