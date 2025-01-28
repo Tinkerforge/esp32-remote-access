@@ -1,0 +1,2 @@
+FROM node:21
+ENV IS_SEB=${IS_SEB}

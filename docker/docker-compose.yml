@@ -69,7 +69,8 @@ services:
       - ../wg-webclient:/build
 
   frontend-build:
-    image: node:21
+    build:
+      dockerfile: frontend-build/Dockerfile
     restart: no
     command:
       - /bin/sh
@@ -81,6 +82,8 @@ services:
       wg-webclient-builder:
         condition: service_completed_successfully
     working_dir: /build
+    environment:
+      - IS_SEB=${IS_SEB}
     volumes:
       - ../frontend:/build
       - ../wg-webclient:/wg-webclient
