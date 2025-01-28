@@ -33,11 +33,11 @@ export function setAppNavigation() {
             url: `${FRONTEND_URL}/user`,
             icon: "fas fa-user"
         },
-        {
-            label: i18n.t("navbar.tokens"),
-            url: `${FRONTEND_URL}/tokens`,
-            icon: "fas fa-key"
-        }
+        // {
+        //     label: i18n.t("navbar.tokens"),
+        //     url: `${FRONTEND_URL}/tokens`,
+        //     icon: "fas fa-key"
+        // }
     ];
     Median.sidebar.setItems({ items: items, enabled: true, persist: true });
     return <></>;
