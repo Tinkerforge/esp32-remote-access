@@ -8,6 +8,7 @@ import i18n from "../i18n";
 import { PasswordComponent } from "./password_component";
 import { RecoveryDataComponent } from "./recovery_data_component";
 import { Signal, signal } from "@preact/signals";
+import { privacy_notice, terms_of_use } from "links";
 
 interface RegisterSchema {
     name: string,
@@ -214,10 +215,10 @@ export class Register extends Component<{}, RegisterState> {
                     invalidMessage={t("password_error_message")} />
                 </Form.Group>
                 <Form.Group className="mb-3" onClick={() => this.setState({acceptPrivacyChecked: !this.state.acceptPrivacyChecked})}>
-                    <Form.Check checked={this.state.acceptPrivacyChecked} type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice" ><a target="__blank" href="https://www.tinkerforge.com/de/home/privacy_notice">link</a></Trans>} isInvalid={!this.state.acceptPrivacyValid}/>
+                    <Form.Check checked={this.state.acceptPrivacyChecked} type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice" ><a target="__blank" href={privacy_notice}>link</a></Trans>} isInvalid={!this.state.acceptPrivacyValid}/>
                 </Form.Group>
                 <Form.Group className="mb-3" onClick={() => this.setState({termsAndConditionsChecked: !this.state.termsAndConditionsChecked})}>
-                    <Form.Check checked={this.state.termsAndConditionsChecked} type="checkbox" label={<Trans i18nKey="register.accept_terms_and_conditions" ><a target="__blank" href="https://www.tinkerforge.com/de/home/terms_and_conditions">link</a></Trans>} isInvalid={!this.state.termsAndConditionsValid}/>
+                    <Form.Check checked={this.state.termsAndConditionsChecked} type="checkbox" label={<Trans i18nKey="register.accept_terms_and_conditions" ><a target="__blank" href={terms_of_use}>link</a></Trans>} isInvalid={!this.state.termsAndConditionsValid}/>
                 </Form.Group>
                 <Button variant="primary" type="submit">
                     {t("register")}

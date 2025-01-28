@@ -44,6 +44,7 @@ import favicon from "favicon";
 import logo from "logo";
 
 import "./styles/main.scss";
+import { docs } from "links";
 refresh_access_token();
 setInterval(async () => {
     await refresh_access_token();
@@ -90,7 +91,7 @@ export function App() {
                 <ErrorAlert/>
                 <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3">
                     <Card className="p-3 col-10 col-lg-5 col-xl-3">
-                        <Trans i18nKey="description"><a target="__blank" href="https://docs.warp-charger.com/docs/remote_access" >link</a></Trans>
+                        <Trans i18nKey="description"><a target="__blank" href={docs} >link</a></Trans>
                     </Card>
                     <Card className="p-3 col-10 col-lg-5 col-xl-3">
                         <Tabs

@@ -43,6 +43,7 @@ export default defineConfig({
 			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js",
 			"logo": process.env.IS_SEB === "true" ? "src/assets/seb_logo.png" : "src/assets/warp_logo.png",
 			"favicon": process.env.IS_SEB === "true" ? "src/assets/seb_favicon.png" : "src/assets/warp_favicon.png",
+			"links": process.env.IS_SEB === "true" ? "src/links/seb.ts" : "src/links/warp.ts",
 		}
 	},
 	build: {
