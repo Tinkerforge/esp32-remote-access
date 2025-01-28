@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import * as Base58 from "base58";
 import sodium from "libsodium-wrappers";
 import { useTranslation } from "react-i18next";
@@ -6,7 +5,7 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
-import { Button, ButtonGroup, Card, Col, Container, Dropdown, DropdownButton, Form, Modal, Row, Table } from "react-bootstrap";
+import { Button, ButtonGroup, Card, Col, Collapse, Container, Dropdown, DropdownButton, Form, Modal, Row, Table } from "react-bootstrap";
 import i18n from "../i18n";
 import { ChevronDown, ChevronUp, Edit, Monitor, Trash2 } from "react-feather";
 import { Circle } from "./Circle";
@@ -163,8 +162,9 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         return connection_possible;
     }
 
-    create_card(charger: StateCharger) {
+    create_card(charger: StateCharger, split: String[]) {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
+        const [expand, setExpand] = useState(false);
         return <>
             <Card className="my-2">
                 <Card.Header onClick={async () => {
@@ -197,7 +197,33 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                     <hr style="margin-top: 5px;margin-bottom: 5px;"/>
                     <Row>
                         <Col xs="auto"><b>{t("note")}</b></Col>
-                        <Col className="text-end">{charger.note}</Col>
+                        <Col className="d-flex justify-content-end" onClick={split.length <= 1 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer"}}>
+
+                                <Row>
+                                    <Col>
+                                        <div>
+                                            {split[0]}
+                                        </div>
+                                    </Col>
+                                </Row>
+                                <Row>
+                                    <Col>
+                                        <Collapse in={expand}>
+                                            <div>
+                                                {charger.note.substring(charger.note.indexOf("\n") + 1)}
+                                            </div>
+                                        </Collapse>
+                                    </Col>
+                                </Row>
+                                <Row hidden={split.length <= 1}>
+                                    <Col>
+                                    <a style={{fontSize: "14px", color: "blue", textDecoration: "underline"}}>
+                                        {expand ? t("show_less") : t("show_more")}
+                                    </a>
+                                    </Col>
+                                </Row>
+
+                        </Col>
                     </Row>
                     <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
                 </Card.Body>
@@ -277,6 +303,8 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
             }
         })
         this.state.chargers.forEach((charger, index) => {
+            const [expand, setExpand] = useState(false);
+            const split = charger.note.split("\n");
             const entry = <tr>
                 <td class="align-middle">
                     <Col className="d-flex justify-content-center align-items-center">
@@ -288,19 +316,6 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 </td>
                 <td class="align-middle">
                     {Base58.int_to_base58(charger.uid)}
-                </td>
-                <td class="align-middle">
-                    <Row>
-                        <Col className="d-flex align-items-center p-0">
-                            {charger.note}
-                        </Col>
-                        <Col className="p-0" sm="auto">
-                            <Button style="background-color:transparent;border:none;"
-                                    onClick={() => this.setState({showEditNoteModal: true, editNote: charger.note, editChargerIdx: index})}>
-                                <Edit color="#333"/>
-                            </Button>
-                        </Col>
-                    </Row>
                 </td>
                 <td class="align-middle">
                     <Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
@@ -320,9 +335,48 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                         {t("remove")}
                     </Button>
                 </td>
+                <td class="align-middle">
+                    <Container fluid>
+                        <Row>
+                            <Col className="d-flex align-items-center p-0" style={{whiteSpace: "pre-wrap"}}>
+                                <Container onClick={split.length <= 1 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer"}}>
+                                    <Row>
+                                        <Col>
+                                            <div>
+                                                {split[0]}
+                                            </div>
+                                        </Col>
+                                    </Row>
+                                    <Row>
+                                        <Col>
+                                            <Collapse in={expand}>
+                                                <div style={{whiteSpace: "pre-wrap"}}>
+                                                    {charger.note.substring(charger.note.indexOf("\n") + 1)}
+                                                </div>
+                                            </Collapse>
+                                        </Col>
+                                    </Row>
+                                    <Row hidden={split.length <= 1}>
+                                        <Col>
+                                        <a style={{fontSize: "14px", color: "blue", textDecoration: "underline"}}>
+                                            {expand ? t("show_less") : t("show_more")}
+                                        </a>
+                                        </Col>
+                                    </Row>
+                                </Container>
+                            </Col>
+                            <Col className="p-0" sm="auto">
+                                <Button style="background-color:transparent;border:none;"
+                                        onClick={() => this.setState({showEditNoteModal: true, editNote: charger.note, editChargerIdx: index})}>
+                                    <Edit color="#333"/>
+                                </Button>
+                            </Col>
+                        </Row>
+                    </Container>
+                </td>
             </tr>
             table_list.push(entry);
-            card_list.push(this.create_card(charger));
+            card_list.push(this.create_card(charger, split));
         })
 
         return <>
@@ -366,7 +420,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                         {t("edit_note_heading")}
                     </Modal.Header>
                     <Modal.Body>
-                        <Form.Control value={this.state.editNote} onChange={(e) => this.setState({editNote: (e.target as HTMLInputElement).value})}/>
+                        <Form.Control as="textarea" value={this.state.editNote} onChange={(e) => this.setState({editNote: (e.target as HTMLInputElement).value})}/>
                     </Modal.Body>
                     <Modal.Footer>
                         <Button variant="secondary" onClick={() => this.setState({showEditNoteModal: false, editNote: "", editChargerIdx: -1})}>
@@ -383,7 +437,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
             <Col className="d-none d-md-block">
                 <Table striped hover>
                     <thead>
-                        <tr>
+                        <tr class="charger-head">
                             <th onClick={() => this.setSort("status")}>
                                 <Row>
                                     <Col className="align-content-end text-end">
@@ -411,18 +465,20 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                                     </Col>
                                 </Row>
                             </th>
+                            <th/>
+                            <th/>
                             <th onClick={() => this.setSort("note")}>
-                                <Row className="g1">
-                                    <Col>
-                                        {t("note")}
-                                    </Col>
-                                    <Col xs="auto">
-                                        {this.get_icon("note")}
-                                    </Col>
-                                </Row>
+                                <Container fluid>
+                                    <Row className="g1">
+                                        <Col>
+                                            {t("note")}
+                                        </Col>
+                                        <Col xs="auto">
+                                            {this.get_icon("note")}
+                                        </Col>
+                                    </Row>
+                                </Container>
                             </th>
-                            <th />
-                            <th />
                         </tr>
                     </thead>
                     <tbody>
