@@ -3,13 +3,13 @@ use std::time::Duration;
 use actix_web::web;
 use anyhow::Error;
 use askama::Template;
+use backend::utils;
 use backend::{utils::get_connection, AppState};
 use diesel::prelude::*;
 use diesel::{
     r2d2::{ConnectionManager, PooledConnection},
     PgConnection, QueryDsl,
 };
-use lettre::{message::header::ContentType, Message, Transport};
 
 #[derive(Template)]
 #[template(path = "monitoring.html")]
@@ -38,14 +38,8 @@ fn send_mail(state: &web::Data<AppState>, num_users: i64, num_chargers: i64) -> 
         server_name: &std::env::var("SERVER_NAME")?,
     };
     let body = body.render()?;
-    let mail = Message::builder()
-        .from("Warp <warp@tinkerforge.com>".parse()?)
-        .to(std::env::var("MONITORING_MAIL")?.parse()?)
-        .subject("Monitoring mail")
-        .header(ContentType::TEXT_HTML)
-        .body(body)?;
 
-    state.mailer.send(&mail)?;
+    utils::send_email(&std::env::var("MONITORING_EMAIL")?, "Monitoring mail", body, state);
 
     Ok(())
 }
@@ -55,7 +49,7 @@ pub fn start_monitoring(state: web::Data<AppState>) {
         log::info!("Monitoring Mailer disabled");
         return;
     }
-    if let Err(_) = std::env::var("MONITORING_MAIL") {
+    if let Err(_) = std::env::var("MONITORING_EMAIL") {
         log::info!("Monitoring Mailer disabled");
         return;
     }

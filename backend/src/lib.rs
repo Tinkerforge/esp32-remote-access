@@ -88,6 +88,8 @@ pub struct AppState {
     pub jwt_secret: String,
     pub mailer: SmtpTransport,
     pub frontend_url: String,
+    pub sender_email: String,
+    pub sender_name: String,
 }
 
 pub fn clean_recovery_tokens(
@@ -293,8 +295,8 @@ pub(crate) mod tests {
     ) -> web::Data<AppState> {
         let pool = pool.unwrap_or_else(|| db_connector::test_connection_pool());
 
-        let mail = std::env::var("MAIL_USER").expect("MAIL must be set");
-        let pass = std::env::var("MAIL_PASS").expect("MAIL_PASS must be set");
+        let mail = std::env::var("EMAIL_USER").expect("EMAIL must be set");
+        let pass = std::env::var("EMAIL_PASS").expect("EMAIL_PASS must be set");
         let mailer = SmtpTransport::relay("mail.tinkerforge.com")
             .unwrap()
             .port(465)
@@ -306,6 +308,8 @@ pub(crate) mod tests {
             jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!"),
             mailer,
             frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
+            sender_email: String::new(),
+            sender_name: String::new(),
         };
 
         web::Data::new(state)

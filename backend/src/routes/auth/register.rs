@@ -27,7 +27,6 @@ use askama::Template;
 use chrono::Days;
 use db_connector::models::{users::User, verification::Verification};
 use diesel::{prelude::*, result::Error::NotFound};
-use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
@@ -35,7 +34,7 @@ use validator::Validate;
 use crate::{
     error::Error,
     routes::auth::VERIFICATION_EXPIRATION_DAYS,
-    utils::{get_connection, web_block_unpacked},
+    utils::{self, get_connection, web_block_unpacked},
     AppState,
 };
 
@@ -87,20 +86,19 @@ fn send_verification_mail(
     name: String,
     id: Verification,
     email: String,
-    mailer: SmtpTransport,
-    frontend_url: String,
+    state: web::Data<AppState>,
     lang: String,
 ) -> Result<(), actix_web::Error> {
-    let link = format!("{}/api/auth/verify?id={}", frontend_url, id.id.to_string());
+    let link = format!("{}/api/auth/verify?id={}", state.frontend_url, id.id.to_string());
 
-    let body = match lang.as_str() {
+    let (body, subject) = match lang.as_str() {
         "de" | "de-DE" => {
             let template = VerifyEmailDETemplate {
                 name: &name,
                 link: &link,
             };
             match template.render() {
-                Ok(body) => body,
+                Ok(body) => (body, "Email verifizieren"),
                 Err(_err) => return Err(Error::InternalError.into()),
             }
         }
@@ -110,24 +108,13 @@ fn send_verification_mail(
                 link: &link,
             };
             match template.render() {
-                Ok(body) => body,
+                Ok(body) => (body, "Verify email"),
                 Err(_err) => return Err(Error::InternalError.into()),
             }
         }
     };
 
-    let email = Message::builder()
-        .from("Warp <warp@tinkerforge.com>".parse().unwrap())
-        .to(email.parse().unwrap())
-        .subject("Verify email")
-        .header(ContentType::TEXT_HTML)
-        .body(body)
-        .unwrap();
-
-    match mailer.send(&email) {
-        Ok(_) => println!("Email sent successfully!"),
-        Err(e) => panic!("Could not send email: {e:?}"),
-    }
+    utils::send_email(&email, subject, body, &state);
 
     Ok(())
 }
@@ -230,8 +217,7 @@ pub async fn register(
                 user_insert.name,
                 verify,
                 data.email.clone(),
-                state.mailer.clone(),
-                state.frontend_url.clone(),
+                state.clone(),
                 lang.into(),
             )
             .ok();

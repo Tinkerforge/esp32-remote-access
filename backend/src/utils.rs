@@ -160,16 +160,16 @@ pub async fn validate_auth_token(
     Ok(())
 }
 
-pub fn send_email(email: &str, subject: &str, body: String, mailer: &lettre::SmtpTransport) {
+pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<AppState>, ) {
     let email = Message::builder()
-        .from("Warp <warp@tinkerforge.com>".parse().unwrap())
+        .from(format!("{} <{}>", state.sender_name, state.sender_email).parse().unwrap())
         .to(email.parse().unwrap())
         .subject(subject)
         .header(ContentType::TEXT_HTML)
         .body(body)
         .unwrap();
 
-    match mailer.send(&email) {
+    match state.mailer.send(&email) {
         Ok(_) => println!("Email sent successfully!"),
         Err(e) => panic!("Could not send email: {e:?}"),
     }

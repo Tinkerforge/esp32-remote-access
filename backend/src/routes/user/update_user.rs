@@ -33,6 +33,7 @@ use validator::Validate;
 #[template(path = "email_change_notification_en.html")]
 struct EmailChangeNotificationEn {
     name: String,
+    sender_email: String,
 }
 
 #[allow(unused)]
@@ -40,6 +41,7 @@ struct EmailChangeNotificationEn {
 #[template(path = "email_change_notification_de.html")]
 struct EmailChangeNotificationDe {
     name: String,
+    sender_email: String,
 }
 
 #[allow(unused)]
@@ -54,17 +56,19 @@ fn send_email_change_notification(
             "de" => {
                 let template = EmailChangeNotificationDe {
                     name: name.to_string(),
+                    sender_email: state.sender_email.clone(),
                 };
                 (template.render().unwrap(), "E-Mail-Adresse geändert")
             }
             _ => {
                 let template = EmailChangeNotificationEn {
                     name: name.to_string(),
+                    sender_email: state.sender_email.clone(),
                 };
                 (template.render().unwrap(), "Email address changed")
             }
         };
-        send_email(&old_email, subject, body, &state.mailer);
+        send_email(&old_email, subject, body, &state);
     });
 }
 
@@ -100,7 +104,7 @@ fn send_verification_mail(
             }
         };
 
-        send_email(&email, subject, body, &state.mailer);
+        send_email(&email, subject, body, &state);
     });
 }
 

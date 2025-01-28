@@ -46,13 +46,15 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
-      - MAIL_USER=${MAIL_USER}
-      - MAIL_PASS=${MAIL_PASS}
-      - MAIL_RELAY=${MAIL_RELAY}
-      - MAIL_RELAY_PORT=${MAIL_RELAY_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - EMAIL_RELAY=${EMAIL_RELAY}
+      - EMAIL_RELAY_PORT=${EMAIL_RELAY_PORT}
       - FRONTEND_URL=${FRONTEND_URL}
       - SERVER_NAME=${SERVER_NAME}
-      - MONITORING_MAIL=${MONITORING_MAIL}
+      - MONITORING_EMAIL=${MONITORING_EMAIL}
+      - SENDER_EMAIL=${SENDER_EMAIL}
+      - SENDER_NAME=${SENDER_NAME}
     healthcheck:
       test: ["CMD", "curl", "backend:8081"]
       interval: 20s

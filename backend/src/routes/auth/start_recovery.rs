@@ -2,7 +2,6 @@ use actix_web::{get, web, HttpResponse, Responder};
 use askama::Template;
 use db_connector::models::recovery_tokens::RecoveryToken;
 use diesel::prelude::*;
-use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 use serde::Deserialize;
 use utoipa::IntoParams;
 use uuid::Uuid;
@@ -10,7 +9,7 @@ use uuid::Uuid;
 use crate::{
     error::Error,
     routes::user::{get_user, get_user_id},
-    utils::{get_connection, web_block_unpacked},
+    utils::{self, get_connection, web_block_unpacked},
     AppState,
 };
 
@@ -38,23 +37,22 @@ fn send_email(
     name: String,
     token_id: Uuid,
     email: String,
-    mailer: SmtpTransport,
-    frontend_url: String,
+    state: web::Data<AppState>,
     lang: String,
 ) -> actix_web::Result<()> {
     let link = format!(
         "{}/recovery?token={}&email={}",
-        frontend_url, token_id, email
+        state.frontend_url, token_id, email
     );
 
-    let body = match lang.as_str() {
+    let (body, subject) = match lang.as_str() {
         "de" | "de-DE" => {
             let template = StartRecoveryDETemplate {
                 name: &name,
                 link: &link,
             };
             match template.render() {
-                Ok(b) => b,
+                Ok(b) => (b, "Passwort Wiederherstellung"),
                 Err(_err) => return Err(Error::InternalError.into()),
             }
         }
@@ -64,26 +62,13 @@ fn send_email(
                 link: &link,
             };
             match template.render() {
-                Ok(b) => b,
+                Ok(b) => (b, "Password Recovery"),
                 Err(_err) => return Err(Error::InternalError.into()),
             }
         }
     };
 
-    let mail = Message::builder()
-        .from("Warp <warp@tinkerforge.com>".parse().unwrap())
-        .to(email.parse().unwrap())
-        .subject("Password Recovery")
-        .header(ContentType::TEXT_HTML)
-        .body(body)
-        .unwrap();
-    match mailer.send(&mail) {
-        Ok(_) => log::debug!("Send password recovery mail was successful."),
-        Err(err) => {
-            log::error!("Failed to send: {}", err);
-            return Err(Error::InternalError.into());
-        }
-    }
+    utils::send_email(&email, subject, body, &state);
 
     Ok(())
 }
@@ -147,8 +132,7 @@ pub async fn start_recovery(
             user.name,
             token_id,
             email,
-            state.mailer.clone(),
-            state.frontend_url.clone(),
+            state.clone(),
             lang.into(),
         )
         .ok();
