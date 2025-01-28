@@ -1,7 +1,9 @@
+import { description } from "translations-en";
+
 export const en = {
     "alert_default_text": "An Error occured!",
     "alert_default_success": "Success!",
-    "description": "This page provides remote access to registered Tinkerforge WARP-Devices. For more information click <0>here</0>",
+    "description": description,
     "user": {
         "profile_information": "User information",
         "save_changes": "Save changes",

@@ -44,6 +44,8 @@ export default defineConfig({
 			"logo": process.env.IS_SEB === "true" ? "src/assets/seb_logo.png" : "src/assets/warp_logo.png",
 			"favicon": process.env.IS_SEB === "true" ? "src/assets/seb_favicon.png" : "src/assets/warp_favicon.png",
 			"links": process.env.IS_SEB === "true" ? "src/links/seb.ts" : "src/links/warp.ts",
+			"translations-de": process.env.IS_SEB === "true" ? "src/locales/branding/seb_de.ts" : "src/locales/branding/warp_de.ts",
+			"translations-en": process.env.IS_SEB === "true" ? "src/locales/branding/seb_en.ts" : "src/locales/branding/warp_en.ts",
 		}
 	},
 	build: {

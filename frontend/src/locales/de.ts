@@ -1,7 +1,9 @@
+import { description } from "translations-de";
+
 export const de ={
     "alert_default_text": "Ein Fehler ist aufgetreten!",
     "alert_default_success": "Erfolg!",
-    "description": "Diese Seite bietet einen Fernzugriff für Tinkerforge WARP-Geräte. Weitere Informationen findest du <0>hier</0>",
+    "description": description,
     "user": {
         "account_actions": "Kontoaktionen",
         "profile_information": "Nutzer Informationen",
