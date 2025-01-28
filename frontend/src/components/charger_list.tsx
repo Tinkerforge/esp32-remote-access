@@ -197,17 +197,16 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                     <hr style="margin-top: 5px;margin-bottom: 5px;"/>
                     <Row>
                         <Col xs="auto"><b>{t("note")}</b></Col>
-                        <Col className="d-flex justify-content-end" onClick={split.length <= 1 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer"}}>
-
+                        <Col onClick={split.length <= 1 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer", whiteSpace: "pre-wrap"}}>
                                 <Row>
-                                    <Col>
+                                    <Col className="d-flex justify-content-end" >
                                         <div>
                                             {split[0]}
                                         </div>
                                     </Col>
                                 </Row>
                                 <Row>
-                                    <Col>
+                                    <Col className="d-flex justify-content-end" >
                                         <Collapse in={expand}>
                                             <div>
                                                 {charger.note.substring(charger.note.indexOf("\n") + 1)}
@@ -215,14 +214,14 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                                         </Collapse>
                                     </Col>
                                 </Row>
+
                                 <Row hidden={split.length <= 1}>
-                                    <Col>
+                                    <Col className="d-flex justify-content-end" >
                                     <a style={{fontSize: "14px", color: "blue", textDecoration: "underline"}}>
                                         {expand ? t("show_less") : t("show_more")}
                                     </a>
                                     </Col>
                                 </Row>
-
                         </Col>
                     </Row>
                     <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
