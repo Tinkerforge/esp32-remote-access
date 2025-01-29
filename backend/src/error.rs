@@ -72,7 +72,7 @@ impl error::ResponseError for Error {
             Self::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::UserAlreadyExists => StatusCode::CONFLICT,
             Self::WrongCredentials => StatusCode::UNAUTHORIZED,
-            Self::NotVerified => StatusCode::UNAUTHORIZED,
+            Self::NotVerified => StatusCode::FORBIDDEN,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::ChargerAlreadyExists => StatusCode::CONFLICT,
             Self::UserDoesNotExist => StatusCode::BAD_REQUEST,
