@@ -98,7 +98,9 @@ export const en = {
         "wrong_credentials": "Email-adresse or password wrong.",
         "success_alert_text": "You should receive an email in the next couple of minutes.",
         "success_alert_heading": "Success",
-        "error_alert_text": "Failed to start recovery with status {{- status}}: {{text}}"
+        "error_alert_text": "Failed to start recovery with status {{- status}}: {{text}}",
+        "verify_before_login": "Please verify your email address before logging in",
+        "verify_before_login_heading": "Email not verified"
     },
     "footer": {
         "imprint": "Imprint",

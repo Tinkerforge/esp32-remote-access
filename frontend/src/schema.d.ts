@@ -763,6 +763,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Not verified */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     recovery: {

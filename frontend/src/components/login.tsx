@@ -60,8 +60,11 @@ export class Login extends Component<{}, LoginState> {
         };
 
         {
-            const {error} = await fetchClient.POST("/auth/login", {body: login_schema, credentials: "same-origin"});
-            if (error) {
+            const {error, response} = await fetchClient.POST("/auth/login", {body: login_schema, credentials: "same-origin"});
+            if (response.status === 403) {
+                showAlert(i18n.t("login.verify_before_login"), "danger", i18n.t("login.verify_before_login_heading"));
+                return;
+            }else if (error) {
                 this.setState({credentials_wrong: true});
                 return;
             }

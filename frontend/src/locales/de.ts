@@ -98,7 +98,9 @@ export const de ={
         "wrong_credentials": "E-Mail-Adresse oder Passwort falsch.",
         "success_alert_text": "Du solltest innerhalb der nächsten Minuten eine E-Mail erhalten.",
         "success_alert_heading": "Erfolg",
-        "error_alert_text": "Failed to start recovery with status {{status}}: {{text}}"
+        "error_alert_text": "Failed to start recovery with status {{status}}: {{text}}",
+        "verify_before_login": "Bitte bestätige deine E-Mail-Adresse, bevor du dich anmeldest",
+        "verify_before_login_heading": "E-Mail-Adresse nicht bestätigt"
     },
     "footer": {
         "imprint": "Impressum",
