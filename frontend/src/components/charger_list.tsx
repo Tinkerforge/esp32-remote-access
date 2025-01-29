@@ -398,7 +398,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
 
         return <>
             {/*Delete Charger Modal begin*/}
-            <Modal show={this.state.showDeleteModal} onHide={() => this.setState({showDeleteModal: false})}>
+            <Modal show={this.state.showDeleteModal} centered onHide={() => this.setState({showDeleteModal: false})}>
                 <Modal.Header>
                     {t("delete_modal_heading", {name: this.removal_charger.name})}
                 </Modal.Header>
