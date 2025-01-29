@@ -197,7 +197,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                     <hr style="margin-top: 5px;margin-bottom: 5px;"/>
                     <Row>
                         <Col xs="auto"><b>{t("note")}</b></Col>
-                        <Col onClick={split.length <= 1 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer", whiteSpace: "pre-wrap"}}>
+                        <Col onClick={split.length <= 1 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer", whiteSpace: "pre-line", overflowWrap: "anywhere"}}>
                                 <Row>
                                     <Col className="d-flex justify-content-end" >
                                         <div>
@@ -337,7 +337,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 <td class="align-middle">
                     <Container fluid>
                         <Row>
-                            <Col className="d-flex align-items-center p-0" style={{whiteSpace: "pre-wrap"}}>
+                            <Col className="d-flex align-items-center p-0" style={{whiteSpace: "pre-line", overflowWrap: "anywhere"}}>
                                 <Container onClick={split.length <= 1 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer"}}>
                                     <Row>
                                         <Col>
