@@ -162,7 +162,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         return connection_possible;
     }
 
-    create_card(charger: StateCharger, split: String[]) {
+    create_card(charger: StateCharger, split: String[], index: number) {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         const [expand, setExpand] = useState(false);
         return <>
@@ -225,6 +225,20 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                         </Col>
                     </Row>
                     <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
+                    <Row>
+                        <Col className="d-flex justify-content-end">
+                            <Button style="background-color:transparent;border:none;"
+                                onClick={() => {
+                                    this.setState({
+                                        showEditNoteModal: true,
+                                        editNote: charger.note,
+                                        editChargerIdx: index
+                                    });
+                                }}>
+                                <Edit color="#333"/>
+                            </Button>
+                        </Col>
+                    </Row>
                 </Card.Body>
             </Card>
         </>
@@ -378,7 +392,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 </td>
             </tr>
             table_list.push(entry);
-            card_list.push(this.create_card(charger, split));
+            card_list.push(this.create_card(charger, split, index));
         })
 
         return <>
