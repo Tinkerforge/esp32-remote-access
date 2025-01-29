@@ -183,7 +183,8 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                         <Button className="me-2" variant="primary" disabled={!this.connection_possible(charger)} onClick={async () => {
                             await this.connect_to_charger(charger);
                         }}><Monitor/></Button>
-                        <Button variant="danger" onClick={async () => {
+                        <Button variant="danger" onClick={async (e) => {
+                            e.stopPropagation();
                             this.removal_charger = charger;
                             this.setState({showDeleteModal: true});
                         }}><Trash2/></Button>
