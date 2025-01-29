@@ -323,7 +323,8 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         })
         this.state.chargers.forEach((charger, index) => {
             const [expand, setExpand] = useState(false);
-            const split = charger.note.split("\n");
+            const trimmed_note = charger.note.trim();
+            const split = trimmed_note.split("\n");
             const entry = <tr>
                 <td class="align-middle">
                     <Col className="d-flex justify-content-center align-items-center">
