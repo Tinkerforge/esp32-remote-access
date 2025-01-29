@@ -216,12 +216,12 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                                 </Col>
                             </Row>
                         </Col>
-                        <Col onClick={split.length <= 2 ? undefined : () => setExpand(!expand)}
-                            style={{cursor: split.length <= 2 ? undefined : "pointer", whiteSpace: "pre-line", overflowWrap: "anywhere"}}>
+                        <Col onClick={split.length <= 3 ? undefined : () => setExpand(!expand)}
+                            style={{cursor: split.length <= 3 ? undefined : "pointer", whiteSpace: "pre-line", overflowWrap: "anywhere"}}>
                                 <Row>
                                     <Col className="d-flex justify-content-end" style={{textAlign: "right"}} >
                                         <div>
-                                            {split.slice(0, 2).join("\n")}
+                                            {split.slice(0, split.length <= 3 ? 3 : 2).join("\n")}
                                         </div>
                                     </Col>
                                 </Row>
@@ -235,7 +235,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                                     </Col>
                                 </Row>
 
-                                <Row hidden={split.length <= 2}>
+                                <Row hidden={split.length <= 3}>
                                     <Col className="d-flex justify-content-end" >
                                     <a style={{fontSize: "14px", color: "blue", textDecoration: "underline"}}>
                                         {expand ? t("show_less") : t("show_more")}
@@ -358,11 +358,11 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                     <Container fluid>
                         <Row>
                             <Col className="d-flex align-items-center p-0" style={{whiteSpace: "pre-line", overflowWrap: "anywhere"}}>
-                                <Container onClick={split.length <= 1 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer"}}>
+                                <Container onClick={split.length <= 2 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer"}}>
                                     <Row>
                                         <Col>
                                             <div>
-                                                {split[0]}
+                                                {split.slice(0, split.length <= 2 ? 2 : 1).join("\n")}
                                             </div>
                                         </Col>
                                     </Row>
@@ -370,12 +370,12 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                                         <Col>
                                             <Collapse in={expand}>
                                                 <div style={{whiteSpace: "pre-wrap"}}>
-                                                    {charger.note.substring(charger.note.indexOf("\n") + 1)}
+                                                    {split.slice(1).join("\n")}
                                                 </div>
                                             </Collapse>
                                         </Col>
                                     </Row>
-                                    <Row hidden={split.length <= 1}>
+                                    <Row hidden={split.length <= 2}>
                                         <Col>
                                         <a style={{fontSize: "14px", color: "blue", textDecoration: "underline"}}>
                                             {expand ? t("show_less") : t("show_more")}
