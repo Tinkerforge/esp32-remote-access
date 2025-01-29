@@ -417,7 +417,15 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
             {/*Delete Charger Modal end*/}
 
             {/*Edit Note Modal begin*/}
-            <Modal show={this.state.showEditNoteModal} onHide={() => this.setState({showEditNoteModal: false, editNote: "", editChargerIdx: -1})}>
+            <Modal
+                show={this.state.showEditNoteModal}
+                centered
+                onHide={() => this.setState({
+                    showEditNoteModal: false,
+                    editNote: "",
+                    editChargerIdx: -1
+                })}
+            >
                 <Form onSubmit={async (e) => {
                     e.preventDefault();
                     const encryptedNote = sodium.crypto_box_seal(this.state.editNote, pub_key);
