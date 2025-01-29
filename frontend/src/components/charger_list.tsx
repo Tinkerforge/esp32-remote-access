@@ -197,26 +197,45 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                     </Row>
                     <hr style="margin-top: 5px;margin-bottom: 5px;"/>
                     <Row>
-                        <Col xs="auto"><b>{t("note")}</b></Col>
-                        <Col onClick={split.length <= 1 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer", whiteSpace: "pre-line", overflowWrap: "anywhere"}}>
+                        <Col xs="auto">
+                            <Row>
+                                <b>{t("note")}</b>
+                            </Row>
+                            <Row>
+                                <Col className="p-0">
+                                    <Button style="background-color:transparent;border:none;"
+                                        onClick={() => {
+                                            this.setState({
+                                                showEditNoteModal: true,
+                                                editNote: charger.note,
+                                                editChargerIdx: index
+                                            });
+                                        }}>
+                                        <Edit color="#333"/>
+                                    </Button>
+                                </Col>
+                            </Row>
+                        </Col>
+                        <Col onClick={split.length <= 2 ? undefined : () => setExpand(!expand)}
+                            style={{cursor: split.length <= 2 ? undefined : "pointer", whiteSpace: "pre-line", overflowWrap: "anywhere"}}>
                                 <Row>
-                                    <Col className="d-flex justify-content-end" >
+                                    <Col className="d-flex justify-content-end" style={{textAlign: "right"}} >
                                         <div>
-                                            {split[0]}
+                                            {split.slice(0, 2).join("\n")}
                                         </div>
                                     </Col>
                                 </Row>
                                 <Row>
-                                    <Col className="d-flex justify-content-end" >
+                                    <Col className="d-flex justify-content-end" style={{textAlign: "right"}}>
                                         <Collapse in={expand}>
                                             <div>
-                                                {charger.note.substring(charger.note.indexOf("\n") + 1)}
+                                                {split.slice(2).join("\n")}
                                             </div>
                                         </Collapse>
                                     </Col>
                                 </Row>
 
-                                <Row hidden={split.length <= 1}>
+                                <Row hidden={split.length <= 2}>
                                     <Col className="d-flex justify-content-end" >
                                     <a style={{fontSize: "14px", color: "blue", textDecoration: "underline"}}>
                                         {expand ? t("show_less") : t("show_more")}
@@ -226,20 +245,6 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                         </Col>
                     </Row>
                     <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
-                    <Row>
-                        <Col className="d-flex justify-content-end">
-                            <Button style="background-color:transparent;border:none;"
-                                onClick={() => {
-                                    this.setState({
-                                        showEditNoteModal: true,
-                                        editNote: charger.note,
-                                        editChargerIdx: index
-                                    });
-                                }}>
-                                <Edit color="#333"/>
-                            </Button>
-                        </Col>
-                    </Row>
                 </Card.Body>
             </Card>
         </>
