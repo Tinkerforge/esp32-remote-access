@@ -366,7 +366,10 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                             </Col>
                             <Col className="p-0" sm="auto">
                                 <Button style="background-color:transparent;border:none;"
-                                        onClick={() => this.setState({showEditNoteModal: true, editNote: charger.note, editChargerIdx: index})}>
+                                        onClick={() => {
+                                            this.setState({showEditNoteModal: true, editNote: charger.note, editChargerIdx: index});
+                                            setExpand(false);
+                                        }}>
                                     <Edit color="#333"/>
                                 </Button>
                             </Col>
