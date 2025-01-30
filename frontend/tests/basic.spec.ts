@@ -1,18 +1,19 @@
 import { test, expect, Page } from '@playwright/test';
+import { testDomain, testPassword, testUser } from './common';
 
 test('has title', async ({ page }) => {
-  await page.goto('https://192.168.1.44/');
+  await page.goto(testDomain);
 
   // Expect a title "to contain" a substring.
   await expect(page).toHaveTitle(/Remote Access/);
 });
 
 async function login(page: Page) {
-  await page.goto('https://192.168.1.44/');
+  await page.goto(testDomain);
   await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill('frederic@tinkerforge.com');
+  await page.getByRole('textbox', { name: 'Email' }).fill(testUser);
   await page.getByRole('textbox', { name: 'Email' }).press('Tab');
-  await page.getByRole('textbox', { name: 'Password' }).fill('Test1234567890');
+  await page.getByRole('textbox', { name: 'Password' }).fill(testPassword);
   await Promise.all([
     page.waitForResponse((resp) => {
       expect(resp.status()).toBe(200);
@@ -46,7 +47,7 @@ test('show user page', async ({ page }) => {
 });
 
 test('invalid register form', async ({ page }) => {
-  await page.goto('https://192.168.1.44/');
+  await page.goto(testDomain);
   await page.getByRole('tab', { name: 'Register' }).click();
   await page.getByRole('button', { name: 'Register' }).click();
   await expect(page.getByText('The name must not be empty')).toBeVisible();
