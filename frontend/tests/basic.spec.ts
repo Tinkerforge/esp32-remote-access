@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { testDomain, testPassword, testUser } from './common';
+import { login, testDomain, testPassword, testUser } from './common';
 
 test('has title', async ({ page }) => {
   await page.goto(testDomain);
@@ -7,21 +7,6 @@ test('has title', async ({ page }) => {
   // Expect a title "to contain" a substring.
   await expect(page).toHaveTitle(/Remote Access/);
 });
-
-async function login(page: Page) {
-  await page.goto(testDomain);
-  await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill(testUser);
-  await page.getByRole('textbox', { name: 'Email' }).press('Tab');
-  await page.getByRole('textbox', { name: 'Password' }).fill(testPassword);
-  await Promise.all([
-    page.waitForResponse((resp) => {
-      expect(resp.status()).toBe(200);
-      return resp.url().includes("/api/auth/login")
-    }, {timeout: 1000}),
-    page.getByRole('button', { name: 'Login' }).click()
-  ]);
-}
 
 test('login', async ({ page }) => {
   await login(page);

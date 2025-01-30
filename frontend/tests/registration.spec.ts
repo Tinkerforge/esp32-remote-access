@@ -16,5 +16,13 @@ test('register', async ({ page }) => {
     await page.getByRole('button', { name: 'Register' }).click();
     await page.getByText('Close').click();
     const inbox = await mailiskClient.searchInbox(mailiskNameSpace);
-    const link = inbox.data[0].html.indexOf("")
+    const idx = inbox.data[0].text.indexOf("[https://tf-freddy/api/auth/verify?") + 1;
+    if (idx === -1) {
+        throw new Error("Failed to verify email");
+    }
+    const url = inbox.data[0].text.substring(idx, inbox.data[0].text.indexOf("]", idx));
+    const response = await fetch(url);
+    if (response.status !== 200) {
+        throw new Error("Failed to verify email");
+    }
   });
