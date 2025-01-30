@@ -1,5 +1,5 @@
 import test, { expect } from "@playwright/test";
-import { login, testPassword } from "./common";
+import { login, testPassword } from "../tests/common";
 
 test('delete account', async ({ page }) => {
     await login(page);

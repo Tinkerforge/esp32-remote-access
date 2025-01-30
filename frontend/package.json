@@ -6,7 +6,9 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "npx playwright test --project=chromium"
+    "pretest": "npx playwright test --project=chromium -c pre-playwright.config.ts",
+    "test": "npx playwright test --project=chromium",
+    "posttest": "npx playwright test --project=chromium -c post-playwright.config.ts"
   },
   "dependencies": {
     "@preact/signals": "^1.2.2",
