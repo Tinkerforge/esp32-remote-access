@@ -51,6 +51,9 @@ governor = "0.8.0"
 dashmap = "6.1.0"
 semver = "1.0.24"
 
+# This is a workaround until lettre and native-tls are updated
+openssl = "0.10.70"
+
 [dev-dependencies]
 libsodium-sys-stable = "1.20.4"
 
