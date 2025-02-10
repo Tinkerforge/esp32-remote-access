@@ -33,11 +33,11 @@ export function setAppNavigation() {
             url: `${FRONTEND_URL}/user`,
             icon: "fas fa-user"
         },
-        // {
-        //     label: i18n.t("navbar.tokens"),
-        //     url: `${FRONTEND_URL}/tokens`,
-        //     icon: "fas fa-key"
-        // }
+        {
+            label: i18n.t("navbar.tokens"),
+            url: `${FRONTEND_URL}/tokens`,
+            icon: "fas fa-key"
+        }
     ];
     Median.sidebar.setItems({ items: items, enabled: true, persist: true });
     return <></>;
@@ -64,12 +64,12 @@ export function CustomNavbar() {
                                 {t("chargers")}
                             </p>
                         </Nav.Link>
-                        {/* <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/tokens" active={url === "/tokens"}>
+                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/tokens" active={url === "/tokens"}>
                             <Key/>
                             <p class="ms-1 mb-0">
                                 Token
                             </p>
-                        </Nav.Link> */}
+                        </Nav.Link>
                         <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/user" active={url === "/user"}>
                             <User/>
                             <p class="ms-1 mb-0">
