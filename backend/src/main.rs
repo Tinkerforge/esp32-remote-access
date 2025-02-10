@@ -120,7 +120,7 @@ async fn main() -> std::io::Result<()> {
     )])
     .unwrap();
 
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
 
     let pool = get_connection_pool();
     let mut conn = pool.get().expect("Failed to get connection from pool");

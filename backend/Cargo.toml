@@ -16,7 +16,7 @@ actix-web-actors = "4.3.0"
 actix-web-validator = {git = "https://github.com/Tinkerforge/actix-web-validator"}
 actix = "0.13.3"
 
-dotenv = "0.15.0"
+dotenvy = "0.15.7"
 db_connector = { path = "../db_connector" }
 serde = { version = "1.0.196", features = ["derive"] }
 argon2 = "0.5.3"
