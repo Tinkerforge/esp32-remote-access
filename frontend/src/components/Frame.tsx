@@ -109,7 +109,7 @@ class VirtualNetworkInterface {
             const msg = e.data as Message;
             switch (msg.type) {
                 case MessageType.Error:
-                    this.handleErrorMessage(msg);
+                    // this.handleErrorMessage(msg);
                     break;
 
                 default:
