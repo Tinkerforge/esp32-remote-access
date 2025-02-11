@@ -41,10 +41,7 @@ export function ChargerList() {
     const [loaded, setLoaded] = useState(false);
 
     if (Median.isNativeApp() && !loaded) {
-        setTimeout(async () => {
-            if (!secret) {
-                await get_decrypted_secret();
-            }
+        setTimeout(() => {
             const currentConnection = sessionStorage.getItem("currentConnection");
             try {
                 const currentConnectionObject: ChargersState = JSON.parse(currentConnection);

@@ -3,7 +3,7 @@ import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
 import { setAppNavigation } from './Navbar';
-import { enableLogging, refresh_access_token, secret } from '../utils';
+import { enableLogging, get_decrypted_secret, secret } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
 import { ChargersState } from '../pages/chargers';
@@ -87,7 +87,10 @@ class VirtualNetworkInterface {
     }
 
     // This waits for the Worker to be done with the setup
-    setupHandler(e: MessageEvent) {
+    async setupHandler(e: MessageEvent) {
+        if (!secret) {
+            await get_decrypted_secret();
+        }
         if (e.data === "started") {
             this.worker.onmessage = (e) => this.handleWorkerMessage(e);
             const message_data: SetupMessage = {
