@@ -23,6 +23,7 @@ import { ChargerListComponent } from "../components/charger_list";
 import { connected } from "../components/Navbar";
 import Median from "median-js-bridge";
 import { get_decrypted_secret, secret } from "../utils";
+import { Row, Spinner } from "react-bootstrap";
 
 export interface ChargersState {
     connected: boolean;
@@ -41,16 +42,21 @@ export function ChargerList() {
     const [loaded, setLoaded] = useState(false);
 
     if (Median.isNativeApp() && !loaded) {
-        setTimeout(() => {
+        setTimeout(async () => {
+            if (!secret) {
+                await get_decrypted_secret();
+            }
+            setLoaded(true);
             const currentConnection = sessionStorage.getItem("currentConnection");
             try {
                 const currentConnectionObject: ChargersState = JSON.parse(currentConnection);
                 if (currentConnectionObject.connected) {
                     setState(currentConnectionObject);
-                    setLoaded(true)
                 }
             } catch {}
         });
+    } else if (!loaded) {
+        setLoaded(true);
     }
 
     useEffect(() => {
@@ -58,6 +64,11 @@ export function ChargerList() {
         document.title = state.connectedName == "" ?  "Remote Access" : state.connectedName;
     }, [state])
 
+    if (!loaded) {
+        return <Row className="align-content-center justify-content-center m-0 h-100">
+            <Spinner className="p-3"animation='border' variant='primary'/>
+        </Row>
+    }
     if (!state.connected) {
         return <>
             <ChargerListComponent setParentState={setState} parentState={state} />

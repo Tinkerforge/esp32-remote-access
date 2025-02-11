@@ -87,10 +87,7 @@ class VirtualNetworkInterface {
     }
 
     // This waits for the Worker to be done with the setup
-    async setupHandler(e: MessageEvent) {
-        if (!secret) {
-            await get_decrypted_secret();
-        }
+    setupHandler(e: MessageEvent) {
         if (e.data === "started") {
             this.worker.onmessage = (e) => this.handleWorkerMessage(e);
             const message_data: SetupMessage = {
