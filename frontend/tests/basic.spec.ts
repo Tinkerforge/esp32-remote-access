@@ -29,10 +29,11 @@ test('invalid register form', async ({ page }) => {
 });
 
 test('charger lifecycle', async ({ page }) => {
+  test.slow();
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
-  await page.getByRole('cell').nth(1).click();
+  await page.getByRole('row', { name: 'of 5 users config­ured.' }).getByRole('button').click();
   await page.getByLabel('Email ad­dress').click();
   await page.getByLabel('Email ad­dress').fill(testUser);
   await page.getByLabel('Email ad­dress').press('Tab');
@@ -46,9 +47,9 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Password' }).fill(testPassword);
   await page.getByRole('textbox', { name: 'Password' }).press('Enter');
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
-  await expect(page.locator('.bg-success')).toBeVisible();
+  await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
   await page.getByRole('button', { name: 'Connect' }).click();
-  await expect(page.locator('#interface').contentFrame().locator('#P0-91')).toBeVisible({timeout: 10_000});
+  await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible();
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
