@@ -36,7 +36,7 @@ use diesel::prelude::*;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use lru::LruCache;
 use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
-use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
+use simplelog::{ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 use udp_server::packet::{
     ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
     ManagementPacketHeader,
@@ -102,10 +102,15 @@ fn resend_thread(bridge_state: web::Data<BridgeState>) {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let log_config = ConfigBuilder::new()
+        .set_time_format_rfc3339()
+        .set_time_offset_to_local()
+        .unwrap()
+        .build();
     #[cfg(debug_assertions)]
     CombinedLogger::init(vec![TermLogger::new(
         LevelFilter::Debug,
-        Config::default(),
+        log_config,
         TerminalMode::Mixed,
         ColorChoice::Auto,
     )])
@@ -114,7 +119,7 @@ async fn main() -> std::io::Result<()> {
     #[cfg(not(debug_assertions))]
     CombinedLogger::init(vec![TermLogger::new(
         LevelFilter::Info,
-        Config::default(),
+        log_config,
         TerminalMode::Mixed,
         ColorChoice::Auto,
     )])
