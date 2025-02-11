@@ -21,6 +21,8 @@ import { useEffect, useState } from "preact/hooks";
 import { Frame } from "../components/Frame";
 import { ChargerListComponent } from "../components/charger_list";
 import { connected } from "../components/Navbar";
+import Median from "median-js-bridge";
+import { get_decrypted_secret, secret } from "../utils";
 
 export interface ChargersState {
     connected: boolean;
@@ -36,6 +38,23 @@ export function ChargerList() {
         connectedId: "",
         connectedPort: 0,
     })
+    const [loaded, setLoaded] = useState(false);
+
+    if (Median.isNativeApp() && !loaded) {
+        setTimeout(async () => {
+            if (!secret) {
+                await get_decrypted_secret();
+            }
+            const currentConnection = sessionStorage.getItem("currentConnection");
+            try {
+                const currentConnectionObject: ChargersState = JSON.parse(currentConnection);
+                if (currentConnectionObject.connected) {
+                    setState(currentConnectionObject);
+                    setLoaded(true)
+                }
+            } catch {}
+        });
+    }
 
     useEffect(() => {
         connected.value = state.connected;

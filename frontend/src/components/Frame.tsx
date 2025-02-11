@@ -191,11 +191,8 @@ export class Frame extends Component<FrameProps, FrameState> {
 
     interface: VirtualNetworkInterface;
     id: string;
-    abort: AbortController;
     constructor() {
         super();
-
-        this.abort = new AbortController();
 
         this.state = {
             show_spinner: true,
@@ -222,34 +219,9 @@ export class Frame extends Component<FrameProps, FrameState> {
                     }
                 ]
             })
+
+            setTimeout(() => sessionStorage.setItem("currentConnection", JSON.stringify(this.props.parentState)))
         }
-
-        // used by the app to detect a resumed app
-        window.addEventListener("appResumed", async () => {
-            if (this.interface && this.interface.cancel) {
-                this.interface.cancel();
-            }
-
-            await refresh_access_token();
-            this.interface = new VirtualNetworkInterface({
-                    parentState: (s) => this.setState(s),
-                    chargersState: (s) => this.props.setParentState(s),
-                },
-                this.props.parentState);
-            this.setState({show_spinner: true});
-
-            const t = i18n.t;
-            Median.sidebar.setItems({
-                enabled: true,
-                persist: true,
-                items: [
-                    {
-                        label: t("app.close_remote_access"),
-                        url: "javascript:window.close()"
-                    }
-                ]
-            })
-        }, {signal: this.abort.signal});
 
         // this is used by the app to close the remote connection via the native app menu.
         (window as any).close = () => {
@@ -260,6 +232,7 @@ export class Frame extends Component<FrameProps, FrameState> {
                 connectedPort: 0,
             });
             setAppNavigation();
+            sessionStorage.removeItem("currentConnection");
         }
 
         // this is used by the app to change location via the native app menu.
@@ -274,7 +247,6 @@ export class Frame extends Component<FrameProps, FrameState> {
         if (this.interface && this.interface.cancel) {
             this.interface.cancel();
         }
-        this.abort.abort();
     }
 
     render() {
