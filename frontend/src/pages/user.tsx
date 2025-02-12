@@ -67,6 +67,7 @@ class UserComponent extends Component<{}, State> {
 
         fetchClient.GET("/user/me", {credentials: "same-origin"}).then(({data, error, response}) => {
             if (data) {
+                email = data.email;
                 this.setState({user: data});
             } else if (error) {
                 showAlert(i18n.t("user.get_user_failed", {status: response.status, response: error}), "danger");
@@ -154,9 +155,9 @@ export function User() {
 
     const submitUpdatePassword = async (e: SubmitEvent) => {
         e.preventDefault();
+        e.stopPropagation();
 
         if (!checkPasswords()) {
-            e.stopPropagation();
             return;
         }
 
