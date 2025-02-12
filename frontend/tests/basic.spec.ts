@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { login, testDomain, testPassword, testUser1Email, testUserName, testWallboxDomain, testWallboxUID } from './common';
+import { login, mailiskClient, mailiskNameSpace, testDomain, testPassword1, testPassword2, testUser1Email, testUser2, testUser2Email, testUserName1, testUserName2, testWallboxDomain, testWallboxUID } from './common';
 
 test('has title', async ({ page }) => {
   await page.goto(testDomain);
@@ -9,14 +9,14 @@ test('has title', async ({ page }) => {
 });
 
 test('login', async ({ page }) => {
-  await login(page, testUser1Email, testPassword);
+  await login(page, testUser1Email, testPassword1);
 });
 
 
 test('show user page', async ({ page }) => {
-  await login(page, testUser1Email, testPassword);
+  await login(page, testUser1Email, testPassword1);
   await page.getByRole('link', { name: 'User' }).click();
-  await expect(page.getByLabel('Name')).toHaveValue(testUserName);
+  await expect(page.getByLabel('Name')).toHaveValue(testUserName1);
 });
 
 test('invalid register form', async ({ page }) => {
@@ -39,12 +39,12 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByLabel('Email ad­dress').click();
   await page.getByLabel('Email ad­dress').fill(testUser1Email);
   await page.getByLabel('Email ad­dress').press('Tab');
-  await page.getByLabel('Passwordonly used for the reg').fill(testPassword);
+  await page.getByLabel('Passwordonly used for the reg').fill(testPassword1);
   await page.getByLabel('Passwordonly used for the reg').press('Enter');
   await page.getByRole('button', { name: 'Reboot' }).click();
 
   // Connect to charger
-  await login(page, testUser1Email, testPassword);
+  await login(page, testUser1Email, testPassword1);
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
   await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
   await page.getByRole('button', { name: 'Connect' }).click();
@@ -62,11 +62,11 @@ test('charger lifecycle', async ({ page }) => {
   await expect(page.getByText('NameDevice-IDNoteSortAscending')).toBeVisible();
 });
 
-test('charger lifecycle with auth token', async ({page}) => {
+test('add charger with auth token', async ({page}) => {
   test.slow();
   await page.waitForTimeout(10_000);
 
-  await login(page, testUser1Email, testPassword);
+  await login(page, testUser1Email, testPassword1);
 
   // Create token
   await page.getByRole('link', { name: 'Token' }).click();
@@ -81,7 +81,6 @@ test('charger lifecycle with auth token', async ({page}) => {
   await page.getByRole('button', { name: 'Remote Access' }).click();
   await page.getByRole('row', { name: 'of 5 users config­ured.' }).getByRole('button').click();
   await page.getByLabel('Autho­ri­za­tion method').selectOption('token');
-  await page.getByLabel('Autho­ri­za­tion token').click();
   await page.getByLabel('Autho­ri­za­tion token').fill(token);
   await page.getByRole('button', { name: 'Add' }).click();
   await page.getByRole('button', { name: 'Reboot' }).click();
@@ -93,18 +92,67 @@ test('charger lifecycle with auth token', async ({page}) => {
   await page.getByRole('button', { name: 'Connect' }).click();
   await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible();
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
+});
 
-  // Remove charger
+test('change username', async ({page}) => {
+  test.slow();
+
+  await login(page, testUser1Email, testPassword1);
+
+  await page.getByRole('link', { name: 'User' }).click();
+  await page.getByLabel('Email-address').fill(testUser2Email);
+  await page.getByLabel('Name').fill(testUserName2);
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByLabel('Email-address')).toBeVisible();
+  await page.getByLabel('Name').click();
+  await page.getByRole('button', { name: 'Logout', exact: true }).click();
+
+  const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser2});
+  const idx = inbox.data[0].text.indexOf("[https://tf-freddy/api/auth/verify?") + 1;
+  if (idx === -1) {
+      throw new Error("Failed to verify email");
+  }
+  const url = inbox.data[0].text.substring(idx, inbox.data[0].text.indexOf("]", idx));
+  const response = await fetch(url);
+  if (response.status !== 200) {
+      throw new Error("Failed to verify email");
+  }
+
+  await login(page, testUser2Email, testPassword1);
+
+  await page.getByRole('link', { name: 'User' }).click();
+  await expect(page.getByRole('heading', { name: 'User information' })).toBeVisible();
+});
+
+test('change password', async ({page}) => {
+  await login(page, testUser2Email, testPassword1);
+
+  await page.getByRole('link', { name: 'User' }).click();
+  await page.getByRole('button', { name: 'Change password' }).click();
+  await page.getByLabel('Current password').click();
+  await page.getByLabel('Current password').fill(testPassword1);
+  await page.getByLabel('New password').fill(testPassword2);
+  await page.getByRole('dialog').getByRole('button', { name: 'Change password' }).click();
+  await expect(page.getByText('LoginRegisterEmail-')).toBeVisible();
+
+  await login(page, testUser2Email, testPassword2);
+});
+
+test('connect to charger with new password', async ({page}) => {
+  await login(page, testUser2Email, testPassword2);
+
+  await expect(page.locator('tbody')).toContainText(testWallboxUID);
+  await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
+  await page.getByRole('button', { name: 'Connect' }).click();
+  await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible();
+  await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
+});
+
+test('remove charger', async ({page}) => {
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
   await page.getByRole('row', { name: testUser1Email }).getByRole('button').click();
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('button', { name: 'Reboot' }).click();
-  await page.goto(testDomain);
-  await expect(page.getByText('NameDevice-IDNoteSortAscending')).toBeVisible();
-});
-
-test('change username', async ({page}) => {
-
 });

@@ -2,13 +2,17 @@ import { expect, Page } from "@playwright/test";
 import { MailiskClient } from "mailisk"
 
 export const testDomain = process.env.TEST_DOMAIN;
-export const testUserName = process.env.TEST_USER_NAME;
-export const testPassword = process.env.TEST_PASSWORD;
+export const testUserName1 = process.env.TEST_USER_NAME1;
+export const testUserName2 = process.env.TEST_USER_NAME2;
+export const testPassword1 = process.env.TEST_PASSWORD1;
+export const testPassword2 = process.env.TEST_PASSWORD2;
 
 export const mailiskClient = new MailiskClient({apiKey: process.env.MAILISK_API_KEY});
 export const mailiskNameSpace = process.env.MAILISK_NAMESPACE;
 export const testUser1 = process.env.MAILISK_USER1;
+export const testUser2 = process.env.MAILISK_USER2;
 export const testUser1Email = `${testUser1}@${mailiskNameSpace}.mailisk.net`;
+export const testUser2Email = `${testUser2}@${mailiskNameSpace}.mailisk.net`;
 export const testWallboxDomain = process.env.TEST_WALLBOX_DOMAIN;
 export const testWallboxUID = process.env.TEST_WALLBOX_UID;
 

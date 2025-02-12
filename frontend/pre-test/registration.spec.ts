@@ -1,5 +1,5 @@
 import { test } from "@playwright/test";
-import { testDomain, testPassword, testUser1, mailiskClient, mailiskNameSpace, testUserName, testUser1Email } from "../tests/common";
+import { testDomain, testPassword1, testUser1, mailiskClient, mailiskNameSpace, testUserName1, testUser1Email } from "../tests/common";
 
 
 test('register', async ({ page }) => {
@@ -9,9 +9,9 @@ test('register', async ({ page }) => {
     await page.getByRole('textbox', { name: 'Email-address' }).click();
     await page.getByRole('textbox', { name: 'Email-address' }).fill(testUser1Email);
     await page.getByPlaceholder('John Doe').click();
-    await page.getByPlaceholder('John Doe').fill(testUserName);
+    await page.getByPlaceholder('John Doe').fill(testUserName1);
     await page.getByRole('textbox', { name: 'Password' }).click();
-    await page.getByRole('textbox', { name: 'Password' }).fill(testPassword);
+    await page.getByRole('textbox', { name: 'Password' }).fill(testPassword1);
     await page.getByText('I have read, understood and I am accepting the privacy notice.').click();
     await page.getByText('I have read, understood and I am accepting the terms and conditions.').click();
     await page.getByRole('button', { name: 'Register' }).click();
