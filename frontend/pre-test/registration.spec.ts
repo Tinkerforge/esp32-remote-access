@@ -3,6 +3,7 @@ import { testDomain, testPassword, testUser, mailiskClient, mailiskNameSpace, te
 
 
 test('register', async ({ page }) => {
+    test.slow();
     await page.goto(testDomain);
     await page.getByRole('tab', { name: 'Register' }).click();
     await page.getByRole('textbox', { name: 'Email-address' }).click();

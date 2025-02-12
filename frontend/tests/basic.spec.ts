@@ -30,6 +30,8 @@ test('invalid register form', async ({ page }) => {
 
 test('charger lifecycle', async ({ page }) => {
   test.slow();
+
+  // Add charger
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
@@ -40,17 +42,59 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByLabel('Passwordonly used for the reg').fill(testPassword);
   await page.getByLabel('Passwordonly used for the reg').press('Enter');
   await page.getByRole('button', { name: 'Reboot' }).click();
-  await page.goto(testDomain);
-  await page.getByRole('textbox', { name: 'Email-address' }).click();
-  await page.getByRole('textbox', { name: 'Email-address' }).fill(testUser);
-  await page.getByRole('textbox', { name: 'Email-address' }).press('Tab');
-  await page.getByRole('textbox', { name: 'Password' }).fill(testPassword);
-  await page.getByRole('textbox', { name: 'Password' }).press('Enter');
+
+  // Connect to charger
+  await login(page);
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
   await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
   await page.getByRole('button', { name: 'Connect' }).click();
   await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible();
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
+
+  // Remove charger
+  await page.goto(testWallboxDomain + '/#status');
+  await page.getByRole('button', { name: 'System' }).click();
+  await page.getByRole('button', { name: 'Remote Access' }).click();
+  await page.getByRole('row', { name: testUser }).getByRole('button').click();
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Reboot' }).click();
+  await page.goto(testDomain);
+  await expect(page.getByText('NameDevice-IDNoteSortAscending')).toBeVisible();
+});
+
+test('charger lifecycle with auth token', async ({page}) => {
+  test.slow();
+  await page.waitForTimeout(10_000);
+
+  await login(page);
+
+  // Create token
+  await page.getByRole('link', { name: 'Token' }).click();
+  await page.getByRole('button', { name: 'Create token' }).click();
+  const token = await page.getByRole('textbox').inputValue();
+
+  // Add charger
+  await page.goto(testWallboxDomain);
+  await page.getByRole('button', { name: 'System' }).click();
+  await page.getByRole('button', { name: 'Event Log' }).click();
+  await expect(page.getByPlaceholder('Loading event log...')).toContainText("Network connected");
+  await page.getByRole('button', { name: 'Remote Access' }).click();
+  await page.getByRole('row', { name: 'of 5 users config­ured.' }).getByRole('button').click();
+  await page.getByLabel('Autho­ri­za­tion method').selectOption('token');
+  await page.getByLabel('Autho­ri­za­tion token').click();
+  await page.getByLabel('Autho­ri­za­tion token').fill(token);
+  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('button', { name: 'Reboot' }).click();
+
+  // Connect to charger
+  await page.goto(testDomain);
+  await expect(page.locator('tbody')).toContainText(testWallboxUID);
+  await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
+  await page.getByRole('button', { name: 'Connect' }).click();
+  await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible();
+  await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
+
+  // Remove charger
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
