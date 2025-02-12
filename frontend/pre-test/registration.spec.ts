@@ -1,5 +1,5 @@
 import { test } from "@playwright/test";
-import { testDomain, testPassword, testUser, mailiskClient, mailiskNameSpace, testUserName } from "../tests/common";
+import { testDomain, testPassword, testUser1, mailiskClient, mailiskNameSpace, testUserName, testUser1Email } from "../tests/common";
 
 
 test('register', async ({ page }) => {
@@ -7,7 +7,7 @@ test('register', async ({ page }) => {
     await page.goto(testDomain);
     await page.getByRole('tab', { name: 'Register' }).click();
     await page.getByRole('textbox', { name: 'Email-address' }).click();
-    await page.getByRole('textbox', { name: 'Email-address' }).fill(testUser);
+    await page.getByRole('textbox', { name: 'Email-address' }).fill(testUser1Email);
     await page.getByPlaceholder('John Doe').click();
     await page.getByPlaceholder('John Doe').fill(testUserName);
     await page.getByRole('textbox', { name: 'Password' }).click();
@@ -16,7 +16,7 @@ test('register', async ({ page }) => {
     await page.getByText('I have read, understood and I am accepting the terms and conditions.').click();
     await page.getByRole('button', { name: 'Register' }).click();
     await page.getByText('Close').click();
-    const inbox = await mailiskClient.searchInbox(mailiskNameSpace);
+    const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser1});
     const idx = inbox.data[0].text.indexOf("[https://tf-freddy/api/auth/verify?") + 1;
     if (idx === -1) {
         throw new Error("Failed to verify email");

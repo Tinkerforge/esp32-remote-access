@@ -1,8 +1,8 @@
 import test, { expect } from "@playwright/test";
-import { login, testPassword } from "../tests/common";
+import { login, testPassword, testUser1Email } from "../tests/common";
 
 test('delete account', async ({ page }) => {
-    await login(page);
+  await login(page, testUser1Email, testPassword);
 
     await page.getByRole('link', { name: 'User' }).click();
     await page.getByRole('button', { name: 'Delete account' }).click();

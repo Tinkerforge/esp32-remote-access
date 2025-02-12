@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { login, testDomain, testPassword, testUser, testUserName, testWallboxDomain, testWallboxUID } from './common';
+import { login, testDomain, testPassword, testUser1Email, testUserName, testWallboxDomain, testWallboxUID } from './common';
 
 test('has title', async ({ page }) => {
   await page.goto(testDomain);
@@ -9,12 +9,12 @@ test('has title', async ({ page }) => {
 });
 
 test('login', async ({ page }) => {
-  await login(page);
+  await login(page, testUser1Email, testPassword);
 });
 
 
 test('show user page', async ({ page }) => {
-  await login(page);
+  await login(page, testUser1Email, testPassword);
   await page.getByRole('link', { name: 'User' }).click();
   await expect(page.getByLabel('Name')).toHaveValue(testUserName);
 });
@@ -37,14 +37,14 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('button', { name: 'Remote Access' }).click();
   await page.getByRole('row', { name: 'of 5 users config­ured.' }).getByRole('button').click();
   await page.getByLabel('Email ad­dress').click();
-  await page.getByLabel('Email ad­dress').fill(testUser);
+  await page.getByLabel('Email ad­dress').fill(testUser1Email);
   await page.getByLabel('Email ad­dress').press('Tab');
   await page.getByLabel('Passwordonly used for the reg').fill(testPassword);
   await page.getByLabel('Passwordonly used for the reg').press('Enter');
   await page.getByRole('button', { name: 'Reboot' }).click();
 
   // Connect to charger
-  await login(page);
+  await login(page, testUser1Email, testPassword);
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
   await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
   await page.getByRole('button', { name: 'Connect' }).click();
@@ -55,7 +55,7 @@ test('charger lifecycle', async ({ page }) => {
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
-  await page.getByRole('row', { name: testUser }).getByRole('button').click();
+  await page.getByRole('row', { name: testUser1Email }).getByRole('button').click();
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('button', { name: 'Reboot' }).click();
   await page.goto(testDomain);
@@ -66,7 +66,7 @@ test('charger lifecycle with auth token', async ({page}) => {
   test.slow();
   await page.waitForTimeout(10_000);
 
-  await login(page);
+  await login(page, testUser1Email, testPassword);
 
   // Create token
   await page.getByRole('link', { name: 'Token' }).click();
@@ -98,9 +98,13 @@ test('charger lifecycle with auth token', async ({page}) => {
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
-  await page.getByRole('row', { name: testUser }).getByRole('button').click();
+  await page.getByRole('row', { name: testUser1Email }).getByRole('button').click();
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('button', { name: 'Reboot' }).click();
   await page.goto(testDomain);
   await expect(page.getByText('NameDevice-IDNoteSortAscending')).toBeVisible();
+});
+
+test('change username', async ({page}) => {
+
 });
