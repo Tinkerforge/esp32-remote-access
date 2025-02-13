@@ -141,7 +141,7 @@ pub async fn update_user(
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         match users
-            .filter(email.eq(&user_cpy.email))
+            .filter(email.eq(&user_cpy.email.to_lowercase()))
             .select(User::as_select())
             .get_result(&mut conn) as Result<User, diesel::result::Error>
         {
@@ -195,7 +195,8 @@ pub async fn update_user(
         match diesel::update(users.find::<uuid::Uuid>(uid))
             .set((
                 name.eq(&new_user.name),
-                email.eq(&new_user.email),
+                email.eq(&new_user.email.to_lowercase()),
+                delivery_email.eq(&new_user.email),
                 email_verified.eq(new_user.email == old_user.email),
                 old_email.eq(&old_user.email),
                 old_delivery_email.eq(&old_user.delivery_email),
@@ -235,7 +236,8 @@ pub async fn update_user(
                     state.clone(),
                     verify.id,
                 );
-                send_email_change_notification(old_user.name, old_user.email, lang, state);
+                let old_user_email = old_user.delivery_email.unwrap_or(old_user.email);
+                send_email_change_notification(old_user.name, old_user_email, lang, state);
             }
         }
 
@@ -295,8 +297,9 @@ pub mod tests {
 
         let user = get_test_user(mail);
         let mut user = user;
+        let old_user = user.clone();
         user.email = update_mail.clone();
-        let user = UpdateUserSchema {
+        let user_schema = UpdateUserSchema {
             name: user.name,
             email: user.email,
         };
@@ -304,7 +307,7 @@ pub mod tests {
         let (token, _) = verify_and_login_user(mail, key).await;
         let req = test::TestRequest::put()
             .uri("/update_user")
-            .set_json(user)
+            .set_json(user_schema)
             .cookie(Cookie::new("access_token", token))
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -313,6 +316,8 @@ pub mod tests {
         // Check that email_verified is false after email change
         let updated_user = get_test_user(&update_mail);
         assert!(!updated_user.email_verified);
+        assert_eq!(old_user.email, updated_user.old_email.unwrap());
+        assert_eq!(old_user.delivery_email, updated_user.old_delivery_email);
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
