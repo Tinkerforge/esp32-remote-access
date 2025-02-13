@@ -100,6 +100,7 @@ test('change username', async ({page}) => {
   await login(page, testUser1Email, testPassword1);
 
   await page.getByRole('link', { name: 'User' }).click();
+  await expect(page.getByLabel('Email-address')).toHaveValue(testUser1Email);
   await page.getByLabel('Email-address').fill(testUser2Email);
   await page.getByLabel('Name').fill(testUserName2);
   await page.getByRole('button', { name: 'Save changes' }).click();
@@ -109,7 +110,6 @@ test('change username', async ({page}) => {
 
 
   const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser2});
-  console.log(inbox.data[0].text);
   const idx = inbox.data[0].text.indexOf(`[${testDomain}/api/auth/verify?`) + 1;
   if (idx === -1) {
       throw new Error("Failed to verify email");
