@@ -130,10 +130,12 @@ pub async fn jwt_refresh(
                 .http_only(true)
                 .finish();
 
-            return Ok(HttpResponse::Unauthorized()
-                .cookie(access_token)
-                .cookie(refresh_token)
-                .body(err.to_string()));
+            log::error!("JWT-Refresh failed: {}", err);
+            let mut err = err.error_response();
+            err.add_removal_cookie(&access_token)?;
+            err.add_removal_cookie(&refresh_token)?;
+
+            return Ok(err);
         }
     };
 
