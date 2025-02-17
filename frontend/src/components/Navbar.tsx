@@ -67,7 +67,7 @@ export function CustomNavbar() {
                         <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/tokens" active={url === "/tokens"}>
                             <Key/>
                             <p class="ms-1 mb-0">
-                                Token
+                                {t("token")}
                             </p>
                         </Nav.Link>
                         <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/user" active={url === "/user"}>

@@ -69,6 +69,7 @@ export const en = {
         "user": "User",
         "chargers": "Devices",
         "logout": "Logout",
+        "token": "Token",
         "close": "Schließen"
     },
     "register": {
