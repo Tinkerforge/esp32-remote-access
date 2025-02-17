@@ -34,7 +34,7 @@ export function setAppNavigation() {
             icon: "fas fa-user"
         },
         {
-            label: i18n.t("navbar.tokens"),
+            label: i18n.t("navbar.token"),
             url: `${FRONTEND_URL}/tokens`,
             icon: "fas fa-key"
         }
