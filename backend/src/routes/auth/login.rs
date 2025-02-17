@@ -171,9 +171,9 @@ pub async fn login(
 
 pub async fn create_refresh_token(
     state: &web::Data<AppState>,
-    uid: uuid::Uuid,
+    user_id: uuid::Uuid,
 ) -> actix_web::Result<String> {
-    let session_id = uuid::Uuid::new_v4();
+    let token_id = uuid::Uuid::new_v4();
     let mut conn = get_connection(state)?;
 
     let now = Utc::now();
@@ -187,17 +187,17 @@ pub async fn create_refresh_token(
     let claims = TokenClaims {
         iat,
         exp,
-        sub: session_id.to_string(),
+        sub: token_id.to_string(),
     };
     web_block_unpacked(move || {
-        use db_connector::schema::refresh_tokens::dsl::*;
+        use db_connector::schema::refresh_tokens::dsl as refresh_tokens;
 
         let token = RefreshToken {
-            id: session_id,
-            user_id: uid,
+            id: token_id,
+            user_id,
             expiration: exp as i64,
         };
-        match diesel::insert_into(refresh_tokens)
+        match diesel::insert_into(refresh_tokens::refresh_tokens)
             .values(&token)
             .execute(&mut conn)
         {
