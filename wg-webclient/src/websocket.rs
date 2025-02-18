@@ -18,6 +18,7 @@
  */
 
 use std::io::Read;
+use std::rc::Weak;
 use std::{cell::RefCell, io::Write, rc::Rc};
 
 use crate::interval_handle::IntervalHandle;
@@ -87,138 +88,16 @@ where
             request = request.header("Authorization", auth_header);
         }
 
-        let request = request.body(()).unwrap();
+        let request = request.body(())?;
         let (request, key) = generate_request(request)?;
-        let _ = stream.write(&request[..]).unwrap();
+        let _ = stream.write(&request[..])?;
 
         let key = Rc::new(key);
-        let key_cpy = key.clone();
-
         let state = Rc::new(RefCell::new(WebsocketState::Created));
-        let state_cpy = Rc::downgrade(&state);
-
         let cb = Rc::new(RefCell::new(None::<js_sys::Function>));
-        let cb_cpy = Rc::downgrade(&cb);
+        let setup_closure = create_setup_closure(Rc::downgrade(&state), key, Rc::downgrade(&cb));
 
-        let closure = Closure::<dyn FnMut(JsValue)>::wrap(Box::new(move |_: JsValue| {
-            let state = state_cpy.upgrade().unwrap();
-            let mut state = state.borrow_mut();
-            let mut stream = match &mut *state {
-                WebsocketState::Connecting(connecting) => {
-                    if !connecting.stream.can_send() {
-                        return;
-                    }
-                    let _ = connecting.stream.flush();
-                    connecting.stream.clone()
-                }
-                _ => return,
-            };
-            if !stream.can_recv() {
-                return;
-            }
-            let mut buf = [0u8; 4096];
-            let read: usize = match stream.read(&mut buf) {
-                Ok(len) => len,
-                Err(e) => {
-                    log::error!("error while reading from stream: {}", e.to_string());
-                    return;
-                }
-            };
-            log::trace!("read len {}", read);
-
-            let (cursor, response) =
-                match tungstenite::handshake::client::Response::try_parse(&buf[..read]) {
-                    Ok(Some(response)) => response,
-                    Ok(None) => {
-                        *state = WebsocketState::Disconnected;
-                        return;
-                    }
-                    Err(e) => {
-                        log::error!("error while parsing response: {}", e.to_string());
-                        return;
-                    }
-                };
-
-            if let Some(accept_key) = response.headers().get("Sec-WebSocket-Accept") {
-                if accept_key.as_bytes() != derive_accept_key(&key_cpy.as_bytes()).as_bytes() {
-                    panic!("invalid accept key");
-                }
-            } else {
-                panic!("no accept key");
-            }
-
-            let cb_cpy = cb_cpy.clone();
-            let state_cpy = state_cpy.clone();
-            let closure = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-                let state = state_cpy.upgrade().unwrap();
-                let mut state = state.borrow_mut();
-                let message = {
-                    let mut socket = match *state {
-                        WebsocketState::Connected(ref mut connected) => {
-                            connected.stream.borrow_mut()
-                        }
-                        _ => return,
-                    };
-                    if !socket.can_read() {
-                        return;
-                    }
-                    match socket.read() {
-                        Ok(msg) => msg,
-                        Err(e) => {
-                            match e {
-                                tungstenite::Error::Io(err) => {
-                                    match err.kind() {
-                                        std::io::ErrorKind::WouldBlock => (),
-
-                                        // This error happens when updating a firmware and when rebooting the charger.
-                                        // The underlying tcp stream should be able to recover
-                                        std::io::ErrorKind::BrokenPipe => (),
-                                        err => {
-                                            log::error!("Error: {err:?}");
-                                        }
-                                    }
-                                },
-                                _ => log::error!(
-                                    "error while reading from Websocket: {}",
-                                    e.to_string()
-                                ),
-                            }
-                            return;
-                        }
-                    }
-                };
-
-                match message {
-                    tungstenite::Message::Text(text) => {
-                        let cb_cpy = cb_cpy.upgrade().unwrap();
-                        let cb = cb_cpy.borrow_mut();
-                        if let Some(cb) = cb.as_ref() {
-                            let this = JsValue::null();
-                            let _ = cb.call1(&this, &JsValue::from_str(&text));
-                        }
-                    }
-                    tungstenite::Message::Ping(_) => (),
-                    _ => log::error!("unhandled message: {:?}", message),
-                }
-            });
-
-            let interval = IntervalHandle::new(closure, 0);
-            let ws = if cursor == read {
-                tungstenite::WebSocket::from_raw_socket(
-                    stream,
-                    tungstenite::protocol::Role::Client,
-                    None,
-                )
-            } else {
-                tungstenite::WebSocket::from_partially_read(stream, buf[cursor..read].to_vec(), tungstenite::protocol::Role::Client, None)
-            };
-            *state = WebsocketState::Connected(ConnectedStruct {
-                stream: Rc::new(RefCell::new(ws)),
-                _interval: interval,
-            });
-        }));
-
-        let interval = IntervalHandle::new(closure, 0);
+        let interval = IntervalHandle::new(setup_closure, 0);
         *state.borrow_mut() = WebsocketState::Connecting(ConnectingStruct {
             stream,
             _interval: interval,
@@ -253,4 +132,144 @@ where
     fn drop(&mut self) {
         self.disconnect();
     }
+}
+
+/**
+ * Creates a closure that sets up the Websocket connection through
+ * the etablished WireGuard tunnel.
+ */
+fn create_setup_closure<Device>(
+    state: Weak<RefCell<WebsocketState<Device>>>,
+    key: Rc<String>,
+    cb: Weak<RefCell<Option<js_sys::Function>>>,)
+    -> Closure<dyn FnMut(JsValue)>
+    where Device: smoltcp::phy::Device + Clone + IsUp + 'static
+{
+    Closure::<dyn FnMut(JsValue)>::wrap(Box::new(move |_: JsValue| {
+        let state_rc = state.upgrade().unwrap();
+        let mut state_ref = state_rc.borrow_mut();
+
+        // In case the Websocket is already connected, we don't need to do anything.
+        let mut stream = match &mut *state_ref {
+            WebsocketState::Connecting(connecting) => {
+                if !connecting.stream.can_send() {
+                    return;
+                }
+                let _ = connecting.stream.flush();
+                connecting.stream.clone()
+            }
+            _ => return,
+        };
+        if !stream.can_recv() {
+            return;
+        }
+        let mut buf = [0u8; 4096];
+        let read: usize = match stream.read(&mut buf) {
+            Ok(len) => len,
+            Err(e) => {
+                log::error!("error while reading from stream: {}", e.to_string());
+                return;
+            }
+        };
+        log::trace!("read len {}", read);
+        let (cursor, response) =
+            match tungstenite::handshake::client::Response::try_parse(&buf[..read]) {
+                Ok(Some(response)) => response,
+                Ok(None) => {
+                    *state_ref = WebsocketState::Disconnected;
+                    return;
+                }
+                Err(e) => {
+                    log::error!("error while parsing response: {}", e.to_string());
+                    return;
+                }
+            };
+
+        if let Some(accept_key) = response.headers().get("Sec-WebSocket-Accept") {
+            if accept_key.as_bytes() != derive_accept_key(&key.as_bytes()).as_bytes() {
+                panic!("invalid accept key");
+            }
+        } else {
+            panic!("no accept key");
+        }
+
+        let closure = create_websocket_closure(state.clone(), cb.clone());
+
+        let interval = IntervalHandle::new(closure, 0);
+        let ws = if cursor == read {
+            tungstenite::WebSocket::from_raw_socket(
+                stream,
+                tungstenite::protocol::Role::Client,
+                None,
+            )
+        } else {
+            tungstenite::WebSocket::from_partially_read(stream, buf[cursor..read].to_vec(), tungstenite::protocol::Role::Client, None)
+        };
+        *state_ref = WebsocketState::Connected(ConnectedStruct {
+            stream: Rc::new(RefCell::new(ws)),
+            _interval: interval,
+        });
+    }))
+}
+
+/**
+ * Creates the closure that handles the actual Websocket connection
+ */
+fn create_websocket_closure<Device>(
+    state: Weak<RefCell<WebsocketState<Device>>>,
+    cb: Weak<RefCell<Option<js_sys::Function>>>,
+) -> Closure<dyn FnMut(JsValue)>
+    where Device: smoltcp::phy::Device + Clone + IsUp + 'static {
+        Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
+        let state = state.upgrade().unwrap();
+        let mut state = state.borrow_mut();
+        let message = {
+            let mut socket = match *state {
+                WebsocketState::Connected(ref mut connected) => {
+                    connected.stream.borrow_mut()
+                }
+                _ => return,
+            };
+            if !socket.can_read() {
+                return;
+            }
+            match socket.read() {
+                Ok(msg) => msg,
+                Err(e) => {
+                    match e {
+                        tungstenite::Error::Io(err) => {
+                            match err.kind() {
+                                std::io::ErrorKind::WouldBlock => (),
+
+                                // This error happens when updating a firmware and when rebooting the charger.
+                                // The underlying tcp stream should be able to recover
+                                std::io::ErrorKind::BrokenPipe => (),
+                                err => {
+                                    log::error!("Error: {err:?}");
+                                }
+                            }
+                        },
+                        _ => log::error!(
+                            "error while reading from Websocket: {}",
+                            e.to_string()
+                        ),
+                    }
+                    return;
+                }
+            }
+        };
+
+        match message {
+            tungstenite::Message::Text(text) => {
+                let cb = cb.upgrade().unwrap();
+                let cb = cb.borrow_mut();
+                if let Some(cb) = cb.as_ref() {
+                    let this = JsValue::null();
+                    let _ = cb.call1(&this, &JsValue::from_str(&text));
+                }
+            }
+            tungstenite::Message::Ping(_) => (),
+            _ => log::error!("unhandled message: {:?}", message),
+        }
+    })
 }
