@@ -1,7 +1,7 @@
 import { Component } from "preact";
 import Button from "react-bootstrap/Button"
 import Form from "react-bootstrap/Form";
-import { fetchClient } from "../utils";
+import { AppState, fetchClient, loggedIn } from "../utils";
 import { showAlert } from "./Alert";
 import { generate_hash, get_salt_for_user } from "../utils";
 import { Modal } from "react-bootstrap";
@@ -81,7 +81,7 @@ export class Login extends Component<{}, LoginState> {
         const encoded_key = Base64.fromUint8Array(secret_key);
 
         localStorage.setItem("secretKey", encoded_key);
-        window.location.reload()
+        loggedIn.value = AppState.LoggedIn;
     }
 
     render() {
