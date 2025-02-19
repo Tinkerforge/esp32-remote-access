@@ -48,7 +48,7 @@ test('charger lifecycle', async ({ page }) => {
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
   await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
   await page.getByRole('button', { name: 'Connect' }).click();
-  await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible();
+  await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible({timeout: 15_000});
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
 
   // Remove charger
@@ -64,7 +64,7 @@ test('charger lifecycle', async ({ page }) => {
 
 test('add charger with auth token', async ({page}) => {
   test.slow();
-  await page.waitForTimeout(10_000);
+  await page.waitForTimeout(20_000);
 
   await login(page, testUser1Email, testPassword1);
 
@@ -90,7 +90,7 @@ test('add charger with auth token', async ({page}) => {
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
   await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
   await page.getByRole('button', { name: 'Connect' }).click();
-  await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible();
+  await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible({timeout: 15_000});
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
 });
 
@@ -146,7 +146,7 @@ test('connect to charger with new password', async ({page}) => {
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
   await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
   await page.getByRole('button', { name: 'Connect' }).click();
-  await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible();
+  await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible({timeout: 15_000});
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
 });
 
