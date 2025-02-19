@@ -82,7 +82,7 @@ export function App() {
 
         case AppState.LoggedOut:
             if (Median.isNativeApp()) {
-                Median.sidebar.setItems({items: [], enabled: false, persist: true});
+                Median.sidebar.setItems({items: [], enabled: false, persist: false});
             }
             return <>
                 <nav hidden={Median.isNativeApp()} id="logo-nav" class="navbar navbar-expand-md navbar-dark sticky-top flex-md-nowrap p-0 pb-2 pt-2 ps-2">
