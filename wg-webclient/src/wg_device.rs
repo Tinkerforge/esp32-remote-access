@@ -30,7 +30,7 @@ use smoltcp::phy::{self, DeviceCapabilities, Medium};
 use smoltcp::time::Instant;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
 use crate::pcap_logging_enabled;
@@ -45,11 +45,10 @@ pub enum WsConnectionState {
     Disconnected,
 }
 
-/**
- * This struct emulates the hardware layer for smoltcp.
- * This is done by encoding outgoing packets before sending them over Websocket
- * and decoding incoming packets from Websocket and storing them in a queue.
- */
+
+/// This struct emulates the hardware layer for smoltcp.
+/// This is done by encoding outgoing packets before sending them over Websocket
+/// and decoding incoming packets from Websocket and storing them in a queue.
 #[derive(Clone)]
 pub struct WgTunDevice {
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
@@ -65,9 +64,8 @@ pub struct WgTunDevice {
 }
 
 impl WgTunDevice {
-    /**
-     * Creates a new WgTunDevice and connects the underlaying Websocket
-     */
+
+    /// Creates a new WgTunDevice and connects the underlaying Websocket
     pub fn new(
         self_key: x25519::StaticSecret,
         peer: x25519::PublicKey,
@@ -98,26 +96,8 @@ impl WgTunDevice {
         log::debug!("Parent WebSocket Created");
 
         let socket = Rc::new(socket);
-        let onopen_socket = Rc::downgrade(&socket);
-        let onopen_socket_state = Rc::downgrade(&socket_state);
-        let onopen_tun = Rc::downgrade(&tun);
-        let onopen = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            log::debug!("Parent WebSocket Opened");
-            let onopen_socket_state = onopen_socket_state.upgrade().unwrap();
-            *onopen_socket_state.borrow_mut() = WsConnectionState::Connected;
 
-            let onopen_tun = onopen_tun.upgrade().unwrap();
-            let mut tun = onopen_tun.borrow_mut();
-            let mut buf = [0u8; 2048];
-            match tun.format_handshake_initiation(&mut buf, false) {
-                TunnResult::WriteToNetwork(d) => {
-                    log::debug!("Sending handshake initiation");
-                    let onopen_socket = onopen_socket.upgrade().unwrap();
-                    let _ = onopen_socket.send_with_u8_array(d);
-                }
-                _ => panic!("Unexpected TunnResult"),
-            }
-        });
+        let onopen = create_onopen_closure(Rc::downgrade(&socket_state), Rc::downgrade(&tun), Rc::downgrade(&socket));
         let onopen = Rc::new(onopen);
 
         let onclose_socket_state = Rc::downgrade(&socket_state);
@@ -140,211 +120,7 @@ impl WgTunDevice {
         let pcap = vec![];
         let pcap = Rc::new(RefCell::new(PcapNgWriter::new(pcap).unwrap()));
 
-        let message_pcap = Rc::downgrade(&pcap);
-        let message_vec = Rc::downgrade(&rx);
-        let message_socket = Rc::downgrade(&socket);
-        let message_tun = Rc::downgrade(&tun);
-        let onmessage = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
-            let data = e.data();
-            let data = match data.dyn_into::<web_sys::Blob>() {
-                Ok(blob) => blob,
-                Err(_) => {
-                    log::error!("Not a blob");
-                    return;
-                }
-            };
-
-            let fr = web_sys::FileReader::new().unwrap();
-            let fr_cpy = fr.clone();
-            let message_tun = message_tun.clone();
-            let message_socket = message_socket.clone();
-            let message_vec = message_vec.clone();
-            let message_pcap = message_pcap.clone();
-
-            let loaded = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-                let value = match fr_cpy.result() {
-                    Ok(v) => v,
-                    Err(_) => {
-                        log::error!("Error reading file");
-                        return;
-                    }
-                };
-                let array = js_sys::Uint8Array::new(&value);
-                let data = array.to_vec();
-                let message_tun = message_tun.upgrade().unwrap();
-                let mut tun = message_tun.borrow_mut();
-                if data.is_empty() {
-                    log::error!("Empty data");
-                    return;
-                }
-
-                let mut buf = vec![0u8; data.len() + 32];
-                match tun.decapsulate(None, &data, &mut buf) {
-                    TunnResult::Done => (),
-                    TunnResult::WriteToNetwork(d) => {
-                        if pcap_logging_enabled() {
-                            let interface = InterfaceDescriptionBlock {
-                                linktype: pcap_file::DataLink::IPV4,
-                                snaplen: 0,
-                                options: vec![],
-                            };
-
-                            let now = wasm_timer::SystemTime::now();
-                            let timestamp = now
-                                .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                                .unwrap();
-
-                            let packet =
-                                pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                                    interface_id: 0,
-                                    timestamp,
-                                    original_len: d.len() as u32,
-                                    data: std::borrow::Cow::Borrowed(&d),
-                                    options: vec![],
-                                };
-
-                            {
-                                let message_pcap = message_pcap.upgrade().unwrap();
-                                let mut message_pcap = message_pcap.borrow_mut();
-                                message_pcap.write_pcapng_block(interface).unwrap();
-                                message_pcap.write_pcapng_block(packet).unwrap();
-                            }
-                        }
-                        let message_socket = message_socket.upgrade().unwrap();
-                        let _ = message_socket.send_with_u8_array(d);
-                        let mut buf = [0u8; 2048];
-
-                        /*
-                         * If the result is of type TunnResult::WriteToNetwork, should repeat the call with empty datagram,
-                         * until TunnResult::Done is returned. If batch processing packets,
-                         * it is OK to defer until last packet is processed.
-                         *
-                         * From Tunn::decapsulate.
-                         */
-                        while let TunnResult::WriteToNetwork(d) =
-                            tun.decapsulate(None, &[0u8; 0], &mut buf)
-                        {
-                            if pcap_logging_enabled() {
-                                let interface = InterfaceDescriptionBlock {
-                                    linktype: pcap_file::DataLink::IPV4,
-                                    snaplen: 0,
-                                    options: vec![],
-                                };
-                                let now = wasm_timer::SystemTime::now();
-                                let timestamp = now
-                                    .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                                    .unwrap();
-
-                                let packet =
-                                    pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                                        interface_id: 0,
-                                        timestamp,
-                                        original_len: d.len() as u32,
-                                        data: std::borrow::Cow::Borrowed(&d),
-                                        options: vec![],
-                                    };
-
-                                {
-                                    let message_pcap = message_pcap.upgrade().unwrap();
-                                    let mut message_pcap = message_pcap.borrow_mut();
-                                    message_pcap.write_pcapng_block(interface).unwrap();
-                                    message_pcap.write_pcapng_block(packet).unwrap();
-                                }
-                            }
-                            let _ = message_socket.send_with_u8_array(d);
-                        }
-                        return;
-                    }
-                    TunnResult::Err(e) => {
-                        if let WireGuardError::InvalidPacket = e {
-                            log::debug!("Invalid packet");
-                        } else {
-                            log::debug!("Error: {:?}", e);
-                        }
-                        return;
-                    }
-                    TunnResult::WriteToTunnelV4(d, _) => {
-                        if pcap_logging_enabled() {
-                            let interface = InterfaceDescriptionBlock {
-                                linktype: pcap_file::DataLink::IPV4,
-                                snaplen: 0,
-                                options: vec![],
-                            };
-                            let now = wasm_timer::SystemTime::now();
-                            let timestamp = now
-                                .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                                .unwrap();
-
-                            let packet =
-                                pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                                    interface_id: 0,
-                                    timestamp,
-                                    original_len: d.len() as u32,
-                                    data: std::borrow::Cow::Borrowed(&d),
-                                    options: vec![],
-                                };
-
-                            {
-                                let message_pcap = message_pcap.upgrade().unwrap();
-                                let mut message_pcap = message_pcap.borrow_mut();
-                                message_pcap.write_pcapng_block(interface).unwrap();
-                                message_pcap.write_pcapng_block(packet).unwrap();
-                            }
-                        }
-                        let message_vec = message_vec.upgrade().unwrap();
-                        (*message_vec.borrow_mut()).push_back(d.to_vec());
-                        let mut buf = vec![0u8; data.len() + 32];
-                        match tun.encapsulate(&data, &mut buf) {
-                            TunnResult::WriteToNetwork(d) => {
-                                drop(tun);
-                                let message_socket = message_socket.upgrade().unwrap();
-                                let _ = message_socket.send_with_u8_array(d);
-                                return;
-                            }
-                            _ => panic!("Unexpected TunnResult"),
-                        }
-                    }
-                    _ => {
-                        log::error!("Unknown TunnResult");
-                        return;
-                    }
-                }
-                if pcap_logging_enabled() {
-                    let interface = InterfaceDescriptionBlock {
-                        linktype: pcap_file::DataLink::IPV4,
-                        snaplen: 0,
-                        options: vec![],
-                    };
-                    let now = wasm_timer::SystemTime::now();
-                    let timestamp = now
-                        .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                        .unwrap();
-
-                    let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                        interface_id: 0,
-                        timestamp,
-                        original_len: buf.len() as u32,
-                        data: std::borrow::Cow::Borrowed(&buf),
-                        options: vec![],
-                    };
-
-                    {
-                        let message_pcap = message_pcap.upgrade().unwrap();
-                        let mut message_pcap = message_pcap.borrow_mut();
-                        message_pcap.write_pcapng_block(interface).unwrap();
-                        message_pcap.write_pcapng_block(packet).unwrap();
-                    }
-                }
-                let message_vec = message_vec.upgrade().unwrap();
-                (*message_vec.borrow_mut()).push_back(buf.to_vec());
-            });
-
-            fr.set_onload(Some(loaded.as_ref().unchecked_ref()));
-            fr.read_as_array_buffer(&data).unwrap();
-
-            // FIXME: need to get rid of this since it leaks memory
-            loaded.forget();
-        });
+        let onmessage = create_onmessage_closure(Rc::downgrade(&socket), Rc::downgrade(&tun), Rc::downgrade(&rx), Rc::downgrade(&pcap));
         let onmessage = Rc::new(onmessage);
         socket.set_onmessage(Some(onmessage.as_ref().as_ref().unchecked_ref()));
         socket.set_onopen(Some(onopen.as_ref().as_ref().unchecked_ref()));
@@ -366,6 +142,240 @@ impl WgTunDevice {
     pub fn get_pcap(&self) -> Rc<RefCell<PcapNgWriter<Vec<u8>>>> {
         self.pcap.clone()
     }
+}
+
+/// Creates the handler for the onClose event of the WebSocket
+fn create_onopen_closure(
+    onopen_socket_state: Weak<RefCell<WsConnectionState>>,
+    onopen_tun: Weak<RefCell<Tunn>>,
+    onopen_socket: Weak<WebSocket>,
+) -> Closure<dyn FnMut(JsValue) -> ()> {
+    Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
+        log::debug!("Parent WebSocket Opened");
+        let onopen_socket_state = onopen_socket_state.upgrade().unwrap();
+        *onopen_socket_state.borrow_mut() = WsConnectionState::Connected;
+
+        let onopen_tun = onopen_tun.upgrade().unwrap();
+        let mut tun = onopen_tun.borrow_mut();
+        let mut buf = [0u8; 2048];
+        match tun.format_handshake_initiation(&mut buf, false) {
+            TunnResult::WriteToNetwork(d) => {
+                log::debug!("Sending handshake initiation");
+                let onopen_socket = onopen_socket.upgrade().unwrap();
+                let _ = onopen_socket.send_with_u8_array(d);
+            }
+            _ => panic!("Unexpected TunnResult"),
+        }
+    })
+}
+
+fn create_onmessage_closure(
+    message_socket: Weak<WebSocket>,
+    message_tun: Weak<RefCell<Tunn>>,
+    message_vec: Weak<RefCell<VecDeque<Vec<u8>>>>,
+    message_pcap: Weak<RefCell<PcapNgWriter<Vec<u8>>>>,
+) -> Closure<dyn FnMut(MessageEvent) -> ()> {
+    Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
+        let data = e.data();
+        let data = match data.dyn_into::<web_sys::Blob>() {
+            Ok(blob) => blob,
+            Err(_) => {
+                log::error!("Not a blob");
+                return;
+            }
+        };
+
+        let fr = web_sys::FileReader::new().unwrap();
+        let fr_cpy = fr.clone();
+        let message_tun = message_tun.clone();
+        let message_socket = message_socket.clone();
+        let message_vec = message_vec.clone();
+        let message_pcap = message_pcap.clone();
+
+        let loaded = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
+            let value = match fr_cpy.result() {
+                Ok(v) => v,
+                Err(_) => {
+                    log::error!("Error reading file");
+                    return;
+                }
+            };
+            let array = js_sys::Uint8Array::new(&value);
+            let data = array.to_vec();
+            let message_tun = message_tun.upgrade().unwrap();
+            let mut tun = message_tun.borrow_mut();
+            if data.is_empty() {
+                log::error!("Empty data");
+                return;
+            }
+
+            let mut buf = vec![0u8; data.len() + 32];
+            match tun.decapsulate(None, &data, &mut buf) {
+                TunnResult::Done => (),
+                TunnResult::WriteToNetwork(d) => {
+                    if pcap_logging_enabled() {
+                        let interface = InterfaceDescriptionBlock {
+                            linktype: pcap_file::DataLink::IPV4,
+                            snaplen: 0,
+                            options: vec![],
+                        };
+
+                        let now = wasm_timer::SystemTime::now();
+                        let timestamp = now
+                            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                            .unwrap();
+
+                        let packet =
+                            pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                                interface_id: 0,
+                                timestamp,
+                                original_len: d.len() as u32,
+                                data: std::borrow::Cow::Borrowed(&d),
+                                options: vec![],
+                            };
+
+                        {
+                            let message_pcap = message_pcap.upgrade().unwrap();
+                            let mut message_pcap = message_pcap.borrow_mut();
+                            message_pcap.write_pcapng_block(interface).unwrap();
+                            message_pcap.write_pcapng_block(packet).unwrap();
+                        }
+                    }
+                    let message_socket = message_socket.upgrade().unwrap();
+                    let _ = message_socket.send_with_u8_array(d);
+                    let mut buf = [0u8; 2048];
+
+                    /*
+                     * If the result is of type TunnResult::WriteToNetwork, should repeat the call with empty datagram,
+                     * until TunnResult::Done is returned. If batch processing packets,
+                     * it is OK to defer until last packet is processed.
+                     *
+                     * From Tunn::decapsulate.
+                     */
+                    while let TunnResult::WriteToNetwork(d) =
+                        tun.decapsulate(None, &[0u8; 0], &mut buf)
+                    {
+                        if pcap_logging_enabled() {
+                            let interface = InterfaceDescriptionBlock {
+                                linktype: pcap_file::DataLink::IPV4,
+                                snaplen: 0,
+                                options: vec![],
+                            };
+                            let now = wasm_timer::SystemTime::now();
+                            let timestamp = now
+                                .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                                .unwrap();
+
+                            let packet =
+                                pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                                    interface_id: 0,
+                                    timestamp,
+                                    original_len: d.len() as u32,
+                                    data: std::borrow::Cow::Borrowed(&d),
+                                    options: vec![],
+                                };
+
+                            {
+                                let message_pcap = message_pcap.upgrade().unwrap();
+                                let mut message_pcap = message_pcap.borrow_mut();
+                                message_pcap.write_pcapng_block(interface).unwrap();
+                                message_pcap.write_pcapng_block(packet).unwrap();
+                            }
+                        }
+                        let _ = message_socket.send_with_u8_array(d);
+                    }
+                    return;
+                }
+                TunnResult::Err(e) => {
+                    if let WireGuardError::InvalidPacket = e {
+                        log::debug!("Invalid packet");
+                    } else {
+                        log::debug!("Error: {:?}", e);
+                    }
+                    return;
+                }
+                TunnResult::WriteToTunnelV4(d, _) => {
+                    if pcap_logging_enabled() {
+                        let interface = InterfaceDescriptionBlock {
+                            linktype: pcap_file::DataLink::IPV4,
+                            snaplen: 0,
+                            options: vec![],
+                        };
+                        let now = wasm_timer::SystemTime::now();
+                        let timestamp = now
+                            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                            .unwrap();
+
+                        let packet =
+                            pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                                interface_id: 0,
+                                timestamp,
+                                original_len: d.len() as u32,
+                                data: std::borrow::Cow::Borrowed(&d),
+                                options: vec![],
+                            };
+
+                        {
+                            let message_pcap = message_pcap.upgrade().unwrap();
+                            let mut message_pcap = message_pcap.borrow_mut();
+                            message_pcap.write_pcapng_block(interface).unwrap();
+                            message_pcap.write_pcapng_block(packet).unwrap();
+                        }
+                    }
+                    let message_vec = message_vec.upgrade().unwrap();
+                    (*message_vec.borrow_mut()).push_back(d.to_vec());
+                    let mut buf = vec![0u8; data.len() + 32];
+                    match tun.encapsulate(&data, &mut buf) {
+                        TunnResult::WriteToNetwork(d) => {
+                            drop(tun);
+                            let message_socket = message_socket.upgrade().unwrap();
+                            let _ = message_socket.send_with_u8_array(d);
+                            return;
+                        }
+                        _ => panic!("Unexpected TunnResult"),
+                    }
+                }
+                _ => {
+                    log::error!("Unknown TunnResult");
+                    return;
+                }
+            }
+            if pcap_logging_enabled() {
+                let interface = InterfaceDescriptionBlock {
+                    linktype: pcap_file::DataLink::IPV4,
+                    snaplen: 0,
+                    options: vec![],
+                };
+                let now = wasm_timer::SystemTime::now();
+                let timestamp = now
+                    .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
+                    .unwrap();
+
+                let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+                    interface_id: 0,
+                    timestamp,
+                    original_len: buf.len() as u32,
+                    data: std::borrow::Cow::Borrowed(&buf),
+                    options: vec![],
+                };
+
+                {
+                    let message_pcap = message_pcap.upgrade().unwrap();
+                    let mut message_pcap = message_pcap.borrow_mut();
+                    message_pcap.write_pcapng_block(interface).unwrap();
+                    message_pcap.write_pcapng_block(packet).unwrap();
+                }
+            }
+            let message_vec = message_vec.upgrade().unwrap();
+            (*message_vec.borrow_mut()).push_back(buf.to_vec());
+        });
+
+        fr.set_onload(Some(loaded.as_ref().unchecked_ref()));
+        fr.read_as_array_buffer(&data).unwrap();
+
+        // FIXME: need to get rid of this since it leaks memory
+        loaded.forget();
+    })
 }
 
 pub trait IsUp {
