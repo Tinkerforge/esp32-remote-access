@@ -169,6 +169,27 @@ fn create_onopen_closure(
     })
 }
 
+// Add the helper function for pcap logging
+fn log_pcap_data(pcap: &Rc<RefCell<PcapNgWriter<Vec<u8>>>>, data: &[u8]) {
+    let interface = InterfaceDescriptionBlock {
+        linktype: pcap_file::DataLink::IPV4,
+        snaplen: 0,
+        options: vec![],
+    };
+    let now = wasm_timer::SystemTime::now();
+    let timestamp = now.duration_since(wasm_timer::SystemTime::UNIX_EPOCH).unwrap();
+    let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
+        interface_id: 0,
+        timestamp,
+        original_len: data.len() as u32,
+        data: std::borrow::Cow::Borrowed(data),
+        options: vec![],
+    };
+    let mut writer = pcap.borrow_mut();
+    writer.write_pcapng_block(interface).unwrap();
+    writer.write_pcapng_block(packet).unwrap();
+}
+
 fn create_onmessage_closure(
     message_socket: Weak<WebSocket>,
     message_tun: Weak<RefCell<Tunn>>,
@@ -214,32 +235,8 @@ fn create_onmessage_closure(
                 TunnResult::Done => (),
                 TunnResult::WriteToNetwork(d) => {
                     if pcap_logging_enabled() {
-                        let interface = InterfaceDescriptionBlock {
-                            linktype: pcap_file::DataLink::IPV4,
-                            snaplen: 0,
-                            options: vec![],
-                        };
-
-                        let now = wasm_timer::SystemTime::now();
-                        let timestamp = now
-                            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                            .unwrap();
-
-                        let packet =
-                            pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                                interface_id: 0,
-                                timestamp,
-                                original_len: d.len() as u32,
-                                data: std::borrow::Cow::Borrowed(&d),
-                                options: vec![],
-                            };
-
-                        {
-                            let message_pcap = message_pcap.upgrade().unwrap();
-                            let mut message_pcap = message_pcap.borrow_mut();
-                            message_pcap.write_pcapng_block(interface).unwrap();
-                            message_pcap.write_pcapng_block(packet).unwrap();
-                        }
+                        let pcap_strong = message_pcap.upgrade().unwrap();
+                        log_pcap_data(&pcap_strong, &d);
                     }
                     let message_socket = message_socket.upgrade().unwrap();
                     let _ = message_socket.send_with_u8_array(d);
@@ -256,31 +253,8 @@ fn create_onmessage_closure(
                         tun.decapsulate(None, &[0u8; 0], &mut buf)
                     {
                         if pcap_logging_enabled() {
-                            let interface = InterfaceDescriptionBlock {
-                                linktype: pcap_file::DataLink::IPV4,
-                                snaplen: 0,
-                                options: vec![],
-                            };
-                            let now = wasm_timer::SystemTime::now();
-                            let timestamp = now
-                                .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                                .unwrap();
-
-                            let packet =
-                                pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                                    interface_id: 0,
-                                    timestamp,
-                                    original_len: d.len() as u32,
-                                    data: std::borrow::Cow::Borrowed(&d),
-                                    options: vec![],
-                                };
-
-                            {
-                                let message_pcap = message_pcap.upgrade().unwrap();
-                                let mut message_pcap = message_pcap.borrow_mut();
-                                message_pcap.write_pcapng_block(interface).unwrap();
-                                message_pcap.write_pcapng_block(packet).unwrap();
-                            }
+                            let pcap_strong = message_pcap.upgrade().unwrap();
+                            log_pcap_data(&pcap_strong, &d);
                         }
                         let _ = message_socket.send_with_u8_array(d);
                     }
@@ -296,31 +270,8 @@ fn create_onmessage_closure(
                 }
                 TunnResult::WriteToTunnelV4(d, _) => {
                     if pcap_logging_enabled() {
-                        let interface = InterfaceDescriptionBlock {
-                            linktype: pcap_file::DataLink::IPV4,
-                            snaplen: 0,
-                            options: vec![],
-                        };
-                        let now = wasm_timer::SystemTime::now();
-                        let timestamp = now
-                            .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                            .unwrap();
-
-                        let packet =
-                            pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                                interface_id: 0,
-                                timestamp,
-                                original_len: d.len() as u32,
-                                data: std::borrow::Cow::Borrowed(&d),
-                                options: vec![],
-                            };
-
-                        {
-                            let message_pcap = message_pcap.upgrade().unwrap();
-                            let mut message_pcap = message_pcap.borrow_mut();
-                            message_pcap.write_pcapng_block(interface).unwrap();
-                            message_pcap.write_pcapng_block(packet).unwrap();
-                        }
+                        let pcap_strong = message_pcap.upgrade().unwrap();
+                        log_pcap_data(&pcap_strong, &d);
                     }
                     let message_vec = message_vec.upgrade().unwrap();
                     (*message_vec.borrow_mut()).push_back(d.to_vec());
@@ -341,30 +292,8 @@ fn create_onmessage_closure(
                 }
             }
             if pcap_logging_enabled() {
-                let interface = InterfaceDescriptionBlock {
-                    linktype: pcap_file::DataLink::IPV4,
-                    snaplen: 0,
-                    options: vec![],
-                };
-                let now = wasm_timer::SystemTime::now();
-                let timestamp = now
-                    .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                    .unwrap();
-
-                let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                    interface_id: 0,
-                    timestamp,
-                    original_len: buf.len() as u32,
-                    data: std::borrow::Cow::Borrowed(&buf),
-                    options: vec![],
-                };
-
-                {
-                    let message_pcap = message_pcap.upgrade().unwrap();
-                    let mut message_pcap = message_pcap.borrow_mut();
-                    message_pcap.write_pcapng_block(interface).unwrap();
-                    message_pcap.write_pcapng_block(packet).unwrap();
-                }
+                let pcap_strong = message_pcap.upgrade().unwrap();
+                log_pcap_data(&pcap_strong, &buf);
             }
             let message_vec = message_vec.upgrade().unwrap();
             (*message_vec.borrow_mut()).push_back(buf.to_vec());
@@ -373,7 +302,7 @@ fn create_onmessage_closure(
         fr.set_onload(Some(loaded.as_ref().unchecked_ref()));
         fr.read_as_array_buffer(&data).unwrap();
 
-        // FIXME: need to get rid of this since it leaks memory
+        // This releases the memory of the closure from rust to the js gc.
         loaded.forget();
     })
 }
@@ -459,29 +388,7 @@ impl phy::TxToken for WgTunPhyTxToken {
         let result = f(&mut buf[..]);
 
         if pcap_logging_enabled() {
-            let interface = InterfaceDescriptionBlock {
-                linktype: pcap_file::DataLink::IPV4,
-                snaplen: 0,
-                options: vec![],
-            };
-            let now = wasm_timer::SystemTime::now();
-            let timestamp = now
-                .duration_since(wasm_timer::SystemTime::UNIX_EPOCH)
-                .unwrap();
-
-            let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
-                interface_id: 0,
-                timestamp,
-                original_len: buf.len() as u32,
-                data: std::borrow::Cow::Borrowed(&buf),
-                options: vec![],
-            };
-
-            {
-                let mut message_pcap = self.pcap.borrow_mut();
-                message_pcap.write_pcapng_block(interface).unwrap();
-                message_pcap.write_pcapng_block(packet).unwrap();
-            }
+            log_pcap_data(&self.pcap, &buf);
         }
 
         let mut tun = self.tun.borrow_mut();
