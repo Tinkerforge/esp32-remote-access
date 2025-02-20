@@ -28,6 +28,7 @@ use pcap_file::pcapng::PcapNgWriter;
 use rand_core::{OsRng, RngCore};
 use smoltcp::phy::{self, DeviceCapabilities, Medium};
 use smoltcp::time::Instant;
+use wasm_bindgen_futures::spawn_local;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
@@ -190,6 +191,7 @@ fn log_pcap_data(pcap: &Rc<RefCell<PcapNgWriter<Vec<u8>>>>, data: &[u8]) {
     writer.write_pcapng_block(packet).unwrap();
 }
 
+/// Creates the MessageEvent handler for the WebSocket onMessage event
 fn create_onmessage_closure(
     message_socket: Weak<WebSocket>,
     message_tun: Weak<RefCell<Tunn>>,
@@ -206,23 +208,13 @@ fn create_onmessage_closure(
             }
         };
 
-        let fr = web_sys::FileReader::new().unwrap();
-        let fr_cpy = fr.clone();
-        let message_tun = message_tun.clone();
         let message_socket = message_socket.clone();
+        let message_tun = message_tun.clone();
         let message_vec = message_vec.clone();
         let message_pcap = message_pcap.clone();
-
-        let loaded = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            let value = match fr_cpy.result() {
-                Ok(v) => v,
-                Err(_) => {
-                    log::error!("Error reading file");
-                    return;
-                }
-            };
-            let array = js_sys::Uint8Array::new(&value);
-            let data = array.to_vec();
+        spawn_local(async move {
+            let array_buffer = wasm_bindgen_futures::JsFuture::from(data.array_buffer()).await.unwrap();
+            let data = js_sys::Uint8Array::new(&array_buffer).to_vec();
             let message_tun = message_tun.upgrade().unwrap();
             let mut tun = message_tun.borrow_mut();
             if data.is_empty() {
@@ -298,12 +290,6 @@ fn create_onmessage_closure(
             let message_vec = message_vec.upgrade().unwrap();
             (*message_vec.borrow_mut()).push_back(buf.to_vec());
         });
-
-        fr.set_onload(Some(loaded.as_ref().unchecked_ref()));
-        fr.read_as_array_buffer(&data).unwrap();
-
-        // This releases the memory of the closure from rust to the js gc.
-        loaded.forget();
     })
 }
 
