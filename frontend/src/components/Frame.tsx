@@ -1,7 +1,7 @@
 import { Component } from 'preact';
 import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
-import { Row, Spinner } from 'react-bootstrap';
+import { Button, Container, Row, Spinner } from 'react-bootstrap';
 import { setAppNavigation } from './Navbar';
 import {isDebugMode, secret } from '../utils';
 import Median from "median-js-bridge";
@@ -117,6 +117,10 @@ class VirtualNetworkInterface {
         }
     }
 
+    downloadPcapLog() {
+        this.worker.postMessage("download");
+    }
+
     // This handles the Message coming from the Charger once the setup is done
     handleWorkerMessage(e: MessageEvent) {
         if (typeof e.data === "string") {
@@ -147,13 +151,17 @@ class VirtualNetworkInterface {
                     break;
 
                 case MessageType.FileDownload:
-                    const a = document.createElement("a");
                     const blob = new Blob([msg.data as Uint8Array]);
                     const url = URL.createObjectURL(blob)
-                    a.href = url;
-                    a.download = "out.pcap";
-                    a.target = "_blank";
-                    a.click();
+                    if (Median.isNativeApp()) {
+                        Median.share.downloadFile({url: url, filename: "out.pcap"});
+                    } else {
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "out.pcap";
+                        a.target = "_blank";
+                        a.click();
+                    }
                     break;
 
                 case MessageType.FetchResponse:
@@ -250,16 +258,21 @@ export class Frame extends Component<FrameProps, FrameState> {
     }
 
     render() {
+        const downLoadButton = isDebugMode.value ? <Row className="d-flex">
+                <Button variant='secondary' class="btn" onClick={() => {
+                    this.interface.downloadPcapLog();
+                }}>Download Pcap log</Button>
+            </Row> : null;
         return (
-            <>
+            <Container fluid className="d-flex flex-column h-100 p-0">
                 <Row hidden={!this.state.show_spinner} className="align-content-center justify-content-center m-0 h-100">
                     <Spinner className="p-3"animation='border' variant='primary'/>
                 </Row>
-                <iframe hidden={this.state.show_spinner} width="100%" height="100%" id="interface"></iframe>
-                {/* <button onClick={() => {
-                    this.worker.postMessage("download");
-                }}>Download Pcap log</button> */}
-            </>
+                <Row className="flex-grow-1">
+                    <iframe hidden={this.state.show_spinner} width="100%" height="100%" id="interface"></iframe>
+                </Row>
+                {downLoadButton}
+            </Container>
         )
     }
 }
