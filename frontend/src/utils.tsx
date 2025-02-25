@@ -107,11 +107,6 @@ export function refresh_access_token() {
             return;
         }
 
-        if (localStorage.getItem("loginKey")) {
-            localStorage.setItem("loginSalt", localStorage.getItem("loginKey"));
-            localStorage.removeItem("loginKey");
-        }
-
         const {error, response} = await fetchClient.GET("/auth/jwt_refresh", {credentials: "same-origin"});
 
         if (!error || response.status === 502) {
