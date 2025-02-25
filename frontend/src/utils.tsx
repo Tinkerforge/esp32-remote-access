@@ -107,21 +107,27 @@ export function refresh_access_token() {
             return;
         }
 
-        const {error, response} = await fetchClient.GET("/auth/jwt_refresh", {credentials: "same-origin"});
+        try {
+            const {error, response} = await fetchClient.GET("/auth/jwt_refresh", {credentials: "same-origin"});
 
-        if (!error || response.status === 502) {
-            if (!localStorage.getItem("loginSalt") || !localStorage.getItem("secretKey")) {
-                logout(false);
+            if (!error || response.status === 502) {
+                if (!localStorage.getItem("loginSalt") || !localStorage.getItem("secretKey")) {
+                    logout(false);
+                }
+                loggedIn.value = AppState.LoggedIn;
+            } else {
+                auth_already_failed = true;
+                localStorage.removeItem("loginSalt");
+                localStorage.removeItem("secretKey");
+                loggedIn.value = AppState.LoggedOut;
             }
-            loggedIn.value = AppState.LoggedIn;
-        } else {
-            auth_already_failed = true;
-            localStorage.removeItem("loginSalt");
-            localStorage.removeItem("secretKey");
-            loggedIn.value = AppState.LoggedOut;
+            refreshPromiseResolved = true;
+            resolve();
+        } catch (e) {
+            console.error(e);
+            refreshPromiseResolved = true;
+            reject();
         }
-        refreshPromiseResolved = true;
-        resolve();
     });
     return refreshPromise
 }
