@@ -32,6 +32,7 @@ export interface SetupMessage {
     chargerID: string,
     port: number,
     secret: Uint8Array,
+    debugMode: boolean,
 }
 
 export interface ErrorMessage {

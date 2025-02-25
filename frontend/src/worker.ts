@@ -59,10 +59,6 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 wgClient.disconnect_inner_ws();
                 break;
 
-            case "enableLogging":
-                set_pcap_logging(true);
-                break;
-
             case "download":
                 triggerDownload();
                 break;
@@ -119,6 +115,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 setup_data = data.data as SetupMessage;
                 await start_connection(setup_data);
                 self.postMessage("ready");
+                set_pcap_logging(setup_data.debugMode);
                 break;
         }
     }

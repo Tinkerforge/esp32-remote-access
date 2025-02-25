@@ -89,15 +89,6 @@ const AuthMiddleware: Middleware = {
 }
 fetchClient.use(AuthMiddleware);
 
-export let enableLogging = false;
-
-window.addEventListener("keydown", (e: KeyboardEvent) => {
-    if (e.ctrlKey && e.altKey && e.code === "KeyL") {
-        alert("Pcap logging enabled");
-        enableLogging = true;
-    }
-})
-
 // This promise is used to synchronize the timeout and Frame component refreshing the access token
 let refreshPromise: Promise<void>;
 let refreshPromiseResolved = true;

@@ -3,7 +3,7 @@ import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Row, Spinner } from 'react-bootstrap';
 import { setAppNavigation } from './Navbar';
-import { enableLogging, get_decrypted_secret, secret } from '../utils';
+import {isDebugMode, secret } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
 import { ChargersState } from '../pages/chargers';
@@ -20,10 +20,12 @@ class VirtualNetworkInterface {
     id: string;
     setParentState: VirtualNetworkInterfaceSetParentState;
     connectionInfo: ChargersState;
+    debugMode: boolean;
 
-    constructor(setParentState: VirtualNetworkInterfaceSetParentState, connectionInfo: ChargersState) {
+    constructor(setParentState: VirtualNetworkInterfaceSetParentState, connectionInfo: ChargersState, debugMode: boolean) {
         this.setParentState = setParentState;
         this.connectionInfo = connectionInfo;
+        this.debugMode = debugMode;
         this.abort = new AbortController();
 
         this.worker = new Worker();
@@ -93,7 +95,8 @@ class VirtualNetworkInterface {
             const message_data: SetupMessage = {
                 chargerID: this.connectionInfo.connectedId,
                 port: this.connectionInfo.connectedPort,
-                secret: secret
+                secret: secret,
+                debugMode: this.debugMode,
             };
             const message: Message = {
                 type: MessageType.Setup,
@@ -101,10 +104,6 @@ class VirtualNetworkInterface {
             };
 
             this.worker.postMessage(message);
-
-            if (enableLogging) {
-                this.worker.postMessage("enableLogging");
-            }
         } else if (e.data.type) {
             const msg = e.data as Message;
             switch (msg.type) {
@@ -202,9 +201,10 @@ export class Frame extends Component<FrameProps, FrameState> {
         setTimeout(() => {
             this.interface = new VirtualNetworkInterface({
                     parentState: (s) => this.setState(s),
-                    chargersState: (s) => this.props.setParentState(s)
+                    chargersState: (s) => this.props.setParentState(s),
                 },
-                this.props.parentState);
+                this.props.parentState,
+                isDebugMode.value);
         });
 
         if (Median.isNativeApp()) {
