@@ -259,7 +259,7 @@ export function User() {
                             onChange={(e) => {
                                 e.stopPropagation();
                                 const newDebugMode = !isDebugMode.value;
-                                isDebugMode.value != newDebugMode;
+                                isDebugMode.value = newDebugMode;
                                 if (newDebugMode) {
                                     localStorage.setItem("debugMode", "true");
                                 } else {
