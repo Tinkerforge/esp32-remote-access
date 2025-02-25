@@ -4,7 +4,6 @@ import wasm from "vite-plugin-wasm"
 import topLevelAwait from 'vite-plugin-top-level-await';
 import { buildSync } from "esbuild";
 import { join } from "node:path";
-import { readFileSync } from "node:fs";
 
 
 function plugins() {
