@@ -156,3 +156,9 @@ export async function get_decrypted_secret() {
     secret = sodium.crypto_secretbox_open_easy(new Uint8Array(data.secret), new Uint8Array(data.secret_nonce), secret_key);
     pub_key = sodium.crypto_scalarmult_base(secret);
 }
+
+export const isDebugMode = signal(false);
+const debug = localStorage.getItem("debugMode");
+if (debug) {
+    isDebugMode.value = true;
+}

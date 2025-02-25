@@ -26,7 +26,9 @@ export const en = {
         "update_password_failed": "Updating the password failed with status code {{status}}: {{response}}",
         "delete_user_failed": "Deleting user failed with status code {{status}}: {{response}}",
         "account_actions": "Account Actions",
-        "email_change_disabled": "Email changes are disabled because you have chargers with old firmware versions. Please update your chargers first."
+        "email_change_disabled": "Email changes are disabled because you have chargers with old firmware versions. Please update your chargers first.",
+        "local_settings": "Lokal Settings",
+        "debug_mode": "Debug-Modus",
     },
     "recovery": {
         "recovery": "Password recovery",

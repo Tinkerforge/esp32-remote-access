@@ -26,7 +26,9 @@ export const de ={
         "update_user_failed": "Aktualisieren der Nutzerdaten mit dem Code {{status}} fehlgeschlagen: {{response}}",
         "update_password_failed": "Aktualisieren des Passwortes mit dem Code {{status}} fehlgeschlagen: {{response}}",
         "delete_user_failed": "Löschen des Nutzers mit dem Code {{status}} fehlgeschlagen: {{response}}",
-        "email_change_disabled": "Ändern der E-Mail-Adresse ist deaktiviert, da Du Geräte mit alter Firmware-Version konfiguriert hast. Bitte aktualisiere zuerst deine Geräte."
+        "email_change_disabled": "Ändern der E-Mail-Adresse ist deaktiviert, da Du Geräte mit alter Firmware-Version konfiguriert hast. Bitte aktualisiere zuerst deine Geräte.",
+        "local_settings": "Lokale Einstellungen",
+        "debug_mode": "Debug-Modus",
     },
     "recovery": {
         "recovery": "Passwort zurücksetzen",
