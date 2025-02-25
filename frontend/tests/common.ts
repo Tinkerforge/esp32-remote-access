@@ -16,6 +16,8 @@ export const testUser2Email = `${testUser2}@${mailiskNameSpace}.mailisk.net`;
 export const testWallboxDomain = process.env.TEST_WALLBOX_DOMAIN;
 export const testWallboxUID = process.env.TEST_WALLBOX_UID;
 
+export const needCustomCert = process.env.NEED_CUSTOM_CERT === "true";
+
 export async function login(page: Page, email: string, password: string) {
   await page.goto(testDomain);
   await page.getByRole('textbox', { name: 'Email' }).click();

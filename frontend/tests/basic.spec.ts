@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { login, mailiskClient, mailiskNameSpace, testDomain, testPassword1, testPassword2, testUser1Email, testUser2, testUser2Email, testUserName1, testUserName2, testWallboxDomain, testWallboxUID } from './common';
+import { login, mailiskClient, mailiskNameSpace, needCustomCert, testDomain, testPassword1, testPassword2, testUser1Email, testUser2, testUser2Email, testUserName1, testUserName2, testWallboxDomain, testWallboxUID } from './common';
 
 test('has title', async ({ page }) => {
   await page.goto(testDomain);
@@ -35,6 +35,13 @@ test('charger lifecycle', async ({ page }) => {
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
+  await page.getByRole('button', { name: 'Show' }).click();
+  await page.getByLabel('Relay server hostnameTo').fill(testDomain.substring(8));
+  if (needCustomCert) {
+    await page.getByLabel('TLS cer­tif­i­cate', { exact: true }).selectOption('0');
+  } else {
+    await page.getByLabel('TLS cer­tif­i­cate', { exact: true }).selectOption('-1');
+  }
   await page.getByRole('row', { name: 'of 5 users config­ured.' }).getByRole('button').click();
   await page.getByLabel('Email ad­dress').click();
   await page.getByLabel('Email ad­dress').fill(testUser1Email);
