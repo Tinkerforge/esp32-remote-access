@@ -32,7 +32,7 @@ import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 import { ChargerList } from './pages/chargers.js';
 import { ErrorAlert } from './components/Alert.js';
-import { refresh_access_token } from './utils';
+import { isDebugMode, refresh_access_token } from './utils';
 import { AppState, loggedIn } from './utils.js';
 import { Col, Spinner } from 'react-bootstrap';
 import { Recovery } from './pages/recovery.js';
@@ -50,21 +50,23 @@ setInterval(async () => {
     await refresh_access_token();
 }, 1000 * 60 * 5);
 
-addEventListener("unhandledrejection", (event) => {
-    const stack = event.reason.stack.split("\n");
+if (isDebugMode.value) {
+    addEventListener("unhandledrejection", (event) => {
+        const stack = event.reason.stack.split("\n");
 
-    const evt = {
-        message: event.reason.message,
-        stack: stack
-    }
-    const msg = JSON.stringify(evt);
-    const blob = new Blob([msg]);
-    const url = URL.createObjectURL(blob);
-    const filename = `warp_charger_error_${Date.now()}.json`
-    if (Median.isNativeApp()) {
-        Median.share.downloadFile({url: url, filename: filename, open: true});
-    }
-});
+        const evt = {
+            message: event.reason.message,
+            stack: stack
+        }
+        const msg = JSON.stringify(evt);
+        const blob = new Blob([msg]);
+        const url = URL.createObjectURL(blob);
+        const filename = `warp_charger_error_${Date.now()}.json`
+        if (Median.isNativeApp()) {
+            Median.share.downloadFile({url: url, filename: filename, open: true});
+        }
+    });
+}
 
 const icon: HTMLLinkElement = document.querySelector('link[rel="icon"]');
 icon.href = favicon;
