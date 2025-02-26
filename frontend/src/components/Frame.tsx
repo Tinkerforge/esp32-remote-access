@@ -258,8 +258,8 @@ export class Frame extends Component<FrameProps, FrameState> {
     }
 
     render() {
-        const downLoadButton = isDebugMode.value ? <Row className="d-flex">
-                <Button variant='secondary' class="btn" onClick={() => {
+        const downLoadButton = isDebugMode.value ? <Row className="d-flex m-0">
+                <Button variant='secondary' style={{borderRadius: 0}} class="m-0" onClick={() => {
                     this.interface.downloadPcapLog();
                 }}>Download Pcap log</Button>
             </Row> : null;
@@ -268,8 +268,8 @@ export class Frame extends Component<FrameProps, FrameState> {
                 <Row hidden={!this.state.show_spinner} className="align-content-center justify-content-center m-0 h-100">
                     <Spinner className="p-3"animation='border' variant='primary'/>
                 </Row>
-                <Row className="flex-grow-1">
-                    <iframe hidden={this.state.show_spinner} width="100%" height="100%" id="interface"></iframe>
+                <Row className="flex-grow-1 m-0">
+                    <iframe class="p-0" hidden={this.state.show_spinner} width="100%" height="100%" id="interface"></iframe>
                 </Row>
                 {downLoadButton}
             </Container>
