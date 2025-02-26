@@ -124,9 +124,16 @@ export function refresh_access_token() {
             refreshPromiseResolved = true;
             resolve();
         } catch (e) {
+
+            //This means we are logged in but the refresh failed
+            if (localStorage.getItem("loginSalt") && localStorage.getItem("secretKey")) {
+                loggedIn.value = AppState.LoggedIn;
+            } else {
+                logout(false);
+            }
             console.error(e);
             refreshPromiseResolved = true;
-            reject();
+            resolve();
         }
     });
     return refreshPromise
