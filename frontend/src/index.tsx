@@ -21,7 +21,7 @@ import "./i18n";
 import { render } from 'preact';
 import { LocationProvider, Router, Route } from 'preact-iso';
 
-import { CustomNavbar } from './components/Navbar.js';
+import { connected, CustomNavbar } from './components/Navbar.js';
 import { NotFound } from './pages/_404.jsx';
 import { Login } from './components/login.js';
 import { Register } from './components/register.js';
@@ -120,7 +120,9 @@ export function App() {
                     <CustomNavbar />
                     <Col>
                         <LocationProvider>
-                            <Router>
+                            <Router onRouteChange={(url) => {
+                                connected.value = false;
+                            }}>
                                 <Route path="/tokens" component={Tokens} />
                                 <Route path="/user" component={User} />
                                 <Route default path="/chargers" component={ChargerList} />
