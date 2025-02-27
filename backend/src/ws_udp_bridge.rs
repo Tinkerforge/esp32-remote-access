@@ -18,19 +18,20 @@
  */
 
 use actix::prelude::*;
-use actix::{Actor, StreamHandler};
 use actix_web::web::Bytes;
-use actix_web::{get, web, HttpRequest, HttpResponse};
-use actix_web_actors::ws;
+use actix_web::{get, rt, web, HttpRequest, HttpResponse};
 use actix_web_validator::Query;
+use actix_ws::{AggregatedMessage, ProtocolError, Session};
 use db_connector::models::wg_keys::WgKey;
 use diesel::prelude::*;
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 use validator::{Validate, ValidationError};
+use futures_util::lock::Mutex;
 
 use crate::udp_server::management::RemoteConnMeta;
 use crate::udp_server::packet::{
@@ -58,101 +59,96 @@ fn validate_key_id(key_id: &str) -> Result<(), ValidationError> {
 }
 
 pub struct WebClient {
-    pub key_id: uuid::Uuid,
-    pub charger_id: uuid::Uuid,
-    pub app_state: web::Data<AppState>,
-    pub bridge_state: web::Data<BridgeState>,
-    pub conn_no: i32,
+    key_id: uuid::Uuid,
+    charger_id: uuid::Uuid,
+    app_state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState>,
+    conn_no: i32,
+    session: Session,
 }
 
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Message(pub Bytes);
+impl WebClient {
+    pub async fn new(
+        key_id: uuid::Uuid,
+        charger_id: uuid::Uuid,
+        app_state: web::Data<AppState>,
+        bridge_state: web::Data<BridgeState>,
+        conn_no: i32,
+        session: Session,
+    ) -> Self {
 
-impl Actor for WebClient {
-    type Context = ws::WebsocketContext<Self>;
-}
+        let meta = RemoteConnMeta {
+            charger_id: charger_id.clone(),
+            conn_no
+        };
 
-impl Handler<Message> for WebClient {
-    type Result = ();
-
-    fn handle(&mut self, msg: Message, ctx: &mut Self::Context) -> Self::Result {
-        ctx.binary(msg.0)
-    }
-}
-
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
-    fn handle(&mut self, item: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match item {
-            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
-            Ok(ws::Message::Binary(msg)) => {
-                let peer_sock_addr = {
-                    let meta = RemoteConnMeta {
-                        charger_id: self.charger_id.clone(),
-                        conn_no: self.conn_no,
-                    };
-                    let map = self.bridge_state.charger_remote_conn_map.lock().unwrap();
-                    match map.get(&meta) {
-                        Some(addr) => {
-                            let addr = addr.to_owned();
-                            addr
-                        }
-                        None => {
-                            return;
-                        }
-                    }
-                };
-
-                match self.bridge_state.socket.send_to(&msg, peer_sock_addr) {
-                    Ok(s) => {
-                        if s < msg.len() {
-                            log::error!("Sent incomplete message to charger '{}'", self.charger_id);
-                        }
-                    }
-                    Err(_err) => {
-                        log::error!(
-                            "Failed to send message to charger '{}': {}",
-                            self.charger_id,
-                            _err
-                        );
-                    }
+        {
+            let map = bridge_state.charger_remote_conn_map.lock().await;
+            match map.get(&meta) {
+                Some(addr) => {
+                    let mut client_map = bridge_state.web_client_map.lock().await;
+                    client_map.insert(*addr, session.clone());
+                },
+                None => {
+                    drop(map);
+                    let mut map = bridge_state.undiscovered_clients.lock().await;
+                    map.insert(meta, session.clone());
                 }
             }
-            Ok(ws::Message::Close(_)) => {
-                ctx.close(None);
-                self.finished(ctx);
+        }
+
+        Self {
+            key_id,
+            charger_id,
+            app_state,
+            bridge_state,
+            conn_no,
+            session,
+        }
+    }
+
+    pub async fn handle_message(&mut self, msg: Result<AggregatedMessage, ProtocolError>) {
+        match msg {
+            Ok(AggregatedMessage::Ping(msg)) => {
+                self.session.pong(&msg).await.unwrap();
+            },
+            Ok(AggregatedMessage::Binary(msg)) => {let peer_sock_addr = {
+                let meta = RemoteConnMeta {
+                    charger_id: self.charger_id.clone(),
+                    conn_no: self.conn_no,
+                };
+                let map = self.bridge_state.charger_remote_conn_map.lock().await;
+                match map.get(&meta) {
+                    Some(addr) => {
+                        let addr = addr.to_owned();
+                        addr
+                    }
+                    None => {
+                        return;
+                    }
+                }
+            };
+
+            match self.bridge_state.socket.send_to(&msg, peer_sock_addr) {
+                Ok(s) => {
+                    if s < msg.len() {
+                        log::error!("Sent incomplete message to charger '{}'", self.charger_id);
+                    }
+                }
+                Err(_err) => {
+                    log::error!(
+                        "Failed to send message to charger '{}': {}",
+                        self.charger_id,
+                        _err
+                    );
+                }
             }
-            Err(err) => {
-                log::error!("Websocket error: {}", err.to_string());
             }
             _ => (),
         }
     }
 
-    fn started(&mut self, ctx: &mut Self::Context) {
-        let meta = RemoteConnMeta {
-            charger_id: self.charger_id.clone(),
-            conn_no: self.conn_no,
-        };
-
-        let peer_sock_addr = {
-            let map = self.bridge_state.charger_remote_conn_map.lock().unwrap();
-            match map.get(&meta) {
-                Some(addr) => addr.to_owned(),
-                None => {
-                    drop(map);
-                    let mut map = self.bridge_state.undiscovered_clients.lock().unwrap();
-                    map.insert(meta, ctx.address().recipient::<Message>());
-                    return;
-                }
-            }
-        };
-
-        let mut client_map = self.bridge_state.web_client_map.lock().unwrap();
-        client_map.insert(peer_sock_addr, ctx.address().recipient::<Message>());
-    }
-
-    fn finished(&mut self, ctx: &mut Self::Context) {
+    pub async fn stop(self) {
         use db_connector::schema::wg_keys::dsl::*;
 
         log::debug!("Closed connection to charger '{}'", self.charger_id);
@@ -173,9 +169,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
             conn_no: self.conn_no,
         };
         {
-            let mut map = self.bridge_state.charger_remote_conn_map.lock().unwrap();
+            let mut map = self.bridge_state.charger_remote_conn_map.lock().await;
             if let Some(addr) = map.get(&meta) {
-                let mut map = self.bridge_state.web_client_map.lock().unwrap();
+                let mut map = self.bridge_state.web_client_map.lock().await;
                 map.remove(&addr);
             }
 
@@ -183,7 +179,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
         }
 
         {
-            let mut lost_map = self.bridge_state.lost_connections.lock().unwrap();
+            let mut lost_map = self.bridge_state.lost_connections.lock().await;
             let _ = lost_map.remove(&self.charger_id);
         }
 
@@ -206,9 +202,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
                 .bridge_state
                 .charger_management_map_with_id
                 .lock()
-                .unwrap();
+                .await;
             if let Some(sock) = map.get(&self.charger_id) {
-                let mut sock = sock.lock().unwrap();
+                let mut sock = sock.lock().await;
                 sock.send_packet(ManagementPacket::CommandPacket(packet));
             }
         }
@@ -228,11 +224,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebClient {
             }
         }
 
-        ctx.stop();
+        self.session.close(None).await.unwrap();
     }
 }
 
-pub fn open_connection(
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Message(pub Bytes);
+
+pub async fn open_connection(
     conn_no: i32,
     charger_id: uuid::Uuid,
     management_sock: Arc<Mutex<ManagementSocket>>,
@@ -259,9 +259,9 @@ pub fn open_connection(
     };
 
     let packet = ManagementCommandPacket { header, command };
-    let mut sock = management_sock.lock().unwrap();
+    let mut sock = management_sock.lock().await;
     sock.send_packet(ManagementPacket::CommandPacket(packet));
-    let mut set = port_discovery.lock().unwrap();
+    let mut set = port_discovery.lock().await;
     set.insert(response, Instant::now());
 
     Ok(())
@@ -303,16 +303,8 @@ async fn start_ws(
         return Err(Error::Unauthorized.into());
     }
 
-    let client = WebClient {
-        key_id: keys.id,
-        charger_id: keys.charger_id,
-        app_state: state.clone(),
-        conn_no: keys.connection_no,
-        bridge_state: bridge_state.clone(),
-    };
-
     let management_sock = {
-        let map = bridge_state.charger_management_map_with_id.lock().unwrap();
+        let map = bridge_state.charger_management_map_with_id.lock().await;
         let management_sock = match map.get(&keys.charger_id) {
             Some(sock) => sock.clone(),
             None => return Err(Error::ChargerDisconnected.into()),
@@ -325,11 +317,13 @@ async fn start_ws(
         keys.charger_id,
         management_sock,
         bridge_state.port_discovery.clone(),
-    )?;
+    ).await?;
 
-    let resp = ws::start(client, &req, stream);
+    let (resp, session, stream) = actix_ws::handle(&req, stream)?;
+    let mut stream = stream.aggregate_continuations()
+        .max_continuation_size(2_usize.pow(20));
 
-    if resp.is_ok() {
+    if resp.status().is_success() {
         let mut conn = get_connection(&state)?;
         use db_connector::schema::wg_keys::dsl::*;
         web_block_unpacked(move || {
@@ -345,7 +339,23 @@ async fn start_ws(
         .await?;
     }
 
-    resp
+    rt::spawn(async move {
+        let mut client = WebClient::new(
+            keys.id,
+            keys.charger_id,
+            state,
+            bridge_state,
+            keys.connection_no,
+            session,
+        ).await;
+        while let Some(msg) = stream.next().await {
+            client.handle_message(msg).await;
+        }
+        client.stop().await;
+    });
+
+
+    Ok(resp)
 }
 
 #[cfg(test)]
