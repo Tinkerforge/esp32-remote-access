@@ -45,13 +45,13 @@ impl Serialize for RemoteConnMeta {
     }
 }
 
-fn process_old_packet(
+async fn process_old_packet(
     state: &web::Data<BridgeState>,
     data: &[u8],
 ) -> anyhow::Result<ManagementResponseV2> {
     let packet: OldManagementResponse = unsafe { std::ptr::read(data.as_ptr() as *const _) };
 
-    let map = state.port_discovery.lock().unwrap();
+    let map = state.port_discovery.lock().await;
     for (meta, _) in map.iter() {
         if meta.connection_no == packet.connection_no
             && meta.connection_uuid == packet.connection_uuid
@@ -63,12 +63,12 @@ fn process_old_packet(
     Err(Error::msg("Unknown connection"))
 }
 
-fn unpack_packet(
+async fn unpack_packet(
     state: &web::Data<BridgeState>,
     data: &[u8],
 ) -> anyhow::Result<ManagementResponseV2> {
     if data.len() == ::core::mem::size_of::<OldManagementResponse>() {
-        process_old_packet(state, data)
+        process_old_packet(state, data).await
     } else if data.len() == ::core::mem::size_of::<ManagementResponsePacket>() {
         let packet: ManagementResponsePacket = unsafe { std::ptr::read(data.as_ptr() as *const _) };
         if packet.header.magic != 0x1234 || packet.header.version != 1 {
@@ -81,15 +81,15 @@ fn unpack_packet(
     }
 }
 
-pub fn try_port_discovery(
+pub async fn try_port_discovery(
     state: &web::Data<BridgeState>,
     data: &[u8],
     addr: SocketAddr,
 ) -> anyhow::Result<()> {
-    let response = unpack_packet(state, data)?;
+    let response = unpack_packet(state, data).await?;
 
     {
-        let mut set = state.port_discovery.lock().unwrap();
+        let mut set = state.port_discovery.lock().await;
         if set.remove(&response).is_none() {
             return Err(Error::msg("Connection does not exist"));
         }
@@ -101,14 +101,14 @@ pub fn try_port_discovery(
     };
 
     {
-        let mut map = state.undiscovered_clients.lock().unwrap();
+        let mut map = state.undiscovered_clients.lock().await;
         if let Some(r) = map.remove(&meta) {
-            let mut map = state.web_client_map.lock().unwrap();
+            let mut map = state.web_client_map.lock().await;
             map.insert(addr, r);
         }
     }
 
-    let mut map = state.charger_remote_conn_map.lock().unwrap();
+    let mut map = state.charger_remote_conn_map.lock().await;
     map.insert(meta, addr);
 
     Ok(())

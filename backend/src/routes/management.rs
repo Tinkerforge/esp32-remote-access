@@ -326,7 +326,7 @@ pub async fn management(
     let configured_users = update_configured_users(&state, charger_id, &data.data).await?;
 
     {
-        let mut map = bridge_state.undiscovered_chargers.lock().unwrap();
+        let mut map = bridge_state.undiscovered_chargers.lock().await;
         let set = map.entry(ip).or_insert(HashSet::new());
         set.insert(crate::DiscoveryCharger {
             id: charger.id,
@@ -335,17 +335,17 @@ pub async fn management(
     }
 
     {
-        let mut map = bridge_state.charger_management_map_with_id.lock().unwrap();
+        let mut map = bridge_state.charger_management_map_with_id.lock().await;
         let sock = map.remove(&charger_id);
         if let Some(socket) = sock {
-            let mut map = bridge_state.charger_management_map.lock().unwrap();
-            let socket = socket.lock().unwrap();
+            let mut map = bridge_state.charger_management_map.lock().await;
+            let socket = socket.lock().await;
             let _ = map.remove(&socket.get_remote_address());
         }
     }
 
     let addresses = {
-        let mut map = bridge_state.charger_remote_conn_map.lock().unwrap();
+        let mut map = bridge_state.charger_remote_conn_map.lock().await;
         let mut addresses = Vec::new();
         map.retain(|key, addr| {
             if key.charger_id == charger_id {
@@ -359,7 +359,7 @@ pub async fn management(
     };
 
     let losing_conns = {
-        let mut clients = bridge_state.web_client_map.lock().unwrap();
+        let mut clients = bridge_state.web_client_map.lock().await;
         let mut losing_conns = Vec::new();
         for (addr, conn_no) in addresses.into_iter() {
             if let Some(recipient) = clients.remove(&addr) {
@@ -370,7 +370,7 @@ pub async fn management(
     };
 
     {
-        let mut lost_conns = bridge_state.lost_connections.lock().unwrap();
+        let mut lost_conns = bridge_state.lost_connections.lock().await;
         lost_conns.insert(charger_id, losing_conns);
     }
 

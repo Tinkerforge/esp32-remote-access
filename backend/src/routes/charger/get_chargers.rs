@@ -101,7 +101,7 @@ pub async fn get_chargers(
     })
     .await?;
 
-    let charger_map = bridge_state.charger_management_map_with_id.lock().unwrap();
+    let charger_map = bridge_state.charger_management_map_with_id.lock().await;
     let charger = charger
         .into_iter()
         .map(|(c, allowed_user)| {

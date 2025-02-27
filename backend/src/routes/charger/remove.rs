@@ -87,16 +87,16 @@ pub async fn delete_charger(
     Ok(())
 }
 
-pub fn remove_charger_from_state(charger: uuid::Uuid, state: &web::Data<BridgeState>) {
+pub async fn remove_charger_from_state(charger: uuid::Uuid, state: &web::Data<BridgeState>) {
     let socket = {
-        let mut map = state.charger_management_map_with_id.lock().unwrap();
+        let mut map = state.charger_management_map_with_id.lock().await;
         map.remove(&charger)
     };
 
     if let Some(socket) = socket {
-        let socket = socket.lock().unwrap();
+        let socket = socket.lock().await;
         let remote_address = socket.get_remote_address();
-        let mut map = state.charger_management_map.lock().unwrap();
+        let mut map = state.charger_management_map.lock().await;
         let _ = map.remove(&remote_address);
     }
 }
@@ -203,7 +203,7 @@ pub async fn remove(
         })
         .await?;
         delete_charger(charger_id, &state).await?;
-        remove_charger_from_state(charger_id, &bridge_state);
+        remove_charger_from_state(charger_id, &bridge_state).await;
     } else {
         delete_allowed_user(charger_id, user_id.clone().into(), &state).await?;
         delete_keys_for_user(charger_id, user_id.into(), &state).await?;

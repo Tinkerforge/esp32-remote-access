@@ -88,7 +88,7 @@ pub async fn delete_user(
         delete_all_keys(id, &state).await?;
         delete_all_allowed_users(id, &state).await?;
         delete_charger(id, &state).await?;
-        remove_charger_from_state(id, &bridge_state);
+        remove_charger_from_state(id, &bridge_state).await;
     }
 
     delete_all_refresh_tokens(user_id, &state).await?;

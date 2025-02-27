@@ -27,7 +27,7 @@ pub struct ServerState {
 #[get("/state")]
 pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<impl Responder> {
     let clients: Vec<SocketAddr> = {
-        let web_client_map = brige_state.web_client_map.lock().unwrap();
+        let web_client_map = brige_state.web_client_map.lock().await;
         web_client_map
             .iter()
             .map(|(client, _)| client.to_owned())
@@ -35,7 +35,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
     };
 
     let undiscovered_clients: Vec<RemoteConnMeta> = {
-        let undiscoverd_clients = brige_state.undiscovered_clients.lock().unwrap();
+        let undiscoverd_clients = brige_state.undiscovered_clients.lock().await;
         undiscoverd_clients
             .iter()
             .map(|(conn, _)| conn.clone())
@@ -43,7 +43,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
     };
 
     let charger_management_map: Vec<SocketAddr> = {
-        let charger_management_map = brige_state.charger_management_map.lock().unwrap();
+        let charger_management_map = brige_state.charger_management_map.lock().await;
         charger_management_map
             .iter()
             .map(|(sock, _)| sock.to_owned())
@@ -52,7 +52,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
 
     let charger_management_map_with_id: Vec<String> = {
         let charger_management_map_with_id =
-            brige_state.charger_management_map_with_id.lock().unwrap();
+            brige_state.charger_management_map_with_id.lock().await;
         charger_management_map_with_id
             .iter()
             .map(|(id, _)| id.to_string())
@@ -60,7 +60,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
     };
 
     let port_discovery: Vec<ManagementResponseV2> = {
-        let port_discovery = brige_state.port_discovery.lock().unwrap();
+        let port_discovery = brige_state.port_discovery.lock().await;
         port_discovery
             .iter()
             .map(|(resp, _)| resp.clone())
@@ -68,7 +68,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
     };
 
     let charger_remote_conn_map: Vec<RemoteConnMeta> = {
-        let charger_remote_conn_map = brige_state.charger_remote_conn_map.lock().unwrap();
+        let charger_remote_conn_map = brige_state.charger_remote_conn_map.lock().await;
         charger_remote_conn_map
             .iter()
             .map(|(meta, _)| meta.clone())
@@ -76,12 +76,12 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
     };
 
     let undiscovered_chargers = {
-        let map = brige_state.undiscovered_chargers.lock().unwrap();
+        let map = brige_state.undiscovered_chargers.lock().await;
         map.clone()
     };
 
     let lost_connections: Vec<(String, Vec<i32>)> = {
-        let map = brige_state.lost_connections.lock().unwrap();
+        let map = brige_state.lost_connections.lock().await;
         map.iter()
             .map(|(id, conns)| {
                 (

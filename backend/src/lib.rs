@@ -20,11 +20,11 @@
 use std::{
     collections::{HashMap, HashSet},
     net::{SocketAddr, UdpSocket},
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Instant,
 };
 
-use actix::prelude::*;
+use actix_ws::Session;
 pub use boringtun::*;
 use chrono::{TimeDelta, Utc};
 use db_connector::{
@@ -40,7 +40,7 @@ use serde::{ser::SerializeStruct, Serialize};
 use udp_server::{
     management::RemoteConnMeta, packet::ManagementResponseV2, socket::ManagementSocket,
 };
-use ws_udp_bridge::Message;
+use futures_util::lock::Mutex;
 
 pub mod error;
 pub mod middleware;
@@ -71,15 +71,15 @@ impl Serialize for DiscoveryCharger {
 
 pub struct BridgeState {
     pub pool: Pool,
-    pub web_client_map: Mutex<HashMap<SocketAddr, Recipient<Message>>>,
-    pub undiscovered_clients: Mutex<HashMap<RemoteConnMeta, Recipient<Message>>>,
+    pub web_client_map: Mutex<HashMap<SocketAddr, Session>>,
+    pub undiscovered_clients: Mutex<HashMap<RemoteConnMeta, Session>>,
     pub charger_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
     pub charger_management_map_with_id:
         Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket>>>>>,
     pub port_discovery: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
-    pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<(i32, Recipient<Message>)>>>,
+    pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<(i32, Session)>>>,
     pub socket: UdpSocket,
 }
 
@@ -331,8 +331,8 @@ pub(crate) mod tests {
             socket: UdpSocket::bind(("0", 0)).unwrap(),
         };
 
-        let cache: web::Data<Mutex<LruCache<String, Vec<u8>>>> =
-            web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
+        let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> =
+            web::Data::new(std::sync::Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
 
         let state = create_test_state(Some(pool));
         let bridge_state = web::Data::new(bridge_state);

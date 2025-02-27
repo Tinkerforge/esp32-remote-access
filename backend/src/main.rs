@@ -23,13 +23,14 @@ use std::{
     collections::HashMap,
     net::UdpSocket,
     num::NonZeroUsize,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 
 use backend::utils::get_connection;
 pub use backend::*;
 
+use futures_util::lock::Mutex;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
@@ -70,10 +71,10 @@ fn cleanup_thread(state: web::Data<AppState>) {
     }
 }
 
-fn resend_thread(bridge_state: web::Data<BridgeState>) {
+async fn resend_thread(bridge_state: web::Data<BridgeState>) {
     loop {
         std::thread::sleep(Duration::from_secs(1));
-        let undiscovered_ports = bridge_state.port_discovery.lock().unwrap();
+        let undiscovered_ports = bridge_state.port_discovery.lock().await;
         for (port, _) in undiscovered_ports.iter() {
             let command = ManagementCommand {
                 command_id: ManagementCommandId::Connect,
@@ -91,9 +92,9 @@ fn resend_thread(bridge_state: web::Data<BridgeState>) {
 
             let packet = ManagementCommandPacket { header, command };
             let charger_id = uuid::Uuid::from_u128(port.charger_id);
-            let chargers = bridge_state.charger_management_map_with_id.lock().unwrap();
+            let chargers = bridge_state.charger_management_map_with_id.lock().await;
             if let Some(sock) = chargers.get(&charger_id) {
-                let mut sock = sock.lock().unwrap();
+                let mut sock = sock.lock().await;
                 sock.send_packet(ManagementPacket::CommandPacket(packet));
             }
         }
@@ -178,11 +179,11 @@ async fn main() -> std::io::Result<()> {
     let bridge_state_cpy = bridge_state.clone();
     std::thread::spawn(move || resend_thread(bridge_state_cpy));
 
-    udp_server::start_server(bridge_state.clone()).unwrap();
+    udp_server::start_server(bridge_state.clone());
 
     // Cache for random salts of non existing users
-    let cache: web::Data<Mutex<LruCache<String, Vec<u8>>>> =
-        web::Data::new(Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
+    let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> =
+        web::Data::new(std::sync::Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
 
     let login_ratelimiter = web::Data::new(LoginRateLimiter::new());
     let charger_ratelimiter = web::Data::new(ChargerRateLimiter::new());
