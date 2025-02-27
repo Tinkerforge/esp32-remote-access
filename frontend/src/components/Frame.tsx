@@ -8,6 +8,7 @@ import Median from "median-js-bridge";
 import i18n from '../i18n';
 import { ChargersState } from '../pages/chargers';
 import { Dispatch, StateUpdater } from 'preact/hooks';
+import { showAlert } from './Alert';
 
 interface VirtualNetworkInterfaceSetParentState {
     chargersState: Dispatch<StateUpdater<ChargersState>>,
@@ -50,6 +51,7 @@ class VirtualNetworkInterface {
     }
 
     handleErrorMessage(msg: Message) {
+        showAlert(i18n.t(msg.data.translation, msg.data.format) as string, "danger");
         this.setParentState.chargersState({
             connected: false,
             connectedId: "",
@@ -108,7 +110,7 @@ class VirtualNetworkInterface {
             const msg = e.data as Message;
             switch (msg.type) {
                 case MessageType.Error:
-                    // this.handleErrorMessage(msg);
+                    this.handleErrorMessage(msg);
                     break;
 
                 default:
