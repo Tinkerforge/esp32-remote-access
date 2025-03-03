@@ -84,8 +84,8 @@ self.addEventListener("fetch", async (event: FetchEvent) => {
                 const response = await fetch(event.request);
                 if (response.status === 200) {
                     lastAccessTokenRefresh = Date.now();
-                    resolve(response);
                 }
+                resolve(response);
             });
             event.respondWith(promise);
         }
