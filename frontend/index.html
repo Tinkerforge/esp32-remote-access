@@ -19,7 +19,8 @@
 			}
 			function median_app_resumed() {
 				if (sessionStorage.getItem("currentConnection")) {
-					location.reload();
+					const event = new CustomEvent("appReload");
+					window.dispatchEvent(event);
 				}
 			}
 		</script>

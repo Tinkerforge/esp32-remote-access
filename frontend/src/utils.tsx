@@ -161,3 +161,22 @@ const debug = localStorage.getItem("debugMode");
 if (debug) {
     isDebugMode.value = true;
 }
+
+window.addEventListener("appReload", () => {
+    if (appSleeps) {
+        window.location.reload();
+    }
+});
+
+let appSleeps = false;
+let lastAlive = Date.now();
+setInterval(() => {
+    const now = Date.now();
+    console.log(now - lastAlive);
+    if (now - lastAlive > 15000) {
+        appSleeps = true;
+    } else {
+        appSleeps = false;
+    }
+    lastAlive = now;
+}, 2000);
