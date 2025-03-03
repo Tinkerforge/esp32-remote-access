@@ -74,6 +74,12 @@ icon.href = favicon;
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
 
+    if (!window.ServiceWorker) {
+        return <Row fluid className="align-content-center justify-content-center vh-100">
+            {t("no_service_worker")}
+        </Row>
+    }
+
     switch (loggedIn.value) {
         case AppState.Loading:
             return <>

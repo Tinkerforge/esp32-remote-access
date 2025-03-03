@@ -4,6 +4,7 @@ export const de ={
     "alert_default_text": "Ein Fehler ist aufgetreten!",
     "alert_default_success": "Erfolg!",
     "description": description,
+    "no_service_worker": "Dein Browser benötigt Unterstützung für ServiceWorker um den Fernzugriff nutzen zu können.",
     "user": {
         "account_actions": "Kontoaktionen",
         "profile_information": "Nutzer Informationen",

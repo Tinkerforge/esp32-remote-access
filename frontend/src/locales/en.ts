@@ -4,6 +4,7 @@ export const en = {
     "alert_default_text": "An Error occured!",
     "alert_default_success": "Success!",
     "description": description,
+    "no_service_worker": "Your browser needs support for ServiceWorkers to be able to run the Remote Access.",
     "user": {
         "profile_information": "User information",
         "save_changes": "Save changes",
