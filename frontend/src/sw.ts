@@ -21,7 +21,7 @@ import { Message, MessageType, FetchMessage, ResponseMessage } from "./types";
 
 declare const self: ServiceWorkerGlobalScope;
 
-self.addEventListener("fetch", async (event: FetchEvent) => {
+function handleWGRequest(event: FetchEvent) {
     let url = event.request.url.replace(self.location.origin, "");
     const headers1: [string, string][] = [];
     event.request.headers.forEach((val, key) => {
@@ -65,6 +65,30 @@ self.addEventListener("fetch", async (event: FetchEvent) => {
             }
         });
         event.respondWith(promise);
+        return true;
+    }
+}
+
+let lastAccessTokenRefresh = 0;
+
+self.addEventListener("fetch", async (event: FetchEvent) => {
+    if (!handleWGRequest(event) && event.request.url.indexOf("/jwt_refresh") !== -1) {
+        const now = Date.now();
+        // In case the last access token refresh we lie to the client that the token was refreshed
+        // This fixes multiple requests to refresh the token at once leading to users getting logged out
+        if (now - lastAccessTokenRefresh < 1000 * 60 * 5) {
+            const response = new Response("", {status: 200});
+            event.respondWith(response);
+        } else {
+            const promise = new Promise<Response>(async (resolve, reject) => {
+                const response = await fetch(event.request);
+                if (response.status === 200) {
+                    lastAccessTokenRefresh = Date.now();
+                    resolve(response);
+                }
+            });
+            event.respondWith(promise);
+        }
     }
 });
 
