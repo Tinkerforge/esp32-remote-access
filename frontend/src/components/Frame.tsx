@@ -263,7 +263,7 @@ export class Frame extends Component<FrameProps, FrameState> {
         const downLoadButton = isDebugMode.value ? <Row className="d-flex m-0">
                 <Button variant='secondary' style={{borderRadius: 0}} class="m-0" onClick={() => {
                     this.interface.downloadPcapLog();
-                }}>Download Pcap log</Button>
+                }}>Save Pcap log</Button>
             </Row> : null;
         return (
             <Container fluid className="d-flex flex-column h-100 p-0">
