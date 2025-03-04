@@ -45,10 +45,8 @@ import logo from "logo";
 
 import "./styles/main.scss";
 import { docs } from "links";
+import { useEffect } from "preact/hooks";
 refresh_access_token();
-setInterval(async () => {
-    await refresh_access_token();
-}, 1000 * 60 * 5);
 
 if (isDebugMode.value) {
     addEventListener("unhandledrejection", (event) => {
@@ -70,9 +68,21 @@ if (isDebugMode.value) {
 
 const icon: HTMLLinkElement = document.querySelector('link[rel="icon"]');
 icon.href = favicon;
+let refreshInterval = undefined;
+const refreshMinutes = (Math.random() * (5 -3) + 3);
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
+
+    useEffect(() => {
+        if (loggedIn.value === AppState.LoggedIn) {
+            refreshInterval = setInterval(async () => {
+                await refresh_access_token();
+            }, 1000 * 60 * refreshMinutes);
+        } else {
+            clearInterval(refreshInterval);
+        }
+    }, [loggedIn.value])
 
     if (!window.ServiceWorker) {
         return <Row fluid className="align-content-center justify-content-center vh-100">
