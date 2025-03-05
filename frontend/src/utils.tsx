@@ -89,52 +89,38 @@ const AuthMiddleware: Middleware = {
 }
 fetchClient.use(AuthMiddleware);
 
-// This promise is used to synchronize the timeout and Frame component refreshing the access token
-let refreshPromise: Promise<void>;
-let refreshPromiseResolved = true;
-
-// This function must be called only at one place. Use the promise instead if you need to ensure that you have a valid token.
-export function refresh_access_token() {
-    if (refreshPromiseResolved) {
-        refreshPromiseResolved = false;
-    } else {
-        return refreshPromise;
+export async function refresh_access_token() {
+    if (window.location.pathname == "/recovery") {
+        loggedIn.value = AppState.Recovery;
+        return;
     }
-    refreshPromise = new Promise(async (resolve, reject) => {
-        if (window.location.pathname == "/recovery") {
-            loggedIn.value = AppState.Recovery;
-            resolve();
-            return;
-        }
 
-        try {
-            const {error, response} = await fetchClient.GET("/auth/jwt_refresh", {credentials: "same-origin"});
+    try {
+        const {error, response} = await window.navigator.locks.request("refreshLock", async () => {
 
-            if (!error || response.status === 502) {
-                if (!localStorage.getItem("loginSalt") || !localStorage.getItem("secretKey")) {
-                    logout(false);
-                }
-                loggedIn.value = AppState.LoggedIn;
-            } else {
-                auth_already_failed = true;
-                localStorage.removeItem("loginSalt");
-                localStorage.removeItem("secretKey");
-                loggedIn.value = AppState.LoggedOut;
+            const resp = await fetchClient.GET("/auth/jwt_refresh", {credentials: "same-origin"});
+            return resp;
+        });
+
+        if (!error || response.status === 502) {
+            if (!localStorage.getItem("loginSalt") || !localStorage.getItem("secretKey")) {
+                logout(false);
             }
-            refreshPromiseResolved = true;
-            resolve();
-        } catch (e) {
-
-            //This means we are logged in but the refresh failed
-            if (localStorage.getItem("loginSalt") && localStorage.getItem("secretKey")) {
-                loggedIn.value = AppState.LoggedIn;
-            }
-            console.error(e);
-            refreshPromiseResolved = true;
-            resolve();
+            loggedIn.value = AppState.LoggedIn;
+        } else {
+            auth_already_failed = true;
+            localStorage.removeItem("loginSalt");
+            localStorage.removeItem("secretKey");
+            loggedIn.value = AppState.LoggedOut;
         }
-    });
-    return refreshPromise
+    } catch (e) {
+
+        //This means we are logged in but the refresh failed
+        if (localStorage.getItem("loginSalt") && localStorage.getItem("secretKey")) {
+            loggedIn.value = AppState.LoggedIn;
+        }
+        console.error(e);
+    }
 }
 
 export let secret: Uint8Array;
