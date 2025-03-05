@@ -70,22 +70,25 @@ function handleWGRequest(event: FetchEvent) {
 }
 
 let lastAccessTokenRefresh = 0;
+let responseCache = undefined;
 
-self.addEventListener("fetch", async (event: FetchEvent) => {
+self.addEventListener("fetch", (event: FetchEvent) => {
     if (!handleWGRequest(event) && event.request.url.indexOf("/jwt_refresh") !== -1) {
         const now = Date.now();
         // In case the last access token refresh we lie to the client that the token was refreshed
         // This fixes multiple requests to refresh the token at once leading to users getting logged out
-        if (now - lastAccessTokenRefresh < 1000 * 60 * 5) {
-            const response = new Response("", {status: 200});
-            event.respondWith(response);
+        if (now - lastAccessTokenRefresh < 1000 * 60 * 3 && responseCache) {
+            event.respondWith(responseCache.clone());
         } else {
             const promise = new Promise<Response>(async (resolve, reject) => {
                 const response = await fetch(event.request);
                 if (response.status === 200) {
                     lastAccessTokenRefresh = Date.now();
+                    responseCache = response;
+                } else {
+                    responseCache = undefined;
                 }
-                resolve(response);
+                resolve(response.clone());
             });
             event.respondWith(promise);
         }
