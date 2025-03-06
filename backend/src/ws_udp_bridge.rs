@@ -24,7 +24,6 @@ use actix_web_validator::Query;
 use actix_ws::{AggregatedMessage, ProtocolError, Session};
 use db_connector::models::wg_keys::WgKey;
 use diesel::prelude::*;
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
