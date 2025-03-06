@@ -112,7 +112,8 @@ impl WebClient {
             Ok(AggregatedMessage::Ping(msg)) => {
                 self.session.pong(&msg).await.unwrap();
             },
-            Ok(AggregatedMessage::Binary(msg)) => {let peer_sock_addr = {
+            Ok(AggregatedMessage::Binary(msg)) => {
+                let peer_sock_addr = {
                 let meta = RemoteConnMeta {
                     charger_id: self.charger_id.clone(),
                     conn_no: self.conn_no,
@@ -143,8 +144,8 @@ impl WebClient {
                     );
                 }
             }
-            }
-            _ => (),
+            },
+            msg => log::info!("/ws got other msg: {:?}", msg),
         }
     }
 
@@ -181,6 +182,10 @@ impl WebClient {
         {
             let mut lost_map = self.bridge_state.lost_connections.lock().await;
             let _ = lost_map.remove(&self.charger_id);
+        }
+        {
+            let mut map = self.bridge_state.undiscovered_clients.lock().await;
+            let _ = map.remove(&meta);
         }
 
         {
