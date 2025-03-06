@@ -29,7 +29,9 @@ export const en = {
         "account_actions": "Account Actions",
         "email_change_disabled": "Email changes are disabled because you have chargers with old firmware versions. Please update your chargers first.",
         "local_settings": "Lokal Settings",
-        "debug_mode": "Debug-Modus",
+        "debug_mode": "Debug mode",
+        "connection_timeout": "Timeout",
+        "connection_timeout_text": "A timeout occured while establishing the connection. Please try again later or contact us in case the problem persists."
     },
     "recovery": {
         "recovery": "Password recovery",
@@ -73,7 +75,7 @@ export const en = {
         "chargers": "Devices",
         "logout": "Logout",
         "token": "Token",
-        "close": "Schließen"
+        "close": "Close"
     },
     "register": {
         "name": "Name",

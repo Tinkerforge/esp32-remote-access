@@ -22,6 +22,7 @@ class VirtualNetworkInterface {
     setParentState: VirtualNetworkInterfaceSetParentState;
     connectionInfo: ChargersState;
     debugMode: boolean;
+    timeout: any;
 
     constructor(setParentState: VirtualNetworkInterfaceSetParentState, connectionInfo: ChargersState, debugMode: boolean) {
         this.setParentState = setParentState;
@@ -39,6 +40,15 @@ class VirtualNetworkInterface {
         }, {signal: this.abort.signal});
 
         this.worker.onmessage = (e) => this.setupHandler(e);
+        this.timeout = setTimeout(() => {
+            setParentState.chargersState({
+                connected: false,
+                connectedId: "",
+                connectedName: "",
+                connectedPort: 0,
+            });
+            showAlert(i18n.t("chargers.connection_timeout_text"), "danger", i18n.t("chargers.connection_timeout"));
+        }, 30_000)
 
         window.addEventListener("message", (e) => this.iframeMessageHandler(e), {signal: this.abort.signal});
         window.addEventListener("keydown", (e) => this.keyDownHandler(e), {signal: this.abort.signal});
@@ -69,6 +79,7 @@ class VirtualNetworkInterface {
                 return;
 
             case "webinterface_loaded":
+                clearTimeout(this.timeout);
                 this.setParentState.parentState({show_spinner: false});
                 iframe.contentWindow.postMessage({
                     connection_id: this.id,

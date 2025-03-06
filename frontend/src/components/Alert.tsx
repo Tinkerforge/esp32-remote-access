@@ -19,7 +19,7 @@ const clearAlertTimeout = (id: string) => {
     }
 };
 
-export function showAlert(text: string, variant: string, heading?: string, timeout_ms?: number) {
+export function showAlert(text: string, variant: "danger" | "success" | "warning", heading?: string, timeout_ms?: number) {
     const id = Math.random().toString(36).substr(2);
     const alert: AlertItem = {
         id,
