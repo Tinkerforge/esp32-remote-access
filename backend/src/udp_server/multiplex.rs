@@ -196,12 +196,12 @@ pub async fn run_server(state: web::Data<BridgeState>) {
                 }
 
                 {
-                let mut client_map = state.web_client_map.lock().await;
-                if let Some(client) = client_map.get_mut(&addr) {
+                    let mut client_map = state.web_client_map.lock().await;
+                    if let Some(client) = client_map.get_mut(&addr) {
                         let payload = Bytes::copy_from_slice(&buf[0..s]);
-                    client.binary(payload).await.unwrap();
-                    continue;
-                    }
+                        client.binary(payload).await.ok();
+                        continue;
+                        }
                 }
 
                 let tunn_sock = {
