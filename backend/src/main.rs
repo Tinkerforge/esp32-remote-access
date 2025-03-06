@@ -27,6 +27,7 @@ use std::{
     time::Duration,
 };
 
+use actix::Arbiter;
 use backend::utils::get_connection;
 pub use backend::*;
 
@@ -177,7 +178,8 @@ async fn main() -> std::io::Result<()> {
     let state_cpy = state.clone();
     std::thread::spawn(move || cleanup_thread(state_cpy));
     let bridge_state_cpy = bridge_state.clone();
-    std::thread::spawn(move || resend_thread(bridge_state_cpy));
+    let arbiter = Arbiter::new();
+    arbiter.spawn(async move {resend_thread(bridge_state_cpy).await});
 
     udp_server::start_server(bridge_state.clone());
 
