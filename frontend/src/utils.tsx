@@ -147,7 +147,9 @@ if (debug) {
 }
 
 window.addEventListener("appReload", () => {
-    if (appSleeps) {
+    // Sometime the appSleeps value seems not beeing set. To encounter this check if the lastAlive was
+    // set during the timout of the wireguard connection
+    if (appSleeps || Date.now() - lastAlive >= 1000 * 60 * 2) {
         window.location.reload();
     }
 });
