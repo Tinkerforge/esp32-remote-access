@@ -114,36 +114,36 @@ impl WebClient {
             },
             Ok(AggregatedMessage::Binary(msg)) => {
                 let peer_sock_addr = {
-                let meta = RemoteConnMeta {
-                    charger_id: self.charger_id.clone(),
-                    conn_no: self.conn_no,
+                    let meta = RemoteConnMeta {
+                        charger_id: self.charger_id.clone(),
+                        conn_no: self.conn_no,
+                    };
+                    let map = self.bridge_state.charger_remote_conn_map.lock().await;
+                    match map.get(&meta) {
+                        Some(addr) => {
+                            let addr = addr.to_owned();
+                            addr
+                        }
+                        None => {
+                            return;
+                        }
+                    }
                 };
-                let map = self.bridge_state.charger_remote_conn_map.lock().await;
-                match map.get(&meta) {
-                    Some(addr) => {
-                        let addr = addr.to_owned();
-                        addr
-                    }
-                    None => {
-                        return;
-                    }
-                }
-            };
 
-            match self.bridge_state.socket.send_to(&msg, peer_sock_addr) {
-                Ok(s) => {
-                    if s < msg.len() {
-                        log::error!("Sent incomplete message to charger '{}'", self.charger_id);
+                match self.bridge_state.socket.send_to(&msg, peer_sock_addr) {
+                    Ok(s) => {
+                        if s < msg.len() {
+                            log::error!("Sent incomplete message to charger '{}'", self.charger_id);
+                        }
+                    }
+                    Err(_err) => {
+                        log::error!(
+                            "Failed to send message to charger '{}': {}",
+                            self.charger_id,
+                            _err
+                        );
                     }
                 }
-                Err(_err) => {
-                    log::error!(
-                        "Failed to send message to charger '{}': {}",
-                        self.charger_id,
-                        _err
-                    );
-                }
-            }
             },
             msg => log::info!("/ws got other msg: {:?}", msg),
         }
@@ -328,7 +328,7 @@ async fn start_ws(
     let mut stream = stream.aggregate_continuations()
         .max_continuation_size(2_usize.pow(20));
 
-    if resp.status().is_success() {
+    if resp.status() == 101 {
         let mut conn = get_connection(&state)?;
         use db_connector::schema::wg_keys::dsl::*;
         web_block_unpacked(move || {
@@ -353,7 +353,11 @@ async fn start_ws(
             keys.connection_no,
             session,
         ).await;
-        while let Some(msg) = stream.next().await {
+        while let Some(msg) = stream.recv().await {
+            if let Ok(AggregatedMessage::Close(_)) = &msg {
+                log::info!("/ws close connection");
+                break;
+            }
             client.handle_message(msg).await;
         }
         client.stop().await;
