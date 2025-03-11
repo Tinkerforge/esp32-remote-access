@@ -11,7 +11,7 @@ name = "api_docs"
 path = "src/api_docs.rs"
 
 [dependencies]
-actix-web = "4.9.0"
+actix-web = "4.10.2"
 actix-web-validator = {git = "https://github.com/Tinkerforge/actix-web-validator"}
 actix = "0.13.3"
 
@@ -24,7 +24,7 @@ uuid = { version = "1.7.0", features = ["v4"] }
 validator = { version = "0.19", features = ["derive"] }
 chrono = "0.4.33"
 actix-cors = "0.7.0"
-jsonwebtoken = "9.2.0"
+jsonwebtoken = "9.3.1"
 futures-util = "0.3.30"
 lettre = { version = "0.11.11", features = ["native-tls"] }
 derive_more = "0.99.17"
