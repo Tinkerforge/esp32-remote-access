@@ -473,7 +473,7 @@ dependencies = [
  "dotenvy",
  "futures-util",
  "governor",
- "ipnetwork 0.20.0",
+ "ipnetwork",
  "jsonwebtoken",
  "lettre",
  "libsodium-sys-stable",
@@ -900,8 +900,8 @@ dependencies = [
  "chrono",
  "diesel",
  "diesel_migrations",
- "dotenv",
- "ipnetwork 0.20.0",
+ "dotenvy",
+ "ipnetwork",
  "log",
  "r2d2",
  "serde",
@@ -1004,7 +1004,7 @@ dependencies = [
  "byteorder",
  "chrono",
  "diesel_derives",
- "ipnetwork 0.21.1",
+ "ipnetwork",
  "itoa",
  "libc",
  "pq-sys",
@@ -1066,12 +1066,6 @@ dependencies = [
  "quote",
  "syn 2.0.100",
 ]
-
-[[package]]
-name = "dotenv"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "dotenvy"
@@ -1733,12 +1727,6 @@ checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
 dependencies = [
  "serde",
 ]
-
-[[package]]
-name = "ipnetwork"
-version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf370abdafd54d13e54a620e8c3e1145f28e46cc9d704bc6d94414559df41763"
 
 [[package]]
 name = "itoa"

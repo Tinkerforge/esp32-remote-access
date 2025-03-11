@@ -303,7 +303,8 @@ async fn start_ws(
     })
     .await?;
 
-    if !keys.user_id.eq(&uid.into()) {
+    let user_id: uuid::Uuid = uid.into();
+    if !keys.user_id.eq(&user_id) {
         return Err(Error::Unauthorized.into());
     }
 
