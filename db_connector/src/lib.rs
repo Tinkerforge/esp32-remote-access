@@ -20,7 +20,7 @@ pub fn run_migrations(
  * Create db connection pool
  */
 pub fn get_connection_pool() -> Pool {
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(url);
     Pool::builder()
@@ -30,7 +30,7 @@ pub fn get_connection_pool() -> Pool {
 }
 
 pub fn test_connection_pool() -> Pool {
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(url);
     Pool::builder()
