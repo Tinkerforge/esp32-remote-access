@@ -86,10 +86,15 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
             return "";
         }
 
-        const noteBytes = Base64.toUint8Array(note);
-        const decryptedNote = sodium.crypto_box_seal_open(noteBytes, pub_key, secret);
-        const decoder = new TextDecoder();
-        return decoder.decode(decryptedNote);
+        try {
+            const noteBytes = Base64.toUint8Array(note);
+            const decryptedNote = sodium.crypto_box_seal_open(noteBytes, pub_key, secret);
+            const decoder = new TextDecoder();
+            return decoder.decode(decryptedNote);
+        } catch {
+            return undefined;
+        }
+
     }
 
     async updateChargers(that: any) {
@@ -100,11 +105,17 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
             const chargers: Charger[] = data;
             const state_chargers = [];
             for (const charger of chargers) {
+                let name = this.decrypt_name(charger.name);
+                let note = this.decryptNote(charger.note);
+                if (name === undefined || note === undefined) {
+                    note = i18n.t("chargers.invalid_key");
+                    charger.valid = false
+                }
                 const state_charger: StateCharger = {
                     id: charger.id,
                     uid: charger.uid,
-                    name: this.decrypt_name(charger.name),
-                    note: this.decryptNote(charger.note),
+                    name: name,
+                    note: note,
                     status: charger.status,
                     port: charger.port,
                     valid: charger.valid,
@@ -149,9 +160,13 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
             return "";
         }
         const name_bytes = Base64.toUint8Array(name);
-        const decrypted_name =  sodium.crypto_box_seal_open(name_bytes, pub_key, secret);
-        const decoder = new TextDecoder();
-        return decoder.decode(decrypted_name);
+        try {
+            const decrypted_name =  sodium.crypto_box_seal_open(name_bytes, pub_key, secret);
+            const decoder = new TextDecoder();
+            return decoder.decode(decrypted_name);
+        } catch {
+            return undefined;
+        }
     }
 
     connection_possible(charger: StateCharger) {

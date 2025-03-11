@@ -30,6 +30,7 @@ export const en = {
         "email_change_disabled": "Email changes are disabled because you have chargers with old firmware versions. Please update your chargers first.",
         "local_settings": "Lokal Settings",
         "debug_mode": "Debug mode",
+        "invalid_key": "The keys saved on the device seem to be corrupted",
         "connection_timeout": "Timeout",
         "connection_timeout_text": "A timeout occured while establishing the connection. Please try again later or contact us in case the problem persists."
     },
