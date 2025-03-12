@@ -17,18 +17,22 @@
  * Boston, MA 02111-1307, USA.
  */
 
+use actix::clock::interval;
 use actix::prelude::*;
+use actix_web::rt::pin;
 use actix_web::web::Bytes;
 use actix_web::{get, rt, web, HttpRequest, HttpResponse};
 use actix_web_validator::Query;
-use actix_ws::{AggregatedMessage, ProtocolError, Session};
+use actix_ws::{AggregatedMessage, Session};
 use db_connector::models::wg_keys::WgKey;
 use diesel::prelude::*;
+use futures_util::future::Either;
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use validator::{Validate, ValidationError};
 use futures_util::lock::Mutex;
 
@@ -43,6 +47,9 @@ use crate::{
     utils::{get_connection, web_block_unpacked},
     AppState, BridgeState,
 };
+
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Deserialize, Serialize, Validate)]
 struct WsQuery {
@@ -106,12 +113,16 @@ impl WebClient {
         }
     }
 
-    pub async fn handle_message(&mut self, msg: Result<AggregatedMessage, ProtocolError>) {
+    pub async fn handle_message(&mut self, msg: AggregatedMessage, last_heartbeat: &mut Instant) {
         match msg {
-            Ok(AggregatedMessage::Ping(msg)) => {
+            AggregatedMessage::Ping(msg) => {
                 self.session.pong(&msg).await.unwrap();
+                *last_heartbeat = Instant::now();
             },
-            Ok(AggregatedMessage::Binary(msg)) => {
+            AggregatedMessage::Pong(_) => {
+                *last_heartbeat = Instant::now();
+            },
+            AggregatedMessage::Binary(msg) => {
                 let peer_sock_addr = {
                     let meta = RemoteConnMeta {
                         charger_id: self.charger_id.clone(),
@@ -324,7 +335,7 @@ async fn start_ws(
         bridge_state.port_discovery.clone(),
     ).await?;
 
-    let (resp, session, stream) = actix_ws::handle(&req, stream)?;
+    let (resp, mut session, stream) = actix_ws::handle(&req, stream)?;
     let mut stream = stream.aggregate_continuations()
         .max_continuation_size(2_usize.pow(20));
 
@@ -351,14 +362,31 @@ async fn start_ws(
             state,
             bridge_state,
             keys.connection_no,
-            session,
+            session.clone(),
         ).await;
-        while let Some(msg) = stream.recv().await {
-            if let Ok(AggregatedMessage::Close(_)) = &msg {
-                log::info!("/ws close connection");
-                break;
+
+        let mut last_heartbeat = Instant::now();
+        let mut interval = interval(HEARTBEAT_INTERVAL);
+        loop {
+            let tick = interval.tick();
+            pin!(tick);
+
+            match futures_util::future::select(stream.next(), tick).await {
+                Either::Left((Some(Ok(AggregatedMessage::Close(_))), _)) => break,
+                Either::Left((Some(Ok(msg)), _)) => client.handle_message(msg, &mut last_heartbeat).await,
+                Either::Left((Some(err), _)) => {
+                    log::error!("Websocket Error during connection: {:?}", err);
+                    break;
+                },
+                Either::Left((None, _)) => break,
+                Either::Right(_) => {
+                    if Instant::now().duration_since(last_heartbeat) > CLIENT_TIMEOUT {
+                        log::debug!("Client quietly quit.");
+                        break;
+                    }
+                    let _ = session.ping(b"").await;
+                }
             }
-            client.handle_message(msg).await;
         }
         client.stop().await;
     });
