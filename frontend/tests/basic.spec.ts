@@ -65,6 +65,7 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('row', { name: testUser1Email }).getByRole('button').click();
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('button', { name: 'Reboot' }).click();
+  await page.waitForTimeout(5000);
   await page.goto(testDomain);
   await expect(page.getByText('NameDevice-IDNoteSortAscending')).toBeVisible();
 });
@@ -164,4 +165,7 @@ test('remove charger', async ({page}) => {
   await page.getByRole('row', { name: testUser1Email }).getByRole('button').click();
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('button', { name: 'Reboot' }).click();
+  await page.waitForTimeout(1000);
+  await login(page, testUser2Email, testPassword2);
+  await expect(page.getByText('NameDevice-IDNoteSortAscending')).toBeVisible();
 });
