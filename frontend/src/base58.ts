@@ -1,6 +1,6 @@
-export function encodeBase58Flickr(input: string): string {
+export function encodeBase58Flickr(input: Uint8Array): string {
     const alphabet = '123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
-    const bytes = new TextEncoder().encode(input);
+    const bytes = input;
 
     let value = BigInt(0);
     for (const byte of bytes) {
@@ -26,4 +26,3 @@ export function encodeBase58Flickr(input: string): string {
 
     return result;
 }
-
