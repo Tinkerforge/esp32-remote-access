@@ -15,26 +15,6 @@ The token is base58 encoded using ther FLICKR-alphabet and structured as followe
 <table>
     <tr>
         <th>
-            Size
-        </th>
-        <td>
-            32 Bytes
-        </td>
-        <td>
-            16 Bytes
-        </td>
-        <td>
-            32 Bytes
-        </td>
-        <td>
-            Variable
-        </td>
-        <td>
-            32 Bytes
-        </td>
-    </tr>
-    <tr>
-        <th>
             Name
         </th>
         <td>
@@ -51,6 +31,26 @@ The token is base58 encoded using ther FLICKR-alphabet and structured as followe
         </td>
         <td>
             Checksum
+        </td>
+    </tr>
+    <tr>
+        <th>
+            Size
+        </th>
+        <td>
+            32 Bytes
+        </td>
+        <td>
+            36 Bytes
+        </td>
+        <td>
+            32 Bytes
+        </td>
+        <td>
+            Variable
+        </td>
+        <td>
+            32 Bytes
         </td>
     </tr>
 </table>
