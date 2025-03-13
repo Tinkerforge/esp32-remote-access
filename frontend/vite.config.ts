@@ -6,13 +6,6 @@ import { buildSync } from "esbuild";
 import { join } from "node:path";
 
 
-function plugins() {
-	return [
-		wasm(),
-		topLevelAwait(),
-	];
-}
-
 const swBuildPlugin: Plugin = {
 	name: "SWBuild",
 	apply: "build",
@@ -58,6 +51,10 @@ export default defineConfig({
 		swBuildPlugin,
 	],
 	worker: {
-		plugins: plugins
+		format: "es",
+		plugins: () => [
+			wasm(),
+			topLevelAwait(),
+		],
 	}
 });

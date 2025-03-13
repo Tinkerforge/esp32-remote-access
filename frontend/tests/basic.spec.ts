@@ -36,7 +36,7 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
   await page.getByRole('button', { name: 'Show' }).click();
-  await page.getByLabel('Relay server hostnameTo').fill(testDomain.substring(8));
+  await page.getByLabel('Relay server hostname').fill(testDomain.substring(8));
   if (needCustomCert) {
     await page.getByLabel('TLS cer­tif­i­cate', { exact: true }).selectOption('0');
   } else {
