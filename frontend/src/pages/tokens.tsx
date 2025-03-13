@@ -7,6 +7,7 @@ import { encodeBase58Flickr } from '../base58';
 import { useTranslation } from 'react-i18next';
 import { Clipboard, Trash2 } from 'react-feather';
 import { components } from '../schema';
+import { ArgonType, hash } from 'argon2-browser';
 
 interface Token {
     token: string;
@@ -28,15 +29,23 @@ async function buildToken(userData: components["schemas"]["UserInfo"], tokenData
     dataBuf.set(pub_key, 32 + 36);
     dataBuf.set(email, 32 + 36 + 32);
 
-    const digest = await crypto.subtle.digest('SHA-256', dataBuf);
-    const uint8Digest = new Uint8Array(digest);
+    // Use argon2 here since browsers think it's a good idea to block crypto.subtle due to insecure contexts
+    // (Wallbox interface is served over HTTP)
+    const digest = await hash({
+        pass: dataBuf,
+        salt: new Uint8Array(8),
+        time: 2,
+        mem: 19 * 1024,
+        hashLen: 32,
+        parallelism: 1,
+        type: ArgonType.Argon2id,
+    })
 
-    const completeBuf = new Uint8Array(dataBuf.length + uint8Digest.length);
+    const completeBuf = new Uint8Array(dataBuf.length + digest.hash.length);
     completeBuf.set(dataBuf);
-    completeBuf.set(uint8Digest, dataBuf.length);
+    completeBuf.set(digest.hash, dataBuf.length);
 
     const encoded = encodeBase58Flickr(completeBuf);
-    console.log(encoded);
 
     return encoded;
 }
@@ -91,6 +100,7 @@ export function Tokens() {
                 setTokens(newTokens);
 
             } catch (err) {
+                console.error(err);
                 showAlert(t("tokens.unexpected_error"), "danger");
             } finally {
                 setLoading(false);
@@ -124,6 +134,7 @@ export function Tokens() {
 
             setTokens([...tokens, newToken]);
         } catch (err) {
+            console.error(err);
             showAlert(t("tokens.unexpected_error"), "danger");
         }
     };
@@ -141,6 +152,7 @@ export function Tokens() {
             }
             setTokens(tokens.filter(token => token.id !== tokenToDelete));
         } catch (err) {
+            console.error(err);
             showAlert(t("tokens.unexpected_error"), "danger");
         }
     };
