@@ -33,7 +33,7 @@ export default defineConfig({
 	css: {
 		preprocessorOptions: {
 			scss: {
-				additionalData: process.env.IS_SEB === "true" ? `@import "./src/styles/_seb.scss";` : `@import "./src/styles/_warp.scss";`
+				additionalData: process.env.IS_SEB === "true" ? `@import "./_seb.scss";` : `@import "./_warp.scss";`
 			}
 		}
 	},
