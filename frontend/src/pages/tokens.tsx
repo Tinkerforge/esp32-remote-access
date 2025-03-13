@@ -6,12 +6,39 @@ import { Base64 } from 'js-base64';
 import { encodeBase58Flickr } from '../base58';
 import { useTranslation } from 'react-i18next';
 import { Clipboard, Trash2 } from 'react-feather';
+import { components } from '../schema';
 
 interface Token {
     token: string;
     user_uuid: string;
     user_email: string;
     user_public_key: string;
+}
+
+async function buildToken(userData: components["schemas"]["UserInfo"], tokenData: components["schemas"]["GetAuthorizationTokensResponseSchema"]["tokens"][0]) {
+    // Reserve a buffer with documented size
+    const token = Base64.toUint8Array(tokenData.token);
+    const encoder = new TextEncoder();
+    const id = encoder.encode(userData.id);
+    const email = encoder.encode(userData.email);
+
+    const dataBuf = new Uint8Array(32 + 36 +32 + email.length);
+    dataBuf.set(token);
+    dataBuf.set(id, 32);
+    dataBuf.set(pub_key, 32 + 36);
+    dataBuf.set(email, 32 + 36 + 32);
+
+    const digest = await crypto.subtle.digest('SHA-256', dataBuf);
+    const uint8Digest = new Uint8Array(digest);
+
+    const completeBuf = new Uint8Array(dataBuf.length + uint8Digest.length);
+    completeBuf.set(dataBuf);
+    completeBuf.set(uint8Digest, dataBuf.length);
+
+    const encoded = encodeBase58Flickr(completeBuf);
+    console.log(encoded);
+
+    return encoded;
 }
 
 export function Tokens() {
@@ -49,17 +76,12 @@ export function Tokens() {
 
                 // Process and set tokens
                 const newTokens: {
-                    token: Token,
+                    token: string,
                     use_once: boolean,
                     id: string,
                 }[] = [];
                 for (const token of tokensData.tokens) {
-                    const newToken: Token = {
-                        token: token.token,
-                        user_email: userData.email,
-                        user_uuid: userData.id,
-                        user_public_key: Base64.fromUint8Array(pub_key),
-                    }
+                    const newToken = await buildToken(userData, token);
                     newTokens.push({
                         token: newToken,
                         use_once: token.use_once,
@@ -91,16 +113,11 @@ export function Tokens() {
                 return;
             }
             const newToken: {
-                token: Token,
+                token: string,
                 use_once: boolean,
                 id: string,
             } = {
-                token: {
-                    token: data.token,
-                    user_email: user.email,
-                    user_uuid: user.id,
-                    user_public_key: Base64.fromUint8Array(pub_key),
-                },
+                token: await buildToken(user, data),
                 use_once: data.use_once,
                 id: data.id
             };
@@ -184,7 +201,7 @@ export function Tokens() {
                             <Form.Control
                                 type="text"
                                 readOnly
-                                value={encodeBase58Flickr(JSON.stringify(token.token))}
+                                value={token.token}
                                 className="mb-2 mb-md-0 token-txt"
                             />
                             <div className="d-flex flex-wrap gap-2 gap-md-0 mt-2 mt-md-0">
@@ -198,7 +215,7 @@ export function Tokens() {
                                 <Button
                                     variant="secondary"
                                     className="flex-grow-1 flex-md-grow-0 d-flex align-items-center justify-content-center gap-2"
-                                    onClick={() => handleCopyToken(encodeBase58Flickr(JSON.stringify(token.token)))}
+                                    onClick={() => handleCopyToken(token.token)}
                                 >
                                     <Clipboard size={18} />
                                     {t("tokens.copy")}
