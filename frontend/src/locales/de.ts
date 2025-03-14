@@ -138,6 +138,7 @@ export const de ={
         "copy": "Kopieren",
         "delete": "Löschen",
         "single_use_description": "Dieses Token kann nur einmal verwendet werden und läuft nach der ersten Verwendung automatisch ab",
-        "multi_use_description": "Dieses Token kann mehrfach verwendet werden, bis es manuell gelöscht wird"
+        "multi_use_description": "Dieses Token kann mehrfach verwendet werden, bis es manuell gelöscht wird",
+        "layout_changed": "Das Layout des Tokens wurde geändert. Bitte stelle sicher, dass dein Gerät auf dem neuesten Stand ist."
     }
 };
