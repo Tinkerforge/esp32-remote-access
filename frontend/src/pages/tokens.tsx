@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Button, Card, Container, Form, Spinner, InputGroup } from 'react-bootstrap';
+import { Button, Card, Container, Form, Spinner, InputGroup, Alert } from 'react-bootstrap';
 import { fetchClient, get_decrypted_secret, pub_key } from '../utils';
 import { showAlert } from '../components/Alert';
 import { Base64 } from 'js-base64';
@@ -176,6 +176,9 @@ export function Tokens() {
 
     return (
         <Container>
+            <Alert variant="danger" className="mt-3">
+                {t("tokens.layout_changed")}
+            </Alert>
             <Card className="my-4">
                 <Card.Header className="pb-2">
                     <h5 className="mb-0">{t("tokens.create_token")}</h5>
