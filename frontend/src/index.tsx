@@ -46,7 +46,6 @@ import logo from "logo";
 import "./styles/main.scss";
 import { docs } from "links";
 import { useEffect } from "preact/hooks";
-refresh_access_token();
 
 if (isDebugMode.value) {
     addEventListener("unhandledrejection", (event) => {
@@ -74,6 +73,9 @@ const refreshMinutes = (Math.random() * (5 -3) + 3);
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
 
+    useEffect(() => {
+        refresh_access_token();
+    })
     useEffect(() => {
         if (loggedIn.value === AppState.LoggedIn) {
             refreshInterval = setInterval(async () => {
