@@ -97,7 +97,6 @@ export async function refresh_access_token() {
 
     try {
         const {error, response} = await window.navigator.locks.request("refreshLock", async () => {
-
             const resp = await fetchClient.GET("/auth/jwt_refresh", {credentials: "same-origin"});
             return resp;
         });
