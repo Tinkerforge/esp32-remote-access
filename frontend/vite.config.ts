@@ -40,10 +40,10 @@ export default defineConfig({
 			"translations-en": process.env.IS_SEB === "true" ? "src/locales/branding/seb_en.ts" : "src/locales/branding/warp_en.ts",
 		}
 	},
-	build: {
-		minify: false,
-		sourcemap: true,
-	},
+	// build: {
+	// 	minify: false,
+	// 	sourcemap: true,
+	// },
 	plugins: [
 		preact(),
 		wasm(),
