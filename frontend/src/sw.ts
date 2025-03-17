@@ -92,6 +92,9 @@ self.addEventListener("fetch", (event: FetchEvent) => {
             });
             event.respondWith(promise);
         }
+    } else if (event.request.url.indexOf("/logout") !== -1) {
+        lastAccessTokenRefresh = 0;
+        responseCache = undefined;
     }
 });
 
