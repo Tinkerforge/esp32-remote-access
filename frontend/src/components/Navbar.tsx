@@ -9,11 +9,17 @@ import { useState } from "preact/hooks";
 import { Key, LogOut, Server, User } from "react-feather";
 import { signal } from "@preact/signals";
 import logo from "logo";
+import { showAlert } from "./Alert";
 
 export const connected = signal(false);
 
 export async function logout(logout_all: boolean) {
-        await fetchClient.GET("/user/logout", {params:{query:{logout_all: logout_all}}, credentials: "same-origin"});
+        const { error } = await fetchClient.GET("/user/logout", {params:{query:{logout_all: logout_all}}, credentials: "same-origin"});
+
+        if (logout_all && error) {
+            showAlert(error, "danger");
+            return;
+        }
 
         localStorage.removeItem("loginSalt");
         localStorage.removeItem("secretKey");
