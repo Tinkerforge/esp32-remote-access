@@ -160,8 +160,6 @@ setInterval(() => {
     const now = Date.now();
     if (now - lastAlive > 15000) {
         appSleeps = true;
-    } else {
-        appSleeps = false;
     }
     lastAlive = now;
 }, 2000);
