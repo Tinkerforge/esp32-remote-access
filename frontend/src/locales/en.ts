@@ -68,7 +68,12 @@ export const en = {
         "accept": "Accept",
         "decline": "Decline",
         "show_more": "Show more",
-        "show_less": "Show less"
+        "show_less": "Show less",
+        "connecting": "Connecting",
+        "loading_webinterface": "Loading webinterface",
+        "invalid_key": "The keys saved on the device seem to be corrupted",
+        "connection_timeout": "Timeout",
+        "connection_timeout_text": "A timeout occured while establishing the connection. Please try again later or contact us in case the problem persists."
     },
     "navbar": {
         "home": "Home",

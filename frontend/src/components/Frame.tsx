@@ -12,7 +12,7 @@ import { showAlert } from './Alert';
 
 interface VirtualNetworkInterfaceSetParentState {
     chargersState: Dispatch<StateUpdater<ChargersState>>,
-    parentState: Dispatch<StateUpdater<FrameState>>,
+    parentState: Dispatch<StateUpdater<Partial<FrameState>>>,
 }
 
 class VirtualNetworkInterface {
@@ -139,6 +139,7 @@ class VirtualNetworkInterface {
         if (typeof e.data === "string") {
             switch (e.data) {
                 case "ready":
+                    this.setParentState.parentState({connection_state: ConnectionState.LoadingWebinterface});
                     const iframe = document.getElementById("interface") as HTMLIFrameElement;
                     iframe.src = `/wg-${this.id}/`;
                     break;
@@ -203,8 +204,14 @@ interface FrameProps {
     setParentState: Dispatch<StateUpdater<ChargersState>>,
 }
 
+enum ConnectionState {
+    Connecting,
+    LoadingWebinterface,
+}
+
 interface FrameState {
     show_spinner: boolean,
+    connection_state: ConnectionState,
 }
 
 export class Frame extends Component<FrameProps, FrameState> {
@@ -216,6 +223,7 @@ export class Frame extends Component<FrameProps, FrameState> {
 
         this.state = {
             show_spinner: true,
+            connection_state: ConnectionState.Connecting,
         };
 
         // this.props is not initialized in the constructor. So we set it afterwards.
@@ -279,7 +287,12 @@ export class Frame extends Component<FrameProps, FrameState> {
         return (
             <Container fluid className="d-flex flex-column h-100 p-0">
                 <Row hidden={!this.state.show_spinner} className="align-content-center justify-content-center m-0 h-100">
-                    <Spinner className="p-3"animation='border' variant='primary'/>
+                    <Spinner className="p-3" animation='border' variant='primary'/>
+                    <div className="text-center mt-2">
+                      {this.state.connection_state === ConnectionState.Connecting ?
+                        i18n.t("chargers.connecting") :
+                        i18n.t("chargers.loading_webinterface")}
+                    </div>
                 </Row>
                 <Row className="flex-grow-1 m-0">
                     <iframe class="p-0" hidden={this.state.show_spinner} width="100%" height="100%" id="interface"></iframe>
