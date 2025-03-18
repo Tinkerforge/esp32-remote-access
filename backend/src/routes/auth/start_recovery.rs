@@ -81,7 +81,7 @@ fn send_email(
     ),
     responses(
         (status = 200, description = "Request was successful"),
-        (status = 400, description = "User does not exist")
+        (status = 500, description = "Internal server error"),
     )
 )]
 #[get("/start_recovery")]
@@ -90,11 +90,14 @@ pub async fn start_recovery(
     state: web::Data<AppState>,
     #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> actix_web::Result<impl Responder> {
-    let user_id = get_user_id(
+    let user_id = match get_user_id(
         &state,
         crate::routes::auth::login::FindBy::Email(query.email.to_lowercase()),
     )
-    .await?;
+    .await {
+        Ok(user_id) => user_id,
+        Err(_) => return Ok(HttpResponse::Ok()),
+    };
 
     #[allow(unused)]
     let user = get_user(&state, user_id).await?;
