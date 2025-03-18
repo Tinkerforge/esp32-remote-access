@@ -22,8 +22,11 @@ import { Frame } from "../components/Frame";
 import { ChargerListComponent } from "../components/charger_list";
 import { connected } from "../components/Navbar";
 import Median from "median-js-bridge";
-import { get_decrypted_secret, secret } from "../utils";
+import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
 import { Row, Spinner } from "react-bootstrap";
+import { useLocation, useRoute } from "preact-iso";
+import sodium from "libsodium-wrappers";
+import { Base64 } from "js-base64";
 
 export interface ChargersState {
     connected: boolean;
@@ -62,7 +65,57 @@ export function ChargerList() {
     useEffect(() => {
         connected.value = state.connected;
         document.title = state.connectedName == "" ?  "Remote Access" : state.connectedName;
-    }, [state])
+    }, [state]);
+
+    const { path, route } = useLocation();
+    useEffect(() => {
+        if (path !== "/chargers") {
+            setTimeout(async () => {
+                const split = path.split("/");
+                const {error, data} = await fetchClient.POST("/charger/info", {body: {charger: split[2]}});
+                if (error) {
+                    route("/chargers", true);
+                    return;
+                }
+
+                // Encounter possible chargers that were added before name encryption was implemented
+                if (!data.name) {
+                    setState({
+                        connected: true,
+                        connectedName: "",
+                        connectedId: data.id,
+                        connectedPort: data.configured_port,
+                    });
+                } else {
+                    await sodium.ready;
+                    if (!secret) {
+                        await get_decrypted_secret();
+                    }
+
+                    const encryptedName = Base64.toUint8Array(data.name);
+                    const binaryName = sodium.crypto_box_seal_open(encryptedName, pub_key, secret);
+                    const decoder = new TextDecoder();
+                    const name = decoder.decode(binaryName);
+                    setState({
+                        connected: true,
+                        connectedName: name,
+                        connectedId: data.id,
+                        connectedPort: data.configured_port,
+                    });
+                }
+
+                setLoaded(true);
+            });
+            setLoaded(false);
+        } else {
+            setState({
+                connected: false,
+                connectedName: "",
+                connectedId: "",
+                connectedPort: 0,
+            });
+        }
+    }, [path]);
 
     if (!loaded) {
         return <Row className="align-content-center justify-content-center m-0 h-100">

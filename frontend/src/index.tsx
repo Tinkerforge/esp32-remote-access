@@ -138,12 +138,12 @@ export function App() {
                     <CustomNavbar />
                     <Col>
                         <LocationProvider>
-                            <Router onRouteChange={(url) => {
+                            <Router onRouteChange={() => {
                                 connected.value = false;
                             }}>
                                 <Route path="/tokens" component={Tokens} />
                                 <Route path="/user" component={User} />
-                                <Route default path="/chargers" component={ChargerList} />
+                                <Route default path="/chargers/:id?" component={ChargerList} />
                             </Router>
                         </LocationProvider>
                     </Col>

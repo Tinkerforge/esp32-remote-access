@@ -12,6 +12,7 @@ import { Circle } from "./Circle";
 import Median from "median-js-bridge";
 import { Dispatch, StateUpdater, useState } from "preact/hooks";
 import { ChargersState } from "../pages/chargers";
+import { useLocation } from "preact-iso";
 
 interface Charger {
     id: string,
@@ -130,13 +131,8 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         clearInterval(this.updatingInterval);
     }
 
-    async connect_to_charger(charger: StateCharger) {
-        this.props.setParentState({
-            connected: true,
-            connectedId: charger.id,
-            connectedName: charger.name,
-            connectedPort: charger.port,
-        });
+    async connect_to_charger(charger: StateCharger, route: (path: string, replace?: boolean) => void) {
+        route(`/chargers/${charger.id}`);
     }
 
     async delete_charger() {
@@ -177,7 +173,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         return connection_possible;
     }
 
-    create_card(charger: StateCharger, split: String[], index: number) {
+    create_card(charger: StateCharger, split: String[], index: number, route: (path: string, replace?: boolean) => void) {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         const [expand, setExpand] = useState(false);
         return <>
@@ -186,7 +182,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                     if (!this.connection_possible(charger)) {
                         return;
                     }
-                    await this.connect_to_charger(charger);
+                    await this.connect_to_charger(charger, route);
                 }} className="d-flex justify-content-between align-items-center p-2d5">
                     <Col xs="auto" className="d-flex">
                         {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
@@ -196,7 +192,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                     </Col>
                     <Col className="d-flex justify-content-end">
                         <Button className="me-2" variant="primary" disabled={!this.connection_possible(charger)} onClick={async () => {
-                            await this.connect_to_charger(charger);
+                            await this.connect_to_charger(charger, route);
                         }}><Monitor/></Button>
                         <Button variant="danger" onClick={async (e) => {
                             e.stopPropagation();
@@ -311,6 +307,8 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
 
     render() {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
+        const {route} = useLocation();
+
         const table_list = [];
         const card_list = [];
         const chargers = this.state.chargers;
@@ -354,7 +352,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 </td>
                 <td class="align-middle">
                     <Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
-                        await this.connect_to_charger(charger);
+                        await this.connect_to_charger(charger, route);
                         }} variant="primary">
                         {t("connect")}
                     </Button>
@@ -414,7 +412,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 </td>
             </tr>
             table_list.push(entry);
-            card_list.push(this.create_card(charger, split, index));
+            card_list.push(this.create_card(charger, split, index, route));
         })
 
         return <>

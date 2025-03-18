@@ -7,8 +7,9 @@ import {isDebugMode, secret } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
 import { ChargersState } from '../pages/chargers';
-import { Dispatch, StateUpdater } from 'preact/hooks';
+import { Dispatch, StateUpdater, useEffect } from 'preact/hooks';
 import { showAlert } from './Alert';
+import { useLocation } from 'preact-iso';
 
 interface VirtualNetworkInterfaceSetParentState {
     chargersState: Dispatch<StateUpdater<ChargersState>>,
@@ -23,8 +24,15 @@ class VirtualNetworkInterface {
     connectionInfo: ChargersState;
     debugMode: boolean;
     timeout: any;
+    route: (path: string, replace?: boolean) => void;
 
-    constructor(setParentState: VirtualNetworkInterfaceSetParentState, connectionInfo: ChargersState, debugMode: boolean) {
+    constructor(
+        setParentState: VirtualNetworkInterfaceSetParentState,
+        connectionInfo: ChargersState,
+        debugMode: boolean,
+        route: (path: string, replace?: boolean) => void)
+    {
+        this.route = route;
         this.setParentState = setParentState;
         this.connectionInfo = connectionInfo;
         this.debugMode = debugMode;
@@ -47,6 +55,7 @@ class VirtualNetworkInterface {
                 connectedName: "",
                 connectedPort: 0,
             });
+            this.route("/chargers");
             showAlert(i18n.t("chargers.connection_timeout_text"), "danger", i18n.t("chargers.connection_timeout"));
         }, 30_000)
 
@@ -68,6 +77,7 @@ class VirtualNetworkInterface {
             connectedName: "",
             connectedPort: 0,
         });
+        this.route("/chargers");
     }
 
     // This handles Messages from the iframe/ Device-Webinterface
@@ -97,6 +107,7 @@ class VirtualNetworkInterface {
                     connectedName: "",
                     connectedPort: 0,
                 });
+                location.pathname = "/chargers";
                 return;
         }
     }
@@ -218,6 +229,8 @@ export class Frame extends Component<FrameProps, FrameState> {
 
     interface: VirtualNetworkInterface;
     id: string;
+    route: (path: string, replace?: boolean) => void;
+
     constructor() {
         super();
 
@@ -225,16 +238,6 @@ export class Frame extends Component<FrameProps, FrameState> {
             show_spinner: true,
             connection_state: ConnectionState.Connecting,
         };
-
-        // this.props is not initialized in the constructor. So we set it afterwards.
-        setTimeout(() => {
-            this.interface = new VirtualNetworkInterface({
-                    parentState: (s) => this.setState(s),
-                    chargersState: (s) => this.props.setParentState(s),
-                },
-                this.props.parentState,
-                isDebugMode.value);
-        });
 
         if (Median.isNativeApp()) {
             const t = i18n.t;
@@ -260,6 +263,7 @@ export class Frame extends Component<FrameProps, FrameState> {
                 connectedName: "",
                 connectedPort: 0,
             });
+            this.route("/chargers");
             setAppNavigation();
             sessionStorage.removeItem("currentConnection");
         }
@@ -279,6 +283,19 @@ export class Frame extends Component<FrameProps, FrameState> {
     }
 
     render() {
+        const { route } = useLocation();
+        useEffect(() => {
+            this.route = route;
+            this.interface = new VirtualNetworkInterface({
+                    parentState: (s) => this.setState(s),
+                    chargersState: (s) => this.props.setParentState(s),
+                },
+                this.props.parentState,
+                isDebugMode.value,
+                this.route,
+            );
+        }, []);
+
         const downLoadButton = isDebugMode.value ? <Row className="d-flex m-0">
                 <Button variant='secondary' style={{borderRadius: 0}} class="m-0" onClick={() => {
                     this.interface.downloadPcapLog();
