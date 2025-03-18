@@ -34,7 +34,7 @@ use validator::Validate;
 use crate::{
     error::Error,
     routes::auth::VERIFICATION_EXPIRATION_DAYS,
-    utils::{self, get_connection, web_block_unpacked},
+    utils::{self, get_connection},
     AppState,
 };
 
@@ -138,7 +138,7 @@ pub async fn register(
     let user_mail = data.email.to_lowercase();
     let mail_cpy = user_mail.clone();
 
-    web_block_unpacked(move || {
+    match web::block(move || {
         use db_connector::schema::users::dsl::*;
 
         match users
@@ -153,7 +153,12 @@ pub async fn register(
 
         Ok(())
     })
-    .await?;
+    .await {
+        Ok(Ok(_)) => (),
+        Ok(Err(Error::UserAlreadyExists)) => return Ok(HttpResponse::Created()),
+        Ok(Err(_)) => return Err(Error::InternalError.into()),
+        Err(_) => return Err(Error::InternalError.into()),
+    }
 
     let key_hash = match hash_key(&data.login_key) {
         Ok(hash) => hash,
