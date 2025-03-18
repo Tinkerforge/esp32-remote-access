@@ -24,6 +24,7 @@ pub mod get_chargers;
 pub mod get_key;
 pub mod remove;
 pub mod update_note;
+pub mod info;
 
 use crate::{
     error::Error,
@@ -42,6 +43,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(remove::remove)
         .service(get_chargers::get_chargers)
         .service(update_note::update_note)
+        .service(info::charger_info)
         // TODO: Remove this when we stop supporting the old API
         .service(allow_user::allow_user)
         .service(get_key::get_key);
