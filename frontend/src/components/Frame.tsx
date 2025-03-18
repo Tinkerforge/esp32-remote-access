@@ -89,8 +89,6 @@ class VirtualNetworkInterface {
                 return;
 
             case "webinterface_loaded":
-                clearTimeout(this.timeout);
-                this.setParentState.parentState({show_spinner: false});
                 iframe.contentWindow.postMessage({
                     connection_id: this.id,
                 });
@@ -152,7 +150,14 @@ class VirtualNetworkInterface {
                 case "ready":
                     this.setParentState.parentState({connection_state: ConnectionState.LoadingWebinterface});
                     const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                    iframe.src = `/wg-${this.id}/`;
+                    const path = window.location.pathname.slice(0, window.location.pathname.endsWith("/") ? -1 : undefined);
+                    const split = path.split("/");
+                    const newPath = split.slice(3).join("/");
+                    iframe.src = `/wg-${this.id}/${newPath}`;
+                    iframe.addEventListener("load", () => {
+                        clearTimeout(this.timeout);
+                        this.setParentState.parentState({show_spinner: false});
+                    });
                     break;
                 case "closed":
                     this.worker.terminate();
