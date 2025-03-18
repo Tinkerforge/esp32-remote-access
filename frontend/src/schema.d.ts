@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/add_with_token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add a charger using an authorization token instead of JWT authentication */
+        put: operations["add_with_token"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/allow_user": {
         parameters: {
             query?: never;
@@ -173,23 +190,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/charger/add_with_token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Add a charger using an authorization token instead of JWT authentication */
-        put: operations["add_with_token"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/charger/get_chargers": {
         parameters: {
             query?: never;
@@ -217,6 +217,22 @@ export interface paths {
         get: operations["get_key"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/charger/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["charger_info"];
         delete?: never;
         options?: never;
         head?: never;
@@ -464,10 +480,20 @@ export interface components {
             charger_id: string;
             charger_name: number[];
             charger_password: string;
-            email: string;
+            email?: string | null;
             note: string;
             user_auth: components["schemas"]["UserAuth"];
+            user_uuid?: string | null;
             wg_keys: components["schemas"]["Keys"][];
+        };
+        ChargerInfo: {
+            /** Format: int32 */
+            configured_port: number;
+            id: string;
+            name?: string | null;
+        };
+        ChargerInfoRequest: {
+            charger: string;
         };
         ChargerSchema: {
             charger_pub: string;
@@ -634,6 +660,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    add_with_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddChargerWithTokenSchema"];
+            };
+        };
+        responses: {
+            /** @description Charger was added successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddChargerResponseSchema"];
+                };
+            };
+            /** @description The request contains invalid data */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The authorization token is invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     allow_user: {
         parameters: {
             query?: never;
@@ -916,44 +980,6 @@ export interface operations {
             };
         };
     };
-    add_with_token: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddChargerWithTokenSchema"];
-            };
-        };
-        responses: {
-            /** @description Charger was added successfully */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AddChargerResponseSchema"];
-                };
-            };
-            /** @description The request contains invalid data */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The authorization token is invalid */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     get_chargers: {
         parameters: {
             query?: never;
@@ -1009,6 +1035,37 @@ export interface operations {
             };
             /** @description All keys for this charger are currently in use */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    charger_info: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChargerInfoRequest"];
+            };
+        };
+        responses: {
+            /** @description Charger information */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargerInfo"];
+                };
+            };
+            /** @description Charger does not exist */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
