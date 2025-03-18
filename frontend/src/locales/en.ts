@@ -142,6 +142,6 @@ export const en = {
         delete: "Delete",
         single_use_description: "This token can only be used once and will automatically expire after first use",
         multi_use_description: "This token can be used multiple times until manually deleted",
-        layout_changed: "The layout of the token has changed. Please ensure that your device runs the latest firmware."
+        layout_changed: "The format of the token has changed. Please ensure that your device runs the latest firmware."
     }
 };
