@@ -589,11 +589,20 @@ fn poll_response(
                     if encoding == "gzip" {
                         let mut gz = GzDecoder::new(&result[..]);
                         let mut s = String::new();
-                        gz.read_to_string(&mut s).unwrap();
+                        if let Err(err) = gz.read_to_string(&mut s) {
+                            log::error!("Error decoding gzip: {}", err);
+                        }
+                        s.as_bytes().to_vec()
+                    } else if encoding == "deflate" {
+                        let mut gz = flate2::read::ZlibDecoder::new(&result[..]);
+                        let mut s = String::new();
+                        if let Err(err) = gz.read_to_string(&mut s) {
+                            log::error!("Error decoding deflate: {}", err);
+                        }
                         s.as_bytes().to_vec()
                     } else {
-                        // FIXME: handle other encodings and throw exception instead of panic
-                        panic!("unknown encoding: {}", encoding.to_str().unwrap());
+                        log::error!("Unknown encoding: {}", encoding.to_str().unwrap());
+                        result.clone()
                     }
                 } else {
                     result.clone()
