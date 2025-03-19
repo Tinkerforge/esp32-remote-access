@@ -10,6 +10,7 @@ import { ChargersState } from '../pages/chargers';
 import { Dispatch, StateUpdater, useEffect } from 'preact/hooks';
 import { showAlert } from './Alert';
 import { useLocation } from 'preact-iso';
+import { useTranslation } from 'react-i18next';
 
 interface VirtualNetworkInterfaceSetParentState {
     chargersState: Dispatch<StateUpdater<ChargersState>>,
@@ -260,6 +261,7 @@ export class Frame extends Component<FrameProps, FrameState> {
             setTimeout(() => sessionStorage.setItem("currentConnection", JSON.stringify(this.props.parentState)))
         }
 
+        const that = this;
         // this is used by the app to close the remote connection via the native app menu.
         (window as any).close = () => {
             this.props.setParentState({
@@ -268,6 +270,7 @@ export class Frame extends Component<FrameProps, FrameState> {
                 connectedName: "",
                 connectedPort: 0,
             });
+            clearTimeout(that.interface.timeout);
             this.route("/chargers");
             setAppNavigation();
             sessionStorage.removeItem("currentConnection");
@@ -289,6 +292,8 @@ export class Frame extends Component<FrameProps, FrameState> {
 
     render() {
         const { route } = useLocation();
+        const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
+
         useEffect(() => {
             this.route = route;
             this.interface = new VirtualNetworkInterface({
@@ -315,6 +320,14 @@ export class Frame extends Component<FrameProps, FrameState> {
                         i18n.t("chargers.connecting") :
                         i18n.t("chargers.loading_webinterface")}
                     </div>
+                    <Button className="col-lg-1 col-md-2 col-sm-3 col-6 mt-3"
+                        variant="outline-warning"
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            (window as any).close();
+                        }}>{t("abort")}</Button>
                 </Row>
                 <Row className="flex-grow-1 m-0">
                     <iframe class="p-0" hidden={this.state.show_spinner} width="100%" height="100%" id="interface"></iframe>

@@ -66,6 +66,7 @@ export const de ={
         "decline": "Verwerfen",
         "show_more": "Mehr anzeigen",
         "show_less": "Weniger anzeigen",
+        "abort": "Abbrechen",
         "connecting": "Verbindung wird aufgebaut",
         "loading_webinterface": "Webinterface wird geladen",
         "invalid_key": "Die auf dem Gerät gespeicherten Schlüssel scheinen fehlerhaft zu sein",

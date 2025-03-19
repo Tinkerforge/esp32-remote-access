@@ -69,6 +69,7 @@ export const en = {
         "decline": "Decline",
         "show_more": "Show more",
         "show_less": "Show less",
+        "abort": "Cancel",
         "connecting": "Connecting",
         "loading_webinterface": "Loading webinterface",
         "invalid_key": "The keys saved on the device seem to be corrupted",
