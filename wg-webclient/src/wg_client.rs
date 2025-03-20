@@ -482,6 +482,7 @@ fn send_http_reqeust(
             "GET" => hyper::Method::GET,
             "PUT" => hyper::Method::PUT,
             "POST" => hyper::Method::POST,
+            "DELETE" => hyper::Method::DELETE,
             // FIXME: throw exception instead of panic
             _ => panic!("unknown method: {}", js_request.method()),
         };
