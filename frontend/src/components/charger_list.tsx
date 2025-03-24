@@ -102,7 +102,9 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         if (!secret) {
             await get_decrypted_secret();
         }
-        fetchClient.GET("/charger/get_chargers", {credentials: "same-origin"}).then(async ({data}) => {
+        try {
+            const {data} = await fetchClient.GET("/charger/get_chargers", {credentials: "same-origin"})
+
             const chargers: Charger[] = data;
             const state_chargers = [];
             for (const charger of chargers) {
@@ -124,7 +126,19 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 state_chargers.push(state_charger);
             }
             this.setState({chargers: state_chargers});
-        })
+        } catch (e) {
+            const error = `${e}`;
+            if (error.indexOf("Network") !== -1) {
+                const updateChargers: StateCharger[] = [];
+                for (const charger of this.state.chargers) {
+                    charger.status = "Disconnected";
+                    updateChargers.push(charger);
+                }
+                this.setState({chargers: updateChargers});
+            } else {
+                showAlert(error, "danger");
+            }
+        }
     }
 
     componentWillUnmount() {
