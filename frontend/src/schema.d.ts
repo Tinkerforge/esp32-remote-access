@@ -489,6 +489,7 @@ export interface components {
         ChargerInfo: {
             /** Format: int32 */
             configured_port: number;
+            connected: boolean;
             id: string;
             name?: string | null;
         };
@@ -912,8 +913,8 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description User does not exist */
-            400: {
+            /** @description Internal server error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

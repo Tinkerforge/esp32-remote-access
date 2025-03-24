@@ -70,6 +70,7 @@ export const en = {
         "show_more": "Show more",
         "show_less": "Show less",
         "abort": "Cancel",
+        "not_connected": "The device is currently not reachable",
         "connecting": "Connecting",
         "loading_webinterface": "Loading webinterface",
         "invalid_key": "The keys saved on the device seem to be corrupted",

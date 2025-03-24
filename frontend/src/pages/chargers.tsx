@@ -27,6 +27,8 @@ import { Row, Spinner } from "react-bootstrap";
 import { useLocation, useRoute } from "preact-iso";
 import sodium from "libsodium-wrappers";
 import { Base64 } from "js-base64";
+import { showAlert } from "../components/Alert";
+import { useTranslation } from "react-i18next";
 
 export interface ChargersState {
     connected: boolean;
@@ -43,6 +45,7 @@ export function ChargerList() {
         connectedPort: 0,
     })
     const [loaded, setLoaded] = useState(false);
+    const {t} = useTranslation("", {keyPrefix: "chargers", useSuspense: false});
 
     if (Median.isNativeApp() && !loaded) {
         setTimeout(async () => {
@@ -74,6 +77,10 @@ export function ChargerList() {
                 const split = path.split("/");
                 const {error, data} = await fetchClient.POST("/charger/info", {body: {charger: split[2]}});
                 if (error) {
+                    route("/chargers", true);
+                    return;
+                } else if (!data.connected) {
+                    showAlert(t("not_connected"), "danger");
                     route("/chargers", true);
                     return;
                 }
