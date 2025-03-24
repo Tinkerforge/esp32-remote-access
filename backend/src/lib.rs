@@ -34,13 +34,13 @@ use db_connector::{
     Pool,
 };
 use diesel::{prelude::*, r2d2::PooledConnection, result::Error::NotFound};
+use futures_util::lock::Mutex;
 use ipnetwork::IpNetwork;
 use lettre::SmtpTransport;
 use serde::{ser::SerializeStruct, Serialize};
 use udp_server::{
     management::RemoteConnMeta, packet::ManagementResponseV2, socket::ManagementSocket,
 };
-use futures_util::lock::Mutex;
 
 pub mod error;
 pub mod middleware;
@@ -331,8 +331,9 @@ pub(crate) mod tests {
             socket: UdpSocket::bind(("0", 0)).unwrap(),
         };
 
-        let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> =
-            web::Data::new(std::sync::Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
+        let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> = web::Data::new(
+            std::sync::Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())),
+        );
 
         let state = create_test_state(Some(pool));
         let bridge_state = web::Data::new(bridge_state);

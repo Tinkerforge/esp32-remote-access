@@ -89,7 +89,11 @@ fn send_verification_mail(
     state: web::Data<AppState>,
     lang: String,
 ) -> Result<(), actix_web::Error> {
-    let link = format!("{}/api/auth/verify?id={}", state.frontend_url, id.id.to_string());
+    let link = format!(
+        "{}/api/auth/verify?id={}",
+        state.frontend_url,
+        id.id.to_string()
+    );
 
     let (body, subject) = match lang.as_str() {
         "de" | "de-DE" => {
@@ -153,7 +157,8 @@ pub async fn register(
 
         Ok(())
     })
-    .await {
+    .await
+    {
         Ok(Ok(_)) => (),
         Ok(Err(Error::UserAlreadyExists)) => return Ok(HttpResponse::Created()),
         Ok(Err(_)) => return Err(Error::InternalError.into()),

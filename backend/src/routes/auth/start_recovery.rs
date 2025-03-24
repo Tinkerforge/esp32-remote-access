@@ -94,7 +94,8 @@ pub async fn start_recovery(
         &state,
         crate::routes::auth::login::FindBy::Email(query.email.to_lowercase()),
     )
-    .await {
+    .await
+    {
         Ok(user_id) => user_id,
         Err(_) => return Ok(HttpResponse::Ok()),
     };
@@ -131,14 +132,7 @@ pub async fn start_recovery(
             user.email
         };
 
-        send_email(
-            user.name,
-            token_id,
-            email,
-            state.clone(),
-            lang.into(),
-        )
-        .ok();
+        send_email(user.name, token_id, email, state.clone(), lang.into()).ok();
     });
 
     Ok(HttpResponse::Ok())

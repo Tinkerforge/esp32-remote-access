@@ -160,9 +160,13 @@ pub async fn validate_auth_token(
     Ok(())
 }
 
-pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<AppState>, ) {
+pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<AppState>) {
     let email = Message::builder()
-        .from(format!("{} <{}>", state.sender_name, state.sender_email).parse().unwrap())
+        .from(
+            format!("{} <{}>", state.sender_name, state.sender_email)
+                .parse()
+                .unwrap(),
+        )
         .to(email.parse().unwrap())
         .subject(subject)
         .header(ContentType::TEXT_HTML)

@@ -27,6 +27,7 @@ use actix_ws::{AggregatedMessage, Session};
 use db_connector::models::wg_keys::WgKey;
 use diesel::prelude::*;
 use futures_util::future::Either;
+use futures_util::lock::Mutex;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -34,7 +35,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use validator::{Validate, ValidationError};
-use futures_util::lock::Mutex;
 
 use crate::udp_server::management::RemoteConnMeta;
 use crate::udp_server::packet::{
@@ -82,10 +82,9 @@ impl WebClient {
         conn_no: i32,
         session: Session,
     ) -> Self {
-
         let meta = RemoteConnMeta {
             charger_id: charger_id.clone(),
-            conn_no
+            conn_no,
         };
 
         {
@@ -94,7 +93,7 @@ impl WebClient {
                 Some(addr) => {
                     let mut client_map = bridge_state.web_client_map.lock().await;
                     client_map.insert(*addr, session.clone());
-                },
+                }
                 None => {
                     drop(map);
                     let mut map = bridge_state.undiscovered_clients.lock().await;
@@ -118,10 +117,10 @@ impl WebClient {
             AggregatedMessage::Ping(msg) => {
                 self.session.pong(&msg).await.unwrap();
                 *last_heartbeat = Instant::now();
-            },
+            }
             AggregatedMessage::Pong(_) => {
                 *last_heartbeat = Instant::now();
-            },
+            }
             AggregatedMessage::Binary(msg) => {
                 let peer_sock_addr = {
                     let meta = RemoteConnMeta {
@@ -154,7 +153,7 @@ impl WebClient {
                         );
                     }
                 }
-            },
+            }
             msg => log::info!("/ws got other msg: {:?}", msg),
         }
     }
@@ -333,10 +332,12 @@ async fn start_ws(
         keys.charger_id,
         management_sock,
         bridge_state.port_discovery.clone(),
-    ).await?;
+    )
+    .await?;
 
     let (resp, mut session, stream) = actix_ws::handle(&req, stream)?;
-    let mut stream = stream.aggregate_continuations()
+    let mut stream = stream
+        .aggregate_continuations()
         .max_continuation_size(2_usize.pow(20));
 
     if resp.status() == 101 {
@@ -363,7 +364,8 @@ async fn start_ws(
             bridge_state,
             keys.connection_no,
             session.clone(),
-        ).await;
+        )
+        .await;
 
         let mut last_heartbeat = Instant::now();
         let mut interval = interval(HEARTBEAT_INTERVAL);
@@ -373,11 +375,13 @@ async fn start_ws(
 
             match futures_util::future::select(stream.next(), tick).await {
                 Either::Left((Some(Ok(AggregatedMessage::Close(_))), _)) => break,
-                Either::Left((Some(Ok(msg)), _)) => client.handle_message(msg, &mut last_heartbeat).await,
+                Either::Left((Some(Ok(msg)), _)) => {
+                    client.handle_message(msg, &mut last_heartbeat).await
+                }
                 Either::Left((Some(err), _)) => {
                     log::error!("Websocket Error during connection: {:?}", err);
                     break;
-                },
+                }
                 Either::Left((None, _)) => break,
                 Either::Right(_) => {
                     if Instant::now().duration_since(last_heartbeat) > CLIENT_TIMEOUT {
@@ -390,7 +394,6 @@ async fn start_ws(
         }
         client.stop().await;
     });
-
 
     Ok(resp)
 }

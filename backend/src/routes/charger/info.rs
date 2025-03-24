@@ -1,10 +1,14 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use db_connector::models::allowed_users::AllowedUser;
+use diesel::{prelude::*, result::Error::NotFound};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use diesel::{prelude::*, result::Error::NotFound};
 
-use crate::{error::Error, utils::{get_connection, parse_uuid, web_block_unpacked}, AppState, BridgeState};
+use crate::{
+    error::Error,
+    utils::{get_connection, parse_uuid, web_block_unpacked},
+    AppState, BridgeState,
+};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ChargerInfo {
@@ -33,7 +37,6 @@ pub async fn charger_info(
     charger: web::Json<ChargerInfoRequest>,
     user: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
-
     let charger_id = parse_uuid(charger.charger.as_str())?;
 
     let mut conn = get_connection(&state)?;
@@ -41,27 +44,33 @@ pub async fn charger_info(
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         let user: uuid::Uuid = user.into();
-        match allowed_users::allowed_users.filter(allowed_users::user_id.eq(user))
+        match allowed_users::allowed_users
+            .filter(allowed_users::user_id.eq(user))
             .filter(allowed_users::charger_id.eq(charger_id))
             .select(AllowedUser::as_select())
-            .get_result(&mut conn) {
-                Ok(charger) => Ok(charger),
-                Err(NotFound) => Err(Error::ChargerDoesNotExist),
-                Err(_) => Err(Error::InternalError),
-            }
-    }).await?;
+            .get_result(&mut conn)
+        {
+            Ok(charger) => Ok(charger),
+            Err(NotFound) => Err(Error::ChargerDoesNotExist),
+            Err(_) => Err(Error::InternalError),
+        }
+    })
+    .await?;
 
     let mut conn = get_connection(&state)?;
     let port: i32 = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
 
-        match chargers.filter(id.eq(charger_id))
+        match chargers
+            .filter(id.eq(charger_id))
             .select(webinterface_port)
-            .get_result(&mut conn) {
-                Ok(port) => Ok(port),
-                Err(_) => Err(Error::InternalError),
-            }
-    }).await?;
+            .get_result(&mut conn)
+        {
+            Ok(port) => Ok(port),
+            Err(_) => Err(Error::InternalError),
+        }
+    })
+    .await?;
 
     let map = bridge_state.charger_management_map_with_id.lock().await;
     let connected = map.get(&charger_id).is_some();
@@ -72,7 +81,6 @@ pub async fn charger_info(
         configured_port: port,
         connected,
     };
-
 
     Ok(HttpResponse::Ok().json(info))
 }
@@ -85,10 +93,16 @@ mod tests {
     use db_connector::test_connection_pool;
     use diesel::prelude::*;
 
-    use crate::{middleware::jwt::JwtMiddleware, routes::{charger::info::ChargerInfo, user::{me::tests::get_test_user, tests::TestUser}}, tests::configure};
+    use crate::{
+        middleware::jwt::JwtMiddleware,
+        routes::{
+            charger::info::ChargerInfo,
+            user::{me::tests::get_test_user, tests::TestUser},
+        },
+        tests::configure,
+    };
 
     use super::{charger_info, ChargerInfoRequest};
-
 
     #[actix::test]
     async fn test_charger_info() {

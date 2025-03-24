@@ -23,20 +23,20 @@ mod multiplex;
 pub mod packet;
 pub mod socket;
 
+use actix::Arbiter;
+use futures_util::lock::Mutex;
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
     sync::Arc,
     time::{Duration, Instant},
 };
-use actix::Arbiter;
-use futures_util::lock::Mutex;
 
+use self::socket::ManagementSocket;
 use crate::{udp_server::multiplex::run_server, BridgeState, DiscoveryCharger};
 use actix_web::web;
 use ipnetwork::IpNetwork;
 use packet::ManagementResponseV2;
-use self::socket::ManagementSocket;
 
 /// Since boringtun doesnt reset the internal ratelimiter for us we need to do it manually.
 /// We can do this with a very low frequency since the management connection
@@ -129,7 +129,7 @@ async fn start_rate_limiters_reset_thread(
     }
 }
 
-pub fn start_server(state: web::Data<BridgeState>){
+pub fn start_server(state: web::Data<BridgeState>) {
     log::info!("Starting Wireguard server.");
     let arbiter = Arbiter::new();
     arbiter.spawn(start_rate_limiters_reset_thread(

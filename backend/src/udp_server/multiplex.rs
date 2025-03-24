@@ -39,9 +39,7 @@ use crate::{
     BridgeState,
 };
 
-use super::{
-    management::try_port_discovery, socket::ManagementSocket,
-};
+use super::{management::try_port_discovery, socket::ManagementSocket};
 
 #[derive(Debug)]
 enum Error {
@@ -193,74 +191,73 @@ pub async fn run_server(state: web::Data<BridgeState>) {
             let buf = buf.clone();
             if try_port_discovery(&state, &buf[..s], addr).await.is_ok() {
                 continue;
-                }
+            }
 
-                {
-                    let mut client_map = state.web_client_map.lock().await;
-                    if let Some(client) = client_map.get_mut(&addr) {
-                        let payload = Bytes::copy_from_slice(&buf[0..s]);
-                        client.binary(payload).await.ok();
-                        continue;
-                        }
+            {
+                let mut client_map = state.web_client_map.lock().await;
+                if let Some(client) = client_map.get_mut(&addr) {
+                    let payload = Bytes::copy_from_slice(&buf[0..s]);
+                    client.binary(payload).await.ok();
+                    continue;
                 }
+            }
 
-                let tunn_sock = {
-                    // Maybe we could release the lock when adding a new management connection and get it back later
-                    // in case it turns out that holding it causes major connection issues.
+            let tunn_sock = {
+                // Maybe we could release the lock when adding a new management connection and get it back later
+                // in case it turns out that holding it causes major connection issues.
                 let mut charger_map = state.charger_management_map.lock().await;
-                    match charger_map.entry(addr) {
-                        Entry::Occupied(tunn) => tunn.into_mut().clone(),
-                        Entry::Vacant(v) => {
+                match charger_map.entry(addr) {
+                    Entry::Occupied(tunn) => tunn.into_mut().clone(),
+                    Entry::Vacant(v) => {
                         let (id, tunn_data) = match create_tunn(&state, addr, &buf[..s]).await {
-                                Ok(tunn) => tunn,
-                                Err(_err) => {
+                            Ok(tunn) => tunn,
+                            Err(_err) => {
                                 continue;
-                                }
-                            };
-
-                            let tunn_data = Arc::new(Mutex::new(tunn_data));
-                        let mut map = state.charger_management_map_with_id.lock().await;
-                            map.insert(id, tunn_data.clone());
-                            v.insert(tunn_data.clone());
-                            let tunn = tunn_data.clone();
-                        let mut lost_map = state.lost_connections.lock().await;
-                            let mut undiscovered_clients =
-                            state.undiscovered_clients.lock().await;
-                            if let Some(conns) = lost_map.remove(&id) {
-                                for (conn_no, recipient) in conns.into_iter() {
-                                    let meta = RemoteConnMeta {
-                                        charger_id: id,
-                                        conn_no,
-                                    };
-                                    undiscovered_clients.insert(meta, recipient);
-
-                                    open_connection(
-                                        conn_no,
-                                        id,
-                                        tunn.clone(),
-                                        state.port_discovery.clone(),
-                                    )
-                                .await
-                                    .ok();
-                                }
                             }
-                            log::debug!("Adding management connection from {}", addr);
+                        };
+
+                        let tunn_data = Arc::new(Mutex::new(tunn_data));
+                        let mut map = state.charger_management_map_with_id.lock().await;
+                        map.insert(id, tunn_data.clone());
+                        v.insert(tunn_data.clone());
+                        let tunn = tunn_data.clone();
+                        let mut lost_map = state.lost_connections.lock().await;
+                        let mut undiscovered_clients = state.undiscovered_clients.lock().await;
+                        if let Some(conns) = lost_map.remove(&id) {
+                            for (conn_no, recipient) in conns.into_iter() {
+                                let meta = RemoteConnMeta {
+                                    charger_id: id,
+                                    conn_no,
+                                };
+                                undiscovered_clients.insert(meta, recipient);
+
+                                open_connection(
+                                    conn_no,
+                                    id,
+                                    tunn.clone(),
+                                    state.port_discovery.clone(),
+                                )
+                                .await
+                                .ok();
+                            }
+                        }
+                        log::debug!("Adding management connection from {}", addr);
                         tunn_data.clone()
-                        }
                     }
-                };
+                }
+            };
 
-                let data = {
+            let data = {
                 let mut tun_sock = tunn_sock.lock().await;
-                    match tun_sock.decrypt(&buf[..s]) {
-                        Ok(data) => data,
-                        Err(_) => {
+                match tun_sock.decrypt(&buf[..s]) {
+                    Ok(data) => data,
+                    Err(_) => {
                         continue;
-                        }
                     }
-                };
+                }
+            };
 
-                if data.len() == std::mem::size_of::<ManagementCommand>() {}
+            if data.len() == std::mem::size_of::<ManagementCommand>() {}
         } else {
         }
     }

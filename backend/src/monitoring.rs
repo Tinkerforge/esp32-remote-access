@@ -39,7 +39,12 @@ fn send_mail(state: &web::Data<AppState>, num_users: i64, num_chargers: i64) -> 
     };
     let body = body.render()?;
 
-    utils::send_email(&std::env::var("MONITORING_EMAIL")?, "Monitoring mail", body, state);
+    utils::send_email(
+        &std::env::var("MONITORING_EMAIL")?,
+        "Monitoring mail",
+        body,
+        state,
+    );
 
     Ok(())
 }

@@ -19,26 +19,22 @@
 
 mod monitoring;
 
-use std::{
-    collections::HashMap,
-    net::UdpSocket,
-    num::NonZeroUsize,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, net::UdpSocket, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use actix::Arbiter;
 use backend::utils::get_connection;
 pub use backend::*;
 
-use futures_util::lock::Mutex;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::{get_connection_pool, run_migrations, Pool};
 use diesel::prelude::*;
+use futures_util::lock::Mutex;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use lru::LruCache;
 use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
-use simplelog::{ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
+use simplelog::{
+    ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode,
+};
 use udp_server::packet::{
     ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
     ManagementPacketHeader,
@@ -179,13 +175,14 @@ async fn main() -> std::io::Result<()> {
     std::thread::spawn(move || cleanup_thread(state_cpy));
     let bridge_state_cpy = bridge_state.clone();
     let arbiter = Arbiter::new();
-    arbiter.spawn(async move {resend_thread(bridge_state_cpy).await});
+    arbiter.spawn(async move { resend_thread(bridge_state_cpy).await });
 
     udp_server::start_server(bridge_state.clone());
 
     // Cache for random salts of non existing users
-    let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> =
-        web::Data::new(std::sync::Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())));
+    let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> = web::Data::new(
+        std::sync::Mutex::new(LruCache::new(NonZeroUsize::new(10000).unwrap())),
+    );
 
     let login_ratelimiter = web::Data::new(LoginRateLimiter::new());
     let charger_ratelimiter = web::Data::new(ChargerRateLimiter::new());
