@@ -4,13 +4,14 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use diesel::{prelude::*, result::Error::NotFound};
 
-use crate::{error::Error, utils::{get_connection, parse_uuid, web_block_unpacked}, AppState};
+use crate::{error::Error, utils::{get_connection, parse_uuid, web_block_unpacked}, AppState, BridgeState};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ChargerInfo {
     pub id: String,
     pub name: Option<String>,
     pub configured_port: i32,
+    pub connected: bool,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -28,6 +29,7 @@ pub struct ChargerInfoRequest {
 #[post("/info")]
 pub async fn charger_info(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState>,
     charger: web::Json<ChargerInfoRequest>,
     user: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
@@ -61,10 +63,14 @@ pub async fn charger_info(
             }
     }).await?;
 
+    let map = bridge_state.charger_management_map_with_id.lock().await;
+    let connected = map.get(&charger_id).is_some();
+
     let info = ChargerInfo {
         id: charger_id.to_string(),
         name: charger.name,
         configured_port: port,
+        connected,
     };
 
 
