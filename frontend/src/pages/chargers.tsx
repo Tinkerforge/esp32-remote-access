@@ -75,40 +75,46 @@ export function ChargerList() {
         if (path !== "/chargers") {
             setTimeout(async () => {
                 const split = path.split("/");
-                const {error, data} = await fetchClient.POST("/charger/info", {body: {charger: split[2]}});
-                if (error) {
-                    route("/chargers", true);
-                    return;
-                } else if (!data.connected) {
-                    showAlert(t("not_connected"), "danger");
-                    route("/chargers", true);
-                    return;
-                }
-
-                // Encounter possible chargers that were added before name encryption was implemented
-                if (!data.name) {
-                    setState({
-                        connected: true,
-                        connectedName: "",
-                        connectedId: data.id,
-                        connectedPort: data.configured_port,
-                    });
-                } else {
-                    await sodium.ready;
-                    if (!secret) {
-                        await get_decrypted_secret();
+                try {
+                    const {error, data} = await fetchClient.POST("/charger/info", {body: {charger: split[2]}});
+                    if (error) {
+                        route("/chargers", true);
+                        return;
+                    } else if (!data.connected) {
+                        showAlert(t("not_connected"), "danger");
+                        route("/chargers", true);
+                        return;
                     }
 
-                    const encryptedName = Base64.toUint8Array(data.name);
-                    const binaryName = sodium.crypto_box_seal_open(encryptedName, pub_key, secret);
-                    const decoder = new TextDecoder();
-                    const name = decoder.decode(binaryName);
-                    setState({
-                        connected: true,
-                        connectedName: name,
-                        connectedId: data.id,
-                        connectedPort: data.configured_port,
-                    });
+                    // Encounter possible chargers that were added before name encryption was implemented
+                    if (!data.name) {
+                        setState({
+                            connected: true,
+                            connectedName: "",
+                            connectedId: data.id,
+                            connectedPort: data.configured_port,
+                        });
+                    } else {
+                        await sodium.ready;
+                        if (!secret) {
+                            await get_decrypted_secret();
+                        }
+
+                        const encryptedName = Base64.toUint8Array(data.name);
+                        const binaryName = sodium.crypto_box_seal_open(encryptedName, pub_key, secret);
+                        const decoder = new TextDecoder();
+                        const name = decoder.decode(binaryName);
+                        setState({
+                            connected: true,
+                            connectedName: name,
+                            connectedId: data.id,
+                            connectedPort: data.configured_port,
+                        });
+                    }
+                } catch (e) {
+                    showAlert(`${e}`, "danger");
+                    route("/chargers", true);
+                    return;
                 }
 
                 setLoaded(true);
