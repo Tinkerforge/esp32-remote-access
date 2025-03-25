@@ -73,6 +73,7 @@ impl WgTunDevice {
         psk: [u8; 32],
         url: &str,
         disconnect_cb: js_sys::Function,
+        connect_cb: js_sys::Function,
     ) -> Result<Self, JsValue> {
         let rate_limiter = Arc::new(RateLimiter::new(&x25519::PublicKey::from(&self_key), 10));
 
@@ -121,7 +122,7 @@ impl WgTunDevice {
         let pcap = vec![];
         let pcap = Rc::new(RefCell::new(PcapNgWriter::new(pcap).unwrap()));
 
-        let onmessage = create_onmessage_closure(Rc::downgrade(&socket), Rc::downgrade(&tun), Rc::downgrade(&rx), Rc::downgrade(&pcap));
+        let onmessage = create_onmessage_closure(Rc::downgrade(&socket), Rc::downgrade(&tun), Rc::downgrade(&rx), Rc::downgrade(&pcap), connect_cb);
         let onmessage = Rc::new(onmessage);
         socket.set_onmessage(Some(onmessage.as_ref().as_ref().unchecked_ref()));
         socket.set_onopen(Some(onopen.as_ref().as_ref().unchecked_ref()));
@@ -197,6 +198,7 @@ fn create_onmessage_closure(
     message_tun: Weak<RefCell<Tunn>>,
     message_vec: Weak<RefCell<VecDeque<Vec<u8>>>>,
     message_pcap: Weak<RefCell<PcapNgWriter<Vec<u8>>>>,
+    connect_cb: js_sys::Function,
 ) -> Closure<dyn FnMut(MessageEvent) -> ()> {
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         let data = e.data();
@@ -212,6 +214,8 @@ fn create_onmessage_closure(
         let message_tun = message_tun.clone();
         let message_vec = message_vec.clone();
         let message_pcap = message_pcap.clone();
+        let connected = Rc::new(RefCell::new(false));
+        let connect_cb = connect_cb.clone();
         spawn_local(async move {
             let array_buffer = wasm_bindgen_futures::JsFuture::from(data.array_buffer()).await.unwrap();
             let data = js_sys::Uint8Array::new(&array_buffer).to_vec();
@@ -229,6 +233,11 @@ fn create_onmessage_closure(
                     if pcap_logging_enabled() {
                         let pcap_strong = message_pcap.upgrade().unwrap();
                         log_pcap_data(&pcap_strong, &d);
+                    }
+                    let mut connected = connected.borrow_mut();
+                    if !*connected {
+                        connect_cb.call0(&JsValue::null()).ok();
+                        *connected = true;
                     }
                     let message_socket = message_socket.upgrade().unwrap();
                     let _ = message_socket.send_with_u8_array(d);
@@ -409,7 +418,8 @@ pub mod test {
             x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng)),
             [0u8; 32],
             "ws://localhost:8082",
-                js_sys::Function::new_no_args(""),
+            js_sys::Function::new_no_args(""),
+            js_sys::Function::new_no_args(""),
         )
         .unwrap()
     }

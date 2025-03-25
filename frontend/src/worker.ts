@@ -114,7 +114,6 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 await sodium.ready;
                 setup_data = data.data as SetupMessage;
                 await start_connection(setup_data);
-                self.postMessage("ready");
                 set_pcap_logging(setup_data.debugMode);
                 break;
         }
@@ -125,6 +124,10 @@ function disconnect_cb() {
     setTimeout(async () => {
         start_connection(setup_data);
     }, 1000);
+}
+
+function connect_cb() {
+    self.postMessage("ready");
 }
 
 async function start_connection(setup_data: SetupMessage) {
@@ -171,6 +174,7 @@ async function start_connection(setup_data: SetupMessage) {
         keys.charger_address,
         setup_data.port,
         disconnect_cb,
+        connect_cb,
     );
 }
 
