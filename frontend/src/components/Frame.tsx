@@ -151,7 +151,7 @@ class VirtualNetworkInterface {
                 case "ready":
                     this.setParentState.parentState({connection_state: ConnectionState.LoadingWebinterface});
                     const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                    const path = window.location.pathname.slice(0, window.location.pathname.endsWith("/") ? -1 : undefined);
+                    const path = window.location.pathname;
                     const split = path.split("/");
                     const newPath = split.slice(3).join("/");
                     iframe.src = `/wg-${this.id}/${newPath}`;
