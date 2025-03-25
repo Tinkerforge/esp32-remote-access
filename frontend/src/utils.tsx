@@ -108,12 +108,13 @@ export async function refresh_access_token() {
             loggedIn.value = AppState.LoggedIn;
         } else {
             auth_already_failed = true;
+            resetSecret();
             localStorage.removeItem("loginSalt");
             localStorage.removeItem("secretKey");
             loggedIn.value = AppState.LoggedOut;
         }
     } catch (e) {
-
+        resetSecret();
         //This means we are logged in but the refresh failed
         if (localStorage.getItem("loginSalt") && localStorage.getItem("secretKey")) {
             loggedIn.value = AppState.LoggedIn;
@@ -137,6 +138,11 @@ export async function get_decrypted_secret() {
     const secret_key = Base64.toUint8Array(encoded_key);
     secret = sodium.crypto_secretbox_open_easy(new Uint8Array(data.secret), new Uint8Array(data.secret_nonce), secret_key);
     pub_key = sodium.crypto_scalarmult_base(secret);
+}
+
+export function resetSecret() {
+    secret = undefined;
+    pub_key = undefined;
 }
 
 export const isDebugMode = signal(false);
