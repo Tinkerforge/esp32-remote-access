@@ -136,7 +136,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 }
                 this.setState({chargers: updateChargers});
             } else {
-                showAlert(error, "danger");
+                showAlert(error, "danger", "get_chargers");
             }
         }
     }
