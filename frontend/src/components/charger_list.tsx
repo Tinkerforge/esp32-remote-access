@@ -364,7 +364,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 <td class="align-middle">
                     {Base58.int_to_base58(charger.uid)}
                 </td>
-                <td class="align-middle">
+                <td style={{width: "1%"}} class="align-middle">
                     <Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
                         await this.connect_to_charger(charger, route);
                         }} variant="primary">
@@ -374,7 +374,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                         {t("no_keys")}
                     </p>
                 </td>
-                <td class="align-middle">
+                <td style={{width:"1%"}} class="align-middle">
                     <Button onClick={async () => {
                         this.removal_charger = charger;
                         this.setState({showDeleteModal: true})
