@@ -47,11 +47,11 @@ export function showAlert(text: string, variant: "danger" | "success" | "warning
 }
 
 export function ErrorAlert() {
-    return <div className="alert-container">
+    return <div className="alert-container m-2">
         {alerts.value.map(alert => (
             <Alert
                 key={alert.id}
-                className="custom-alert my-0 mx-1"
+                className="custom-alert"
                 variant={alert.variant}
                 onClose={() => {
                     clearAlertTimeout(alert.id);
