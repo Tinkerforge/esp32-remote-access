@@ -171,7 +171,7 @@ export class Register extends Component<{}, RegisterState> {
                 }
             })
         if (response.status === 201) {
-            showAlert(i18n.t("register.registration_successful"), "success", i18n.t("alert_default_success"));
+            showAlert(i18n.t("register.registration_successful"), "success", "registe", i18n.t("alert_default_success"));
         } else {
             const text = `Failed with status ${response.status}: ${error}`;
             showAlert(text, "danger");

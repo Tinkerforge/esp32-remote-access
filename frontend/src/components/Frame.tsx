@@ -57,7 +57,7 @@ class VirtualNetworkInterface {
                 connectedPort: 0,
             });
             this.route("/chargers");
-            showAlert(i18n.t("chargers.connection_timeout_text"), "danger", i18n.t("chargers.connection_timeout"));
+            showAlert(i18n.t("chargers.connection_timeout_text"), "danger", "network", i18n.t("chargers.connection_timeout"));
         }, 30_000)
 
         window.addEventListener("message", (e) => this.iframeMessageHandler(e), {signal: this.abort.signal});

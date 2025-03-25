@@ -19,14 +19,22 @@ const clearAlertTimeout = (id: string) => {
     }
 };
 
-export function showAlert(text: string, variant: "danger" | "success" | "warning", heading?: string, timeout_ms?: number) {
-    const id = Math.random().toString(36).substr(2);
+export function showAlert(text: string, variant: "danger" | "success" | "warning", id?: string, heading?: string, timeout_ms?: number) {
+    id = id ? id : Math.random().toString(36).substr(2);
     const alert: AlertItem = {
         id,
         text,
         variant,
         heading: heading || i18n.t("alert_default_text"),
     };
+
+    alerts.value = alerts.value.filter(a => {
+        if (a.id === id) {
+            clearTimeout(a.timeoutId);
+            return false;
+        }
+        return true;
+    });
 
     if (timeout_ms) {
         alert.timeoutId = window.setTimeout(() => {

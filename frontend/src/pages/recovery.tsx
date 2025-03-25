@@ -95,7 +95,7 @@ export function Recovery() {
 
         const {response, error} = await fetchClient.POST("/auth/recovery", {body: payload});
         if (response.status === 200) {
-            showAlert("Your new password is set!", "success", "Success");
+            showAlert("Your new password is set!", "success", "recovery", "Success");
             showModal.value = true;
         } else {
             showAlert(`Failed to recover account with code ${response.status}: ${error}`, "danger");

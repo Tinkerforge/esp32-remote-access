@@ -131,7 +131,7 @@ export function Tokens() {
     // Copies the token to the clipboard
     const handleCopyToken = (token: string) => {
         navigator.clipboard.writeText(token).then(() => {
-            showAlert(t("tokens.copy_success_text"), "success", t("tokens.copy_success"), 2000);
+            showAlert(t("tokens.copy_success_text"), "success", "token_copy", t("tokens.copy_success"), 2000);
         }).catch(() => {
             showAlert(t("tokens.copy_failed"), "danger");
         });
