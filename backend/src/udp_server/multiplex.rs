@@ -189,10 +189,13 @@ pub async fn run_server(state: web::Data<BridgeState>) {
         if let Ok((s, addr)) = state.socket.recv_from(&mut buf) {
             let state = state.clone();
             let buf = buf.clone();
+
+            // Check if the packet is for port discovery
             if try_port_discovery(&state, &buf[..s], addr).await.is_ok() {
                 continue;
             }
 
+            // Check if we need to relay the packet
             {
                 let mut client_map = state.web_client_map.lock().await;
                 if let Some(client) = client_map.get_mut(&addr) {
