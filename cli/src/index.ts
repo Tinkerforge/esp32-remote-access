@@ -60,6 +60,20 @@ program.command("login")
             host
         };
         writeFile("cache", JSON.stringify(cache), () => {});
-    })
+    });
+
+program.command("logout")
+    .description("Clears cache of logged in user")
+    .action(() => readFile("cache", {}, async (err, data) => {
+            if (err) {
+                console.error("Error reading cache: ", err);
+                return;
+            }
+            const content = data.toString();
+            const cache: Cache = JSON.parse(content);
+            const fetchClient = new FetchClient(cache.host, cache.cookie);
+            await fetchClient.fetchClient.GET("/user/logout", {params: {query: {logout_all: false}}});
+            unlink("cache", () => {});
+        }));
 
 program.parse(process.argv);
