@@ -1,11 +1,11 @@
-#!/usr/bin/env node
+#!npx tsx
 
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { argon2Hash, FetchClient } from "./utils.js";
 import { Base64 } from "js-base64";
 import sodium from "libsodium-wrappers-sumo";
-import { writeFile } from "node:fs";
-
+import { readFile, unlink, writeFile } from "node:fs";
+import "dotenv/config";
 
 interface Cache {
     cookie: string,
@@ -18,12 +18,24 @@ program
     .version("1.0.0")
     .description("A simple CLI program to call a devices API through the Tinkerforge Remote Access");
 
-program.command("login <email> <password>")
+program.command("login")
     .description("Logging in as a user. The login is preserved until logged out")
-    .option("-h, host <hostname>", "Hostname of the server. This will also be preserved")
-    .action(async (email, password, options) => {
-
+    .addOption(new Option("-e, --email <email>", "Email of user").env("EMAIL"))
+    .addOption(new Option("-p, --password <password>", "Password of the user").env("PASSWORD"))
+    .addOption(new Option("-h, --host <hostname>", "Hostname of the server. This will also be preserved").env("HOST"))
+    .action(async (options) => {
         const host = options.hostname ? options.hostname : "tf-freddy";
+        const email = options.email;
+        if (!email) {
+            console.error("Error: You need to specify an email. Either as environment variable or option");
+            return;
+        }
+        const password = options.password ? options.password : process.env.PASSWORD;
+        if (!password) {
+            console.error("Error: You need to specify an password. Either as environment variable or option");
+            return;
+        }
+
         const fetchClient = new FetchClient(host);
         const getLoginSalt = await fetchClient.fetchClient.GET("/auth/get_login_salt", {params: {query: {email}}});
         if (getLoginSalt.error || !getLoginSalt.data) {

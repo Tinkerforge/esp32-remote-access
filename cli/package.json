@@ -16,6 +16,7 @@
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
     "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
     "js-base64": "^3.7.7",
     "libsodium-wrappers-sumo": "^0.7.15",
     "openapi-fetch": "^0.13.5",
