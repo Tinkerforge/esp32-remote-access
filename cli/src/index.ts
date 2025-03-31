@@ -77,4 +77,52 @@ program.command("logout")
             unlink("cache", () => {});
         }));
 
+program.command("list")
+        .alias("ls")
+        .description("List connected chargers")
+        .action(() => readFile("cache", {}, async (err, data) => {
+            if (err) {
+                console.error("Error reading cache: ", err);
+                return;
+            }
+            await sodium.ready;
+            const content = data.toString();
+            const cache: Cache = JSON.parse(content);
+            const fetchClient = new FetchClient(cache.host, cache.cookie);
+            const getSecret = await fetchClient.fetchClient.GET("/user/get_secret");
+            if (getSecret.error || !getSecret.data) {
+                console.error("Error while fetching secret: ", getSecret);
+                return;
+            }
+            const secretKey = Base64.toUint8Array(cache.secretKey);
+            const secret = sodium.crypto_secretbox_open_easy(new Uint8Array(getSecret.data.secret), new Uint8Array(getSecret.data.secret_nonce), secretKey);
+            const pub = sodium.crypto_scalarmult_base(secret);
+
+            const getChargers = await fetchClient.fetchClient.GET("/charger/get_chargers");
+            if (getChargers.error || !getChargers.data) {
+                console.error("Error while getting chargers: ", getChargers.error);
+                return;
+            }
+            const decoder = new TextDecoder();
+            const chargers = getChargers.data.map((v) => {
+                try {
+                    const uint8Name = Base64.toUint8Array(v.name)
+                    const encodedName = sodium.crypto_box_seal_open(uint8Name, pub, secret)
+                    v.name = decoder.decode(encodedName);
+                    if (v.note) {
+                        const uint8Note = Base64.toUint8Array(v.note);
+                        const encodedNote = sodium.crypto_box_seal_open(uint8Note, pub, secret);
+                        v.note = decoder.decode(encodedNote);
+                    } else {
+                        v.note = "";
+                    }
+                } catch {
+                    v.name = "";
+                    v.note = "";
+                    v.valid = false;
+                }
+                return v;
+            });
+            console.table(chargers);
+        }))
 program.parse(process.argv);
