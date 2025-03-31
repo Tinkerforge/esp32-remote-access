@@ -1,7 +1,7 @@
 #!npx tsx
 
 import { Command, Option } from "commander";
-import { argon2Hash, FetchClient } from "./utils.js";
+import { argon2Hash, FetchClient, getDecryptedSecret } from "./utils.js";
 import { Base64 } from "js-base64";
 import sodium from "libsodium-wrappers-sumo";
 import { readFile, unlink, writeFile } from "node:fs";
@@ -36,7 +36,12 @@ program.command("login")
             return;
         }
 
-        const fetchClient = new FetchClient(host);
+        const cache: Cache = {
+            host,
+            secretKey: "",
+            cookies: "",
+        };
+        const fetchClient = new FetchClient(cache);
         const getLoginSalt = await fetchClient.fetchClient.GET("/auth/get_login_salt", {params: {query: {email}}});
         if (getLoginSalt.error || !getLoginSalt.data) {
             console.error("Getting login salt returned an error:", getLoginSalt.error);
@@ -48,18 +53,16 @@ program.command("login")
             console.error("Username or password wrong");
             return;
         }
-        fetchClient.cookiesRef.cookies = fetchClient.parseCookies(response);
+        fetchClient.cookies = fetchClient.parseCookies(response);
         const getSecret = await fetchClient.fetchClient.GET("/user/get_secret");
         if (getSecret.error || !getSecret.data) {
             console.error("Error while fetching secret: ", getSecret);
             return;
         }
         const secretKey = await argon2Hash(password, new Uint8Array(getSecret.data.secret_salt), sodium.crypto_secretbox_KEYBYTES);
-        const cache: Cache = {
-            cookie: fetchClient.cookiesRef.cookies,
-            secretKey: Base64.fromUint8Array(secretKey),
-            host
-        };
+
+        cache.cookies = fetchClient.cookies;
+        cache.secretKey = Base64.fromUint8Array(secretKey);
         writeFile("cache", JSON.stringify(cache), () => {});
     });
 
@@ -72,7 +75,7 @@ program.command("logout")
             }
             const content = data.toString();
             const cache: Cache = JSON.parse(content);
-            const fetchClient = new FetchClient(cache.host, cache.cookie);
+            const fetchClient = new FetchClient(cache);
             await fetchClient.fetchClient.GET("/user/logout", {params: {query: {logout_all: false}}});
             unlink("cache", () => {});
         }));
@@ -88,15 +91,9 @@ program.command("list")
             await sodium.ready;
             const content = data.toString();
             const cache: Cache = JSON.parse(content);
-            const fetchClient = new FetchClient(cache.host, cache.cookie);
-            const getSecret = await fetchClient.fetchClient.GET("/user/get_secret");
-            if (getSecret.error || !getSecret.data) {
-                console.error("Error while fetching secret: ", getSecret);
-                return;
-            }
-            const secretKey = Base64.toUint8Array(cache.secretKey);
-            const secret = sodium.crypto_secretbox_open_easy(new Uint8Array(getSecret.data.secret), new Uint8Array(getSecret.data.secret_nonce), secretKey);
-            const pub = sodium.crypto_scalarmult_base(secret);
+            const fetchClient = new FetchClient(cache);
+
+            const {pub, secret} = await getDecryptedSecret(cache.secretKey, fetchClient);
 
             const getChargers = await fetchClient.fetchClient.GET("/charger/get_chargers");
             if (getChargers.error || !getChargers.data) {
