@@ -52,6 +52,7 @@ program.command("login")
         const getSecret = await fetchClient.fetchClient.GET("/user/get_secret");
         if (getSecret.error || !getSecret.data) {
             console.error("Error while fetching secret: ", getSecret);
+            return;
         }
         const secretKey = await argon2Hash(password, new Uint8Array(getSecret.data.secret_salt), sodium.crypto_secretbox_KEYBYTES);
         const cache: Cache = {
