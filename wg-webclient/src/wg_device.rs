@@ -200,6 +200,7 @@ fn create_onmessage_closure(
     message_pcap: Weak<RefCell<PcapNgWriter<Vec<u8>>>>,
     connect_cb: js_sys::Function,
 ) -> Closure<dyn FnMut(MessageEvent) -> ()> {
+    let connected = Rc::new(RefCell::new(false));
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         let data = e.data();
         let data = match data.dyn_into::<web_sys::Blob>() {
@@ -214,7 +215,7 @@ fn create_onmessage_closure(
         let message_tun = message_tun.clone();
         let message_vec = message_vec.clone();
         let message_pcap = message_pcap.clone();
-        let connected = Rc::new(RefCell::new(false));
+        let connected = connected.clone();
         let connect_cb = connect_cb.clone();
         spawn_local(async move {
             let array_buffer = wasm_bindgen_futures::JsFuture::from(data.array_buffer()).await.unwrap();
