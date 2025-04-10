@@ -130,6 +130,7 @@ async fn send_to_peer(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn
             let msg = Message::Binary(buf.to_vec());
             let _ = ws.send(msg).await;
         },
+        TunnResult::Done => (),
         rest => {
             log::error!("Error encapsulating data: {:?}", rest);
         }

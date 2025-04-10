@@ -109,19 +109,14 @@ int tun_alloc(char *dev, const char *self_ip, const char *peer_ip)
       return err;
     }
 
-    printf("Here\n");
     memset(&rt, 0, sizeof(struct rtentry));
     struct sockaddr_in *addr = (struct sockaddr_in *)&rt.rt_dst;
-    printf("Here\n");
     addr->sin_family = AF_INET;
-    printf("Here, %s\n", peer_ip);
     addr->sin_addr.s_addr = inet_addr(peer_ip);
-    printf("Here\n");
 
     addr = (struct sockaddr_in *)&rt.rt_genmask;
     addr->sin_family = AF_INET;
     addr->sin_addr.s_addr = inet_addr("255.255.255.255");
-    printf("Here\n");
     rt.rt_flags = RTF_UP | RTF_STATIC;
     rt.rt_metric = 0;
     rt.rt_dev = dev;
@@ -132,7 +127,6 @@ int tun_alloc(char *dev, const char *self_ip, const char *peer_ip)
       close(fd);
       return err;
     }
-    printf("Here\n");
 
     close(sock);
 
