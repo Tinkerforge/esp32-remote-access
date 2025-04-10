@@ -2,7 +2,7 @@ mod http;
 mod util;
 
 use boringtun::noise::TunnResult;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use futures_util::{SinkExt, TryStreamExt};
 use reqwest_websocket::Message;
 use std::ffi::CString;
@@ -11,7 +11,7 @@ unsafe extern "C" {
     fn tun_alloc(dev: *const std::os::raw::c_char, self_ip: *const std::os::raw::c_char, peer_ip: *const std::os::raw::c_char) -> i32;
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 struct Cli {
     #[arg(long, env = "HOST")]
     host: Option<String>,
@@ -19,9 +19,17 @@ struct Cli {
     email: String,
     #[arg(short, long, env = "PASSWORD")]
     password: String,
-    #[arg(short, long)]
-    list: Option<bool>,
-    device: uuid::Uuid,
+
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    List,
+    Connect {
+        device: uuid::Uuid,
+    }
 }
 
 #[tokio::main]
@@ -42,7 +50,17 @@ async fn main() -> anyhow::Result<()> {
 
     let mut client = http::Client::new(host, true)?;
     client.login(args.email, &args.password).await?;
-    let (mut ws, mut tunn, ip, peer_ip) = client.connect_ws(args.device).await?;
+
+    let device = match args.command {
+        Commands::List => {
+            client.list_devices().await?;
+            return Ok(());
+        }
+        Commands::Connect { device } => device,
+    };
+
+
+    let (mut ws, mut tunn, ip, peer_ip) = client.connect_ws(device).await?;
 
     let mut dev = "tun%d".to_string();
     dev.reserve(16);

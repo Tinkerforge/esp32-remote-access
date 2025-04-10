@@ -15,14 +15,14 @@ struct LoginSchema {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct GetSecretResponse {
+struct GetSecretResponse {
     secret: Vec<u8>,
     secret_salt: Vec<u8>,
     secret_nonce: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct GetWgKeysResponseSchema {
+struct GetWgKeysResponseSchema {
     id: String,
     charger_id: String,
     charger_pub: String,
@@ -30,6 +30,44 @@ pub struct GetWgKeysResponseSchema {
     web_private: Vec<u8>,
     psk: Vec<u8>,
     web_address: IpNetwork,
+}
+
+#[derive(Serialize, Deserialize)]
+enum ChargerStatus {
+    Disconnected = 0,
+    Connected = 1,
+}
+
+impl core::fmt::Display for ChargerStatus {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ChargerStatus::Disconnected => write!(f, "Disconnected"),
+            ChargerStatus::Connected => write!(f, "Connected"),
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize)]
+struct GetChargerSchema {
+    id: String,
+    uid: i32,
+    name: String,
+    note: Option<String>,
+    status: ChargerStatus,
+    port: i32,
+    valid: bool,
+}
+
+#[derive(Tabled)]
+struct DisplayDevices {
+    id: String,
+    uid: i32,
+    name: String,
+    note: String,
+    status: ChargerStatus,
+    webinterface_port: i32,
+    valid: bool,
 }
 
 #[derive(Clone)]
@@ -203,27 +241,9 @@ impl Client {
         let keys: GetWgKeysResponseSchema =
             serde_json::from_str(&resp.text().await?)?;
 
-        let mut pk = [0u8; libsodium_sys::crypto_box_PUBLICKEYBYTES as usize];
-        unsafe {
-            if libsodium_sys::crypto_scalarmult_base(
-                pk.as_mut_ptr(),
-                self.secret.as_ptr(),
-            ) == -1
-            {
-                return Err(anyhow::anyhow!("Failed to generate keypair"));
-            }
-        }
+        let wg_private_str = self.decrypt(&keys.web_private)?;
+        let psk_str = self.decrypt(&keys.psk)?;
 
-        let mut wg_private_str = vec![0u8; keys.web_private.len() - libsodium_sys::crypto_box_SEALBYTES as usize];
-        let mut psk_str = vec![0u8; keys.psk.len() - libsodium_sys::crypto_box_SEALBYTES as usize];
-        unsafe {
-            if libsodium_sys::crypto_box_seal_open(wg_private_str.as_mut_ptr(), keys.web_private.as_ptr(), keys.web_private.len() as u64, pk.as_ptr(), self.secret.as_ptr()) == -1 {
-                return Err(anyhow::anyhow!("Failed to decrypt private key"));
-            }
-            if libsodium_sys::crypto_box_seal_open(psk_str.as_mut_ptr(), keys.psk.as_ptr(), keys.psk.len() as u64, pk.as_ptr(), self.secret.as_ptr()) == -1 {
-                return Err(anyhow::anyhow!("Failed to decrypt psk"));
-            }
-        }
         let engine = base64::prelude::BASE64_STANDARD;
 
         let mut charger_pub = [0u8; 32];
@@ -271,6 +291,81 @@ impl Client {
         let peer_ip = keys.charger_address.to_string().replace("/32", "");
 
         Ok((ws, tunn, ip, peer_ip))
+    }
+
+    pub async fn list_devices(&mut self) -> anyhow::Result<()> {
+        let resp = self
+            .get("/api/charger/get_chargers")
+            .await?;
+        if resp.status() != reqwest::StatusCode::OK {
+            return Err(anyhow::anyhow!(
+                "Failed to get devices: {}",
+                resp.status().as_str()
+            ));
+        }
+        let devices: Vec<GetChargerSchema> =
+            serde_json::from_str(&resp.text().await?)?;
+
+        let engine = base64::prelude::BASE64_STANDARD;
+        let devices: Vec<DisplayDevices> = devices.into_iter().map(|c| {
+            if !c.valid {
+                return DisplayDevices {
+                    id: c.id,
+                    uid: c.uid,
+                    name: String::new(),
+                    note: String::new(),
+                    status: ChargerStatus::Disconnected,
+                    webinterface_port: c.port,
+                    valid: c.valid,
+                }
+            }
+
+            let name = engine.decode(c.name).unwrap();
+            let name = self.decrypt(&name).unwrap();
+            let name = String::from_utf8(name).unwrap();
+            let note = engine.decode(c.note.unwrap_or_default()).unwrap();
+            let note = self.decrypt(&note).unwrap();
+            let note = String::from_utf8(note).unwrap();
+            DisplayDevices { id: c.id, uid: c.uid, name, note, status: c.status, webinterface_port: c.port, valid: true }
+        }).collect();
+
+        let table = tabled::Table::new(devices);
+
+        println!("{}", table);
+
+        Ok(())
+    }
+
+    fn get_pk(&self) -> anyhow::Result<[u8; 32]> {
+        let mut pk = [0u8; libsodium_sys::crypto_box_PUBLICKEYBYTES as usize];
+        unsafe {
+            if libsodium_sys::crypto_scalarmult_base(
+                pk.as_mut_ptr(),
+                self.secret.as_ptr(),
+            ) == -1
+            {
+                return Err(anyhow::anyhow!("Failed to generate keypair"));
+            }
+        }
+        Ok(pk)
+    }
+
+    fn decrypt(&self, data: &[u8]) -> anyhow::Result<Vec<u8>> {
+        let mut buf = vec![0u8; data.len() - libsodium_sys::crypto_box_SEALBYTES as usize];
+        let pk = self.get_pk()?;
+        unsafe {
+            if libsodium_sys::crypto_box_seal_open(
+                buf.as_mut_ptr(),
+                data.as_ptr(),
+                data.len() as u64,
+                pk.as_ptr(),
+                self.secret.as_ptr(),
+            ) == -1
+            {
+                return Err(anyhow::anyhow!("Failed to decrypt data"));
+            }
+        }
+        Ok(buf)
     }
 
     pub fn get_join_handle(&self) -> Arc<std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>> {
