@@ -5,7 +5,7 @@ use boringtun::noise::TunnResult;
 use clap::{Parser, Subcommand};
 use futures_util::{SinkExt, TryStreamExt};
 use reqwest_websocket::Message;
-use std::ffi::CString;
+use std::{env, ffi::CString};
 
 unsafe extern "C" {
     fn tun_alloc(dev: *const std::os::raw::c_char, self_ip: *const std::os::raw::c_char, peer_ip: *const std::os::raw::c_char) -> i32;
@@ -73,6 +73,24 @@ async fn main() -> anyhow::Result<()> {
     if fd < 0 {
         return Err(anyhow::anyhow!("Failed to allocate tun device"));
     }
+
+    unsafe {
+        let uid = env::var("SUDO_UID").unwrap();
+        let gid = env::var("SUDO_GID").unwrap();
+        let uid = uid.parse::<libc::uid_t>().unwrap();
+        let gid = gid.parse::<libc::gid_t>().unwrap();
+        if libc::setgid(gid) != 0 {
+            return Err(anyhow::anyhow!("Failed to set gid"));
+        }
+        if libc::setuid(uid) != 0 {
+            return Err(anyhow::anyhow!("Failed to set uid"));
+        }
+        if libc::setuid(0) == 0 {
+            return Err(anyhow::anyhow!("Dropping privileges failed"));
+        }
+    }
+    log::info!("Tun interface created");
+    log::info!("Dropped privileges");
 
     let (sender, mut receiver) = tokio::sync::mpsc::channel(100);
     std::thread::spawn(move || {
