@@ -10,9 +10,9 @@ cc = "1.2.18"
 anyhow = "1.0.97"
 argon2 = "0.5.3"
 base64 = "0.22.1"
-boringtun = "0.6.0"
+boringtun = { git = "https://github.com/Tinkerforge/boringtun.git", rev = "784f8739adb99fc82799b9e704d5801ccf938afb", default-features = false }
 clap = { version = "4.5.35", features = ["derive", "env"] }
-dotenvy = { version = "0.15.7", features = ["cli"] }
+dotenvy = { version = "0.15.7"}
 futures-util = "0.3.31"
 ipnetwork = { version = "0.21.1", features = ["serde"] }
 libc = "0.2.171"
