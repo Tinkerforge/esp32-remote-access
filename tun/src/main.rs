@@ -7,8 +7,6 @@ use futures_util::{SinkExt, TryStreamExt};
 use reqwest_websocket::Message;
 use std::ffi::CString;
 
-use http::Cache;
-
 unsafe extern "C" {
     fn tun_alloc(dev: *const std::os::raw::c_char, self_ip: *const std::os::raw::c_char, peer_ip: *const std::os::raw::c_char) -> i32;
 }
@@ -21,7 +19,8 @@ struct Cli {
     email: String,
     #[arg(short, long, env = "PASSWORD")]
     password: String,
-
+    #[arg(short, long)]
+    list: Option<bool>,
     device: uuid::Uuid,
 }
 
@@ -38,12 +37,10 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Cli::parse();
 
-    let cache = Cache {
-        cookie: String::new(),
-        host: "tf-freddy".to_string(),
-        secret: String::new(),
-    };
-    let mut client = http::Client::new(cache, true)?;
+    let host = args.host.unwrap_or("my.warp-charger.com".to_string());
+    log::info!("Server is set to '{}'", host);
+
+    let mut client = http::Client::new(host, true)?;
     client.login(args.email, &args.password).await?;
     let (mut ws, mut tunn, ip, peer_ip) = client.connect_ws(args.device).await?;
 
@@ -89,11 +86,11 @@ async fn main() -> anyhow::Result<()> {
                     Ok(Some(Message::Binary(data))) => {
                         send_to_tun(&mut ws, data, &mut tunn, fd).await;
                         if let Some(timestamp) = tunn.time_since_last_handshake() {
-                            if !connected {
+                            if !connected && timestamp.as_secs() < 120 {
                                 log::info!("Connected. Peer IP: {}", peer_ip.to_str()?);
                                 connected = true;
                             } else if connected && timestamp.as_secs() > 120 {
-                                log::warn!("Connection timed out. Reconnecting...");
+                                log::warn!("Connection timed out. Last Handshake: {}. Reconnecting...", timestamp.as_secs());
                                 connected = false;
                             }
                         }

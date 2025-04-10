@@ -3,15 +3,10 @@ use std::sync::Arc;
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use base64::Engine;
 use ipnetwork::IpNetwork;
+use reqwest::cookie::Jar;
 use serde::{Deserialize, Serialize};
 use reqwest_websocket::RequestBuilderExt;
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct Cache {
-    pub cookie: String,
-    pub host: String,
-    pub secret: String,
-}
+use tabled::Tabled;
 
 #[derive(Serialize, Deserialize)]
 struct LoginSchema {
@@ -47,18 +42,14 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(cache: Cache, accept_invalid_certs: bool) -> anyhow::Result<Self> {
+    pub fn new(host: String, accept_invalid_certs: bool) -> anyhow::Result<Self> {
         if accept_invalid_certs {
             log::warn!("You are accepting invalid certificates. This is potentially dangerous!");
         }
 
-        let host = cache.host;
-        let jar = reqwest::cookie::Jar::default();
-        jar.add_cookie_str(&cache.cookie, &format!("https://{}", host).parse()?);
-
         let client = reqwest::ClientBuilder::new()
             .cookie_store(true)
-            .cookie_provider(Arc::new(jar))
+            .cookie_provider(Arc::new(Jar::default()))
             .danger_accept_invalid_certs(accept_invalid_certs)
             .build()?;
 
