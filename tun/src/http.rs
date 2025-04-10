@@ -242,8 +242,8 @@ impl Client {
         engine.decode_slice(&wg_private_str, &mut wg_private)?;
         engine.decode_slice(&psk_str, &mut psk)?;
 
-        let charger_pub = boringtun::x25519::PublicKey::from(charger_pub);
-        let rate_limiter = boringtun::noise::rate_limiter::RateLimiter::new(&charger_pub, 1024);
+        let wg_private = boringtun::x25519::StaticSecret::from(wg_private);
+        let rate_limiter = boringtun::noise::rate_limiter::RateLimiter::new(&boringtun::x25519::PublicKey::from(&wg_private), 1024);
         let rate_limiter = Arc::new(rate_limiter);
         let rate_limiter_cpy = rate_limiter.clone();
         std::thread::spawn(move || {
@@ -254,8 +254,8 @@ impl Client {
         });
 
         let Ok(tunn) = boringtun::noise::Tunn::new(
-            boringtun::x25519::StaticSecret::from(wg_private),
-            charger_pub,
+            wg_private,
+            boringtun::x25519::PublicKey::from(charger_pub),
             Some(psk),
             None,
             OsRng.next_u32(),
