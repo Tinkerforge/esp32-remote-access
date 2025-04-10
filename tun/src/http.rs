@@ -264,16 +264,14 @@ impl Client {
             }
         });
 
-        let Ok(tunn) = boringtun::noise::Tunn::new(
+        let tunn = boringtun::noise::Tunn::new(
             wg_private,
             boringtun::x25519::PublicKey::from(charger_pub),
             Some(psk),
             None,
             OsRng.next_u32(),
             Some(rate_limiter),
-        ) else {
-            return Err(anyhow::anyhow!("Failed to create tunn"));
-        };
+        );
 
         let resp = self.client.get(format!("wss://{}/api/ws?key_id={}", self.host, keys.id))
             .upgrade()
