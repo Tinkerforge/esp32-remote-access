@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     });
-
+    let mut connected = false;
     loop {
         tokio::select! {
             Some(data) = receiver.recv() => {
@@ -87,7 +87,16 @@ async fn main() -> anyhow::Result<()> {
             data = ws.try_next() => {
                 match data {
                     Ok(Some(Message::Binary(data))) => {
-                        send_to_own(&mut ws, data, &mut tunn, fd).await;
+                        send_to_tun(&mut ws, data, &mut tunn, fd).await;
+                        if let Some(timestamp) = tunn.time_since_last_handshake() {
+                            if !connected {
+                                log::info!("Connected. Peer IP: {}", peer_ip.to_str()?);
+                                connected = true;
+                            } else if connected && timestamp.as_secs() > 120 {
+                                log::warn!("Connection timed out. Reconnecting...");
+                                connected = false;
+                            }
+                        }
                     },
                     Ok(Some(Message::Ping(data))) => {
                         ws.send(Message::Pong(data)).await.ok();
@@ -137,7 +146,7 @@ async fn send_to_peer(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn
     }
 }
 
-async fn send_to_own(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn: &mut boringtun::noise::Tunn, fd: i32) {
+async fn send_to_tun(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn: &mut boringtun::noise::Tunn, fd: i32) {
     let mut buf = vec![0u8; 2048];
     match tunn.decapsulate(None, &data, &mut buf) {
         TunnResult::WriteToNetwork(buf) => {
@@ -146,7 +155,7 @@ async fn send_to_own(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn:
             if len < 0 {
                 log::error!("Error writing to tun device");
             }
-            Box::pin(send_to_own(ws, Vec::new(), tunn, fd)).await;
+            Box::pin(send_to_tun(ws, Vec::new(), tunn, fd)).await;
         },
         TunnResult::Done => (),
         TunnResult::WriteToTunnelV4(data, _) => {
