@@ -16,7 +16,7 @@ test('register', async ({ page }) => {
     await page.getByText('I have read, understood and I am accepting the terms and conditions.').click();
     await page.getByRole('button', { name: 'Register' }).click();
     await page.getByText('Close').click();
-    const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser1});
+    const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser1, from_timestamp: (Date.now() / 1000) - 5 });
     const idx = inbox.data[0].text.indexOf(`[${testDomain}/api/auth/verify?`) + 1;
     if (idx === -1) {
         throw new Error("Failed to verify email");

@@ -117,7 +117,7 @@ test('change username', async ({page}) => {
   await page.getByRole('button', { name: 'Logout', exact: true }).click();
 
 
-  const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser2});
+  const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser2, from_timestamp: (Date.now() / 1000) - 5 });
   const idx = inbox.data[0].text.indexOf(`[${testDomain}/api/auth/verify?`) + 1;
   if (idx === -1) {
       throw new Error("Failed to verify email");
