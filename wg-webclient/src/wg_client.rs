@@ -85,8 +85,8 @@ impl Client {
             // add event listener should not fail
             let global = js_sys::global();
             let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
-            let mut options = web_sys::AddEventListenerOptions::new();
-            options.once(true);
+            let options = web_sys::AddEventListenerOptions::new();
+            options.set_once(true);
             global
                 .add_event_listener_with_callback_and_add_event_listener_options(
                     req_id.as_str(),
@@ -645,15 +645,15 @@ fn poll_response(
             }
 
             // Build the actual response object
-            let mut response_init = web_sys::ResponseInit::new();
-            response_init.status(resp.status().as_u16());
-            response_init.headers(&headers);
+            let response_init = web_sys::ResponseInit::new();
+            response_init.set_status(resp.status().as_u16());
+            response_init.set_headers(&headers);
             response_init
-                .status_text(resp.status().canonical_reason().unwrap_or(""));
+                .set_status_text(resp.status().canonical_reason().unwrap_or(""));
             let array: js_sys::Uint8Array = (&body[..]).into();
             let response = web_sys::Response::new_with_opt_buffer_source_and_init(Some(&array), &response_init).unwrap();
-            let mut init = web_sys::CustomEventInit::new();
-            init.detail(&response.into());
+            let init = web_sys::CustomEventInit::new();
+            init.set_detail(&response.into());
             let event = web_sys::CustomEvent::new_with_event_init_dict(
                 format!("get_{}", id).as_str(),
                 &init,

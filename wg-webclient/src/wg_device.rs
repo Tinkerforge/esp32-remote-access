@@ -25,7 +25,7 @@ use boringtun::{
 };
 use pcap_file::pcapng::blocks::interface_description::InterfaceDescriptionBlock;
 use pcap_file::pcapng::PcapNgWriter;
-use rand_core::{OsRng, RngCore};
+use rand_core::{OsRng, TryRngCore};
 use smoltcp::phy::{self, DeviceCapabilities, Medium};
 use smoltcp::time::Instant;
 use wasm_bindgen_futures::spawn_local;
@@ -82,7 +82,7 @@ impl WgTunDevice {
             peer,
             Some(psk),
             Some(4),
-            OsRng.next_u32(),
+            OsRng.try_next_u32().unwrap(),
             Some(rate_limiter.clone()),
         );
         let reset_rate_limiter = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
