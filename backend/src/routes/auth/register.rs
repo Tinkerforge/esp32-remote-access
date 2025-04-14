@@ -253,6 +253,7 @@ pub async fn register(
 pub(crate) mod tests {
     use crate::{defer, tests::configure, utils::generate_random_bytes};
     use actix_web::{http::header::ContentType, test, App};
+    use db_connector::test_connection_pool;
     use rand::Rng;
 
     use super::*;
@@ -465,6 +466,26 @@ pub(crate) mod tests {
             .set_json(user)
             .to_request();
         let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_client_error());
+        assert!(resp.status().is_success());
+
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        {
+            use db_connector::schema::users::dsl::*;
+            use diesel::prelude::*;
+
+            let mail = mail.to_lowercase();
+            if let Ok(u) = users
+                .filter(email.eq(mail.clone()))
+                .select(User::as_select())
+                .load(&mut conn)
+            {
+                if u.len() > 1 {
+                    panic!("User was created twice");
+                }
+            } else {
+                panic!("User not found");
+            };
+        }
     }
 }
