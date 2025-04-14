@@ -261,18 +261,18 @@ pub(crate) mod tests {
     pub async fn create_user(mail: &str) -> Vec<u8> {
         // test with valid syntax
 
-        let mut rng = rand::thread_rng();
-        let login_key: Vec<u8> = (0..24).map(|_| rng.gen_range(0..255)).collect();
+        let mut rng = rand::rng();
+        let login_key: Vec<u8> = (0..24).map(|_| rng.random_range(0..255)).collect();
         let app = App::new().configure(configure).service(register);
         let app = test::init_service(app).await;
         let user = RegisterSchema {
             name: mail.to_string(),
             email: mail.to_string(),
             login_key: login_key.clone(),
-            login_salt: (0..24).map(|_| rng.gen_range(0..255)).collect(),
-            secret: (0..24).map(|_| rng.gen_range(0..255)).collect(),
-            secret_nonce: (0..16).map(|_| rng.gen_range(0..255)).collect(),
-            secret_salt: (0..24).map(|_| rng.gen_range(0..255)).collect(),
+            login_salt: (0..24).map(|_| rng.random_range(0..255)).collect(),
+            secret: (0..24).map(|_| rng.random_range(0..255)).collect(),
+            secret_nonce: (0..16).map(|_| rng.random_range(0..255)).collect(),
+            secret_salt: (0..24).map(|_| rng.random_range(0..255)).collect(),
         };
         let req = test::TestRequest::post()
             .uri("/register")

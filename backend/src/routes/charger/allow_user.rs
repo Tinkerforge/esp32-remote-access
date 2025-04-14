@@ -220,8 +220,8 @@ pub mod tests {
     use base64::prelude::BASE64_STANDARD;
     use db_connector::test_connection_pool;
     use rand::{
-        distributions::{Alphanumeric, DistString},
-        RngCore,
+        distr::{Alphanumeric, SampleString},
+        TryRngCore,
     };
     use rand_core::OsRng;
 
@@ -263,7 +263,7 @@ pub mod tests {
         let (user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let charger = OsRng.next_u32() as i32;
+        let charger = OsRng.try_next_u32().unwrap() as i32;
         user1.login().await.to_string();
         let charger = user1.add_charger(charger).await;
 
@@ -300,7 +300,7 @@ pub mod tests {
         let (mut user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let charger = OsRng.next_u32() as i32;
+        let charger = OsRng.try_next_u32().unwrap() as i32;
         user1.login().await;
         let charger = user1.add_charger(charger).await;
 
@@ -340,7 +340,7 @@ pub mod tests {
         let (user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let charger = OsRng.next_u32() as i32;
+        let charger = OsRng.try_next_u32().unwrap() as i32;
         user1.login().await.to_string();
         let charger = user1.add_charger(charger).await;
 
@@ -352,7 +352,7 @@ pub mod tests {
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
             email: Some(user2.mail.to_owned()),
             user_uuid: None,
-            charger_password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
+            charger_password: Alphanumeric.sample_string(&mut rand::rng(), 32),
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
             note: String::new(),
@@ -371,7 +371,7 @@ pub mod tests {
     async fn test_allow_users_non_existing() {
         let (mut user, _) = TestUser::random().await;
 
-        let charger = OsRng.next_u32() as i32;
+        let charger = OsRng.try_next_u32().unwrap() as i32;
         user.login().await.to_string();
         let charger = user.add_charger(charger).await;
 
@@ -466,7 +466,7 @@ pub mod tests {
         let (user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let charger = OsRng.next_u32() as i32;
+        let charger = OsRng.try_next_u32().unwrap() as i32;
         user1.login().await.to_string();
         let charger = user1.add_charger(charger).await;
 

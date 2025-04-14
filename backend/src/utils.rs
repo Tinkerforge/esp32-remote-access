@@ -44,8 +44,8 @@ pub fn get_connection(
 }
 
 pub fn generate_random_bytes() -> Vec<u8> {
-    let mut rng = rand::thread_rng();
-    (0..24).map(|_| rng.gen_range(0..255)).collect()
+    let mut rng = rand::rng();
+    (0..24).map(|_| rng.random_range(0..255)).collect()
 }
 
 pub async fn web_block_unpacked<F, R>(f: F) -> Result<R, actix_web::Error>

@@ -134,7 +134,7 @@ mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::test_connection_pool;
-    use rand::RngCore;
+    use rand::TryRngCore;
     use rand_core::OsRng;
 
     use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
@@ -144,7 +144,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let charger_uid = OsRng.next_u32() as i32;
+        let charger_uid = OsRng.try_next_u32().unwrap() as i32;
         let charger = user.add_charger(charger_uid).await;
 
         let app = App::new()
@@ -169,7 +169,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let charger_uid = OsRng.next_u32() as i32;
+        let charger_uid = OsRng.try_next_u32().unwrap() as i32;
         let charger = user.add_charger(charger_uid).await;
 
         let pool = test_connection_pool();

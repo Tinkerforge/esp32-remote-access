@@ -129,7 +129,7 @@ mod tests {
     use crate::{routes::user::tests::TestUser, tests::configure};
     use actix_web::{cookie::Cookie, get, test, App, Responder};
     use chrono::{Duration, Utc};
-    use rand::{distributions::Alphanumeric, Rng};
+    use rand::{distr::Alphanumeric, Rng};
 
     #[get("/hello")]
     async fn with_extractor(_: JwtMiddleware) -> impl Responder {
@@ -204,7 +204,7 @@ mod tests {
         let app = App::new().configure(configure).service(with_extractor);
         let app = test::init_service(app).await;
 
-        let token: String = rand::thread_rng()
+        let token: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(1024)
             .map(char::from)
@@ -237,7 +237,7 @@ mod tests {
             sub: id.to_string(),
         };
 
-        let jwt_secret: String = rand::thread_rng()
+        let jwt_secret: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(1024)
             .map(char::from)

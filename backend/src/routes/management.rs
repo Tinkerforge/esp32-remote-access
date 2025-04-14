@@ -428,7 +428,7 @@ mod tests {
         models::{allowed_users::AllowedUser, wg_keys::WgKey},
         test_connection_pool,
     };
-    use rand::distributions::{Alphanumeric, DistString};
+    use rand::distr::{Alphanumeric, SampleString};
 
     use crate::{
         routes::{
@@ -594,7 +594,7 @@ mod tests {
 
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
             id: charger.uuid,
-            password: Alphanumeric.sample_string(&mut rand::thread_rng(), 32),
+            password: Alphanumeric.sample_string(&mut rand::rng(), 32),
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
@@ -637,7 +637,7 @@ mod tests {
         });
         let body: ManagementSchema = ManagementSchema {
             id: Some(charger.uid),
-            password: Some(Alphanumeric.sample_string(&mut rand::thread_rng(), 32)),
+            password: Some(Alphanumeric.sample_string(&mut rand::rng(), 32)),
             data,
         };
         let req = test::TestRequest::put()

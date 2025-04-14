@@ -10,7 +10,7 @@ use crate::{
     AppState,
 };
 
-use super::add::Keys;
+use super::add::{AddChargerResponseSchema, Keys};
 
 #[derive(Deserialize, Serialize, ToSchema, Validate)]
 #[validate(schema(function = "validate_add_charger_with_token_schema"))]
@@ -112,7 +112,7 @@ mod tests {
     };
     use actix_web::{test, App};
     use ipnetwork::{IpNetwork, Ipv4Network};
-    use rand::RngCore;
+    use rand::TryRngCore;
     use rand_core::OsRng;
 
     #[actix_web::test]
@@ -126,7 +126,7 @@ mod tests {
 
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
-        let uid = OsRng.next_u32() as i32;
+        let uid = OsRng.try_next_u32().unwrap() as i32;
         let charger = AddChargerWithTokenSchema {
             user_id: get_test_uuid(&mail).unwrap().to_string(),
             token: auth_token.token,
@@ -177,7 +177,7 @@ mod tests {
 
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
-        let uid = OsRng.next_u32() as i32;
+        let uid = OsRng.try_next_u32().unwrap() as i32;
         let charger = AddChargerWithTokenSchema {
             user_id: get_test_uuid(&mail).unwrap().to_string(),
             token: auth_token,

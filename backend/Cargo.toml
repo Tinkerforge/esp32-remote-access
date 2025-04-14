@@ -12,41 +12,40 @@ path = "src/api_docs.rs"
 
 [dependencies]
 actix-web = "4.10.2"
-actix-web-validator = {git = "https://github.com/Tinkerforge/actix-web-validator"}
+actix-web-validator = {git = "https://github.com/Tinkerforge/actix-web-validator", rev = "a001926b1a51ff07daa134abcc2d8855455f0604"}
 actix = "0.13.3"
 
 dotenvy = "0.15.7"
 db_connector = { path = "../db_connector" }
 serde = { version = "1.0.196", features = ["derive"] }
 argon2 = "0.5.3"
-diesel = { version = "2.2.3", features = ["postgres", "r2d2", "uuid", "network-address", "chrono"] }
+diesel = { version = "2.2.9", features = ["postgres", "r2d2", "uuid", "network-address", "chrono"] }
 uuid = { version = "1.7.0", features = ["v4"] }
-validator = { version = "0.19", features = ["derive"] }
+validator = { version = "0.20", features = ["derive"] }
 chrono = "0.4.33"
 actix-cors = "0.7.0"
 jsonwebtoken = "9.3.1"
 futures-util = "0.3.30"
 lettre = { version = "0.11.11", features = ["native-tls"] }
-derive_more = "0.99.17"
+derive_more = "2"
 simplelog = "0.12.1"
 base64 = "0.22"
-ipnetwork = "0.20.0"
-utoipa = { version = "4.2.0", features = ["actix_extras"] }
-utoipa-swagger-ui = { version = "6.0.0", features = ["actix-web"] }
+ipnetwork = { version = "0.21.1", features = ["serde"] }
+utoipa = { version = "5", features = ["actix_extras"] }
+utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
 log = "0.4.20"
 boringtun = { git = "https://github.com/Tinkerforge/boringtun.git", rev = "324e8c54d61c16cccef3a978385ec5a2728ebaff" }
-# boringtun = "0.6.0"
-rand_core = "0.6.4"
-rand = "0.8.5"
+rand_core = "0.9"
+rand = "0.9"
 anyhow = "1.0.80"
 threadpool = "1.8.1"
 num_cpus = "1.16.0"
-smoltcp = "0.11.0"
+smoltcp = "0.12.0"
 bs58 = "0.5.1"
-askama = "0.12.1"
+askama = "0.13"
 actix-governor = {version = "0.8.0", features = ["log"]}
-lru = "0.12.5"
-governor = "0.8.0"
+lru = "0.14"
+governor = "0.10"
 dashmap = "6.1.0"
 semver = "1.0.24"
 

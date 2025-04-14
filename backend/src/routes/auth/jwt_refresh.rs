@@ -192,7 +192,7 @@ mod tests {
     };
     use chrono::{Duration, Utc};
     use jsonwebtoken::{decode, encode, Validation};
-    use rand::{distributions::Alphanumeric, Rng};
+    use rand::{distr::Alphanumeric, Rng};
 
     use crate::{
         models::token_claims::TokenClaims, routes::user::tests::TestUser, tests::configure,
@@ -254,7 +254,7 @@ mod tests {
         let app = App::new().configure(configure).service(jwt_refresh);
         let app = test::init_service(app).await;
 
-        let token: String = rand::thread_rng()
+        let token: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(1024)
             .map(char::from)
@@ -287,7 +287,7 @@ mod tests {
             sub: id.to_string(),
         };
 
-        let jwt_secret: String = rand::thread_rng()
+        let jwt_secret: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(1024)
             .map(char::from)

@@ -252,7 +252,7 @@ pub(crate) mod tests {
     use ipnetwork::Ipv4Network;
     use lettre::transport::smtp::authentication::Credentials;
     use lru::LruCache;
-    use rand::RngCore;
+    use rand::TryRngCore;
     use rand_core::OsRng;
     use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
     use routes::user::tests::{get_test_uuid, TestUser};
@@ -632,7 +632,7 @@ pub(crate) mod tests {
         let charger = user.add_random_charger().await;
         let charger2 = Charger {
             id: uuid::Uuid::new_v4(),
-            uid: OsRng.next_u32() as i32,
+            uid: OsRng.try_next_u32().unwrap() as i32,
             password: String::new(),
             name: None,
             management_private: String::new(),

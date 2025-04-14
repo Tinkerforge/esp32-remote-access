@@ -26,37 +26,37 @@ use derive_more::{Display, Error};
 
 #[derive(Debug, Display, Error)]
 pub enum Error {
-    #[display(fmt = "An internal error occured. Please try again later")]
+    #[display("An internal error occured. Please try again later")]
     InternalError,
-    #[display(fmt = "An account with this email already exists")]
+    #[display("An account with this email already exists")]
     UserAlreadyExists,
-    #[display(fmt = "Wrong username or password")]
+    #[display("Wrong username or password")]
     WrongCredentials,
-    #[display(fmt = "Not verified")]
+    #[display("Not verified")]
     NotVerified,
-    #[display(fmt = "Unauthorized")]
+    #[display("Unauthorized")]
     Unauthorized,
-    #[display(fmt = "This charger already exists")]
+    #[display("This charger already exists")]
     ChargerAlreadyExists,
-    #[display(fmt = "User does not exist")]
+    #[display("User does not exist")]
     UserDoesNotExist,
-    #[display(fmt = "Wg keys do not exist")]
+    #[display("Wg keys do not exist")]
     WgKeysDoNotExist,
-    #[display(fmt = "No unused Key left")]
+    #[display("No unused Key left")]
     AllKeysInUse,
-    #[display(fmt = "Key already in use")]
+    #[display("Key already in use")]
     WgKeyAlreadyInUse,
-    #[display(fmt = "Charger was not seen yet")]
+    #[display("Charger was not seen yet")]
     ChargerNotSeenYet,
-    #[display(fmt = "Request does not contain a valid ip address")]
+    #[display("Request does not contain a valid ip address")]
     NoValidIp,
-    #[display(fmt = "Charger is currently not connected to the server")]
+    #[display("Charger is currently not connected to the server")]
     ChargerDisconnected,
-    #[display(fmt = "Not an active session")]
+    #[display("Not an active session")]
     SessionDoesNotExist,
-    #[display(fmt = "The provided credentials are wrong")]
+    #[display("The provided credentials are wrong")]
     ChargerCredentialsWrong,
-    #[display(fmt = "Charger does not exist")]
+    #[display("Charger does not exist")]
     ChargerDoesNotExist,
 }
 

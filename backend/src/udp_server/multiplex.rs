@@ -30,7 +30,7 @@ use db_connector::models::chargers::Charger;
 use diesel::prelude::*;
 use futures_util::lock::Mutex;
 use ipnetwork::IpNetwork;
-use rand::RngCore;
+use rand::TryRngCore;
 use rand_core::OsRng;
 
 use crate::{
@@ -120,7 +120,7 @@ async fn create_tunn(
             peer_static_public,
             Some(psk),
             Some(5),
-            OsRng.next_u32(),
+            OsRng.try_next_u32()?,
             Some(rate_limiter.clone()),
         );
 

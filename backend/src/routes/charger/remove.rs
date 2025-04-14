@@ -222,7 +222,7 @@ pub(crate) mod tests {
     use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::test_connection_pool;
     use diesel::r2d2::{ConnectionManager, PooledConnection};
-    use rand::RngCore;
+    use rand::TryRngCore;
     use rand_core::OsRng;
 
     use crate::{
@@ -404,7 +404,7 @@ pub(crate) mod tests {
         let (mut user1, _) = TestUser::random().await;
         let email = user1.get_mail().to_owned();
         let (mut user2, _) = TestUser::random().await;
-        let charger_uid = OsRng.next_u32() as i32;
+        let charger_uid = OsRng.try_next_u32().unwrap() as i32;
         user2.login().await;
         let charger = user2.add_charger(charger_uid).await;
         user2
@@ -446,7 +446,7 @@ pub(crate) mod tests {
 
         let (mut user1, _) = TestUser::random().await;
         let (mut user2, _) = TestUser::random().await;
-        let charger_uid = OsRng.next_u32() as i32;
+        let charger_uid = OsRng.try_next_u32().unwrap() as i32;
         user2.login().await;
         let charger = user2.add_charger(charger_uid).await;
         let token = user1.login().await;

@@ -36,7 +36,7 @@ pub async fn create_authorization_token(
 ) -> actix_web::Result<impl Responder> {
     let id = uuid::Uuid::new_v4();
     let mut token = vec![0u8; 32];
-    rand::thread_rng().fill_bytes(&mut token);
+    rand::rng().fill_bytes(&mut token);
     let token = base64::engine::general_purpose::STANDARD.encode(token);
     let auth_token = AuthorizationToken {
         id,

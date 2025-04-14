@@ -142,7 +142,7 @@ pub mod tests {
         crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES,
         crypto_secretbox_NONCEBYTES, crypto_secretbox_easy,
     };
-    use rand::{Rng, RngCore};
+    use rand::{Rng, TryRngCore};
     use rand_core::OsRng;
 
     use crate::{
@@ -206,8 +206,8 @@ pub mod tests {
     }
 
     pub fn generate_random_bytes_len(len: usize) -> Vec<u8> {
-        let mut rng = rand::thread_rng();
-        (0..len).map(|_| rng.gen_range(0..255)).collect()
+        let mut rng = rand::rng();
+        (0..len).map(|_| rng.random_range(0..255)).collect()
     }
 
     impl TestUser {
@@ -324,7 +324,7 @@ pub mod tests {
         }
 
         pub async fn add_random_charger(&mut self) -> TestCharger {
-            let id = OsRng.next_u32() as i32;
+            let id = OsRng.try_next_u32().unwrap() as i32;
             let charger = self.add_charger(id).await;
 
             charger

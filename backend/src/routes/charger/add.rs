@@ -23,7 +23,7 @@ use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
 use diesel::{prelude::*, result::Error::NotFound};
 use ipnetwork::IpNetwork;
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{distr::Alphanumeric, Rng, TryRngCore};
 use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -280,7 +280,13 @@ async fn update_charger(
 
     let mut conn = get_connection(state)?;
     let pub_key = web_block_unpacked(move || {
-        let private_key = boringtun::x25519::StaticSecret::random_from_rng(OsRng);
+        let mut private_key = [0u8; 32];
+        if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
+            log::error!("Failed to generate new private key: {}", error);
+            return Err(Error::InternalError);
+        }
+
+        let private_key = boringtun::x25519::StaticSecret::from(private_key);
         let pub_key = boringtun::x25519::PublicKey::from(&private_key);
         let private_key = BASE64_STANDARD.encode(private_key.as_bytes());
         let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
@@ -309,7 +315,7 @@ async fn update_charger(
 }
 
 async fn generate_password() -> actix_web::Result<(String, String)> {
-    let password: String = rand::thread_rng()
+    let password: String = rand::rng()
         .sample_iter(&Alphanumeric)
         .take(32)
         .map(char::from)
@@ -339,7 +345,13 @@ pub async fn add_charger(
 
     let mut conn = get_connection(state)?;
     let ret = web_block_unpacked(move || {
-        let private_key = boringtun::x25519::StaticSecret::random_from_rng(OsRng);
+        let mut private_key = [0u8; 32];
+        if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
+            log::error!("Failed to generate new private key: {}", error);
+            return Err(Error::InternalError);
+        }
+
+        let private_key = boringtun::x25519::StaticSecret::from(private_key);
         let pub_key = boringtun::x25519::PublicKey::from(&private_key);
         let private_key = BASE64_STANDARD.encode(private_key.as_bytes());
         let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
@@ -447,7 +459,6 @@ pub(crate) mod tests {
     use boringtun::x25519;
     use db_connector::test_connection_pool;
     use ipnetwork::Ipv4Network;
-    use rand::RngCore;
     use rand_core::OsRng;
 
     use crate::{
@@ -467,7 +478,10 @@ pub(crate) mod tests {
     pub fn generate_random_keys() -> [Keys; 5] {
         let mut keys: [MaybeUninit<Keys>; 5] = unsafe { MaybeUninit::uninit().assume_init() };
         for (i, key) in keys.iter_mut().enumerate() {
-            let secret = x25519::StaticSecret::random_from_rng(OsRng);
+            let mut private_key = [0u8; 32];
+            OsRng.try_fill_bytes(&mut private_key).unwrap();
+
+            let secret = x25519::StaticSecret::from(private_key);
             let public = x25519::PublicKey::from(&secret);
             *key = MaybeUninit::new(Keys {
                 web_private: generate_random_bytes(),
@@ -544,7 +558,7 @@ pub(crate) mod tests {
 
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
-        let uid = OsRng.next_u32() as i32;
+        let uid = OsRng.try_next_u32().unwrap() as i32;
         let charger = AddChargerSchema {
             charger: ChargerSchema {
                 uid: bs58::encode(uid.to_be_bytes())
@@ -757,14 +771,19 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_key_validator_valid_key() {
-        let key = x25519::StaticSecret::random_from_rng(OsRng);
+        let mut private_key = [0u8; 32];
+        OsRng.try_fill_bytes(&mut private_key).unwrap();
+
+        let key = x25519::StaticSecret::from(private_key);
         let key = BASE64_STANDARD.encode(key);
         assert_eq!(Ok(()), validate_wg_key(key.as_str()))
     }
 
     #[actix_web::test]
     async fn test_key_validator_invalid_key() {
-        let key = x25519::StaticSecret::random_from_rng(OsRng);
+        let mut private_key = [0u8; 32];
+        OsRng.try_fill_bytes(&mut private_key).unwrap();
+        let key = x25519::StaticSecret::from(private_key);
         let key = BASE64_STANDARD.encode(key);
         assert!(validate_wg_key(&key[0..key.len() - 2]).is_err());
 
@@ -782,7 +801,7 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let schema = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode((OsRng.next_u32() as i32).to_le_bytes())
+                uid: bs58::encode((OsRng.try_next_u32().unwrap() as i32).to_le_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 charger_pub: keys[0].charger_public.clone(),
