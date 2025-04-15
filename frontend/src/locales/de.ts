@@ -7,7 +7,7 @@ export const de ={
     "no_service_worker": "Dein Browser benötigt Unterstützung für ServiceWorker um den Fernzugriff nutzen zu können.",
     "user": {
         "account_actions": "Kontoaktionen",
-        "profile_information": "Nutzer Informationen",
+        "profile_information": "Nutzerinformationen",
         "save_changes": "Änderungen speichern",
         "user_id": "Nutzer-ID",
         "email": "E-Mail-Adresse",
