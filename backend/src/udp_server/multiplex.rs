@@ -205,6 +205,7 @@ pub async fn run_server(state: web::Data<BridgeState>) {
                 }
             }
 
+            // Get the management socket or create a new one when it does not exist
             let tunn_sock = {
                 // Maybe we could release the lock when adding a new management connection and get it back later
                 // in case it turns out that holding it causes major connection issues.
