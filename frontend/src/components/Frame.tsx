@@ -321,7 +321,7 @@ export class Frame extends Component<FrameProps, FrameState> {
                         i18n.t("chargers.loading_webinterface")}
                     </div>
                     <Button className="col-lg-1 col-md-2 col-sm-3 col-6 mt-3"
-                        variant="outline-warning"
+                        variant="warning"
                         type="button"
                         onClick={(e) => {
                             e.stopPropagation();
