@@ -112,7 +112,6 @@ pub async fn get_charger_by_uid(
         }
     }
 
-    println!("E");
     Err(Error::ChargerCredentialsWrong.into())
 }
 
