@@ -238,7 +238,7 @@ impl WebClient {
             }
         }
 
-        self.session.close(None).await.unwrap();
+        self.session.close(None).await.ok();
     }
 }
 
