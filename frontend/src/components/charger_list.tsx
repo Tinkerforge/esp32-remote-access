@@ -514,7 +514,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                                 </Row>
                             </th>
                             <th onClick={() => this.setSort("uid")}>
-                                <Row className="g-1">
+                                <Row>
                                     <Col>
                                         {t("charger_id")}
                                     </Col>
@@ -527,7 +527,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                             <th/>
                             <th onClick={() => this.setSort("note")}>
                                 <Container fluid>
-                                    <Row className="g1">
+                                    <Row>
                                         <Col>
                                             {t("note")}
                                         </Col>
