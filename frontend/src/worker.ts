@@ -145,7 +145,7 @@ async function start_connection(setup_data: SetupMessage) {
             }
             self.postMessage(msg);
             return;
-        }else if (resp.status !== 200) {
+        } else if (resp.status !== 200) {
             const msg: Message = {
                 type: MessageType.Error,
                 data: {
@@ -161,6 +161,9 @@ async function start_connection(setup_data: SetupMessage) {
         }
         keys = await resp.json();
     } catch (e) {
+        setTimeout(() => {
+            start_connection(setup_data);
+        }, 1000);
         return;
     }
     const decrypted_keys = decrypt_keys(keys, setup_data.secret);
