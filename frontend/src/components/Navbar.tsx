@@ -61,7 +61,7 @@ export function CustomNavbar() {
 
     return (
         <Navbar id="remote_access_navbar" expanded={expanded} expand="md" hidden={connected.value} className="navbar-dark sticky-top flex-row flex-md-nowrap p-2 mb-2">
-                <a href="/"><img class="pt-2 pb-2 pl-3" src={logo} style="max-width: calc(100vw - 80px); image-rendering: crisp-edges" alt="logo"/></a>
+                <a href="/"><img class="pt-2 pb-2 ps-2" src={logo} style="max-width: calc(100vw - 80px); image-rendering: crisp-edges" alt="logo"/></a>
                 <Navbar.Toggle onClick={() => setExpanded(!expanded)} id="navbar-toggler" aria-controls="basic-navbar-nav"/>
                 <Navbar.Collapse id="navbar-nav" className="sidebar px-2 py-1">
                     <Nav className="me-auto">
