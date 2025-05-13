@@ -64,7 +64,7 @@ export function CustomNavbar() {
                 <a href="/"><img class="pt-2 pb-2 ps-2" src={logo} style="max-width: calc(100vw - 80px); image-rendering: crisp-edges" alt="logo"/></a>
                 <Navbar.Toggle onClick={() => setExpanded(!expanded)} id="navbar-toggler" aria-controls="basic-navbar-nav"/>
                 <Navbar.Collapse id="navbar-nav" className="sidebar px-2 py-1">
-                    <Nav className="me-auto">
+                    <Nav className="me-auto ps-2">
                         <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/chargers" active={url === "/chargers"}>
                             <Server/>
                             <p class="ms-1 mb-0">
