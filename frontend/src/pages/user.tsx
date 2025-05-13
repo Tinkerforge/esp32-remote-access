@@ -272,13 +272,13 @@ export function User() {
                 </Card.Header>
                 <Card.Body className="pt-3">
                     <div className="d-flex flex-wrap gap-3">
-                        <Button variant="outline-primary" onClick={handleUpdatePasswordShow}>
+                        <Button variant="primary" onClick={handleUpdatePasswordShow}>
                             {t("change_password")}
                         </Button>
-                        <Button variant="outline-warning" onClick={() => logout(true)}>
+                        <Button variant="warning" onClick={() => logout(true)}>
                             {t("logout_all")}
                         </Button>
-                        <Button variant="outline-danger" onClick={handleDeleteUserShow}>
+                        <Button variant="danger" onClick={handleDeleteUserShow}>
                             {t("delete_user")}
                         </Button>
                     </div>
