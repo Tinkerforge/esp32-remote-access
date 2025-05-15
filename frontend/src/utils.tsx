@@ -168,3 +168,17 @@ setInterval(() => {
     }
     lastAlive = now;
 }, 2000);
+
+// Broadcast channel to sync the app state between tabs
+export const bc = new BroadcastChannel("sync");
+bc.onmessage = (event) => {
+    switch (event.data) {
+        case "login":
+            window.location.reload();
+            break;
+        case "logout":
+            resetSecret();
+            loggedIn.value = AppState.LoggedOut;
+            break;
+    }
+}

@@ -1,7 +1,7 @@
 import { Component } from "preact";
 import Button from "react-bootstrap/Button"
 import Form from "react-bootstrap/Form";
-import { AppState, fetchClient, loggedIn } from "../utils";
+import { AppState, bc, fetchClient, loggedIn } from "../utils";
 import { showAlert } from "./Alert";
 import { generate_hash, get_salt_for_user } from "../utils";
 import { Modal } from "react-bootstrap";
@@ -82,6 +82,7 @@ export class Login extends Component<{}, LoginState> {
 
         localStorage.setItem("secretKey", encoded_key);
         loggedIn.value = AppState.LoggedIn;
+        bc.postMessage("login");
     }
 
     render() {

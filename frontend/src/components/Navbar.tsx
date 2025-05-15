@@ -1,6 +1,6 @@
 import { useLocation } from "preact-iso";
 import Nav from "react-bootstrap/Nav";
-import { AppState, fetchClient, FRONTEND_URL, loggedIn, pub_key, resetSecret, secret } from "../utils";
+import { AppState, bc, fetchClient, FRONTEND_URL, loggedIn, pub_key, resetSecret, secret } from "../utils";
 import { useTranslation } from "react-i18next";
 import { Navbar } from "react-bootstrap";
 import Median from "median-js-bridge";
@@ -26,6 +26,7 @@ export async function logout(logout_all: boolean) {
         localStorage.removeItem("secretKey");
 
         loggedIn.value = AppState.LoggedOut;
+        bc.postMessage("logout");
     }
 
 export function setAppNavigation() {
