@@ -97,7 +97,7 @@ pub fn clean_recovery_tokens(
 ) {
     use db_connector::schema::recovery_tokens::dsl::*;
 
-    if let Some(time) = Utc::now().checked_sub_signed(TimeDelta::hours(1)) {
+    if let Some(time) = Utc::now().checked_sub_signed(TimeDelta::hours(6)) {
         diesel::delete(recovery_tokens.filter(created.lt(time.timestamp())))
             .execute(conn)
             .ok();
