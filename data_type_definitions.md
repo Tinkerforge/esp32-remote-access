@@ -8,7 +8,7 @@ The authorization token is used to provide all necessary information + authoriza
  - the users uuid - used for identification of the user
  - the users public key - used to encrypt the data stored on the server
  - the users email - used to display in the configured users section
- - a sha-256 checksum
+ - the checksum is a argon2id hash since we cant use the browsers implementation of sha-256 in the webinterface of a device. It is computed with a empty salt with the size of 8, 19 MB Memory, time 2 and parallelism 1 parameters.
 
 The token is base58 encoded using ther FLICKR-alphabet and structured as followed:
 
