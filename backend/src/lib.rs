@@ -361,7 +361,7 @@ pub(crate) mod tests {
             id: token1_id,
             user_id: uid,
             created: Utc::now()
-                .checked_sub_signed(TimeDelta::hours(1))
+                .checked_sub_signed(TimeDelta::hours(6))
                 .unwrap()
                 .timestamp()
                 + 1,
@@ -370,7 +370,7 @@ pub(crate) mod tests {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
             created: Utc::now()
-                .checked_sub_signed(TimeDelta::hours(1))
+                .checked_sub_signed(TimeDelta::hours(6))
                 .unwrap()
                 .timestamp()
                 - 1,
@@ -379,7 +379,7 @@ pub(crate) mod tests {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
             created: Utc::now()
-                .checked_sub_signed(TimeDelta::hours(2))
+                .checked_sub_signed(TimeDelta::hours(7))
                 .unwrap()
                 .timestamp(),
         };
