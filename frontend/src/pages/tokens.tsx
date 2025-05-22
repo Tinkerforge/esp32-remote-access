@@ -50,6 +50,7 @@ async function buildToken(userData: components["schemas"]["UserInfo"], tokenData
     return encoded;
 }
 
+let fetchInterval = undefined;
 export function Tokens() {
     const { t } = useTranslation();
     const [tokens, setTokens] = useState([]);
@@ -108,6 +109,15 @@ export function Tokens() {
         }
 
         fetchTokens();
+        fetchInterval = setInterval(() => {
+            fetchTokens();
+        }, 5000);
+
+        return () => {
+            if (fetchInterval) {
+                clearInterval(fetchInterval);
+            }
+        }
     }, [t]);
 
     // Creates a new authorization token on form submission
