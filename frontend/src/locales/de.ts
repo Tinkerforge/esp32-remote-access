@@ -55,7 +55,7 @@ export const de ={
         "connect_error_text": "Verbindung zu Gerät {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
         "remove_error_text": "Entfernen des Gerätes {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
         "delete_modal_heading": "Gerät {{name}} entfernen",
-        "delete_modal_body": "Bist du sicher, dass du das Gerät {{name}} entfernen willst? Dies ist permanent und das Gerät kann nur wiederhergestellt werden wenn du direkten Zugriff auf das webinterface hast.",
+        "delete_modal_body": "Bist du sicher, dass du das Gerät {{name}} entfernen willst? Dies ist permanent und das Gerät kann nur wiederhergestellt werden wenn du direkten Zugriff auf das Webinterface hast.",
         "select_sorting": "Sortieren",
         "sorting_sequence_asc": "Aufsteigend",
         "sorting_sequence_desc": "Absteigend",
