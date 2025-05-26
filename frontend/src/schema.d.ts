@@ -287,6 +287,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/check_expiration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["check_expiration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management": {
         parameters: {
             query?: never;
@@ -505,6 +521,10 @@ export interface components {
         };
         /** @enum {string} */
         ChargerStatus: "Disconnected" | "Connected";
+        CheckExpirationRequest: {
+            token: string;
+            token_type: components["schemas"]["TokenType"];
+        };
         ConfiguredUser: {
             email?: string | null;
             name?: string | null;
@@ -633,6 +653,8 @@ export interface components {
             password: string;
             uuid?: string | null;
         };
+        /** @enum {string} */
+        TokenType: "Recovery" | "Verification";
         UpdateNoteSchema: {
             charger_id: string;
             note: string;
@@ -1147,6 +1169,51 @@ export interface operations {
             };
             /** @description Invalid charger-ID */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    check_expiration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckExpirationRequest"];
+            };
+        };
+        responses: {
+            /** @description Check was successful */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": boolean;
+                };
+            };
+            /** @description Invalid request data */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
