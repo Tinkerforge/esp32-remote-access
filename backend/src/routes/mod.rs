@@ -19,11 +19,11 @@
 
 pub mod auth;
 pub mod charger;
+pub mod check_expiration;
 pub mod management;
 pub mod selfdestruct;
 pub mod state;
 pub mod user;
-pub mod check_expiration;
 
 use actix_web::web::{self, scope};
 

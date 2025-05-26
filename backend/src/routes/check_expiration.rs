@@ -1,10 +1,15 @@
 use actix_web::{post, web, Responder};
 use db_connector::models::{recovery_tokens::RecoveryToken, verification::Verification};
-use serde::{Deserialize, Serialize};
 use diesel::{prelude::*, result::Error::NotFound};
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, rate_limit::IPRateLimiter, utils::{get_connection, parse_uuid}, AppState};
+use crate::{
+    error::Error,
+    rate_limit::IPRateLimiter,
+    utils::{get_connection, parse_uuid},
+    AppState,
+};
 
 #[derive(Deserialize, Serialize, ToSchema)]
 pub enum TokenType {
@@ -36,7 +41,8 @@ async fn check_recovery_token(
         };
 
         Ok(valid)
-    }).await??;
+    })
+    .await??;
 
     Ok(valid)
 }
@@ -57,12 +63,13 @@ async fn check_verification_token(
             Err(NotFound) => false,
             Err(_err) => {
                 println!("Error checking verification token: {:?}", _err);
-                return Err(Error::InternalError)
-            },
+                return Err(Error::InternalError);
+            }
         };
 
         Ok(valid)
-    }).await??;
+    })
+    .await??;
 
     Ok(valid)
 }
@@ -88,12 +95,8 @@ pub async fn check_expiration(
     let token = parse_uuid(&data.token)?;
 
     let valid = match data.token_type {
-        TokenType::Recovery => {
-            check_recovery_token(&state, token).await?
-        },
-        TokenType::Verification => {
-            check_verification_token(&state, token).await?
-        },
+        TokenType::Recovery => check_recovery_token(&state, token).await?,
+        TokenType::Verification => check_verification_token(&state, token).await?,
     };
 
     Ok(actix_web::HttpResponse::Ok().json(valid))
@@ -102,13 +105,13 @@ pub async fn check_expiration(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, App};
-    use db_connector::test_connection_pool;
-    use db_connector::models::{recovery_tokens::RecoveryToken, verification::Verification};
-    use uuid::Uuid;
-    use chrono::Utc;
-    use crate::routes::user::tests::{TestUser, get_test_uuid};
+    use crate::routes::user::tests::{get_test_uuid, TestUser};
     use crate::tests::configure;
+    use actix_web::{test, App};
+    use chrono::Utc;
+    use db_connector::models::{recovery_tokens::RecoveryToken, verification::Verification};
+    use db_connector::test_connection_pool;
+    use uuid::Uuid;
 
     #[actix_web::test]
     async fn test_valid_recovery_token() {
@@ -128,9 +131,7 @@ mod tests {
             .execute(&mut conn)
             .unwrap();
 
-        let app = App::new()
-            .configure(configure)
-            .service(check_expiration);
+        let app = App::new().configure(configure).service(check_expiration);
         let app = test::init_service(app).await;
         let req = test::TestRequest::post()
             .uri("/check_expiration")
@@ -148,9 +149,10 @@ mod tests {
 
         diesel::delete(
             db_connector::schema::recovery_tokens::dsl::recovery_tokens
-                .filter(db_connector::schema::recovery_tokens::dsl::id.eq(token_id))
-        ).execute(&mut conn)
-            .unwrap();
+                .filter(db_connector::schema::recovery_tokens::dsl::id.eq(token_id)),
+        )
+        .execute(&mut conn)
+        .unwrap();
     }
 
     #[actix_web::test]
@@ -158,9 +160,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let app = App::new()
-            .configure(configure)
-            .service(check_expiration);
+        let app = App::new().configure(configure).service(check_expiration);
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::post()
@@ -195,9 +195,7 @@ mod tests {
             .execute(&mut conn)
             .unwrap();
 
-        let app = App::new()
-            .configure(configure)
-            .service(check_expiration);
+        let app = App::new().configure(configure).service(check_expiration);
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::post()
@@ -219,9 +217,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let app = App::new()
-            .configure(configure)
-            .service(check_expiration);
+        let app = App::new().configure(configure).service(check_expiration);
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::post()

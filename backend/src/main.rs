@@ -22,8 +22,8 @@ mod monitoring;
 use std::{collections::HashMap, net::UdpSocket, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use actix::Arbiter;
-use backend::{rate_limit::IPRateLimiter, utils::get_connection};
 pub use backend::*;
+use backend::{rate_limit::IPRateLimiter, utils::get_connection};
 
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::{get_connection_pool, run_migrations, Pool};
