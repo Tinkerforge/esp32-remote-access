@@ -23,6 +23,7 @@ pub mod management;
 pub mod selfdestruct;
 pub mod state;
 pub mod user;
+pub mod check_expiration;
 
 use actix_web::web::{self, scope};
 
@@ -35,6 +36,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
     cfg.service(management::management);
     cfg.service(selfdestruct::selfdestruct);
+    cfg.service(check_expiration::check_expiration);
 
     #[cfg(debug_assertions)]
     cfg.service(state::state);
