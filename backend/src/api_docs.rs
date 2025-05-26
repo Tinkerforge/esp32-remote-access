@@ -104,6 +104,7 @@ async fn main() {
             routes::user::get_authorization_tokens::get_authorization_tokens,
             routes::user::delete_authorization_token::delete_authorization_token,
             routes::user::delete::delete_user,
+            routes::check_expiration::check_expiration,
             routes::management::management,
         ),
         components(schemas(
@@ -139,6 +140,8 @@ async fn main() {
             routes::management::ManagementDataVersion1,
             routes::management::ManagementDataVersion2,
             routes::management::ConfiguredUser,
+            routes::check_expiration::CheckExpirationRequest,
+            routes::check_expiration::TokenType,
             models::response_auth_token::ResponseAuthorizationToken,
         )),
         modifiers(&JwtToken, &RefreshToken)

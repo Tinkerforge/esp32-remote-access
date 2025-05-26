@@ -2,16 +2,17 @@ use actix_web::{post, web, Responder};
 use db_connector::models::{recovery_tokens::RecoveryToken, verification::Verification};
 use serde::{Deserialize, Serialize};
 use diesel::{prelude::*, result::Error::NotFound};
+use utoipa::ToSchema;
 
 use crate::{error::Error, rate_limit::IPRateLimiter, utils::{get_connection, parse_uuid}, AppState};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, ToSchema)]
 pub enum TokenType {
     Recovery,
     Verification,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, ToSchema)]
 pub struct CheckExpirationRequest {
     pub token_type: TokenType,
     pub token: String,
@@ -66,6 +67,15 @@ async fn check_verification_token(
     Ok(valid)
 }
 
+#[utoipa::path(
+    request_body = CheckExpirationRequest,
+    responses(
+        (status = 200, description = "Check was successful", body = bool),
+        (status = 400, description = "Invalid request data"),
+        (status = 429, description = "Rate limit exceeded"),
+        (status = 500, description = "Internal server error"),
+    )
+)]
 #[post("/check_expiration")]
 pub async fn check_expiration(
     state: web::Data<AppState>,
