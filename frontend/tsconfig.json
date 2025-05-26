@@ -1,12 +1,12 @@
 {
 	"compilerOptions": {
-		"target": "ES2020",
+		"target": "ES2021",
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"noEmit": true,
 		"allowJs": true,
 		"checkJs": true,
-		"lib": ["WebWorker"],
+		"lib": ["WebWorker", "ES2021"],
 		"strict": true,
 
 		/* Preact Config */
