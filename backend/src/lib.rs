@@ -339,8 +339,10 @@ pub(crate) mod tests {
         let bridge_state = web::Data::new(bridge_state);
         let login_rate_limiter = web::Data::new(LoginRateLimiter::new());
         let charger_rate_limiter = web::Data::new(ChargerRateLimiter::new());
+        let general_rate_limiter = web::Data::new(rate_limit::IPRateLimiter::new());
         cfg.app_data(login_rate_limiter);
         cfg.app_data(charger_rate_limiter);
+        cfg.app_data(general_rate_limiter);
         cfg.app_data(state);
         cfg.app_data(bridge_state);
         cfg.app_data(cache);

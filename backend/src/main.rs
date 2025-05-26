@@ -22,7 +22,7 @@ mod monitoring;
 use std::{collections::HashMap, net::UdpSocket, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use actix::Arbiter;
-use backend::utils::get_connection;
+use backend::{rate_limit::IPRateLimiter, utils::get_connection};
 pub use backend::*;
 
 use actix_web::{middleware::Logger, web, App, HttpServer};
@@ -186,6 +186,7 @@ async fn main() -> std::io::Result<()> {
 
     let login_ratelimiter = web::Data::new(LoginRateLimiter::new());
     let charger_ratelimiter = web::Data::new(ChargerRateLimiter::new());
+    let general_ratelimiter = web::Data::new(IPRateLimiter::new());
 
     HttpServer::new(move || {
         let cors = actix_cors::Cors::permissive();
@@ -196,6 +197,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(state.clone())
             .app_data(login_ratelimiter.clone())
             .app_data(charger_ratelimiter.clone())
+            .app_data(general_ratelimiter.clone())
             .app_data(bridge_state.clone())
             .configure(routes::configure)
     })

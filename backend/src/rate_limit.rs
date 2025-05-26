@@ -19,46 +19,12 @@
 
 use std::num::NonZeroU32;
 
-use actix_governor::{KeyExtractor, SimpleKeyExtractionError};
 use actix_web::{http::StatusCode, HttpRequest, HttpResponse, ResponseError};
 use governor::{
     clock::{Clock, QuantaClock, QuantaInstant},
     state::InMemoryState,
     NotUntil, Quota, RateLimiter,
 };
-
-/**
- * The struct used to extract ip for ratelimiting
- */
-#[derive(Clone)]
-pub struct IPExtractor;
-
-impl KeyExtractor for IPExtractor {
-    type Key = String;
-    type KeyExtractionError = SimpleKeyExtractionError<&'static str>;
-
-    fn extract(
-        &self,
-        req: &actix_web::dev::ServiceRequest,
-    ) -> Result<Self::Key, Self::KeyExtractionError> {
-        let info = req.connection_info();
-        if let Some(ip) = info.realip_remote_addr() {
-            Ok(ip.to_string())
-        } else {
-            Err(SimpleKeyExtractionError::new("Invalid real IP"))
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        "IPExtractor"
-    }
-}
-
-impl IPExtractor {
-    pub fn new() -> Self {
-        Self
-    }
-}
 
 fn ip_from_req(req: &HttpRequest) -> actix_web::Result<String> {
     let ip = if let Some(ip) = req.connection_info().realip_remote_addr() {
@@ -191,6 +157,37 @@ impl ResponseError for RateLimitError {
             .append_header(("retry-after", wait_time.as_secs()))
             .append_header(("x-retry-after", wait_time.as_secs()))
             .body(self.to_string())
+    }
+}
+
+pub struct IPRateLimiter(
+    RateLimiter<
+        String,
+        dashmap::DashMap<String, InMemoryState>,
+        QuantaClock,
+        governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
+    >,
+);
+
+impl IPRateLimiter {
+    pub fn new() -> Self {
+        Self(RateLimiter::keyed(
+            Quota::per_second(NonZeroU32::new(REQUESTS_PER_SECOND).unwrap())
+                .allow_burst(NonZeroU32::new(REQUESTS_BURST).unwrap()),
+        ))
+    }
+
+    pub fn check(&self, req: &HttpRequest) -> actix_web::Result<()> {
+        let ip = ip_from_req(req)?;
+
+        if let Err(err) = self.0.check_key(&ip) {
+            log::warn!("RateLimiter triggered for {}", ip);
+            let now = self.0.clock().now();
+
+            Err(RateLimitError::new(err, now).into())
+        } else {
+            Ok(())
+        }
     }
 }
 
