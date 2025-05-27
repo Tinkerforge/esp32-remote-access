@@ -34,6 +34,7 @@
     "@playwright/test": "^1.44.1",
     "@preact/preset-vite": "^2.5.0",
     "@types/argon2-browser": "^1.18.4",
+    "@types/base58": "^2.0.0",
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/node": "^22",
     "dotenv": "^16.4.5",
