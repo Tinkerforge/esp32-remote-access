@@ -19,18 +19,16 @@
 
 import "./i18n";
 import { render } from 'preact';
-import { LocationProvider, Router, Route } from 'preact-iso';
+import { LocationProvider, Router, Route, lazy } from 'preact-iso';
 
 import { connected, CustomNavbar } from './components/Navbar.js';
 import { NotFound } from './pages/_404.jsx';
 import { Login } from './components/login.js';
 import { Register } from './components/register.js';
-import { User } from './pages/user.js';
 import Row from "react-bootstrap/Row";
 import Card from "react-bootstrap/Card";
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
-import { ChargerList } from './pages/chargers.js';
 import { ErrorAlert } from './components/Alert.js';
 import { isDebugMode, refresh_access_token } from './utils';
 import { AppState, loggedIn } from './utils.js';
@@ -39,7 +37,6 @@ import { Recovery } from './pages/recovery.js';
 import { Trans, useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
-import { Tokens } from './pages/tokens';
 import favicon from "favicon";
 import logo from "logo";
 
@@ -65,10 +62,17 @@ if (isDebugMode.value) {
     });
 }
 
-const icon: HTMLLinkElement = document.querySelector('link[rel="icon"]');
-icon.href = favicon;
-let refreshInterval = undefined;
+const icon: HTMLLinkElement | null = document.querySelector('link[rel="icon"]');
+if (icon) {
+    icon.href = favicon;
+}
+let refreshInterval: NodeJS.Timeout | undefined = undefined;
 const refreshMinutes = (Math.random() * (5 -3) + 3);
+
+const Tokens = lazy(() => import('./pages/tokens.js').then(m => m.Tokens));
+const User = lazy(() => import('./pages/user.js').then(m => m.User));
+const DeviceList = lazy(() => import('./pages/devices.js').then(m => m.DeviceList));
+const Frame = lazy(() => import('./pages/Frame.js').then(m => m.Frame));
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
@@ -143,7 +147,10 @@ export function App() {
                             }}>
                                 <Route path="/tokens" component={Tokens} />
                                 <Route path="/user" component={User} />
-                                <Route default path="/chargers/:id?" component={ChargerList} />
+                                <Route path="/chargers" component={DeviceList} />
+                                <Route path="/chargers/:device/:path*" component={Frame} />
+                                <Route path="/devices" component={DeviceList} />
+                                <Route path="/devices/:device/:path*" component={Frame} />
                             </Router>
                         </LocationProvider>
                     </Col>
@@ -167,4 +174,5 @@ export function App() {
     }
 }
 
-render(<App />, document.getElementById('app'));
+// The app div will alway be present
+render(<App />, document.getElementById("app") as HTMLElement);

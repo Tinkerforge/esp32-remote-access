@@ -3,28 +3,27 @@ import sodium from "libsodium-wrappers";
 import { useTranslation } from "react-i18next";
 import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
-import { Component } from "preact";
+import { Component, VNode } from "preact";
 import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
 import { Button, ButtonGroup, Card, Col, Collapse, Container, Dropdown, DropdownButton, Form, Modal, Row, Table } from "react-bootstrap";
 import i18n from "../i18n";
 import { ChevronDown, ChevronUp, Edit, Monitor, Trash2 } from "react-feather";
-import { Circle } from "./Circle";
+import { Circle } from "../components/Circle";
 import Median from "median-js-bridge";
-import { Dispatch, StateUpdater, useState } from "preact/hooks";
-import { ChargersState } from "../pages/chargers";
+import { useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
 
-interface Charger {
+interface Device {
     id: string,
     uid: number,
     name: string,
-    note?: string,
+    note?: string | null,
     status: string,
     port: number,
     valid: boolean,
 }
 
-interface StateCharger {
+interface StateDevice {
     id: string,
     uid: number,
     name: string,
@@ -36,8 +35,8 @@ interface StateCharger {
 
 type SortColumn = "name" | "uid" | "status" | "none" | "note";
 
-interface ChargerListComponentState {
-    chargers: StateCharger[],
+interface DeviceListState {
+    devices: StateDevice[],
     showDeleteModal: boolean,
     showEditNoteModal: boolean,
     editNote: string,
@@ -46,19 +45,14 @@ interface ChargerListComponentState {
     sortSequence: "asc" | "desc"
 }
 
-interface ChargerListProps {
-    parentState: ChargersState,
-    setParentState: Dispatch<StateUpdater<ChargersState>>,
-}
+export class DeviceList extends Component<{}, DeviceListState> {
 
-export class ChargerListComponent extends Component<ChargerListProps, ChargerListComponentState> {
-
-    removal_charger: StateCharger;
+    removalDevice: StateDevice;
     updatingInterval: any;
     constructor() {
         super();
 
-        this.removal_charger = {
+        this.removalDevice = {
             id: "",
             uid: 0,
             name: "",
@@ -68,7 +62,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
             note: "",
         };
         this.state = {
-            chargers: [],
+            devices: [],
             showDeleteModal: false,
             showEditNoteModal: false,
             editNote: "",
@@ -82,7 +76,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         this.updatingInterval = setInterval(() => that.updateChargers(that), 5000);
     }
 
-    decryptNote(note?: string) {
+    decryptNote(note?: string | null) {
         if (!note) {
             return "";
         }
@@ -103,38 +97,44 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
             await get_decrypted_secret();
         }
         try {
-            const {data} = await fetchClient.GET("/charger/get_chargers", {credentials: "same-origin"})
+            const {data, error} = await fetchClient.GET("/charger/get_chargers", {credentials: "same-origin"})
 
-            const chargers: Charger[] = data;
-            const state_chargers = [];
-            for (const charger of chargers) {
-                let name = this.decrypt_name(charger.name);
-                let note = this.decryptNote(charger.note);
+            if (error || !data) {
+                showAlert(i18n.t("chargers.loading_devices_failed"), "danger");
+                return;
+            }
+
+            const devices: Device[] = data;
+            const stateDevices = [];
+            for (const device of devices) {
+                let name = this.decrypt_name(device.name);
+                let note = this.decryptNote(device.note);
                 if (name === undefined || note === undefined) {
                     note = i18n.t("chargers.invalid_key");
-                    charger.valid = false
+                    name = "";
+                    device.valid = false
                 }
-                const state_charger: StateCharger = {
-                    id: charger.id,
-                    uid: charger.uid,
+                const state_charger: StateDevice = {
+                    id: device.id,
+                    uid: device.uid,
                     name: name,
                     note: note,
-                    status: charger.status,
-                    port: charger.port,
-                    valid: charger.valid,
+                    status: device.status,
+                    port: device.port,
+                    valid: device.valid,
                 }
-                state_chargers.push(state_charger);
+                stateDevices.push(state_charger);
             }
-            this.setState({chargers: state_chargers});
+            this.setState({devices: stateDevices});
         } catch (e) {
             const error = `${e}`;
             if (error.indexOf("Network") !== -1) {
-                const updateChargers: StateCharger[] = [];
-                for (const charger of this.state.chargers) {
+                const updateDevices: StateDevice[] = [];
+                for (const charger of this.state.devices) {
                     charger.status = "Disconnected";
-                    updateChargers.push(charger);
+                    updateDevices.push(charger);
                 }
-                this.setState({chargers: updateChargers});
+                this.setState({devices: updateDevices});
             } else {
                 showAlert(error, "danger", "get_chargers");
             }
@@ -145,23 +145,23 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         clearInterval(this.updatingInterval);
     }
 
-    async connect_to_charger(charger: StateCharger, route: (path: string, replace?: boolean) => void) {
-        route(`/chargers/${charger.id}`);
+    async connect_to_charger(device: StateDevice, route: (path: string, replace?: boolean) => void) {
+        route(`/devices/${device.id}`);
     }
 
     async delete_charger() {
         const t = i18n.t;
-        const charger = this.removal_charger;
+        const device = this.removalDevice;
         const body = {
-            charger: charger.id
+            charger: device.id
         };
         const {response, error} = await fetchClient.DELETE("/charger/remove", {body: body, credentials: "same-origin"});
 
         if (response.status === 200) {
-            const chargers = this.state.chargers.filter((c) => c.id !== charger.id);
-            this.setState({chargers: chargers});
+            const devices = this.state.devices.filter((c) => c.id !== device.id);
+            this.setState({devices});
         } else {
-            showAlert(t("remove_error_text", {charger_id: Base58.int_to_base58(charger.id), status: response.status, text: error}), "danger");
+            showAlert(t("remove_error_text", {charger_id: Base58.int_to_base58(device.uid), status: response.status, text: error}), "danger");
         }
     }
 
@@ -179,38 +179,38 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         }
     }
 
-    connection_possible(charger: StateCharger) {
+    connection_possible(device: StateDevice) {
         let connection_possible = true;
-        if (charger.status !== "Connected" || charger.valid === false) {
+        if (device.status !== "Connected" || device.valid === false) {
             connection_possible = false;
         }
         return connection_possible;
     }
 
-    create_card(charger: StateCharger, split: String[], index: number, route: (path: string, replace?: boolean) => void) {
+    create_card(device: StateDevice, split: String[], index: number, route: (path: string, replace?: boolean) => void) {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         const [expand, setExpand] = useState(false);
         return <>
             <Card className="my-2">
                 <Card.Header onClick={async () => {
-                    if (!this.connection_possible(charger)) {
+                    if (!this.connection_possible(device)) {
                         return;
                     }
-                    await this.connect_to_charger(charger, route);
+                    await this.connect_to_charger(device, route);
                 }} className="d-flex justify-content-between align-items-center p-2d5">
                     <Col xs="auto" className="d-flex">
-                        {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
+                        {device.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
                     </Col>
                     <Col className="mx-3">
-                        <h5 class="text-break" style="margin-bottom: 0;">{charger.name}</h5>
+                        <h5 class="text-break" style="margin-bottom: 0;">{device.name}</h5>
                     </Col>
                     <Col className="d-flex justify-content-end">
-                        <Button className="me-2" variant="primary" disabled={!this.connection_possible(charger)} onClick={async () => {
-                            await this.connect_to_charger(charger, route);
+                        <Button className="me-2" variant="primary" disabled={!this.connection_possible(device)} onClick={async () => {
+                            await this.connect_to_charger(device, route);
                         }}><Monitor/></Button>
                         <Button variant="danger" onClick={async (e) => {
                             e.stopPropagation();
-                            this.removal_charger = charger;
+                            this.removalDevice = device;
                             this.setState({showDeleteModal: true});
                         }}><Trash2/></Button>
                     </Col>
@@ -218,7 +218,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 <Card.Body>
                     <Row >
                         <Col xs="auto"><b>{t("mobile_charger_id")}</b></Col>
-                        <Col className="text-end">{Base58.int_to_base58(charger.uid)}</Col>
+                        <Col className="text-end">{Base58.int_to_base58(device.uid)}</Col>
                     </Row>
                     <hr style="margin-top: 5px;margin-bottom: 5px;"/>
                     <Row>
@@ -232,7 +232,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                                         onClick={() => {
                                             this.setState({
                                                 showEditNoteModal: true,
-                                                editNote: charger.note,
+                                                editNote: device.note,
                                                 editChargerIdx: index
                                             });
                                         }}>
@@ -269,7 +269,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                                 </Row>
                         </Col>
                     </Row>
-                    <p style="color:red;" hidden={charger.valid}>{t("no_keys")}</p>
+                    <p style="color:red;" hidden={device.valid}>{t("no_keys")}</p>
                 </Card.Body>
             </Card>
         </>
@@ -323,10 +323,10 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
         const {route} = useLocation();
 
-        const table_list = [];
-        const card_list = [];
-        const chargers = this.state.chargers;
-        chargers.sort((a, b) => {
+        const table_list: VNode[] = [];
+        const card_list: VNode[] = [];
+        const devices = this.state.devices;
+        devices.sort((a, b) => {
             let sortColumn = this.state.sortColumn;
             if (sortColumn === "none") {
                 sortColumn = "name";
@@ -348,7 +348,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 return ret * -1;
             }
         })
-        this.state.chargers.forEach((charger, index) => {
+        this.state.devices.forEach((charger, index) => {
             const [expand, setExpand] = useState(false);
             const trimmed_note = charger.note.trim();
             const split = trimmed_note.split("\n");
@@ -376,7 +376,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                 </td>
                 <td style={{width:"1%"}} class="align-middle">
                     <Button onClick={async () => {
-                        this.removal_charger = charger;
+                        this.removalDevice = charger;
                         this.setState({showDeleteModal: true})
                     }} variant="danger">
                         {t("remove")}
@@ -424,7 +424,7 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                         </Row>
                     </Container>
                 </td>
-            </tr>
+            </tr>;
             table_list.push(entry);
             card_list.push(this.create_card(charger, split, index, route));
         })
@@ -433,10 +433,10 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
             {/*Delete Charger Modal begin*/}
             <Modal show={this.state.showDeleteModal} centered onHide={() => this.setState({showDeleteModal: false})}>
                 <Modal.Header>
-                    {t("delete_modal_heading", {name: this.removal_charger.name})}
+                    {t("delete_modal_heading", {name: this.removalDevice.name})}
                 </Modal.Header>
                 <Modal.Body>
-                    {t("delete_modal_body", {name: this.removal_charger.name})}
+                    {t("delete_modal_body", {name: this.removalDevice.name})}
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="danger" onClick={async () => {
@@ -465,14 +465,14 @@ export class ChargerListComponent extends Component<ChargerListProps, ChargerLis
                     const encryptedNote = sodium.crypto_box_seal(this.state.editNote, pub_key);
                     const b64Note = Base64.fromUint8Array(encryptedNote);
 
-                    const {error} = await fetchClient.POST("/charger/update_note", {credentials: "same-origin", body: {note: b64Note, charger_id: this.state.chargers[this.state.editChargerIdx].id}});
+                    const {error} = await fetchClient.POST("/charger/update_note", {credentials: "same-origin", body: {note: b64Note, charger_id: this.state.devices[this.state.editChargerIdx].id}});
                     if (error) {
                         showAlert(error, "danger", t("edit_note_failed"));
                     }
 
-                    const chargers = this.state.chargers;
-                    chargers[this.state.editChargerIdx].note = this.state.editNote;
-                    this.setState({showEditNoteModal: false, editNote: "", editChargerIdx: -1, chargers: chargers});
+                    const devices = this.state.devices;
+                    devices[this.state.editChargerIdx].note = this.state.editNote;
+                    this.setState({showEditNoteModal: false, editNote: "", editChargerIdx: -1, devices});
                 }}>
                     <Modal.Header>
                         {t("edit_note_heading")}

@@ -2,18 +2,19 @@ import { Component } from 'preact';
 import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Button, Container, Row, Spinner } from 'react-bootstrap';
-import { setAppNavigation } from './Navbar';
-import {isDebugMode, secret } from '../utils';
+import { connected, setAppNavigation } from '../components/Navbar';
+import {fetchClient, get_decrypted_secret, isDebugMode, pub_key, secret } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
-import { ChargersState } from '../pages/chargers';
 import { Dispatch, StateUpdater, useEffect } from 'preact/hooks';
-import { showAlert } from './Alert';
-import { useLocation } from 'preact-iso';
+import { showAlert } from '../components/Alert';
+import { useLocation, useRoute } from 'preact-iso';
 import { useTranslation } from 'react-i18next';
+import { components } from '../schema';
+import { Base64 } from 'js-base64';
+import * as sodium from 'libsodium-wrappers';
 
 interface VirtualNetworkInterfaceSetParentState {
-    chargersState: Dispatch<StateUpdater<ChargersState>>,
     parentState: Dispatch<StateUpdater<Partial<FrameState>>>,
 }
 
@@ -21,23 +22,27 @@ class VirtualNetworkInterface {
     worker: Worker;
     abort: AbortController;
     id: string;
+    path: string;
     setParentState: VirtualNetworkInterfaceSetParentState;
-    connectionInfo: ChargersState;
+    chargerInfo: components["schemas"]["ChargerInfo"];
     debugMode: boolean;
     timeout: any;
     route: (path: string, replace?: boolean) => void;
 
     constructor(
         setParentState: VirtualNetworkInterfaceSetParentState,
-        connectionInfo: ChargersState,
+        chargerInfo: components["schemas"]["ChargerInfo"],
         debugMode: boolean,
-        route: (path: string, replace?: boolean) => void)
+        route: (path: string, replace?: boolean) => void,
+        path: string
+    )
     {
         this.route = route;
         this.setParentState = setParentState;
-        this.connectionInfo = connectionInfo;
+        this.chargerInfo = chargerInfo;
         this.debugMode = debugMode;
         this.abort = new AbortController();
+        this.path = path ? path : "";
 
         this.worker = new Worker();
         this.id = crypto.randomUUID();
@@ -50,13 +55,7 @@ class VirtualNetworkInterface {
 
         this.worker.onmessage = (e) => this.setupHandler(e);
         this.timeout = setTimeout(() => {
-            setParentState.chargersState({
-                connected: false,
-                connectedId: "",
-                connectedName: "",
-                connectedPort: 0,
-            });
-            this.route("/chargers");
+            this.route("/devices");
             showAlert(i18n.t("chargers.connection_timeout_text"), "danger", "network", i18n.t("chargers.connection_timeout"));
         }, 30_000)
 
@@ -72,13 +71,7 @@ class VirtualNetworkInterface {
 
     handleErrorMessage(msg: Message) {
         showAlert(i18n.t(msg.data.translation, msg.data.format) as string, "danger");
-        this.setParentState.chargersState({
-            connected: false,
-            connectedId: "",
-            connectedName: "",
-            connectedPort: 0,
-        });
-        this.route("/chargers");
+        this.route("/devices");
     }
 
     // This handles Messages from the iframe/ Device-Webinterface
@@ -90,6 +83,9 @@ class VirtualNetworkInterface {
                 return;
 
             case "webinterface_loaded":
+                if (!iframe.contentWindow) {
+                    throw new Error("IFrame contentWindow is null");
+                }
                 iframe.contentWindow.postMessage({
                     connection_id: this.id,
                 });
@@ -100,13 +96,7 @@ class VirtualNetworkInterface {
                 return;
 
             case "close":
-                this.setParentState.chargersState({
-                    connected: false,
-                    connectedId: "",
-                    connectedName: "",
-                    connectedPort: 0,
-                });
-                location.pathname = "/chargers";
+                this.route("/devices");
                 return;
         }
     }
@@ -116,8 +106,8 @@ class VirtualNetworkInterface {
         if (e.data === "started") {
             this.worker.onmessage = (e) => this.handleWorkerMessage(e);
             const message_data: SetupMessage = {
-                chargerID: this.connectionInfo.connectedId,
-                port: this.connectionInfo.connectedPort,
+                chargerID: this.chargerInfo.id,
+                port: this.chargerInfo.configured_port,
                 secret: secret,
                 debugMode: this.debugMode,
             };
@@ -151,10 +141,7 @@ class VirtualNetworkInterface {
                 case "ready":
                     this.setParentState.parentState({connection_state: ConnectionState.LoadingWebinterface});
                     const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                    const path = window.location.pathname;
-                    const split = path.split("/");
-                    const newPath = split.slice(3).join("/");
-                    iframe.src = `/wg-${this.id}/${newPath}`;
+                    iframe.src = `/wg-${this.id}/${this.path}`;
                     iframe.addEventListener("load", () => {
                         clearTimeout(this.timeout);
                         this.setParentState.parentState({show_spinner: false});
@@ -178,6 +165,9 @@ class VirtualNetworkInterface {
                 case MessageType.Websocket:
                     const iframe = document.getElementById("interface") as HTMLIFrameElement;
                     const window = iframe.contentWindow;
+                    if (!window) {
+                        throw new Error("IFrame contentWindow is null");
+                    }
                     window.postMessage(msg.data);
                     break;
 
@@ -196,6 +186,9 @@ class VirtualNetworkInterface {
                     break;
 
                 case MessageType.FetchResponse:
+                    if (!navigator.serviceWorker.controller) {
+                        throw new Error("ServiceWorker controller is not available");
+                    }
                     navigator.serviceWorker.controller.postMessage(msg);
                     break;
 
@@ -216,11 +209,6 @@ class VirtualNetworkInterface {
     }
 }
 
-interface FrameProps {
-    parentState: ChargersState,
-    setParentState: Dispatch<StateUpdater<ChargersState>>,
-}
-
 enum ConnectionState {
     Connecting,
     LoadingWebinterface,
@@ -231,15 +219,16 @@ interface FrameState {
     connection_state: ConnectionState,
 }
 
-export class Frame extends Component<FrameProps, FrameState> {
+export class Frame extends Component<{}, FrameState> {
 
-    interface: VirtualNetworkInterface;
-    id: string;
+    interface: VirtualNetworkInterface | undefined;
     route: (path: string, replace?: boolean) => void;
 
     constructor() {
         super();
 
+        // Will be set when component is first rendered
+        this.route = () => {};
         this.state = {
             show_spinner: true,
             connection_state: ConnectionState.Connecting,
@@ -257,21 +246,15 @@ export class Frame extends Component<FrameProps, FrameState> {
                     }
                 ]
             })
-
-            setTimeout(() => sessionStorage.setItem("currentConnection", JSON.stringify(this.props.parentState)))
         }
 
         const that = this;
         // this is used by the app to close the remote connection via the native app menu.
         (window as any).close = () => {
-            this.props.setParentState({
-                connected: false,
-                connectedId: "",
-                connectedName: "",
-                connectedPort: 0,
-            });
-            clearTimeout(that.interface.timeout);
-            this.route("/chargers");
+            if (that.interface) {
+                clearTimeout(that.interface.timeout);
+            }
+            that.route("/devices");
             setAppNavigation();
             sessionStorage.removeItem("currentConnection");
         }
@@ -279,7 +262,9 @@ export class Frame extends Component<FrameProps, FrameState> {
         // this is used by the app to change location via the native app menu.
         (window as any).switchTo = (hash: string) => {
             const frame = document.getElementById("interface") as HTMLIFrameElement;
-            const frame_window = frame.contentWindow;
+
+            // the iframe always has a contentWindow
+            const frame_window = frame.contentWindow as Window;
             frame_window.location.hash = hash;
         }
     }
@@ -292,23 +277,57 @@ export class Frame extends Component<FrameProps, FrameState> {
 
     render() {
         const { route } = useLocation();
+        const { params } = useRoute();
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
 
         useEffect(() => {
             this.route = route;
-            this.interface = new VirtualNetworkInterface({
+            setTimeout(async () => {
+                await sodium.ready;
+
+                if (!secret) {
+                    await get_decrypted_secret();
+                }
+
+                const info = await fetchClient.POST("/charger/info", {
+                    body: {charger: params.device},
+                });
+
+                if (info.error || !info.data) {
+                    showAlert(t("chargers.not_connected"), "danger");
+                    route("/devices", true);
+                    return;
+                }
+
+                this.interface = new VirtualNetworkInterface({
                     parentState: (s) => this.setState(s),
-                    chargersState: (s) => this.props.setParentState(s),
-                },
-                this.props.parentState,
-                isDebugMode.value,
-                this.route,
-            );
+                }, info.data, isDebugMode.value, this.route, params.path);
+
+                if (Median.isNativeApp()) {
+                    sessionStorage.setItem("currentConnection", info.data.id);
+                }
+
+                if (info.data.name) {
+                    const nameBytes = Base64.toUint8Array(info.data.name);
+                    const decryptedName = sodium.crypto_box_seal_open(nameBytes, pub_key, secret);
+                    const name = sodium.to_string(decryptedName);
+                    document.title = name;
+                }
+
+                connected.value = true;
+            });
+
+            return () => {
+                document.title = i18n.t("app_name");
+                connected.value = false;
+            }
         }, []);
 
         const downLoadButton = isDebugMode.value ? <Row className="d-flex m-0">
                 <Button variant='secondary' style={{borderRadius: 0}} class="m-0" onClick={() => {
-                    this.interface.downloadPcapLog();
+                    if (this.interface) {
+                        this.interface.downloadPcapLog();
+                    }
                 }}>Save Pcap log</Button>
             </Row> : null;
         return (

@@ -1,6 +1,7 @@
 import { description } from "translations-en";
 
 export const en = {
+    "app_name": "Remote Access",
     "alert_default_text": "An Error occured!",
     "alert_default_success": "Success!",
     "description": description,
@@ -55,6 +56,7 @@ export const en = {
         "loading_keys_failed": "Loading connection keys failed with status code {{status}}: {{response}}",
         "all_keys_in_use": "Currently all remote connections are in use",
         "no_keys": "You need to register this device again.",
+        "loading_devices_failed": "Loading devices failed with status code {{status}}: {{response}}",
         "connect_error_text": "Connecting to device {{charger_id}} failed with status code {{status}}: {{response}}",
         "remove_error_text": "Removing device {{charger_id}} failed with status code {{status}}: {{response}}",
         "delete_modal_heading": "Remove device {{name}}",

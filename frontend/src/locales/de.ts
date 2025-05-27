@@ -1,6 +1,7 @@
 import { description } from "translations-de";
 
 export const de ={
+    "app_name": "Fernzugriff",
     "alert_default_text": "Ein Fehler ist aufgetreten!",
     "alert_default_success": "Erfolg!",
     "description": description,
@@ -52,6 +53,7 @@ export const de ={
         "loading_keys_failed": "Laden des Verbindungsschlüssels mit dem code {{status}} fehlgeschlagen: {{response}}",
         "all_keys_in_use": "Zur Zeit sind alle Fernzugriffsverbindungen belegt",
         "no_keys": "Bitte lerne das Gerät erneut an",
+        "loading_devices_failed": "Laden der Geräte ist mit dem Code {{status}} fehlgeschlagen: {{response}}",
         "connect_error_text": "Verbindung zu Gerät {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
         "remove_error_text": "Entfernen des Gerätes {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
         "delete_modal_heading": "Gerät {{name}} entfernen",
