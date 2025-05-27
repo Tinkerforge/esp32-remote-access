@@ -1,13 +1,14 @@
 import { Base64 } from "js-base64";
 import { Button, Card, Form } from "react-bootstrap";
-import { PASSWORD_PATTERN, concat_salts, fetchClient, generate_hash, generate_random_bytes, get_salt } from "../utils";
+import { AppState, PASSWORD_PATTERN, concat_salts, fetchClient, generate_hash, generate_random_bytes, get_salt, loggedIn } from "../utils";
 import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
 import { showAlert } from "../components/Alert";
 import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "../components/password_component";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { useSignal } from "@preact/signals";
 import { RecoveryDataComponent } from "../components/recovery_data_component";
+import { useLocation } from "preact-iso";
 
 interface RecoverySchema {
     new_encrypted_secret: number[],
@@ -21,11 +22,22 @@ interface RecoverySchema {
 
 export function Recovery() {
     const {t} = useTranslation();
+    const { route, query } = useLocation();
 
-    const params = new URLSearchParams(window.location.search);
+    useEffect(() => {
+        fetchClient.POST("/check_expiration", {body: {token: query.token, token_type: "Recovery"}})
+            .then(({error, data}) => {
+                if (!data) {
+                    showAlert(t("recovery.token_expired"), "danger");
+                    loggedIn.value = AppState.LoggedOut;
+                    route("/", true);
+                }
+            })
+    }, [])
+
     const [state, setState] = useState({
-        recovery_key: params.get("token"),
-        email: params.get("email"),
+        recovery_key: query.token,
+        email: query.email,
         new_password: "",
         passwordValid: true,
         fileValid: true,

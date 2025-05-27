@@ -37,7 +37,8 @@ export const de ={
         "new_password": "Neues Passwort",
         "recovery_file": "Wiederhestellungsdatei",
         "submit": "Abschicken",
-        "invalid_file": "Datei ist beschädigt oder falsch"
+        "invalid_file": "Datei ist beschädigt oder falsch",
+        "token_expired": "Das Token ist abgelaufen. Bitte starte den Vorgang erneut."
     },
     "chargers": {
         "charger_name": "Name",

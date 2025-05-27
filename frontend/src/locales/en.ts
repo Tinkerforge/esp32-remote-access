@@ -40,7 +40,8 @@ export const en = {
         "new_password": "New password",
         "recovery_file": "Recovery File",
         "submit": "Submit",
-        "invalid_file": "File is invalid"
+        "invalid_file": "File is invalid",
+        "token_expired": "The token has expired. Please start the process again."
     },
     "chargers": {
         "charger_name": "Name",
