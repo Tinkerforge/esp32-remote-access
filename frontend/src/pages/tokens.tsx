@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Button, Card, Container, Form, Spinner, InputGroup, Alert } from 'react-bootstrap';
-import { fetchClient, get_decrypted_secret, pub_key } from '../utils';
+import { fetchClient, get_decrypted_secret, pub_key, secret } from '../utils';
 import { showAlert } from '../components/Alert';
 import { Base64 } from 'js-base64';
 import { encodeBase58Flickr } from '../base58';
@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Clipboard, Trash2 } from 'react-feather';
 import { components } from '../schema';
 import { ArgonType, hash } from 'argon2-browser';
+import sodium from 'libsodium-wrappers';
 
 async function buildToken(userData: components["schemas"]["UserInfo"], tokenData: components["schemas"]["GetAuthorizationTokensResponseSchema"]["tokens"][0]) {
     // Reserve a buffer with documented size
@@ -52,8 +53,12 @@ export function Tokens() {
         token: string,
         use_once: boolean,
         id: string,
+        name: string,
+        createdAt: Date,
+        lastUsedAt: Date | null,
     }[]>([]);
     const [useOnce, setUseOnce] = useState(true);
+    const [tokenName, setTokenName] = useState("");
     const [user, setUser] = useState<components["schemas"]["UserInfo"] | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -84,17 +89,21 @@ export function Tokens() {
                 }
 
                 // Process and set tokens
-                const newTokens: {
-                    token: string,
-                    use_once: boolean,
-                    id: string,
-                }[] = [];
+                const newTokens: typeof tokens = [];
                 for (const token of tokensData.tokens) {
                     const newToken = await buildToken(userData, token);
+                    let tokenName = "";
+                    if (token.name.length !== 0) {
+                        const binaryName = Base64.toUint8Array(token.name);
+                        tokenName = new TextDecoder().decode(sodium.crypto_box_seal_open(binaryName, pub_key as Uint8Array, secret as Uint8Array));
+                    }
                     newTokens.push({
                         token: newToken,
                         use_once: token.use_once,
-                        id: token.id
+                        id: token.id,
+                        name: tokenName,
+                        createdAt: new Date(token.created_at * 1000),
+                        lastUsedAt: token.last_used_at ? new Date(token.last_used_at * 1000) : null,
                     });
                 }
                 setTokens(newTokens);
@@ -123,25 +132,27 @@ export function Tokens() {
     const handleCreateToken = async (e: SubmitEvent) => {
         e.preventDefault();
         try {
+            await sodium.ready;
+            const encryptedTokenName = sodium.crypto_box_seal(tokenName, pub_key as Uint8Array);
             const { data, response, error } = await fetchClient.POST('/user/create_authorization_token', {
-                body: { use_once: useOnce },
+                body: { use_once: useOnce, name: Base64.fromUint8Array(encryptedTokenName) },
                 credentials: 'same-origin'
             });
             if (error || response.status !== 201 || !data || !user) {
                 showAlert(t("tokens.create_token_failed"), "danger");
                 return;
             }
-            const newToken: {
-                token: string,
-                use_once: boolean,
-                id: string,
-            } = {
+            const newToken: typeof tokens[0] = {
                 token: await buildToken(user, data),
                 use_once: data.use_once,
-                id: data.id
+                id: data.id,
+                name: tokenName,
+                createdAt: new Date(data.created_at * 1000),
+                lastUsedAt: data.last_used_at ? new Date(data.last_used_at * 1000) : null,
             };
 
             setTokens([...tokens, newToken]);
+            setTokenName(""); // Clear the name field after successful creation
         } catch (err) {
             console.error(err);
             showAlert(t("tokens.unexpected_error"), "danger");
@@ -194,6 +205,16 @@ export function Tokens() {
                 </Card.Header>
                 <Card.Body>
                     <Form onSubmit={handleCreateToken}>
+                        <Form.Group className="mb-3">
+                            <Form.Label>{t("tokens.name")}</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder={t("tokens.name_placeholder")}
+                                value={tokenName}
+                                required
+                                onChange={(e) => setTokenName((e.target as HTMLInputElement).value)}
+                            />
+                        </Form.Group>
                         <div className="d-flex align-items-center justify-content-between">
                             <Form.Check
                                 type="switch"
@@ -220,42 +241,61 @@ export function Tokens() {
                 </Card.Header>
                 <Card.Body>
                     {tokens.map((token, index) => (
-                        <>
-                        <InputGroup key={index} className={`token-group ${index !== tokens.length - 1 ? 'mb-3' : ''}`}>
-                            <Form.Control
-                                type="text"
-                                readOnly
-                                value={token.token}
-                                className="mb-2 mb-md-0 token-txt"
-                            />
-                            <div className="d-flex flex-wrap gap-2 gap-md-0 mt-2 mt-md-0">
-                                <Button
-                                    variant={token.use_once ? "success" : "warning"}
-                                    disabled
-                                    className="flex-grow-1 flex-md-grow-0"
-                                >
-                                    {token.use_once ? t("tokens.use_once") : t("tokens.reusable")}
-                                </Button>
+                        <div key={index} className={`token-item ${index !== tokens.length - 1 ? 'mb-4' : ''}`}>
+                            <div className="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 className="mb-1 fw-bold">{token.name}</h6>
+                                    <small className="text-muted">
+                                        {t("tokens.created")}: {token.createdAt.toLocaleDateString()} {token.createdAt.toLocaleTimeString()}
+                                    </small>
+                                    <br />
+                                    <small className="text-muted">
+                                        {t("tokens.last_used")}: {token.lastUsedAt ?
+                                            `${token.lastUsedAt.toLocaleDateString()} ${token.lastUsedAt.toLocaleTimeString()}` :
+                                            t("tokens.never_used")
+                                        }
+                                    </small>
+                                </div>
+                                <div className="d-flex gap-2">
+                                    <Button
+                                        variant={token.use_once ? "success" : "warning"}
+                                        disabled
+                                        size="sm"
+                                    >
+                                        {token.use_once ? t("tokens.use_once") : t("tokens.reusable")}
+                                    </Button>
+                                </div>
+                            </div>
+                            <InputGroup className="mb-2">
+                                <Form.Control
+                                    type="text"
+                                    readOnly
+                                    value={token.token}
+                                    className="token-txt"
+                                />
+                            </InputGroup>
+                            <div className="d-flex flex-wrap gap-2">
                                 <Button
                                     variant="secondary"
-                                    className="flex-grow-1 flex-md-grow-0 d-flex align-items-center justify-content-center gap-2"
+                                    size="sm"
+                                    className="d-flex align-items-center gap-2"
                                     onClick={() => handleCopyToken(token.token)}
                                 >
-                                    <Clipboard size={18} />
+                                    <Clipboard size={16} />
                                     {t("tokens.copy")}
                                 </Button>
                                 <Button
                                     variant="danger"
-                                    className="flex-grow-1 flex-md-grow-0 d-flex align-items-center justify-content-center gap-2"
+                                    size="sm"
+                                    className="d-flex align-items-center gap-2"
                                     onClick={() => handleDeleteToken(token.id)}
                                 >
-                                    <Trash2 />
+                                    <Trash2 size={16} />
                                     {t("tokens.delete")}
                                 </Button>
                             </div>
-                        </InputGroup>
-                        {index !== tokens.length - 1 ? <hr class="d-block d-md-none"/> : <></>}
-                        </>
+                            {index !== tokens.length - 1 && <hr className="mt-3" />}
+                        </div>
                     ))}
                 </Card.Body>
             </Card>

@@ -531,6 +531,7 @@ export interface components {
             user_id?: string | null;
         };
         CreateAuthorizationTokenSchema: {
+            name: string;
             use_once: boolean;
         };
         DeleteAuthorizationTokenSchema: {
@@ -643,7 +644,12 @@ export interface components {
             secret_salt: number[];
         };
         ResponseAuthorizationToken: {
+            /** Format: int64 */
+            created_at: number;
             id: string;
+            /** Format: int64 */
+            last_used_at?: number | null;
+            name: string;
             token: string;
             use_once: boolean;
         };
