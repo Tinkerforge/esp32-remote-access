@@ -7,9 +7,9 @@ export const en = {
     "description": description,
     "no_service_worker": "Your browser needs support for ServiceWorkers to be able to run the Remote Access.",
     "user": {
-        "profile_information": "User information",
+        "profile_information": "Account information",
         "save_changes": "Save changes",
-        "user_id": "User-ID",
+        "user_id": "Account-ID",
         "email": "Email-address",
         "name": "Name",
         "change": "Change",
@@ -23,10 +23,10 @@ export const en = {
         "password": "Password",
         "password_invalid": "Password is wrong",
         "logout_all": "Logout from all sessions",
-        "get_user_failed": "Loading user data failed with status code {{status}}: {{response}}",
-        "update_user_failed": "Updating the user-data failed with status code {{status}}: {{response}}",
+        "get_user_failed": "Loading account data failed with status code {{status}}: {{response}}",
+        "update_user_failed": "Updating the account-data failed with status code {{status}}: {{response}}",
         "update_password_failed": "Updating the password failed with status code {{status}}: {{response}}",
-        "delete_user_failed": "Deleting user failed with status code {{status}}: {{response}}",
+        "delete_user_failed": "Deleting account failed with status code {{status}}: {{response}}",
         "account_actions": "Account actions",
         "email_change_disabled": "Email changes are disabled because you have chargers with old firmware versions. Please update your chargers first.",
         "local_settings": "Local settings",
@@ -82,7 +82,7 @@ export const en = {
     },
     "navbar": {
         "home": "Home",
-        "user": "User",
+        "user": "Account",
         "chargers": "Devices",
         "logout": "Logout",
         "token": "Token",
@@ -128,7 +128,7 @@ export const en = {
         "close_remote_access": "Close Remote-Access"
     },
     "tokens": {
-        "fetch_user_failed": "Failed to fetch user",
+        "fetch_user_failed": "Failed to fetch account",
         "fetch_tokens_failed": "Failed to fetch tokens",
         "unexpected_error": "An unexpected error occurred",
         "create_token_failed": "Failed to create token",
