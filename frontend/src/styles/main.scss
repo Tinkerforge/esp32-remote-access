@@ -130,12 +130,4 @@ th:hover:has(div) {
       border-bottom-right-radius: 0.25rem !important;
     }
   }
-
-  @media (max-width: 767.98px) {
-    .token-txt {
-      width: 100%;
-      border-top-right-radius: 0.25rem !important;
-      border-bottom-right-radius: 0.25rem !important;
-    }
-  }
 }

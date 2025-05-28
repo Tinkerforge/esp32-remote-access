@@ -240,63 +240,71 @@ export function Tokens() {
                     <h5 className="mb-0">{t("tokens.existing_tokens")}</h5>
                 </Card.Header>
                 <Card.Body>
-                    {tokens.map((token, index) => (
-                        <div key={index} className={`token-item ${index !== tokens.length - 1 ? 'mb-4' : ''}`}>
-                            <div className="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                    <h6 className="mb-1 fw-bold">{token.name}</h6>
-                                    <small className="text-muted">
-                                        {t("tokens.created")}: {token.createdAt.toLocaleDateString()} {token.createdAt.toLocaleTimeString()}
-                                    </small>
-                                    <br />
-                                    <small className="text-muted">
-                                        {t("tokens.last_used")}: {token.lastUsedAt ?
-                                            `${token.lastUsedAt.toLocaleDateString()} ${token.lastUsedAt.toLocaleTimeString()}` :
-                                            t("tokens.never_used")
-                                        }
-                                    </small>
+                    {tokens.map((token, index) => {
+                        const isExpired = token.use_once && token.lastUsedAt !== null;
+                        const statusVariant = isExpired ? "danger" : (token.use_once ? "success" : "warning");
+                        const statusText = isExpired ? t("tokens.expired") : (token.use_once ? t("tokens.use_once") : t("tokens.reusable"));
+
+                        return (
+                            <div key={index} className={`token-item ${index !== tokens.length - 1 ? 'mb-4' : ''}`}>
+                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <h6 className={`mb-1 fw-bold ${isExpired ? 'text-muted' : ''}`}>{token.name}</h6>
+                                        <small className="text-muted">
+                                            {t("tokens.created")}: {token.createdAt.toLocaleDateString()} {token.createdAt.toLocaleTimeString()}
+                                        </small>
+                                        <br />
+                                        <small className="text-muted">
+                                            {token.use_once ? t("tokens.used") : t("tokens.last_used")}: {token.lastUsedAt ?
+                                                `${token.lastUsedAt.toLocaleDateString()} ${token.lastUsedAt.toLocaleTimeString()}` :
+                                                t("tokens.never_used")
+                                            }
+                                        </small>
+                                    </div>
+                                    <div className="d-flex gap-2">
+                                        <Button
+                                            variant={statusVariant}
+                                            disabled
+                                            size="sm"
+                                        >
+                                            {statusText}
+                                        </Button>
+                                    </div>
                                 </div>
-                                <div className="d-flex gap-2">
+                                <InputGroup className="mb-2">
+                                    <Form.Control
+                                        type="text"
+                                        readOnly
+                                        value={isExpired ? "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••" : token.token}
+                                        className={`${isExpired ? 'text-muted' : ''}`}
+                                        style={isExpired ? { fontFamily: 'monospace' } : {}}
+                                    />
+                                </InputGroup>
+                                <div className="d-flex flex-wrap gap-2">
                                     <Button
-                                        variant={token.use_once ? "success" : "warning"}
-                                        disabled
+                                        variant="secondary"
                                         size="sm"
+                                        className="d-flex align-items-center gap-2"
+                                        onClick={() => handleCopyToken(token.token)}
+                                        disabled={isExpired}
                                     >
-                                        {token.use_once ? t("tokens.use_once") : t("tokens.reusable")}
+                                        <Clipboard size={16} />
+                                        {t("tokens.copy")}
+                                    </Button>
+                                    <Button
+                                        variant="danger"
+                                        size="sm"
+                                        className="d-flex align-items-center gap-2"
+                                        onClick={() => handleDeleteToken(token.id)}
+                                    >
+                                        <Trash2 size={16} />
+                                        {t("tokens.delete")}
                                     </Button>
                                 </div>
+                                {index !== tokens.length - 1 && <hr className="mt-3" />}
                             </div>
-                            <InputGroup className="mb-2">
-                                <Form.Control
-                                    type="text"
-                                    readOnly
-                                    value={token.token}
-                                    className="token-txt"
-                                />
-                            </InputGroup>
-                            <div className="d-flex flex-wrap gap-2">
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    className="d-flex align-items-center gap-2"
-                                    onClick={() => handleCopyToken(token.token)}
-                                >
-                                    <Clipboard size={16} />
-                                    {t("tokens.copy")}
-                                </Button>
-                                <Button
-                                    variant="danger"
-                                    size="sm"
-                                    className="d-flex align-items-center gap-2"
-                                    onClick={() => handleDeleteToken(token.id)}
-                                >
-                                    <Trash2 size={16} />
-                                    {t("tokens.delete")}
-                                </Button>
-                            </div>
-                            {index !== tokens.length - 1 && <hr className="mt-3" />}
-                        </div>
-                    ))}
+                        );
+                    })}
                 </Card.Body>
             </Card>
         </Container>
