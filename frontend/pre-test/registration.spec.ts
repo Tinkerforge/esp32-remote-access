@@ -17,13 +17,23 @@ test('register', async ({ page }) => {
     await page.getByRole('button', { name: 'Register' }).click();
     await page.getByText('Close').click();
     const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser1, from_timestamp: (Date.now() / 1000) - 5 });
-    const idx = inbox.data[0].text.indexOf(`[${testDomain}/api/auth/verify?`) + 1;
-    if (idx === -1) {
-        throw new Error("Failed to verify email");
+
+    if (!inbox.data || inbox.data.length === 0) {
+        throw new Error("No emails found in inbox");
     }
-    const url = inbox.data[0].text.substring(idx, inbox.data[0].text.indexOf("]", idx));
+
+    const emailText = inbox.data[0].text;
+    if (!emailText) {
+        throw new Error("Email text is empty");
+    }
+
+    const idx = emailText.indexOf(`[${testDomain}/api/auth/verify?`) + 1;
+    if (idx === 0) {
+        throw new Error("Failed to find verification URL in email");
+    }
+    const url = emailText.substring(idx, emailText.indexOf("]", idx));
     const response = await fetch(url);
     if (response.status !== 200) {
         throw new Error("Failed to verify email");
     }
-  });
+});

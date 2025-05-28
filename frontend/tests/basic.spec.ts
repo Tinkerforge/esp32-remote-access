@@ -13,9 +13,9 @@ test('login', async ({ page }) => {
 });
 
 
-test('show user page', async ({ page }) => {
+test('show account page', async ({ page }) => {
   await login(page, testUser1Email, testPassword1);
-  await page.getByRole('link', { name: 'User' }).click();
+  await page.getByRole('link', { name: 'Account' }).click();
   await expect(page.getByLabel('Name')).toHaveValue(testUserName1);
 });
 
@@ -78,8 +78,9 @@ test('add charger with auth token', async ({page}) => {
 
   // Create token
   await page.getByRole('link', { name: 'Token' }).click();
+  await page.getByRole('textbox', { name: 'Name' }).fill('Test');
   await page.getByRole('button', { name: 'Create token' }).click();
-  const token = await page.getByRole('textbox').inputValue();
+  const token = await page.getByRole('textbox').nth(1).inputValue();
 
   // Add charger
   await page.goto(testWallboxDomain);
@@ -102,12 +103,12 @@ test('add charger with auth token', async ({page}) => {
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
 });
 
-test('change username', async ({page}) => {
+test('change accountname', async ({page}) => {
   test.slow();
 
   await login(page, testUser1Email, testPassword1);
 
-  await page.getByRole('link', { name: 'User' }).click();
+  await page.getByRole('link', { name: 'Account' }).click();
   await expect(page.getByLabel('Email-address')).toHaveValue(testUser1Email);
   await page.getByLabel('Email-address').fill(testUser2Email);
   await page.getByLabel('Name').fill(testUserName2);
@@ -118,11 +119,18 @@ test('change username', async ({page}) => {
 
 
   const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser2, from_timestamp: (Date.now() / 1000) - 5 });
-  const idx = inbox.data[0].text.indexOf(`[${testDomain}/api/auth/verify?`) + 1;
-  if (idx === -1) {
-      throw new Error("Failed to verify email");
+  if (!inbox.data || inbox.data.length === 0) {
+      throw new Error("No emails found in inbox");
   }
-  const url = inbox.data[0].text.substring(idx, inbox.data[0].text.indexOf("]", idx));
+  const firstEmail = inbox.data[0];
+  if (!firstEmail || !firstEmail.text) {
+      throw new Error("Email data is invalid");
+  }
+  const idx = firstEmail.text.indexOf(`[${testDomain}/api/auth/verify?`) + 1;
+  if (idx === 0) {
+      throw new Error("Failed to find verification URL in email");
+  }
+  const url = firstEmail.text.substring(idx, firstEmail.text.indexOf("]", idx));
   const response = await fetch(url);
   if (response.status !== 200) {
       throw new Error("Failed to verify email");
@@ -130,14 +138,14 @@ test('change username', async ({page}) => {
 
   await login(page, testUser2Email, testPassword1);
 
-  await page.getByRole('link', { name: 'User' }).click();
-  await expect(page.getByRole('heading', { name: 'User information' })).toBeVisible();
+  await page.getByRole('link', { name: 'Account' }).click();
+  await expect(page.getByRole('heading', { name: 'Account information' })).toBeVisible();
 });
 
 test('change password', async ({page}) => {
   await login(page, testUser2Email, testPassword1);
 
-  await page.getByRole('link', { name: 'User' }).click();
+  await page.getByRole('link', { name: 'Account' }).click();
   await page.getByRole('button', { name: 'Change password' }).click();
   await page.getByLabel('Current password').click();
   await page.getByLabel('Current password').fill(testPassword1);
