@@ -13,16 +13,15 @@ export async function get_salt() {
     if (response.status !== 200) {
         throw `Failed to get new salt with ${response.status}: ${await response.text()}`;
     }
-
+    if (!data) throw "No salt data returned";
     return new Uint8Array(data);
 }
 
 export async function get_salt_for_user(email: string) {
     const {data, error} = await fetchClient.GET("/auth/get_login_salt", {params: {query: {email: email}}});
-    if (error) {
+    if (error || !data) {
         throw `Failed to get login_salt for user ${email}: ${error}`;
     }
-
     return new Uint8Array(data);
 }
 
@@ -123,26 +122,31 @@ export async function refresh_access_token() {
     }
 }
 
-export let secret: Uint8Array;
-export let pub_key: Uint8Array
+export let secret: Uint8Array | null = null;
+export let pub_key: Uint8Array | null = null;
 
 export async function get_decrypted_secret() {
     await sodium.ready;
     const t = i18n.t;
     const {data, error, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
-    if (error) {
-        showAlert(t("chargers.loading_secret_failed", {status: response.status, response: error}), "danger");
+    const status = response.status;
+    if (error || !data) {
+        showAlert(t("chargers.loading_secret_failed", {status, response: error}), "danger");
         return;
     }
     const encoded_key = localStorage.getItem("secretKey");
+    if (!encoded_key) {
+        showAlert(t("chargers.loading_secret_failed", {status: 'no_key', response: 'No secretKey in localStorage'}), "danger");
+        return;
+    }
     const secret_key = Base64.toUint8Array(encoded_key);
     secret = sodium.crypto_secretbox_open_easy(new Uint8Array(data.secret), new Uint8Array(data.secret_nonce), secret_key);
-    pub_key = sodium.crypto_scalarmult_base(secret);
+    pub_key = secret ? sodium.crypto_scalarmult_base(secret) : null;
 }
 
 export function resetSecret() {
-    secret = undefined;
-    pub_key = undefined;
+    secret = null;
+    pub_key = null;
 }
 
 export const isDebugMode = signal(false);

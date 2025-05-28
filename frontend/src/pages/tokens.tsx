@@ -9,13 +9,6 @@ import { Clipboard, Trash2 } from 'react-feather';
 import { components } from '../schema';
 import { ArgonType, hash } from 'argon2-browser';
 
-interface Token {
-    token: string;
-    user_uuid: string;
-    user_email: string;
-    user_public_key: string;
-}
-
 async function buildToken(userData: components["schemas"]["UserInfo"], tokenData: components["schemas"]["GetAuthorizationTokensResponseSchema"]["tokens"][0]) {
     // Reserve a buffer with documented size
     const token = Base64.toUint8Array(tokenData.token);
@@ -26,7 +19,9 @@ async function buildToken(userData: components["schemas"]["UserInfo"], tokenData
     const dataBuf = new Uint8Array(32 + 36 +32 + email.length);
     dataBuf.set(token);
     dataBuf.set(id, 32);
-    dataBuf.set(pub_key, 32 + 36);
+
+    // The pub_key will never be null here.
+    dataBuf.set(pub_key as Uint8Array, 32 + 36);
     dataBuf.set(email, 32 + 36 + 32);
 
     // Use argon2 here since browsers think it's a good idea to block crypto.subtle due to insecure contexts
@@ -50,12 +45,16 @@ async function buildToken(userData: components["schemas"]["UserInfo"], tokenData
     return encoded;
 }
 
-let fetchInterval = undefined;
+let fetchInterval: NodeJS.Timeout | null = null;
 export function Tokens() {
     const { t } = useTranslation();
-    const [tokens, setTokens] = useState([]);
+    const [tokens, setTokens] = useState<{
+        token: string,
+        use_once: boolean,
+        id: string,
+    }[]>([]);
     const [useOnce, setUseOnce] = useState(true);
-    const [user, setUser] = useState(null);
+    const [user, setUser] = useState<components["schemas"]["UserInfo"] | null>(null);
     const [loading, setLoading] = useState(true);
 
     // Fetch tokens and user data from the server on component mount
@@ -128,7 +127,7 @@ export function Tokens() {
                 body: { use_once: useOnce },
                 credentials: 'same-origin'
             });
-            if (error || response.status !== 201 || !data) {
+            if (error || response.status !== 201 || !data || !user) {
                 showAlert(t("tokens.create_token_failed"), "danger");
                 return;
             }

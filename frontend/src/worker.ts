@@ -41,26 +41,65 @@ self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
         switch (e.data) {
             case "connect":
-                // wgClient.disconnect_inner_ws();
-                wgClient.start_inner_ws((msg: string) => {
-                    self.postMessage({
-                        type: 0,
-                        data: msg
+                if (wgClient) {
+                    wgClient.start_inner_ws((msg: string) => {
+                        self.postMessage({
+                            type: 0,
+                            data: msg
+                        });
                     });
-                });
+                } else {
+                    self.postMessage({
+                        type: MessageType.Error,
+                        data: {
+                            translation: "wgclient.not_initialized",
+                            format: undefined,
+                        },
+                    });
+                }
                 break;
 
             case "close":
-                wgClient.disconnect_inner_ws();
+                if (wgClient) {
+                    wgClient.disconnect_inner_ws();
+                } else {
+                    self.postMessage({
+                        type: MessageType.Error,
+                        data: {
+                            translation: "wgclient.not_initialized",
+                            format: undefined,
+                        },
+                    });
+                }
                 self.postMessage("closed");
                 break;
 
             case "pauseWS":
-                wgClient.disconnect_inner_ws();
+                if (wgClient) {
+                    wgClient.disconnect_inner_ws();
+                } else {
+                    self.postMessage({
+                        type: MessageType.Error,
+                        data: {
+                            translation: "wgclient.not_initialized",
+                            format: undefined,
+                        },
+                    });
+                }
                 break;
 
             case "download":
-                triggerDownload();
+                if (wgClient) {
+                    triggerDownload();
+                } else {
+                    self.postMessage({
+                        type: MessageType.Error,
+                        data: {
+                            translation: "wgclient.not_initialized",
+                            format: undefined,
+                        },
+                    });
+                }
                 break;
         }
     } else {
@@ -89,6 +128,18 @@ self.addEventListener("message", async (e: MessageEvent) => {
                     body: req_data.body,
                 });
                 let url = request.url.replace(self.location.origin, "");
+                if (!wgClient) {
+                    const msg: Message = {
+                        type: MessageType.Error,
+                        id: data.id,
+                        data: {
+                            translation: "wgclient.not_initialized",
+                            format: undefined,
+                        },
+                    };
+                    self.postMessage(msg);
+                    return;
+                }
                 const response: Response = await wgClient.fetch(request, url, username, password);
                 const headers: [string, string][] = [];
                 response.headers.forEach((val, key) => {
@@ -196,6 +247,7 @@ function decrypt_keys(keys: any, secret: Uint8Array) {
 }
 
 function triggerDownload() {
+    if (!wgClient) return;
     const msg = wgClient.get_pcap_log();
     self.postMessage({
         type: 1,

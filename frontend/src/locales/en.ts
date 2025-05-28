@@ -127,24 +127,27 @@ export const en = {
     "app": {
         "close_remote_access": "Close Remote-Access"
     },
-    tokens: {
-        fetch_user_failed: "Failed to fetch user",
-        fetch_tokens_failed: "Failed to fetch tokens",
-        unexpected_error: "An unexpected error occurred",
-        create_token_failed: "Failed to create token",
-        delete_token_failed: "Failed to delete token",
-        copy_success: "Success",
-        copy_success_text: "Token copied to clipboard",
-        copy_failed: "Failed to copy token",
-        create_token: "Create authorization token",
-        use_once: "Use once",
-        create: "Create token",
-        existing_tokens: "Existing tokens",
-        reusable: "Reusable",
-        copy: "Copy",
-        delete: "Delete",
-        single_use_description: "This token can only be used once and will automatically expire after first use",
-        multi_use_description: "This token can be used multiple times until manually deleted",
-        layout_changed: "The format of the token has changed. Please ensure that your device runs the latest firmware."
+    "tokens": {
+        "fetch_user_failed": "Failed to fetch user",
+        "fetch_tokens_failed": "Failed to fetch tokens",
+        "unexpected_error": "An unexpected error occurred",
+        "create_token_failed": "Failed to create token",
+        "delete_token_failed": "Failed to delete token",
+        "copy_success": "Success",
+        "copy_success_text": "Token copied to clipboard",
+        "copy_failed": "Failed to copy token",
+        "create_token": "Create authorization token",
+        "use_once": "Use once",
+        "create": "Create token",
+        "existing_tokens": "Existing tokens",
+        "reusable": "Reusable",
+        "copy": "Copy",
+        "delete": "Delete",
+        "single_use_description": "This token can only be used once and will automatically expire after first use",
+        "multi_use_description": "This token can be used multiple times until manually deleted",
+        "layout_changed": "The format of the token has changed. Please ensure that your device runs the latest firmware."
+    },
+    "wg_client": {
+        "not_initialized": "The WireGuard client is not initialized. Please try again later.",
     }
 };

@@ -35,7 +35,7 @@ function handleWGRequest(event: FetchEvent) {
             receiver_id = url.substring(0, first);
             url = url.replace(receiver_id, "");
         } else {
-            receiver_id = event.request.headers.get("X-Connection-Id");
+            receiver_id = event.request.headers.get("X-Connection-Id") as string;
         }
         const promise: Promise<Response> = new Promise(async (resolve, reject) => {
             const id = crypto.randomUUID();
@@ -56,8 +56,9 @@ function handleWGRequest(event: FetchEvent) {
                 type: MessageType.Fetch,
                 data: fetch
             };
-            self.addEventListener(id, (e: CustomEvent) => {
-                resolve(e.detail);
+            self.addEventListener(id, (e: Event) => {
+                const event = e as CustomEvent;
+                resolve(event.detail);
             }, {once: true});
             const clients = await self.clients.matchAll();
             for (const client of clients) {
@@ -70,7 +71,7 @@ function handleWGRequest(event: FetchEvent) {
 }
 
 let lastAccessTokenRefresh = 0;
-let responseCache = undefined;
+let responseCache: Response | null = null;
 
 self.addEventListener("fetch", (event: FetchEvent) => {
     if (!handleWGRequest(event) && event.request.url.indexOf("/jwt_refresh") !== -1) {
@@ -86,7 +87,7 @@ self.addEventListener("fetch", (event: FetchEvent) => {
                     lastAccessTokenRefresh = Date.now();
                     responseCache = response;
                 } else {
-                    responseCache = undefined;
+                    responseCache = null;
                 }
                 resolve(response.clone());
             });
@@ -94,7 +95,7 @@ self.addEventListener("fetch", (event: FetchEvent) => {
         }
     } else if (event.request.url.indexOf("/logout") !== -1) {
         lastAccessTokenRefresh = 0;
-        responseCache = undefined;
+        responseCache = null;
     }
 });
 
@@ -115,7 +116,9 @@ self.addEventListener("message", (e) => {
                 headers: new Headers(resp_message.headers)
             }
         );
-        const event = new CustomEvent(msg.id, {detail: response});
+
+        // msg.id is never undefined when type is FetchResponse
+        const event = new CustomEvent(msg.id as string, {detail: response});
         self.dispatchEvent(event);
     }
 });

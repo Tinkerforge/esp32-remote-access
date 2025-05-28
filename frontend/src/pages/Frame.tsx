@@ -108,7 +108,7 @@ class VirtualNetworkInterface {
             const message_data: SetupMessage = {
                 chargerID: this.chargerInfo.id,
                 port: this.chargerInfo.configured_port,
-                secret: secret,
+                secret: secret as Uint8Array,
                 debugMode: this.debugMode,
             };
             const message: Message = {
@@ -309,7 +309,7 @@ export class Frame extends Component<{}, FrameState> {
 
                 if (info.data.name) {
                     const nameBytes = Base64.toUint8Array(info.data.name);
-                    const decryptedName = sodium.crypto_box_seal_open(nameBytes, pub_key, secret);
+                    const decryptedName = sodium.crypto_box_seal_open(nameBytes, pub_key as Uint8Array, secret as Uint8Array);
                     const name = sodium.to_string(decryptedName);
                     document.title = name;
                 }

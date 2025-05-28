@@ -121,7 +121,7 @@ export class Register extends Component<{}, RegisterState> {
         let secret_salt: Uint8Array;
         try {
             secret_salt = await get_salt();
-        } catch (e) {
+        } catch (e: any) {
             showAlert(e, "danger");
             return;
         }
@@ -141,7 +141,7 @@ export class Register extends Component<{}, RegisterState> {
         let login_salt: Uint8Array;
         try {
             login_salt = await get_salt();
-        } catch (e) {
+        } catch (e: any) {
             showAlert(e, "danger");
             return;
         }

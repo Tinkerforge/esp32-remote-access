@@ -33,7 +33,7 @@ export function setAppNavigation() {
     const items = [
         {
             label: i18n.t("navbar.chargers"),
-            url: `${FRONTEND_URL}/chargers`,
+            url: `${FRONTEND_URL}/devices`,
             icon: "fas fa-server"
         },
         {
@@ -66,7 +66,7 @@ export function CustomNavbar() {
                 <Navbar.Toggle onClick={() => setExpanded(!expanded)} id="navbar-toggler" aria-controls="basic-navbar-nav"/>
                 <Navbar.Collapse id="navbar-nav" className="sidebar px-2 py-1">
                     <Nav className="me-auto ps-2">
-                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/chargers" active={url === "/chargers"}>
+                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/devices" active={url === "/chargers"}>
                             <Server/>
                             <p class="ms-1 mb-0">
                                 {t("chargers")}

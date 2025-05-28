@@ -143,5 +143,8 @@ export const de ={
         "single_use_description": "Dieses Token kann nur einmal verwendet werden und läuft nach der ersten Verwendung automatisch ab",
         "multi_use_description": "Dieses Token kann mehrfach verwendet werden, bis es manuell gelöscht wird",
         "layout_changed": "Das Format des Tokens wurde geändert. Bitte stelle sicher, dass dein Gerät auf dem neuesten Stand ist."
+    },
+    "wg_client": {
+        "not_initialized": "Der WireGuard-Client ist nicht initialisiert. Bitte lade die Seite neu."
     }
 };

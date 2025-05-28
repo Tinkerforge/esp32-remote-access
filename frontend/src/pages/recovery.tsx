@@ -139,7 +139,14 @@ export function Recovery() {
                         </Form.Label>
                         <Form.Control type="file" isInvalid={!state.fileValid} onChange={async (e) => {
                             const target = e.target as HTMLInputElement;
+                            if (!target.files) {
+                                return;
+                            }
                             const recovery_file = target.files.item(0);
+                            if (!recovery_file) {
+                                setState({...state, fileValid: false, validated: true});
+                                return;
+                            }
 
                             try {
                                 const file_text = await recovery_file.text();

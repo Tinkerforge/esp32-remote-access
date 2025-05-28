@@ -83,7 +83,9 @@ export class DeviceList extends Component<{}, DeviceListState> {
 
         try {
             const noteBytes = Base64.toUint8Array(note);
-            const decryptedNote = sodium.crypto_box_seal_open(noteBytes, pub_key, secret);
+
+            // pub_key and secret are null-checked before this function is called
+            const decryptedNote = sodium.crypto_box_seal_open(noteBytes, pub_key as Uint8Array, secret as Uint8Array);
             const decoder = new TextDecoder();
             return decoder.decode(decryptedNote);
         } catch {
@@ -171,7 +173,8 @@ export class DeviceList extends Component<{}, DeviceListState> {
         }
         const name_bytes = Base64.toUint8Array(name);
         try {
-            const decrypted_name =  sodium.crypto_box_seal_open(name_bytes, pub_key, secret);
+            // pub_key and secret are null-checked before this function is called
+            const decrypted_name =  sodium.crypto_box_seal_open(name_bytes, pub_key as Uint8Array, secret as Uint8Array);
             const decoder = new TextDecoder();
             return decoder.decode(decrypted_name);
         } catch {
@@ -462,7 +465,9 @@ export class DeviceList extends Component<{}, DeviceListState> {
             >
                 <Form onSubmit={async (e) => {
                     e.preventDefault();
-                    const encryptedNote = sodium.crypto_box_seal(this.state.editNote, pub_key);
+
+                    // pub_key and secret are null-checked before this function is called
+                    const encryptedNote = sodium.crypto_box_seal(this.state.editNote, pub_key as Uint8Array);
                     const b64Note = Base64.fromUint8Array(encryptedNote);
 
                     const {error} = await fetchClient.POST("/charger/update_note", {credentials: "same-origin", body: {note: b64Note, charger_id: this.state.devices[this.state.editChargerIdx].id}});

@@ -78,10 +78,11 @@ class UserComponent extends Component<{}, State> {
     submit = async (e: SubmitEvent) => {
         e.preventDefault();
         const {response, error} = await fetchClient.PUT("/user/update_user", {body: this.state.user, credentials: "same-origin"});
-        if (response.status === 200) {
+        const status = response.status;
+        if (status === 200) {
             window.location.reload();
         } else if (error) {
-            showAlert(i18n.t("user.update_user_failed", {status: response.status, response: error}), "danger");
+            showAlert(i18n.t("user.update_user_failed", {status, response: error}), "danger");
         }
     }
 
@@ -162,8 +163,9 @@ export function User() {
         }
 
         const {data, error, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
+        const status = response.status;
         if (error) {
-            showAlert(i18n.t("user.update_password_failed", {status: response.status, response: error}), "danger");
+            showAlert(i18n.t("user.update_password_failed", {status, response: error}), "danger");
             return;
         }
 
@@ -215,7 +217,8 @@ export function User() {
 
         const t = i18n.t;
 
-        const loginSaltBs64 = window.localStorage.getItem("loginSalt");
+        // loginSalt will always be set if the user is logged in
+        const loginSaltBs64 = window.localStorage.getItem("loginSalt") as string;
         const loginSalt = Base64.toUint8Array(loginSaltBs64);
         const loginKey = await generate_hash(deleteUser.password, loginSalt)
 

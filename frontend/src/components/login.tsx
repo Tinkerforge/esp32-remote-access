@@ -71,7 +71,7 @@ export class Login extends Component<{}, LoginState> {
         }
 
         const {data, response, error} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
-        if (200 !== response.status) {
+        if (200 !== response.status || !data) {
             const text = `Failed with status ${response.status}: ${error}`;
             showAlert(text, "danger");
             return;
