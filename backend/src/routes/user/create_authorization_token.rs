@@ -16,6 +16,7 @@ use crate::{
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct CreateAuthorizationTokenSchema {
     use_once: bool,
+    name: String,
 }
 
 #[utoipa::path(
@@ -38,11 +39,15 @@ pub async fn create_authorization_token(
     let mut token = vec![0u8; 32];
     rand::rng().fill_bytes(&mut token);
     let token = base64::engine::general_purpose::STANDARD.encode(token);
+    let created_at = chrono::Utc::now().naive_utc();
     let auth_token = AuthorizationToken {
         id,
         user_id: user_id.clone().into(),
         token: token.clone(),
         use_once: schema.use_once,
+        name: schema.name.clone(),
+        created_at,
+        last_used_at: None,
     };
 
     let mut conn = get_connection(&state)?;
@@ -63,6 +68,9 @@ pub async fn create_authorization_token(
         id: id.to_string(),
         token,
         use_once: schema.use_once,
+        name: schema.name.clone(),
+        created_at: created_at.and_utc().timestamp(),
+        last_used_at: None,
     };
     Ok(HttpResponse::Created().json(response))
 }
@@ -98,7 +106,7 @@ pub mod tests {
         let req = TestRequest::post()
             .uri("/create_authorization_token")
             .cookie(Cookie::new("access_token", token))
-            .set_json(CreateAuthorizationTokenSchema { use_once })
+            .set_json(CreateAuthorizationTokenSchema { use_once, name: "Test Token".to_string() })
             .to_request();
 
         let resp: ResponseAuthorizationToken = test::call_and_read_body_json(&app, req).await;
@@ -119,7 +127,7 @@ pub mod tests {
         let req = TestRequest::post()
             .uri("/create_authorization_token")
             .cookie(Cookie::new("access_token", token))
-            .set_json(CreateAuthorizationTokenSchema { use_once: true })
+            .set_json(CreateAuthorizationTokenSchema { use_once: true, name: "Test Token".to_string() })
             .to_request();
 
         let resp = test::call_service(&app, req).await;

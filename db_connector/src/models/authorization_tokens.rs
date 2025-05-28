@@ -10,4 +10,7 @@ pub struct AuthorizationToken {
     pub user_id: uuid::Uuid,
     pub token: String,
     pub use_once: bool,
+    pub name: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub last_used_at: Option<chrono::NaiveDateTime>,
 }

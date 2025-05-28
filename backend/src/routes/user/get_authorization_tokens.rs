@@ -52,6 +52,9 @@ pub async fn get_authorization_tokens(
             id: t.id.to_string(),
             token: t.token,
             use_once: t.use_once,
+            name: t.name,
+            created_at: t.created_at.and_utc().timestamp(),
+            last_used_at: t.last_used_at.map(|dt| dt.and_utc().timestamp()),
         })
         .collect();
 
@@ -78,7 +81,10 @@ mod tests {
             ResponseAuthorizationToken {
                 id: String::new(),
                 token: String::new(),
-                use_once: false
+                use_once: false,
+                name:String::new(),
+                created_at: 0,
+                last_used_at: None,
             };
             5
         ];

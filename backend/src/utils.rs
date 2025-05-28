@@ -137,24 +137,23 @@ pub async fn validate_auth_token(
     })
     .await?;
 
-    if token.use_once {
-        let mut conn = get_connection(state)?;
-
-        web_block_unpacked(move || {
-            use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
-
-            match diesel::delete(
-                authorization_tokens::authorization_tokens
-                    .filter(authorization_tokens::id.eq(token.id)),
-            )
-            .execute(&mut conn)
-            {
-                Ok(_) => Ok(()),
-                Err(_err) => Err(Error::InternalError),
-            }
-        })
-        .await?;
+    if token.use_once && token.last_used_at.is_some() {
+        return Err(Error::Unauthorized.into());
     }
+
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
+
+        match diesel::update(authorization_tokens::authorization_tokens)
+            .filter(authorization_tokens::id.eq(token.id))
+            .set(authorization_tokens::last_used_at.eq(chrono::Utc::now().naive_utc()))
+            .execute(&mut conn)
+        {
+            Ok(_) => Ok(()),
+            Err(_err) => Err(Error::InternalError),
+        }
+    }).await?;
 
     Ok(())
 }

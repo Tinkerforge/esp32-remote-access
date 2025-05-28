@@ -18,6 +18,9 @@ diesel::table! {
         user_id -> Uuid,
         token -> Varchar,
         use_once -> Bool,
+        name -> Varchar,
+        created_at -> Timestamp,
+        last_used_at -> Nullable<Timestamp>,
     }
 }
 
