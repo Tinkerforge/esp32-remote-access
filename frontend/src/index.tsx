@@ -147,9 +147,10 @@ export function App() {
                             }}>
                                 <Route path="/tokens" component={Tokens} />
                                 <Route path="/user" component={User} />
+                                {/* Dont break any bookmarks that users could have created */}
                                 <Route path="/chargers" component={DeviceList} />
                                 <Route path="/chargers/:device/:path*" component={Frame} />
-                                <Route path="/devices" component={DeviceList} />
+                                <Route default component={DeviceList} />
                                 <Route path="/devices/:device/:path*" component={Frame} />
                             </Router>
                         </LocationProvider>
