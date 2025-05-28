@@ -110,7 +110,7 @@ export function App() {
             }
             return <>
                 <nav hidden={Median.isNativeApp()} id="logo-nav" class="navbar navbar-expand-md navbar-dark sticky-top flex-md-nowrap p-0 pb-2 pt-2 ps-2">
-                    <a href="/"><img class="pt-2 pb-2 pl-3" src={logo} style="max-width: calc(100vw - 72px);" alt="logo"/></a>
+                    <a href="/"><img class="pt-2 pb-2 ps-2" src={logo} style="max-width: calc(100vw - 72px);" alt="logo"/></a>
                 </nav>
                 <ErrorAlert/>
                 <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3">
