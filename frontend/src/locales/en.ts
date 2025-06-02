@@ -59,6 +59,7 @@ export const en = {
         "all_keys_in_use": "Currently all remote connections are in use",
         "no_keys": "You need to register this device again.",
         "loading_devices_failed": "Loading devices failed with status code {{status}}: {{response}}",
+        "no_devices": "No devices registered yet. Please connect your device to this account to get started.",
         "connect_error_text": "Connecting to device {{charger_id}} failed with status code {{status}}: {{response}}",
         "remove_error_text": "Removing device {{charger_id}} failed with status code {{status}}: {{response}}",
         "delete_modal_heading": "Remove device {{name}}",

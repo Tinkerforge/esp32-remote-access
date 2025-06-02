@@ -351,6 +351,16 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 return ret * -1;
             }
         })
+
+        // Show empty state message if no devices
+        if (devices.length === 0) {
+            return <Container fluid className="text-center mt-5">
+                <div className="text-muted">
+                    <h5>{t("no_devices")}</h5>
+                </div>
+            </Container>;
+        }
+
         this.state.devices.forEach((charger, index) => {
             const [expand, setExpand] = useState(false);
             const trimmed_note = charger.note.trim();

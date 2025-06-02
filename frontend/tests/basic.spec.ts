@@ -159,7 +159,7 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('button', { name: 'Reboot' }).click();
   await page.waitForTimeout(6000);
   await page.goto(testDomain);
-  await expect(page.getByText('NameDevice-IDNoteSortAscending')).toBeVisible();
+  await expect(page.getByText('No devices registered yet. Please connect your device to this account to get started.')).toBeVisible();
 });
 
 test('add charger with auth token', async ({page}) => {
@@ -269,5 +269,5 @@ test('remove charger', async ({page}) => {
   await page.getByRole('button', { name: 'Reboot' }).click();
   await page.waitForTimeout(6000);
   await login(page, testUser2Email, testPassword2);
-  await expect(page.getByText('NameDevice-IDNoteSortAscending')).toBeVisible();
+  await expect(page.getByText('No devices registered yet. Please connect your device to this account to get started.')).toBeVisible();
 });

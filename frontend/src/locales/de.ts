@@ -55,6 +55,7 @@ export const de ={
         "all_keys_in_use": "Zur Zeit sind alle Fernzugriffsverbindungen belegt",
         "no_keys": "Bitte lerne das Gerät erneut an",
         "loading_devices_failed": "Laden der Geräte ist mit dem Code {{status}} fehlgeschlagen: {{response}}",
+        "no_devices": "Noch keine Geräte registriert. Bitte verbinde dein Gerät mit diesem Konto, um zu beginnen.",
         "connect_error_text": "Verbindung zu Gerät {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
         "remove_error_text": "Entfernen des Gerätes {{charger_id}} ist mit dem code {{status}} fehlgeschlagen: {{response}}",
         "delete_modal_heading": "Gerät {{name}} entfernen",
