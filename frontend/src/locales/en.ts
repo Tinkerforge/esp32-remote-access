@@ -33,6 +33,7 @@ export const en = {
         "debug_mode": "Debug mode",
         "invalid_key": "The keys saved on the device seem to be corrupted",
         "connection_timeout": "Timeout",
+        "invalid_name": "The name must not be empty",
         "connection_timeout_text": "A timeout occured while establishing the connection. Please try again later or contact us in case the problem persists."
     },
     "recovery": {
@@ -112,7 +113,7 @@ export const en = {
         "close": "Close",
         "password": "Password",
         "login": "Login",
-        "wrong_credentials": "Email-adresse or password wrong.",
+        "wrong_credentials": "Email-address or password wrong.",
         "success_alert_text": "You should receive an email in the next couple of minutes.",
         "success_alert_heading": "Success",
         "error_alert_text": "Failed to start recovery with status {{- status}}: {{text}}",

@@ -45,6 +45,8 @@ interface UserState {
 interface State {
     isDirty: boolean
     user: UserState
+    validated: boolean
+    nameIsValid: boolean
 }
 
 let email = "";
@@ -63,6 +65,8 @@ class UserComponent extends Component<{}, State> {
         this.state = {
             isDirty: false,
             user: state,
+            validated: false,
+            nameIsValid: true,
         }
 
         fetchClient.GET("/user/me", {credentials: "same-origin"}).then(({data, error, response}) => {
@@ -75,8 +79,24 @@ class UserComponent extends Component<{}, State> {
         });
     }
 
+    validateForm = () => {
+        const nameIsValid = this.state.user.name.trim().length > 0;
+
+        this.setState({
+            nameIsValid,
+            validated: true
+        });
+
+        return nameIsValid;
+    }
+
     submit = async (e: SubmitEvent) => {
         e.preventDefault();
+
+        if (!this.validateForm()) {
+            return;
+        }
+
         const {response, error} = await fetchClient.PUT("/user/update_user", {body: this.state.user, credentials: "same-origin"});
         const status = response.status;
         if (status === 200) {
@@ -89,14 +109,14 @@ class UserComponent extends Component<{}, State> {
     render() {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "user"});
         return (<>
-            <Form onSubmit={this.submit}>
+            <Form onSubmit={this.submit} noValidate validated={this.state.validated}>
                 <Form.Group className="pb-3" controlId="userId">
                     <Form.Label className="text-muted">{t("user_id")}</Form.Label>
                     <Form.Control type="text" disabled value={this.state.user.id} className="bg-light" />
                 </Form.Group>
                 <Form.Group className="pb-3" controlId="userEmail">
                     <Form.Label className="text-muted">{t("email")}</Form.Label>
-                    <Form.Control type="email" value={this.state.user.email} onChange={(e) => {
+                    <Form.Control required type="email" value={this.state.user.email} onChange={(e) => {
                         this.setState({user: {...this.state.user, email: (e.target as HTMLInputElement).value}, isDirty: true});
                     }} disabled={this.state.user.has_old_charger} />
                     {this.state.user.has_old_charger &&
@@ -107,9 +127,12 @@ class UserComponent extends Component<{}, State> {
                 </Form.Group>
                 <Form.Group className="pb-3" controlId="userName">
                     <Form.Label className="text-muted">{t("name")}</Form.Label>
-                    <Form.Control type="text" value={this.state.user.name} onChange={(e) => {
+                    <Form.Control required type="text" value={this.state.user.name} onChange={(e) => {
                         this.setState({user: {...this.state.user, name: (e.target as HTMLInputElement).value}, isDirty: true});
-                    }} />
+                    }} isInvalid={!this.state.nameIsValid} />
+                    <Form.Control.Feedback type="invalid">
+                        {t("invalid_name")}
+                    </Form.Control.Feedback>
                 </Form.Group>
                 <Button type="submit" variant="primary" disabled={!this.state.isDirty}>
                     {t("save_changes")}
