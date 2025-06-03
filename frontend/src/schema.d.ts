@@ -548,6 +548,8 @@ export interface components {
         };
         GetChargerSchema: {
             id: string;
+            /** Format: int64 */
+            last_state_change?: number | null;
             name: string;
             note?: string | null;
             /** Format: int32 */

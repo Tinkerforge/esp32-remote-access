@@ -21,6 +21,7 @@ interface Device {
     status: string,
     port: number,
     valid: boolean,
+    last_state_change?: number | null,
 }
 
 interface StateDevice {
@@ -31,9 +32,10 @@ interface StateDevice {
     note: string,
     port: number,
     valid: boolean,
+    last_state_change?: number | null,
 }
 
-type SortColumn = "name" | "uid" | "status" | "none" | "note";
+type SortColumn = "name" | "uid" | "status" | "none" | "note" | "last_state_change";
 
 interface DeviceListState {
     devices: StateDevice[],
@@ -60,6 +62,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
             port: 0,
             valid: true,
             note: "",
+            last_state_change: null,
         };
         this.state = {
             devices: [],
@@ -124,6 +127,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     status: device.status,
                     port: device.port,
                     valid: device.valid,
+                    last_state_change: device.last_state_change,
                 }
                 stateDevices.push(state_charger);
             }
@@ -182,6 +186,31 @@ export class DeviceList extends Component<{}, DeviceListState> {
         }
     }
 
+    formatLastStateChange(t: (key: string, options?: any) => string, timestamp?: number | null): string {
+        if (!timestamp) {
+            return "-";
+        }
+
+        const date = new Date(timestamp * 1000);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        if (diffMinutes < 1) {
+            return t("time_just_now");
+        } else if (diffMinutes < 60) {
+            return t("time_minutes_ago", { count: diffMinutes });
+        } else if (diffHours < 24) {
+            return t("time_hours_ago", { count: diffHours });
+        } else if (diffDays < 7) {
+            return t("time_days_ago", { count: diffDays });
+        } else {
+            return date.toLocaleDateString();
+        }
+    }
+
     connection_possible(device: StateDevice) {
         let connection_possible = true;
         if (device.status !== "Connected" || device.valid === false) {
@@ -222,6 +251,11 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     <Row >
                         <Col xs="auto"><b>{t("mobile_charger_id")}</b></Col>
                         <Col className="text-end">{Base58.int_to_base58(device.uid)}</Col>
+                    </Row>
+                    <hr style="margin-top: 5px;margin-bottom: 5px;"/>
+                    <Row>
+                        <Col xs="auto"><b>{t("last_state_change")}</b></Col>
+                        <Col className="text-end">{this.formatLastStateChange(t, device.last_state_change)}</Col>
                     </Row>
                     <hr style="margin-top: 5px;margin-bottom: 5px;"/>
                     <Row>
@@ -316,7 +350,9 @@ export class DeviceList extends Component<{}, DeviceListState> {
             case "uid":
                 return i18n.t("chargers.charger_id");
             case "note":
-                return i18n.t("chargers.note")
+                return i18n.t("chargers.note");
+            case "last_state_change":
+                return i18n.t("chargers.last_state_change");
             default:
                 return i18n.t("chargers.select_sorting");
         }
@@ -343,6 +379,16 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     break;
                 case "number":
                     ret = first - (second as number);
+                    break;
+                default:
+                    // Handle null/undefined values (like last_state_change)
+                    if (first === null || first === undefined) {
+                        ret = second === null || second === undefined ? 0 : 1;
+                    } else if (second === null || second === undefined) {
+                        ret = -1;
+                    } else {
+                        ret = (first as number) - (second as number);
+                    }
                     break;
             }
             if (this.state.sortSequence === "asc") {
@@ -394,6 +440,9 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     }} variant="danger">
                         {t("remove")}
                     </Button>
+                </td>
+                <td class="align-middle text-center">
+                    {this.formatLastStateChange(t, charger.last_state_change)}
                 </td>
                 <td class="align-middle">
                     <Container fluid>
@@ -540,6 +589,18 @@ export class DeviceList extends Component<{}, DeviceListState> {
                             </th>
                             <th/>
                             <th/>
+                            <th onClick={() => this.setSort("last_state_change")}>
+                                <Container fluid>
+                                    <Row>
+                                        <Col>
+                                            {t("last_state_change")}
+                                        </Col>
+                                        <Col xs="auto">
+                                            {this.get_icon("last_state_change")}
+                                        </Col>
+                                    </Row>
+                                </Container>
+                            </th>
                             <th onClick={() => this.setSort("note")}>
                                 <Container fluid>
                                     <Row>
@@ -566,6 +627,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                             <Dropdown.Item onClick={() => this.setMobileSort("name")}>{t("charger_name")}</Dropdown.Item>
                             <Dropdown.Item onClick={() => this.setMobileSort("uid")}>{t("charger_id")}</Dropdown.Item>
                             <Dropdown.Item onClick={() => this.setMobileSort("status")}>{t("status")}</Dropdown.Item>
+                            <Dropdown.Item onClick={() => this.setMobileSort("last_state_change")}>{t("last_state_change")}</Dropdown.Item>
                             <Dropdown.Item onClick={() => this.setMobileSort("note")}>{t("note")}</Dropdown.Item>
                         </DropdownButton>
                         <DropdownButton className="dropdown-btn" title={this.state.sortSequence == "asc" ? t("sorting_sequence_asc") : t("sorting_sequence_desc")}>
