@@ -33,7 +33,7 @@ use crate::{
     error::Error,
     rate_limit::ChargerRateLimiter,
     routes::{auth::login::FindBy, charger::add::get_charger_from_db, user::get_user_id},
-    utils::{get_charger_by_uid, get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_charger_by_uid, get_connection, parse_uuid, update_charger_state_change, web_block_unpacked},
     AppState, BridgeState,
 };
 
@@ -396,6 +396,8 @@ pub async fn management(
         }
     })
     .await?;
+
+    update_charger_state_change(charger_id, state).await;
 
     let time = match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(time) => time,
