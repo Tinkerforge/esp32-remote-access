@@ -648,6 +648,7 @@ pub(crate) mod tests {
             ),
             webinterface_port: 80,
             firmware_version: "2.6.6".to_string(),
+            last_state_change: None,
         };
 
         let pool = test_connection_pool();

@@ -33,7 +33,7 @@ use std::{
 };
 
 use self::socket::ManagementSocket;
-use crate::{udp_server::multiplex::run_server, BridgeState, DiscoveryCharger};
+use crate::{udp_server::multiplex::run_server, utils::update_charger_state_change, AppState, BridgeState, DiscoveryCharger};
 use actix_web::web;
 use ipnetwork::IpNetwork;
 use packet::ManagementResponseV2;
@@ -46,6 +46,8 @@ async fn start_rate_limiters_reset_thread(
     charger_map_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket>>>>>,
     discovery_map: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
+    state: web::Data<AppState>,
+    arbiter: Arc<Arbiter>,
 ) {
     loop {
         {
@@ -77,6 +79,7 @@ async fn start_rate_limiters_reset_thread(
                 if remove {
                     log::debug!("Charger {} has timeouted and will be removed.", id);
                     map.remove(&id);
+                    arbiter.spawn(update_charger_state_change(id, state.clone()));
                 }
             }
         }
@@ -129,16 +132,19 @@ async fn start_rate_limiters_reset_thread(
     }
 }
 
-pub fn start_server(state: web::Data<BridgeState>) {
+pub fn start_server(bridge_state: web::Data<BridgeState>, app_state: web::Data<AppState>) {
     log::info!("Starting Wireguard server.");
-    let arbiter = Arbiter::new();
-    arbiter.spawn(start_rate_limiters_reset_thread(
-        state.charger_management_map.clone(),
-        state.charger_management_map_with_id.clone(),
-        state.port_discovery.clone(),
-        state.undiscovered_chargers.clone(),
+    let state_arbiter = Arc::new(Arbiter::new());
+    let cleanup_arbiter = Arbiter::new();
+    cleanup_arbiter.spawn(start_rate_limiters_reset_thread(
+        bridge_state.charger_management_map.clone(),
+        bridge_state.charger_management_map_with_id.clone(),
+        bridge_state.port_discovery.clone(),
+        bridge_state.undiscovered_chargers.clone(),
+        app_state.clone(),
+        state_arbiter.clone(),
     ));
 
     let arbiter = Arbiter::new();
-    arbiter.spawn(run_server(state));
+    arbiter.spawn(run_server(bridge_state, app_state, state_arbiter));
 }

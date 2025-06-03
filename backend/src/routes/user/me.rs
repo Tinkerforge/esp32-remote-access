@@ -200,6 +200,7 @@ pub(crate) mod tests {
             psk: "".to_string(),
             webinterface_port: 0,
             firmware_version: "2.6.6".to_string(), // Old version
+            last_state_change: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)
@@ -276,6 +277,7 @@ pub(crate) mod tests {
             psk: "".to_string(),
             webinterface_port: 0,
             firmware_version: "2.6.8".to_string(), // Newer version
+            last_state_change: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)
@@ -352,6 +354,7 @@ pub(crate) mod tests {
             psk: "".to_string(),
             webinterface_port: 0,
             firmware_version: "invalid".to_string(),
+            last_state_change: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)

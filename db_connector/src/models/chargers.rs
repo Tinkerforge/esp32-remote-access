@@ -15,5 +15,6 @@ pub struct Charger {
     pub psk: String,
     pub wg_server_ip: IpNetwork,
     pub webinterface_port: i32,
-    pub firmware_version: String
+    pub firmware_version: String,
+    pub last_state_change: Option<chrono::NaiveDateTime>,
 }

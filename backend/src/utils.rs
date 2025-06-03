@@ -177,6 +177,32 @@ pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<Ap
     }
 }
 
+pub async fn update_charger_state_change(
+    charger_id: uuid::Uuid,
+    state: web::Data<AppState>,
+) {
+    let Ok(mut conn) = get_connection(&state) else {
+        log::error!("Failed to get database connection for updating charger state change");
+        return;
+    };
+    let _ = web_block_unpacked(move || {
+        use db_connector::schema::chargers::dsl::*;
+
+        match diesel::update(chargers)
+            .filter(id.eq(charger_id))
+            .set(last_state_change.eq(Some(chrono::Utc::now().naive_utc())))
+            .execute(&mut conn)
+        {
+            Ok(_) => Ok(()),
+            Err(_err) => {
+                log::error!("Failed to update last_state_change for charger {}: {}", charger_id, _err);
+                Err(Error::InternalError)
+            }
+        }
+    })
+    .await;
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{

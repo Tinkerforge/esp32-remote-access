@@ -37,6 +37,7 @@ diesel::table! {
         name -> Nullable<Bytea>,
         uid -> Int4,
         id -> Uuid,
+        last_state_change -> Nullable<Timestamp>,
     }
 }
 

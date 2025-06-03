@@ -23,6 +23,7 @@ use std::{
     sync::Arc,
 };
 
+use actix::Arbiter;
 use actix_web::web::{self, Bytes};
 use base64::prelude::*;
 use boringtun::noise::{rate_limiter::RateLimiter, TunnResult};
@@ -34,9 +35,7 @@ use rand::TryRngCore;
 use rand_core::OsRng;
 
 use crate::{
-    udp_server::{management::RemoteConnMeta, packet::ManagementCommand},
-    ws_udp_bridge::open_connection,
-    BridgeState,
+    udp_server::{management::RemoteConnMeta, packet::ManagementCommand}, utils::update_charger_state_change, ws_udp_bridge::open_connection, AppState, BridgeState
 };
 
 use super::{management::try_port_discovery, socket::ManagementSocket};
@@ -183,21 +182,21 @@ pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
     }
 }
 
-pub async fn run_server(state: web::Data<BridgeState>) {
+pub async fn run_server(bridge_state: web::Data<BridgeState>, app_state: web::Data<AppState>, arbiter: Arc<Arbiter>) {
     let mut buf = vec![0u8; 65535];
     loop {
-        if let Ok((s, addr)) = state.socket.recv_from(&mut buf) {
-            let state = state.clone();
+        if let Ok((s, addr)) = bridge_state.socket.recv_from(&mut buf) {
+            let bridge_state = bridge_state.clone();
             let buf = buf.clone();
 
             // Check if the packet is for port discovery
-            if try_port_discovery(&state, &buf[..s], addr).await.is_ok() {
+            if try_port_discovery(&bridge_state, &buf[..s], addr).await.is_ok() {
                 continue;
             }
 
             // Check if we need to relay the packet
             {
-                let mut client_map = state.web_client_map.lock().await;
+                let mut client_map = bridge_state.web_client_map.lock().await;
                 if let Some(client) = client_map.get_mut(&addr) {
                     let payload = Bytes::copy_from_slice(&buf[0..s]);
                     client.binary(payload).await.ok();
@@ -209,24 +208,26 @@ pub async fn run_server(state: web::Data<BridgeState>) {
             let tunn_sock = {
                 // Maybe we could release the lock when adding a new management connection and get it back later
                 // in case it turns out that holding it causes major connection issues.
-                let mut charger_map = state.charger_management_map.lock().await;
+                let mut charger_map = bridge_state.charger_management_map.lock().await;
                 match charger_map.entry(addr) {
                     Entry::Occupied(tunn) => tunn.into_mut().clone(),
                     Entry::Vacant(v) => {
-                        let (id, tunn_data) = match create_tunn(&state, addr, &buf[..s]).await {
+                        let (id, tunn_data) = match create_tunn(&bridge_state, addr, &buf[..s]).await {
                             Ok(tunn) => tunn,
                             Err(_err) => {
                                 continue;
                             }
                         };
 
+                        arbiter.spawn(update_charger_state_change(id, app_state.clone()));
+
                         let tunn_data = Arc::new(Mutex::new(tunn_data));
-                        let mut map = state.charger_management_map_with_id.lock().await;
+                        let mut map = bridge_state.charger_management_map_with_id.lock().await;
                         map.insert(id, tunn_data.clone());
                         v.insert(tunn_data.clone());
                         let tunn = tunn_data.clone();
-                        let mut lost_map = state.lost_connections.lock().await;
-                        let mut undiscovered_clients = state.undiscovered_clients.lock().await;
+                        let mut lost_map = bridge_state.lost_connections.lock().await;
+                        let mut undiscovered_clients = bridge_state.undiscovered_clients.lock().await;
                         if let Some(conns) = lost_map.remove(&id) {
                             for (conn_no, recipient) in conns.into_iter() {
                                 let meta = RemoteConnMeta {
@@ -239,7 +240,7 @@ pub async fn run_server(state: web::Data<BridgeState>) {
                                     conn_no,
                                     id,
                                     tunn.clone(),
-                                    state.port_discovery.clone(),
+                                    bridge_state.port_discovery.clone(),
                                 )
                                 .await
                                 .ok();

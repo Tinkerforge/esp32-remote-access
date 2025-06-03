@@ -177,7 +177,7 @@ async fn main() -> std::io::Result<()> {
     let arbiter = Arbiter::new();
     arbiter.spawn(async move { resend_thread(bridge_state_cpy).await });
 
-    udp_server::start_server(bridge_state.clone());
+    udp_server::start_server(bridge_state.clone(), state.clone());
 
     // Cache for random salts of non existing users
     let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> = web::Data::new(
