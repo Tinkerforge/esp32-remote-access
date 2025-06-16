@@ -68,7 +68,7 @@ export const en = {
         "sorting_sequence_asc": "Ascending",
         "sorting_sequence_desc": "Descending",
         "note": "Note",
-        "last_state_change": "Last State Change",
+        "last_state_change": "State Change",
         "time_just_now": "Just now",
         "time_minutes_ago": "{{count}}m ago",
         "time_hours_ago": "{{count}}h ago",
