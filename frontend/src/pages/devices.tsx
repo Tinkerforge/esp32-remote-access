@@ -412,7 +412,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
             const trimmed_note = charger.note.trim();
             const split = trimmed_note.split("\n");
             const entry = <tr>
-                <td class="align-middle">
+                <td class="align-middle text-center">
                     <Col className="d-flex justify-content-center align-items-center">
                         {charger.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
                     </Col>
@@ -423,23 +423,23 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 <td class="align-middle">
                     {Base58.int_to_base58(charger.uid)}
                 </td>
-                <td style={{width: "1%"}} class="align-middle">
-                    <Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
-                        await this.connect_to_charger(charger, route);
-                        }} variant="primary">
-                        {t("connect")}
-                    </Button>
+                <td class="align-middle text-center">
+                    <div className="d-flex flex-row flex-md-wrap flex-lg-nowrap justify-content-center gap-2">
+                        <Button disabled={!this.connection_possible(charger)} id={`connect-${charger.name}`} onClick={async () => {
+                            await this.connect_to_charger(charger, route);
+                            }} variant="primary">
+                            {t("connect")}
+                        </Button>
+                        <Button onClick={async () => {
+                            this.removalDevice = charger;
+                            this.setState({showDeleteModal: true})
+                        }} variant="danger">
+                            {t("remove")}
+                        </Button>
+                    </div>
                     <p style="color:red;" hidden={charger.valid}>
                         {t("no_keys")}
                     </p>
-                </td>
-                <td style={{width:"1%"}} class="align-middle">
-                    <Button onClick={async () => {
-                        this.removalDevice = charger;
-                        this.setState({showDeleteModal: true})
-                    }} variant="danger">
-                        {t("remove")}
-                    </Button>
                 </td>
                 <td class="align-middle text-center">
                     {this.formatLastStateChange(t, charger.last_state_change)}
@@ -557,18 +557,18 @@ export class DeviceList extends Component<{}, DeviceListState> {
             {/*Edit Note Modal end*/}
 
             <Col className="d-none d-md-block">
-                <Table striped hover>
+                <Table striped hover responsive>
                     <thead>
                         <tr class="charger-head">
                             <th onClick={() => this.setSort("status")}>
-                                <Row>
+                                <Row className="m-0">
                                     <Col className="align-content-end text-end">
                                         {this.get_icon("status")}
                                     </Col>
                                 </Row>
                             </th>
                             <th onClick={() => this.setSort("name")}>
-                                <Row>
+                                <Row className="flex-nowrap m-0">
                                     <Col>
                                         {t("charger_name")}
                                     </Col>
@@ -578,7 +578,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                                 </Row>
                             </th>
                             <th onClick={() => this.setSort("uid")}>
-                                <Row>
+                                <Row className="flex-nowrap m-0">
                                     <Col>
                                         {t("charger_id")}
                                     </Col>
@@ -588,30 +588,25 @@ export class DeviceList extends Component<{}, DeviceListState> {
                                 </Row>
                             </th>
                             <th/>
-                            <th/>
                             <th onClick={() => this.setSort("last_state_change")}>
-                                <Container fluid>
-                                    <Row>
-                                        <Col>
-                                            {t("last_state_change")}
-                                        </Col>
-                                        <Col xs="auto">
-                                            {this.get_icon("last_state_change")}
-                                        </Col>
-                                    </Row>
-                                </Container>
+                                <Row className="flex-nowrap m-0">
+                                    <Col>
+                                        {t("last_state_change")}
+                                    </Col>
+                                    <Col xs="auto">
+                                        {this.get_icon("last_state_change")}
+                                    </Col>
+                                </Row>
                             </th>
                             <th onClick={() => this.setSort("note")}>
-                                <Container fluid>
-                                    <Row>
-                                        <Col>
-                                            {t("note")}
-                                        </Col>
-                                        <Col xs="auto">
-                                            {this.get_icon("note")}
-                                        </Col>
-                                    </Row>
-                                </Container>
+                                <Row className="flex-nowrap m-0">
+                                    <Col>
+                                        {t("note")}
+                                    </Col>
+                                    <Col xs="auto">
+                                        {this.get_icon("note")}
+                                    </Col>
+                                </Row>
                             </th>
                         </tr>
                     </thead>
