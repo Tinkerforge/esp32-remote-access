@@ -1,0 +1,85 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'db_connector/**'
+      - '.github/workflows/backend-tests.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'db_connector/**'
+      - '.github/workflows/backend-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: testing
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgres://postgres:testing@localhost:5432/postgres
+      JWT_SECRET: testing123
+      FRONTEND_URL: http://localhost:3000
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: |
+          backend
+          db_connector
+
+    - name: Install diesel_cli
+      run: cargo install diesel_cli --no-default-features --features postgres
+
+    - name: Wait for PostgreSQL
+      run: |
+        until pg_isready -h localhost -p 5432 -U postgres; do
+          echo "Waiting for PostgreSQL..."
+          sleep 2
+        done
+
+    - name: Run database migrations
+      working-directory: ./db_connector
+      run: diesel migration run
+
+    - name: Run backend tests
+      working-directory: ./backend
+      run: cargo test --verbose
+
+    - name: Run db_connector tests
+      working-directory: ./db_connector
+      run: cargo test --verbose
+
+    - name: Check formatting
+      working-directory: ./backend
+      run: cargo fmt --check
+
+    - name: Run clippy
+      working-directory: ./backend
+      run: cargo clippy -- -D warnings
