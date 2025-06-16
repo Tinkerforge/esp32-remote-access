@@ -447,7 +447,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 <td class="align-middle">
                     <Container fluid>
                         <Row>
-                            <Col className="d-flex align-items-center p-0" style={{whiteSpace: "pre-line", overflowWrap: "anywhere"}}>
+                            <Col className="d-flex align-items-center p-0" style={{minWidth: "180px", whiteSpace: "pre-line", overflowWrap: "anywhere"}}>
                                 <Container onClick={split.length <= 2 ? undefined : () => setExpand(!expand)} style={{cursor: split.length <= 1 ? undefined : "pointer"}}>
                                     <Row>
                                         <Col>
