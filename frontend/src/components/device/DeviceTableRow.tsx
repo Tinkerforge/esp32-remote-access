@@ -53,6 +53,7 @@ export function DeviceTableRow({
                             await onConnect(device);
                         }}
                         variant="primary"
+                        className="w-100"
                     >
                         {t("connect")}
                     </Button>
@@ -61,6 +62,7 @@ export function DeviceTableRow({
                             onDelete(device);
                         }}
                         variant="danger"
+                        className="w-100"
                     >
                         {t("remove")}
                     </Button>
