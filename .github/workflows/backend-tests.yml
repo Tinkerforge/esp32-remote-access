@@ -14,6 +14,9 @@ on:
       - 'db_connector/**'
       - '.github/workflows/backend-tests.yml'
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
