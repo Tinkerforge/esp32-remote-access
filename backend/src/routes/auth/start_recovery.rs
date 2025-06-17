@@ -138,13 +138,32 @@ pub async fn start_recovery(
             user.email
         };
 
-        log::info!("Sending password recovery email to '{}' for user '{}'", email, user.name);
-        match send_email(user.name.clone(), token_id, email.clone(), state.clone(), lang.into()) {
+        log::info!(
+            "Sending password recovery email to '{}' for user '{}'",
+            email,
+            user.name
+        );
+        match send_email(
+            user.name.clone(),
+            token_id,
+            email.clone(),
+            state.clone(),
+            lang.into(),
+        ) {
             Ok(()) => {
-                log::info!("Password recovery email sent successfully to '{}' for user '{}'", email, user.name);
+                log::info!(
+                    "Password recovery email sent successfully to '{}' for user '{}'",
+                    email,
+                    user.name
+                );
             }
             Err(e) => {
-                log::error!("Failed to send password recovery email to '{}' for user '{}': {:?}", email, user.name, e);
+                log::error!(
+                    "Failed to send password recovery email to '{}' for user '{}': {:?}",
+                    email,
+                    user.name,
+                    e
+                );
             }
         }
     });

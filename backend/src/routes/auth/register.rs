@@ -100,7 +100,11 @@ fn send_verification_mail(
             match template.render() {
                 Ok(body) => (body, "Email verifizieren"),
                 Err(e) => {
-                    log::error!("Failed to render German verification email template for user '{}': {}", name, e);
+                    log::error!(
+                        "Failed to render German verification email template for user '{}': {}",
+                        name,
+                        e
+                    );
                     return Err(Error::InternalError.into());
                 }
             }
@@ -113,7 +117,11 @@ fn send_verification_mail(
             match template.render() {
                 Ok(body) => (body, "Verify email"),
                 Err(e) => {
-                    log::error!("Failed to render English verification email template for user '{}': {}", name, e);
+                    log::error!(
+                        "Failed to render English verification email template for user '{}': {}",
+                        name,
+                        e
+                    );
                     return Err(Error::InternalError.into());
                 }
             }
@@ -225,7 +233,11 @@ pub async fn register(
         // maybe add mechanism to automatically retry?
         #[cfg(not(test))]
         std::thread::spawn(move || {
-            log::info!("Sending verification email to '{}' for user '{}'", data.email, user_insert.name);
+            log::info!(
+                "Sending verification email to '{}' for user '{}'",
+                data.email,
+                user_insert.name
+            );
             match send_verification_mail(
                 user_insert.name.clone(),
                 verify,
@@ -237,7 +249,12 @@ pub async fn register(
                     log::info!("Verification email sent successfully to '{}'", data.email);
                 }
                 Err(e) => {
-                    log::error!("Failed to send verification email to '{}' for user '{}': {:?}", data.email, user_insert.name, e);
+                    log::error!(
+                        "Failed to send verification email to '{}' for user '{}': {:?}",
+                        data.email,
+                        user_insert.name,
+                        e
+                    );
                 }
             }
         });

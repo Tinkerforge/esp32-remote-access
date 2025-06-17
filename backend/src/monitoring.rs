@@ -72,7 +72,11 @@ pub fn start_monitoring(state: web::Data<AppState>) {
                 };
                 match send_mail(&state, num_users, num_chargers) {
                     Ok(()) => {
-                        log::info!("Monitoring email sent successfully. Users: {}, Chargers: {}", num_users, num_chargers);
+                        log::info!(
+                            "Monitoring email sent successfully. Users: {}, Chargers: {}",
+                            num_users,
+                            num_chargers
+                        );
                     }
                     Err(err) => {
                         log::error!("Failed to send monitoring mail: {}", err);

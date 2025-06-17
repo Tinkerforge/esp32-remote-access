@@ -83,8 +83,12 @@ fn send_email_change_notification(
                 }
             }
         };
-        
-        log::info!("Sending email change notification to '{}' for user '{}'", old_email, name);
+
+        log::info!(
+            "Sending email change notification to '{}' for user '{}'",
+            old_email,
+            name
+        );
         send_email(&old_email, subject, body, &state);
     });
 }
@@ -110,7 +114,11 @@ fn send_verification_mail(
                 match template.render() {
                     Ok(body) => (body, "E-Mail-Adresse bestätigen"),
                     Err(e) => {
-                        log::error!("Failed to render German verification email template for user '{}': {}", name, e);
+                        log::error!(
+                            "Failed to render German verification email template for user '{}': {}",
+                            name,
+                            e
+                        );
                         return;
                     }
                 }
@@ -133,7 +141,11 @@ fn send_verification_mail(
             }
         };
 
-        log::info!("Sending verification email to '{}' for user '{}'", email, name);
+        log::info!(
+            "Sending verification email to '{}' for user '{}'",
+            email,
+            name
+        );
         send_email(&email, subject, body, &state);
     });
 }
