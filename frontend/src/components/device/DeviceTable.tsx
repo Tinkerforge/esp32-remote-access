@@ -46,14 +46,14 @@ export function DeviceTable({
                 <thead>
                     <tr class="charger-head">
                         <th onClick={() => onSort("status")}>
-                            <Row className="m-0">
-                                <Col className="align-content-end text-end">
+                            <Row className="m-0 g-0">
+                                <Col className="text-center">
                                     {getIcon("status")}
                                 </Col>
                             </Row>
                         </th>
                         <th onClick={() => onSort("name")}>
-                            <Row className="flex-nowrap m-0">
+                            <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("charger_name")}
                                 </Col>
@@ -63,7 +63,7 @@ export function DeviceTable({
                             </Row>
                         </th>
                         <th onClick={() => onSort("uid")}>
-                            <Row className="flex-nowrap m-0">
+                            <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("charger_id")}
                                 </Col>
@@ -74,7 +74,7 @@ export function DeviceTable({
                         </th>
                         <th/>
                         <th onClick={() => onSort("last_state_change")}>
-                            <Row className="flex-nowrap m-0">
+                            <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("last_state_change")}
                                 </Col>
@@ -84,7 +84,7 @@ export function DeviceTable({
                             </Row>
                         </th>
                         <th onClick={() => onSort("note")}>
-                            <Row className="flex-nowrap m-0">
+                            <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("note")}
                                 </Col>

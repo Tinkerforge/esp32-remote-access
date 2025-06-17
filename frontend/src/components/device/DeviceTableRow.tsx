@@ -71,17 +71,18 @@ export function DeviceTableRow({
                     {t("no_keys")}
                 </p>
             </td>
-            <td class="align-middle text-center">
+            <td class="align-middle">
                 {formatLastStateChange(t, device.last_state_change)}
             </td>
-            <td class="align-middle">
-                <Container fluid>
-                    <Row>
+            <td class="align-middle pe-0">
+                <Container fluid className="p-0">
+                    <Row className="m-0">
                         <Col
                             className="d-flex align-items-center p-0"
                             style={{minWidth: "180px", whiteSpace: "pre-line", overflowWrap: "anywhere"}}
                         >
                             <Container
+                                className="ps-0"
                                 onClick={split.length <= 2 ? undefined : () => setExpand(!expand)}
                                 style={{cursor: split.length <= 1 ? undefined : "pointer"}}
                             >
