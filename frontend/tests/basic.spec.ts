@@ -4,7 +4,6 @@ import { login, mailiskClient, mailiskNameSpace, needCustomCert, testDomain, tes
 test('has title', async ({ page }) => {
   await page.goto(testDomain);
 
-  // Expect a title "to contain" a substring.
   await expect(page).toHaveTitle(/Remote Access/);
 });
 
@@ -31,13 +30,11 @@ test('invalid register form', async ({ page }) => {
 test('invalid login attempts', async ({ page }) => {
   await page.goto(testDomain);
 
-  // Test with wrong password
   await page.getByRole('textbox', { name: 'Email' }).fill(testUser1Email);
   await page.getByRole('textbox', { name: 'Password' }).fill('wrong_password');
   await page.getByRole('button', { name: 'Login' }).click();
   await expect(page.getByText('Email-address or password wrong.')).toBeVisible();
 
-  // Test with non-existent email
   await page.getByRole('textbox', { name: 'Email' }).fill('nonexistent@example.com');
   await page.getByRole('textbox', { name: 'Password' }).fill(testPassword1);
   await page.getByRole('button', { name: 'Login' }).click();
@@ -47,14 +44,12 @@ test('invalid login attempts', async ({ page }) => {
 test('navigation and logout', async ({ page }) => {
   await login(page, testUser1Email, testPassword1);
 
-  // Test navigation to different pages
   await page.getByRole('link', { name: 'Token' }).click();
   await expect(page.getByRole('heading', { name: 'Create authorization token' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Account' }).click();
   await expect(page.getByRole('heading', { name: 'Account information' })).toBeVisible();
 
-  // Test logout
   await page.getByRole('button', { name: 'Logout', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
 });
@@ -64,23 +59,18 @@ test('token management', async ({ page }) => {
 
   await page.getByRole('link', { name: 'Token' }).click();
 
-  // Create a token
   await page.getByRole('textbox', { name: 'Name' }).fill('Test Token 1');
   await page.getByRole('button', { name: 'Create token' }).click();
 
-  // Verify token appears in list
   await expect(page.getByText('Test Token 1')).toBeVisible();
 
-  // Create another token
   await page.getByRole('textbox', { name: 'Name' }).clear();
   await page.getByRole('textbox', { name: 'Name' }).fill('Test Token 2');
   await page.getByRole('button', { name: 'Create token' }).click();
 
-  // Verify both tokens exist
   await expect(page.getByText('Test Token 1')).toBeVisible();
   await expect(page.getByText('Test Token 2')).toBeVisible();
 
-  // Delete a token
   await page.getByRole('button', { name: 'Delete' }).nth(0).click();
   await expect(page.getByText('Test Token 1')).not.toBeVisible();
   await expect(page.getByText('Test Token 2')).toBeVisible();
@@ -91,8 +81,7 @@ test('account information validation', async ({ page }) => {
 
   await page.getByRole('link', { name: 'Account' }).click();
 
-  // Test invalid name (empty)
-  await page.getByLabel('Name').clear();
+  await page.getByLabel('Name').fill("");
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('The name must not be empty')).toBeVisible();
 
@@ -123,7 +112,6 @@ test('password change dialog validation', async ({ page }) => {
 test('charger lifecycle', async ({ page }) => {
   test.slow();
 
-  // Add charger
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
@@ -141,7 +129,6 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByLabel('Passwordonly used for the reg').press('Enter');
   await page.getByRole('button', { name: 'Reboot' }).click();
 
-  // Connect to charger
   await login(page, testUser1Email, testPassword1);
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
   await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
@@ -149,7 +136,6 @@ test('charger lifecycle', async ({ page }) => {
   await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible({timeout: 15_000});
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
 
-  // Remove charger
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
@@ -167,13 +153,11 @@ test('add charger with auth token', async ({page}) => {
 
   await login(page, testUser1Email, testPassword1);
 
-  // Create token
   await page.getByRole('link', { name: 'Token' }).click();
   await page.getByRole('textbox', { name: 'Name' }).fill('Test');
   await page.getByRole('button', { name: 'Create token' }).click();
   const token = await page.getByRole('textbox').nth(1).inputValue();
 
-  // Add charger
   await page.goto(testWallboxDomain);
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Event Log' }).click();
@@ -185,7 +169,6 @@ test('add charger with auth token', async ({page}) => {
   await page.getByRole('button', { name: 'Add' }).click();
   await page.getByRole('button', { name: 'Reboot' }).click();
 
-  // Connect to charger
   await page.goto(testDomain);
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
   await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
@@ -232,8 +215,6 @@ test('change accountname', async ({page}) => {
   await page.getByRole('link', { name: 'Account' }).click();
   await expect(page.getByRole('heading', { name: 'Account information' })).toBeVisible();
 });
-
-// ===== TESTS AFTER THIS POINT CREATE NEW USERS OR USE DIFFERENT CREDENTIALS =====
 
 test('change password', async ({page}) => {
   await login(page, testUser2Email, testPassword1);
