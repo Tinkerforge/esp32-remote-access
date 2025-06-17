@@ -178,8 +178,8 @@ pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<Ap
                 .unwrap();
 
             match mailer.send(&email) {
-                Ok(_) => println!("Email sent successfully!"),
-                Err(e) => panic!("Could not send email: {e:?}"),
+                Ok(_) => log::info!("Email sent successfully!"),
+                Err(e) => log::error!("Could not send email: {e:?}"),
             }
         } else {
             log::error!("No mailer configured, email not sent");

@@ -53,7 +53,10 @@ fn send_email(
             };
             match template.render() {
                 Ok(b) => (b, "Passwort Wiederherstellung"),
-                Err(_err) => return Err(Error::InternalError.into()),
+                Err(e) => {
+                    log::error!("Failed to render German password recovery email template for user '{}': {}", name, e);
+                    return Err(Error::InternalError.into());
+                }
             }
         }
         _ => {
@@ -63,7 +66,10 @@ fn send_email(
             };
             match template.render() {
                 Ok(b) => (b, "Password Recovery"),
-                Err(_err) => return Err(Error::InternalError.into()),
+                Err(e) => {
+                    log::error!("Failed to render English password recovery email template for user '{}': {}", name, e);
+                    return Err(Error::InternalError.into());
+                }
             }
         }
     };
@@ -132,7 +138,15 @@ pub async fn start_recovery(
             user.email
         };
 
-        send_email(user.name, token_id, email, state.clone(), lang.into()).ok();
+        log::info!("Sending password recovery email to '{}' for user '{}'", email, user.name);
+        match send_email(user.name.clone(), token_id, email.clone(), state.clone(), lang.into()) {
+            Ok(()) => {
+                log::info!("Password recovery email sent successfully to '{}' for user '{}'", email, user.name);
+            }
+            Err(e) => {
+                log::error!("Failed to send password recovery email to '{}' for user '{}': {:?}", email, user.name, e);
+            }
+        }
     });
 
     Ok(HttpResponse::Ok())

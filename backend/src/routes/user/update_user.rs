@@ -61,16 +61,30 @@ fn send_email_change_notification(
                     name: name.to_string(),
                     sender_email: state.sender_email.clone(),
                 };
-                (template.render().unwrap(), "E-Mail-Adresse geändert")
+                match template.render() {
+                    Ok(body) => (body, "E-Mail-Adresse geändert"),
+                    Err(e) => {
+                        log::error!("Failed to render German email change notification template for user '{}': {}", name, e);
+                        return;
+                    }
+                }
             }
             _ => {
                 let template = EmailChangeNotificationEn {
                     name: name.to_string(),
                     sender_email: state.sender_email.clone(),
                 };
-                (template.render().unwrap(), "Email address changed")
+                match template.render() {
+                    Ok(body) => (body, "Email address changed"),
+                    Err(e) => {
+                        log::error!("Failed to render English email change notification template for user '{}': {}", name, e);
+                        return;
+                    }
+                }
             }
         };
+        
+        log::info!("Sending email change notification to '{}' for user '{}'", old_email, name);
         send_email(&old_email, subject, body, &state);
     });
 }
@@ -93,7 +107,13 @@ fn send_verification_mail(
                         state.frontend_url, verification_id
                     ),
                 };
-                (template.render().unwrap(), "E-Mail-Adresse bestätigen")
+                match template.render() {
+                    Ok(body) => (body, "E-Mail-Adresse bestätigen"),
+                    Err(e) => {
+                        log::error!("Failed to render German verification email template for user '{}': {}", name, e);
+                        return;
+                    }
+                }
             }
             _ => {
                 let template = crate::routes::auth::register::VerifyEmailENTemplate {
@@ -103,10 +123,17 @@ fn send_verification_mail(
                         state.frontend_url, verification_id
                     ),
                 };
-                (template.render().unwrap(), "Verify email address")
+                match template.render() {
+                    Ok(body) => (body, "Verify email address"),
+                    Err(e) => {
+                        log::error!("Failed to render English verification email template for user '{}': {}", name, e);
+                        return;
+                    }
+                }
             }
         };
 
+        log::info!("Sending verification email to '{}' for user '{}'", email, name);
         send_email(&email, subject, body, &state);
     });
 }

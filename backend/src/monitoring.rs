@@ -60,16 +60,27 @@ pub fn start_monitoring(state: web::Data<AppState>) {
     }
 
     std::thread::spawn(move || loop {
-        if let Ok(conn) = get_connection(&state) {
-            let (num_users, num_chargers) = match get_numbers(conn) {
-                Ok(v) => v,
-                Err(_err) => {
-                    continue;
+        match get_connection(&state) {
+            Ok(conn) => {
+                let (num_users, num_chargers) = match get_numbers(conn) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        log::error!("Failed to get monitoring statistics from database: {}", err);
+                        std::thread::sleep(Duration::from_secs(60 * 60 * 24));
+                        continue;
+                    }
+                };
+                match send_mail(&state, num_users, num_chargers) {
+                    Ok(()) => {
+                        log::info!("Monitoring email sent successfully. Users: {}, Chargers: {}", num_users, num_chargers);
+                    }
+                    Err(err) => {
+                        log::error!("Failed to send monitoring mail: {}", err);
+                    }
                 }
-            };
-            match send_mail(&state, num_users, num_chargers) {
-                Ok(()) => (),
-                Err(err) => log::error!("Failed to send monitoring mail: {}", err),
+            }
+            Err(e) => {
+                log::error!("Failed to get database connection for monitoring: {:?}", e);
             }
         }
 
