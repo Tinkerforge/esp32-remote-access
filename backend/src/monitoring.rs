@@ -50,11 +50,11 @@ fn send_mail(state: &web::Data<AppState>, num_users: i64, num_chargers: i64) -> 
 }
 
 pub fn start_monitoring(state: web::Data<AppState>) {
-    if let Err(_) = std::env::var("SERVER_NAME") {
+    if std::env::var("SERVER_NAME").is_err() {
         log::info!("Monitoring Mailer disabled");
         return;
     }
-    if let Err(_) = std::env::var("MONITORING_EMAIL") {
+    if std::env::var("MONITORING_EMAIL").is_err() {
         log::info!("Monitoring Mailer disabled");
         return;
     }

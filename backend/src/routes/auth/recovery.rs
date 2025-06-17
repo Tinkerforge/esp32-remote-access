@@ -53,7 +53,7 @@ async fn get_user_id(state: &web::Data<AppState>, recovery_key: Uuid) -> actix_w
 
         match diesel::delete(recovery_tokens.find(recovery_key)).execute(&mut conn) {
             Ok(_) => Ok(()),
-            Err(_err) => return Err(Error::InternalError),
+            Err(_err) => Err(Error::InternalError),
         }
     })
     .await?;
@@ -123,7 +123,7 @@ pub async fn recovery(
 
         let new_hash = match hash_key(&data.new_login_key) {
             Ok(hash) => hash,
-            Err(_err) => return Err(Error::InternalError.into()),
+            Err(_err) => return Err(Error::InternalError),
         };
 
         match diesel::update(users.find(user_id))

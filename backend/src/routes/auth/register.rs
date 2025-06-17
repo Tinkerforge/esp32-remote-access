@@ -92,7 +92,7 @@ fn send_verification_mail(
     let link = format!(
         "{}/api/auth/verify?id={}",
         state.frontend_url,
-        id.id.to_string()
+        id.id
     );
 
     let (body, subject) = match lang.as_str() {
@@ -201,7 +201,7 @@ pub async fn register(
 
         let verify = Verification {
             id: uuid::Uuid::new_v4(),
-            user: user_insert.id.clone(),
+            user: user_insert.id,
             expiration: exp,
         };
 
@@ -378,7 +378,7 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert_eq!(false, user_exists(mail));
+        assert!(!user_exists(mail));
     }
 
     #[actix_web::test]
@@ -405,7 +405,7 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert_eq!(false, user_exists(mail));
+        assert!(!user_exists(mail));
     }
 
     #[actix_web::test]
@@ -432,7 +432,7 @@ pub(crate) mod tests {
         println!("{}", resp.status());
 
         assert!(resp.status().is_success());
-        assert_eq!(true, user_exists(mail));
+        assert!(user_exists(mail));
         delete_user("valid_request@test.invalid");
     }
 

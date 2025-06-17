@@ -65,6 +65,12 @@ pub struct LoginRateLimiter(
     >,
 );
 
+impl Default for LoginRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LoginRateLimiter {
     pub fn new() -> Self {
         Self(RateLimiter::keyed(
@@ -103,6 +109,12 @@ pub struct ChargerRateLimiter(
         governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
     >,
 );
+
+impl Default for ChargerRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ChargerRateLimiter {
     pub fn new() -> Self {
@@ -168,6 +180,12 @@ pub struct IPRateLimiter(
         governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
     >,
 );
+
+impl Default for IPRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl IPRateLimiter {
     pub fn new() -> Self {

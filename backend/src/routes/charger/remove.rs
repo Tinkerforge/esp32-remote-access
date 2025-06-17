@@ -75,7 +75,7 @@ pub async fn delete_charger(
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {
     use db_connector::schema::chargers::dsl::*;
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         match diesel::delete(chargers.filter(id.eq(charger))).execute(&mut conn) {
             Ok(_) => Ok(()),

@@ -214,7 +214,7 @@ pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManage
             .load(conn)
         {
             Ok(users) => {
-                if users.len() == 0 {
+                if users.is_empty() {
                     use db_connector::schema::chargers::dsl::*;
 
                     let _ = diesel::delete(chargers.find(&charger.id))
@@ -268,7 +268,7 @@ pub(crate) mod tests {
     #[macro_export]
     macro_rules! defer {
         ($e:expr) => {
-            let _scope_call = crate::tests::ScopeCall {
+            let _scope_call = $crate::tests::ScopeCall {
                 c: || -> () {
                     $e;
                 },
@@ -292,7 +292,7 @@ pub(crate) mod tests {
     pub fn create_test_state(
         pool: Option<diesel::r2d2::Pool<ConnectionManager<PgConnection>>>,
     ) -> web::Data<AppState> {
-        let pool = pool.unwrap_or_else(|| db_connector::test_connection_pool());
+        let pool = pool.unwrap_or_else(db_connector::test_connection_pool);
 
         let state = AppState {
             pool: pool.clone(),
@@ -444,7 +444,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_clean_verification_tokens() {
         let user_id = uuid::Uuid::new_v4();
-        let email = format!("{}@invalid", user_id.to_string());
+        let email = format!("{}@invalid", user_id);
         let user = User {
             id: user_id,
             name: user_id.to_string(),
@@ -464,7 +464,7 @@ pub(crate) mod tests {
         let user2 = User {
             id: user2_id,
             name: user2_id.to_string(),
-            email: format!("{}@invalid", user2_id.to_string()),
+            email: format!("{}@invalid", user2_id),
             login_key: String::new(),
             email_verified: false,
             secret: Vec::new(),
@@ -480,7 +480,7 @@ pub(crate) mod tests {
         let user3 = User {
             id: user3_id,
             name: user3_id.to_string(),
-            email: format!("{}@invalid", user3_id.to_string()),
+            email: format!("{}@invalid", user3_id),
             login_key: String::new(),
             email_verified: true,
             secret: Vec::new(),
@@ -496,7 +496,7 @@ pub(crate) mod tests {
         let user4 = User {
             id: user4_id,
             name: user4_id.to_string(),
-            email: format!("{}@invalid", user4_id.to_string()),
+            email: format!("{}@invalid", user4_id),
             login_key: String::new(),
             email_verified: false,
             secret: Vec::new(),
@@ -611,8 +611,8 @@ pub(crate) mod tests {
             assert!(u.iter().any(|u| u.id == user3_id));
             assert!(u.iter().any(|u| u.id == user4_id));
 
-            let user = u.into_iter().find(|u| u.id == user4_id).unwrap();
-            user
+            
+            u.into_iter().find(|u| u.id == user4_id).unwrap()
         };
 
         assert_eq!(user.email, email);

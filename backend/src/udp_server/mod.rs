@@ -69,7 +69,7 @@ async fn start_rate_limiters_reset_thread(
                 let charger = charger.lock().await;
                 let mut map = charger_map_id.lock().await;
                 let (remove, id) = if let Some(c) = map.get(&charger.id()) {
-                    let _ = drop(charger);
+                    drop(charger);
                     let charger = c.lock().await;
                     if charger.last_seen() > Duration::from_secs(30) {
                         (true, charger.id())
@@ -113,10 +113,8 @@ async fn start_rate_limiters_reset_thread(
                             }
                         })
                         .collect();
-                    for c in to_remove.iter() {
-                        if let Some(c) = c {
-                            chargers.remove(c);
-                        }
+                    for c in to_remove.iter().flatten() {
+                        chargers.remove(c);
                     }
                     if chargers.is_empty() {
                         Some(ip.to_owned())
@@ -125,10 +123,8 @@ async fn start_rate_limiters_reset_thread(
                     }
                 })
                 .collect();
-            for ip in to_remove.into_iter() {
-                if let Some(ip) = ip {
-                    map.remove(&ip);
-                }
+            for ip in to_remove.into_iter().flatten() {
+                map.remove(&ip);
             }
         }
         std::thread::sleep(Duration::from_secs(10));

@@ -171,14 +171,14 @@ pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
             if s < data.len() {
                 log::error!(
                     "Sent incomplete datagram to charger with ip '{}'",
-                    addr.to_string()
+                    addr
                 );
             }
         }
         Err(err) => {
             log::error!(
                 "Failed to send datagram to charger with ip '{}': {}",
-                addr.to_string(),
+                addr,
                 err
             );
         }
@@ -275,7 +275,6 @@ pub async fn run_server(
             };
 
             if data.len() == std::mem::size_of::<ManagementCommand>() {}
-        } else {
-        }
+        } 
     }
 }

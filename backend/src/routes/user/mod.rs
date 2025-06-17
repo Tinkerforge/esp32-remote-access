@@ -312,8 +312,8 @@ pub mod tests {
 
         pub async fn get_login_key(&self) -> Vec<u8> {
             let login_salt = get_test_login_salt(&self.mail).await;
-            let login_key = hash_test_key(&self.password, &login_salt, None);
-            login_key
+            
+            hash_test_key(&self.password, &login_salt, None)
         }
 
         pub async fn add_charger(&mut self, id: i32) -> TestCharger {

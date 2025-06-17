@@ -63,7 +63,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         let port_discovery = brige_state.port_discovery.lock().await;
         port_discovery
             .iter()
-            .map(|(resp, _)| resp.clone())
+            .map(|(resp, _)| *resp)
             .collect()
     };
 
@@ -86,7 +86,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
             .map(|(id, conns)| {
                 (
                     id.to_string(),
-                    conns.into_iter().map(|(conn_no, _)| *conn_no).collect(),
+                    conns.iter().map(|(conn_no, _)| *conn_no).collect(),
                 )
             })
             .collect()

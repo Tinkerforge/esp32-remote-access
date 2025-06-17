@@ -94,7 +94,7 @@ async fn identify_configured_user(
     state: &web::Data<AppState>,
 ) -> Option<uuid::Uuid> {
     let user_id = if let Some(email) = &user.email {
-        match get_user_id(&state, FindBy::Email(email.to_string().to_lowercase())).await {
+        match get_user_id(state, FindBy::Email(email.to_string().to_lowercase())).await {
             Ok(u) => u,
             Err(_err) => return None,
         }
@@ -103,7 +103,7 @@ async fn identify_configured_user(
             Ok(u) => u,
             Err(_err) => return None,
         };
-        match get_user_id(&state, FindBy::Uuid(user_id)).await {
+        match get_user_id(state, FindBy::Uuid(user_id)).await {
             Ok(u) => u,
             Err(_err) => return None,
         }
@@ -137,7 +137,7 @@ async fn update_configured_users(
 
             if let Some(name) = &user.name {
                 // Update name of charger for each user
-                let mut conn = get_connection(&state)?;
+                let mut conn = get_connection(state)?;
                 match diesel::update(
                     allowed_users::allowed_users
                         .filter(allowed_users::user_id.eq(user_id))
@@ -157,7 +157,7 @@ async fn update_configured_users(
 
         // Delete allowed users not configured on the charger
         let configured_users_cpy = configured_users.clone();
-        let mut conn = get_connection(&state)?;
+        let mut conn = get_connection(state)?;
         let deleted_users = web_block_unpacked(move || {
             use db_connector::schema::allowed_users::dsl as allowed_users;
 
@@ -186,8 +186,8 @@ async fn update_configured_users(
         })
         .await?;
 
-        if deleted_users.len() > 0 {
-            let mut conn = get_connection(&state)?;
+        if !deleted_users.is_empty() {
+            let mut conn = get_connection(state)?;
             web_block_unpacked(move || {
                 use db_connector::schema::wg_keys::dsl as wg_keys;
 
@@ -284,14 +284,16 @@ pub async fn management(
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::chargers::dsl as chargers;
 
-    let info = req.connection_info();
-    let ip = info.realip_remote_addr();
+    let ip = {
+        let info = req.connection_info();
+        let ip = info.realip_remote_addr();
 
-    if ip.is_none() {
-        return Err(Error::NoValidIp.into());
-    }
+        if ip.is_none() {
+            return Err(Error::NoValidIp.into());
+        }
 
-    let ip = ip.unwrap();
+        ip.unwrap().to_owned()
+    };
 
     let charger_id;
     let mut output_uuid = None;
@@ -394,7 +396,7 @@ pub async fn management(
             Ok(_) => Ok(()),
             Err(_err) => {
                 log::error!("Error while updating charger: {}", _err);
-                return Err(Error::InternalError.into());
+                Err(Error::InternalError)
             }
         }
     })

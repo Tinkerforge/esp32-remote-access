@@ -86,7 +86,7 @@ where
         }
 
         let fut = self.service.call(req);
-        Box::pin(async move { fut.await })
+        Box::pin(fut)
     }
 }
 

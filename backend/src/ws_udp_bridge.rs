@@ -83,7 +83,7 @@ impl WebClient {
         session: Session,
     ) -> Self {
         let meta = RemoteConnMeta {
-            charger_id: charger_id.clone(),
+            charger_id,
             conn_no,
         };
 
@@ -124,14 +124,13 @@ impl WebClient {
             AggregatedMessage::Binary(msg) => {
                 let peer_sock_addr = {
                     let meta = RemoteConnMeta {
-                        charger_id: self.charger_id.clone(),
+                        charger_id: self.charger_id,
                         conn_no: self.conn_no,
                     };
                     let map = self.bridge_state.charger_remote_conn_map.lock().await;
                     match map.get(&meta) {
                         Some(addr) => {
-                            let addr = addr.to_owned();
-                            addr
+                            addr.to_owned()
                         }
                         None => {
                             return;
@@ -167,7 +166,7 @@ impl WebClient {
             Err(_err) => {
                 log::error!(
                     "Failed to release connection '{}' for charger '{}'",
-                    self.key_id.to_string(),
+                    self.key_id,
                     self.charger_id
                 );
                 return;
@@ -175,14 +174,14 @@ impl WebClient {
         };
 
         let meta = RemoteConnMeta {
-            charger_id: self.charger_id.clone(),
+            charger_id: self.charger_id,
             conn_no: self.conn_no,
         };
         {
             let mut map = self.bridge_state.charger_remote_conn_map.lock().await;
             if let Some(addr) = map.get(&meta) {
                 let mut map = self.bridge_state.web_client_map.lock().await;
-                map.remove(&addr);
+                map.remove(addr);
             }
 
             map.remove(&meta);
@@ -232,7 +231,7 @@ impl WebClient {
             Err(_err) => {
                 log::error!(
                     "Failed to release connection '{}' for charger '{}'",
-                    self.key_id.to_string(),
+                    self.key_id,
                     self.charger_id
                 );
             }

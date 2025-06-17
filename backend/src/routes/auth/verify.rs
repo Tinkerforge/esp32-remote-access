@@ -204,14 +204,14 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/verify?id={}", verify_id.to_string()))
+            .uri(&format!("/verify?id={}", verify_id))
             .to_request();
 
         let resp = test::call_service(&app, req).await;
 
         println!("{}", resp.status());
         assert!(resp.status().is_redirection());
-        assert_eq!(false, check_for_verify(&mut conn, &verify_id));
+        assert!(!check_for_verify(&mut conn, &verify_id));
     }
 
     #[actix_web::test]
@@ -228,13 +228,13 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/verify?id={}", uuid::Uuid::new_v4().to_string()))
+            .uri(&format!("/verify?id={}", uuid::Uuid::new_v4()))
             .to_request();
 
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert_eq!(true, check_for_verify(&mut conn, &verify_id));
+        assert!(check_for_verify(&mut conn, &verify_id));
     }
 
     #[actix_web::test]
@@ -251,22 +251,22 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/verify?i={}", verify_id.to_string()))
+            .uri(&format!("/verify?i={}", verify_id))
             .to_request();
 
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert_eq!(true, check_for_verify(&mut conn, &verify_id));
+        assert!(check_for_verify(&mut conn, &verify_id));
 
         let req = test::TestRequest::get()
-            .uri(&format!("/verify?"))
+            .uri("/verify?")
             .to_request();
 
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert_eq!(true, check_for_verify(&mut conn, &verify_id));
+        assert!(check_for_verify(&mut conn, &verify_id));
     }
 
     #[actix_web::test]
@@ -309,7 +309,7 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/verify?id={}", verify.id.to_string()))
+            .uri(&format!("/verify?id={}", verify.id))
             .to_request();
 
         let resp = test::call_service(&app, req).await;
@@ -323,11 +323,11 @@ pub(crate) mod tests {
                 .select(User::as_select())
                 .get_result(&mut conn)
                 .unwrap();
-            assert_eq!(true, u.email_verified);
+            assert!(u.email_verified);
             assert_eq!(None, u.old_email);
             assert_eq!(None, u.old_delivery_email);
         }
 
-        assert_eq!(false, check_for_verify(&mut conn, &verify.id));
+        assert!(!check_for_verify(&mut conn, &verify.id));
     }
 }

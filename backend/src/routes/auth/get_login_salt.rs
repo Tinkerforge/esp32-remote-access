@@ -54,7 +54,7 @@ pub async fn get_login_salt(
             Err(NotFound) => Ok(cache
                 .lock()
                 .unwrap()
-                .get_or_insert(mail, || generate_random_bytes())
+                .get_or_insert(mail, generate_random_bytes)
                 .to_vec()),
             Err(_err) => Err(Error::InternalError),
         }
@@ -126,7 +126,7 @@ pub mod tests {
         let app = App::new().configure(configure).service(get_login_salt);
         let app = test::init_service(app).await;
 
-        let mail = format!("{}@example.invalid", uuid::Uuid::new_v4().to_string());
+        let mail = format!("{}@example.invalid", uuid::Uuid::new_v4());
 
         let req = test::TestRequest::get()
             .uri(&format!("/get_login_salt?email={}", mail))
@@ -147,7 +147,7 @@ pub mod tests {
         let second_salt: Vec<u8> = test::read_body_json(resp).await;
         assert_eq!(second_salt, first_salt);
 
-        let mail = format!("{}@example.invalid", uuid::Uuid::new_v4().to_string());
+        let mail = format!("{}@example.invalid", uuid::Uuid::new_v4());
         let req = test::TestRequest::get()
             .uri(&format!("/get_login_salt?email={}", mail))
             .append_header(("X-Forwarded-For", "123.123.123.2"))

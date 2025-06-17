@@ -169,8 +169,8 @@ pub async fn update_user(
             .get_result(&mut conn)
         {
             Ok(u) => Ok(u),
-            Err(NotFound) => return Err(Error::Unauthorized),
-            Err(_err) => return Err(Error::InternalError),
+            Err(NotFound) => Err(Error::Unauthorized),
+            Err(_err) => Err(Error::InternalError),
         }
     })
     .await?;
@@ -178,8 +178,8 @@ pub async fn update_user(
     let mut conn = get_connection(&state)?;
     // Only set up verification if email changed
     let exp = if new_user.email != old_user.email {
-        if !old_user.old_email.is_none() {
-            return Err(ErrorConflict("Another email change is already pending.").into());
+        if old_user.old_email.is_some() {
+            return Err(ErrorConflict("Another email change is already pending."));
         }
 
         if let Some(expiration) =

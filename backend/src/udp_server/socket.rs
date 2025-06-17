@@ -74,7 +74,7 @@ impl ManagementSocket {
         interface.update_ip_addrs(|ip_addrs| {
             log::debug!("listening on ip: {}", self_ip);
             let _ = ip_addrs.push(smoltcp::wire::IpCidr::new(
-                smoltcp::wire::IpAddress::Ipv4(self_ip.into()),
+                smoltcp::wire::IpAddress::Ipv4(self_ip),
                 24,
             ));
         });
@@ -90,7 +90,7 @@ impl ManagementSocket {
         // should never be an error value since the socket was just created and the port is never 0.
         socket.bind(12345).unwrap();
 
-        let management_sock = Self {
+        Self {
             charger_id,
             sock_handle,
             sockets,
@@ -103,8 +103,7 @@ impl ManagementSocket {
             udp_socket,
             last_seen: Instant::now(),
             out_sequence: 1,
-        };
-        management_sock
+        }
     }
 
     pub fn reset(&mut self) {

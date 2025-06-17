@@ -68,7 +68,7 @@ async fn add_keys(
     uid: uuid::Uuid,
     cid: uuid::Uuid,
 ) -> actix_web::Result<()> {
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         use db_connector::schema::wg_keys::dsl::*;
 

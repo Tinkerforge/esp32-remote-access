@@ -173,7 +173,7 @@ pub async fn jwt_refresh(
         .secure(true)
         .finish();
 
-    let cookie_string = format!("{}; Partitioned;", cookie.to_string());
+    let cookie_string = format!("{}; Partitioned;", cookie);
 
     let refresh_cookie = create_refresh_token(&state, user.id).await?;
 

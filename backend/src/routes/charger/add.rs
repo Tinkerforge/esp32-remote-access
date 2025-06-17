@@ -164,13 +164,13 @@ pub async fn register_charger(
     let (pub_key, password) =
         // Updating a charger here is safe since we already had this combination of user and charger
         // and the user_id is not fakable except someone stole our signing key for jwt.
-        if let Some(cid) = get_charger_uuid(&state, charger_uid, user_id.clone().into()).await? {
+        if let Some(cid) = get_charger_uuid(&state, charger_uid, user_id).await? {
             charger_id = cid;
             update_charger(
                 charger_schema.charger.clone(),
                 charger_id,
                 charger_uid,
-                user_id.clone().into(),
+                user_id,
                 &state,
             )
             .await?
@@ -180,17 +180,17 @@ pub async fn register_charger(
                 charger_schema.clone(),
                 charger_id,
                 charger_uid,
-                user_id.clone().into(),
+                user_id,
                 &state,
             )
             .await?
         };
 
     for keys in charger_schema.keys.iter() {
-        add_wg_key(charger_id, user_id.clone().into(), keys.to_owned(), &state).await?;
+        add_wg_key(charger_id, user_id, keys.to_owned(), &state).await?;
     }
 
-    let user_id: uuid::Uuid = user_id.into();
+    let user_id: uuid::Uuid = user_id;
     let resp = AddChargerResponseSchema {
         management_pub: pub_key,
         charger_uuid: charger_id.to_string(),
@@ -217,7 +217,7 @@ pub async fn get_charger_from_db(
             Ok(c) => Ok(c),
             Err(NotFound) => Err(Error::WrongCredentials),
             Err(_err) => {
-                return Err(Error::InternalError);
+                Err(Error::InternalError)
             }
         }
     })
@@ -273,7 +273,7 @@ async fn update_charger(
         .execute(&mut conn)
         {
             Ok(_) => Ok(()),
-            Err(_err) => return Err(Error::InternalError),
+            Err(_err) => Err(Error::InternalError),
         }
     })
     .await?;
@@ -325,7 +325,7 @@ async fn generate_password() -> actix_web::Result<(String, String)> {
     let cpy = password.clone();
     let hash = web_block_unpacked(move || match hash_key(cpy.as_bytes()) {
         Ok(h) => Ok(h),
-        Err(_err) => return Err(Error::InternalError.into()),
+        Err(_err) => Err(Error::InternalError),
     })
     .await?;
 

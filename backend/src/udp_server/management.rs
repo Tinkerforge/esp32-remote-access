@@ -56,7 +56,7 @@ async fn process_old_packet(
         if meta.connection_no == packet.connection_no
             && meta.connection_uuid == packet.connection_uuid
         {
-            return Ok(meta.clone());
+            return Ok(*meta);
         }
     }
 
