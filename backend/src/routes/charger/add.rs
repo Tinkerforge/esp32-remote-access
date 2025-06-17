@@ -216,9 +216,7 @@ pub async fn get_charger_from_db(
         {
             Ok(c) => Ok(c),
             Err(NotFound) => Err(Error::WrongCredentials),
-            Err(_err) => {
-                Err(Error::InternalError)
-            }
+            Err(_err) => Err(Error::InternalError),
         }
     })
     .await?;

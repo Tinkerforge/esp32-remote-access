@@ -611,7 +611,6 @@ pub(crate) mod tests {
             assert!(u.iter().any(|u| u.id == user3_id));
             assert!(u.iter().any(|u| u.id == user4_id));
 
-            
             u.into_iter().find(|u| u.id == user4_id).unwrap()
         };
 

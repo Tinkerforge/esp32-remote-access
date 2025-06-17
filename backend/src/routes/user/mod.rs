@@ -312,7 +312,7 @@ pub mod tests {
 
         pub async fn get_login_key(&self) -> Vec<u8> {
             let login_salt = get_test_login_salt(&self.mail).await;
-            
+
             hash_test_key(&self.password, &login_salt, None)
         }
 

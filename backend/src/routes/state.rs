@@ -61,10 +61,7 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
 
     let port_discovery: Vec<ManagementResponseV2> = {
         let port_discovery = brige_state.port_discovery.lock().await;
-        port_discovery
-            .iter()
-            .map(|(resp, _)| *resp)
-            .collect()
+        port_discovery.iter().map(|(resp, _)| *resp).collect()
     };
 
     let charger_remote_conn_map: Vec<RemoteConnMeta> = {

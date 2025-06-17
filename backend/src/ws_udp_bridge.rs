@@ -129,9 +129,7 @@ impl WebClient {
                     };
                     let map = self.bridge_state.charger_remote_conn_map.lock().await;
                     match map.get(&meta) {
-                        Some(addr) => {
-                            addr.to_owned()
-                        }
+                        Some(addr) => addr.to_owned(),
                         None => {
                             return;
                         }

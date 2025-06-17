@@ -182,7 +182,7 @@ pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<Ap
                 Err(e) => panic!("Could not send email: {e:?}"),
             }
         } else {
-            println!("No mailer configured, email not sent");
+            log::error!("No mailer configured, email not sent");
         }
     }
 

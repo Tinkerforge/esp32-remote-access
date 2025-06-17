@@ -89,11 +89,7 @@ fn send_verification_mail(
     state: web::Data<AppState>,
     lang: String,
 ) -> Result<(), actix_web::Error> {
-    let link = format!(
-        "{}/api/auth/verify?id={}",
-        state.frontend_url,
-        id.id
-    );
+    let link = format!("{}/api/auth/verify?id={}", state.frontend_url, id.id);
 
     let (body, subject) = match lang.as_str() {
         "de" | "de-DE" => {

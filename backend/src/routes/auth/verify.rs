@@ -259,9 +259,7 @@ pub(crate) mod tests {
         assert!(resp.status().is_client_error());
         assert!(check_for_verify(&mut conn, &verify_id));
 
-        let req = test::TestRequest::get()
-            .uri("/verify?")
-            .to_request();
+        let req = test::TestRequest::get().uri("/verify?").to_request();
 
         let resp = test::call_service(&app, req).await;
 
