@@ -78,6 +78,12 @@ export function App() {
     const {t} = useTranslation("", {useSuspense: false});
 
     useEffect(() => {
+        if (!connected.value) {
+            document.title = t("app_name");
+        }
+    }, [connected.value, t]);
+
+    useEffect(() => {
         refresh_access_token();
     })
     useEffect(() => {
@@ -144,6 +150,8 @@ export function App() {
                         <LocationProvider>
                             <Router onRouteChange={() => {
                                 connected.value = false;
+                                // Ensure title is reset to translated app name when navigating away from a device connection
+                                document.title = t("app_name");
                             }}>
                                 <Route path="/tokens" component={Tokens} />
                                 <Route path="/user" component={User} />

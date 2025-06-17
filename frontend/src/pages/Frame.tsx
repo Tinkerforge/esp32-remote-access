@@ -273,6 +273,8 @@ export class Frame extends Component<{}, FrameState> {
         if (this.interface && this.interface.cancel) {
             this.interface.cancel();
         }
+        document.title = i18n.t("app_name");
+        connected.value = false;
     }
 
     render() {
