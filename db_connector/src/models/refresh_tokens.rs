@@ -1,5 +1,5 @@
-use diesel::prelude::*;
 use crate::models::users::User;
+use diesel::prelude::*;
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, Associations)]
 #[diesel(table_name = crate::schema::refresh_tokens)]

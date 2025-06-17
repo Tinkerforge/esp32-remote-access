@@ -1,4 +1,7 @@
-use diesel::{associations::Identifiable, deserialize::Queryable, prelude::Insertable, query_builder::AsChangeset, Selectable};
+use diesel::{
+    associations::Identifiable, deserialize::Queryable, prelude::Insertable,
+    query_builder::AsChangeset, Selectable,
+};
 use ipnetwork::IpNetwork;
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, AsChangeset, PartialEq)]

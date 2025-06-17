@@ -1,7 +1,9 @@
-use diesel::prelude::*;
 use super::users::User;
+use diesel::prelude::*;
 
-#[derive(Debug, Clone, Queryable, Selectable, Insertable, Identifiable, Associations, PartialEq)]
+#[derive(
+    Debug, Clone, Queryable, Selectable, Insertable, Identifiable, Associations, PartialEq,
+)]
 #[diesel(belongs_to(User))]
 #[diesel(table_name = crate::schema::authorization_tokens)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
