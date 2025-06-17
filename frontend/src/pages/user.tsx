@@ -253,7 +253,7 @@ export function User() {
         });
 
         if (response.status === 200) {
-            location.reload();
+            logout(false);
         } else  if (response.status === 400) {
             setDeleteUser({...deleteUser, password_valid: false})
         } else {
