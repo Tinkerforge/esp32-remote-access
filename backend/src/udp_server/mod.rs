@@ -33,7 +33,10 @@ use std::{
 };
 
 use self::socket::ManagementSocket;
-use crate::{udp_server::multiplex::run_server, utils::update_charger_state_change, AppState, BridgeState, DiscoveryCharger};
+use crate::{
+    udp_server::multiplex::run_server, utils::update_charger_state_change, AppState, BridgeState,
+    DiscoveryCharger,
+};
 use actix_web::web;
 use ipnetwork::IpNetwork;
 use packet::ManagementResponseV2;

@@ -33,7 +33,10 @@ use crate::{
     error::Error,
     rate_limit::ChargerRateLimiter,
     routes::{auth::login::FindBy, charger::add::get_charger_from_db, user::get_user_id},
-    utils::{get_charger_by_uid, get_connection, parse_uuid, update_charger_state_change, web_block_unpacked},
+    utils::{
+        get_charger_by_uid, get_connection, parse_uuid, update_charger_state_change,
+        web_block_unpacked,
+    },
     AppState, BridgeState,
 };
 

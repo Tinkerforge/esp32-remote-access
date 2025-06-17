@@ -35,7 +35,10 @@ use rand::TryRngCore;
 use rand_core::OsRng;
 
 use crate::{
-    udp_server::{management::RemoteConnMeta, packet::ManagementCommand}, utils::update_charger_state_change, ws_udp_bridge::open_connection, AppState, BridgeState
+    udp_server::{management::RemoteConnMeta, packet::ManagementCommand},
+    utils::update_charger_state_change,
+    ws_udp_bridge::open_connection,
+    AppState, BridgeState,
 };
 
 use super::{management::try_port_discovery, socket::ManagementSocket};
@@ -182,7 +185,11 @@ pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
     }
 }
 
-pub async fn run_server(bridge_state: web::Data<BridgeState>, app_state: web::Data<AppState>, arbiter: Arc<Arbiter>) {
+pub async fn run_server(
+    bridge_state: web::Data<BridgeState>,
+    app_state: web::Data<AppState>,
+    arbiter: Arc<Arbiter>,
+) {
     let mut buf = vec![0u8; 65535];
     loop {
         if let Ok((s, addr)) = bridge_state.socket.recv_from(&mut buf) {
@@ -190,7 +197,10 @@ pub async fn run_server(bridge_state: web::Data<BridgeState>, app_state: web::Da
             let buf = buf.clone();
 
             // Check if the packet is for port discovery
-            if try_port_discovery(&bridge_state, &buf[..s], addr).await.is_ok() {
+            if try_port_discovery(&bridge_state, &buf[..s], addr)
+                .await
+                .is_ok()
+            {
                 continue;
             }
 
@@ -212,12 +222,13 @@ pub async fn run_server(bridge_state: web::Data<BridgeState>, app_state: web::Da
                 match charger_map.entry(addr) {
                     Entry::Occupied(tunn) => tunn.into_mut().clone(),
                     Entry::Vacant(v) => {
-                        let (id, tunn_data) = match create_tunn(&bridge_state, addr, &buf[..s]).await {
-                            Ok(tunn) => tunn,
-                            Err(_err) => {
-                                continue;
-                            }
-                        };
+                        let (id, tunn_data) =
+                            match create_tunn(&bridge_state, addr, &buf[..s]).await {
+                                Ok(tunn) => tunn,
+                                Err(_err) => {
+                                    continue;
+                                }
+                            };
 
                         arbiter.spawn(update_charger_state_change(id, app_state.clone()));
 
@@ -227,7 +238,8 @@ pub async fn run_server(bridge_state: web::Data<BridgeState>, app_state: web::Da
                         v.insert(tunn_data.clone());
                         let tunn = tunn_data.clone();
                         let mut lost_map = bridge_state.lost_connections.lock().await;
-                        let mut undiscovered_clients = bridge_state.undiscovered_clients.lock().await;
+                        let mut undiscovered_clients =
+                            bridge_state.undiscovered_clients.lock().await;
                         if let Some(conns) = lost_map.remove(&id) {
                             for (conn_no, recipient) in conns.into_iter() {
                                 let meta = RemoteConnMeta {

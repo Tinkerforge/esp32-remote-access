@@ -155,7 +155,8 @@ pub async fn validate_auth_token(
             Ok(_) => Ok(()),
             Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }
@@ -189,14 +190,14 @@ pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<Ap
     {
         let _ = body;
         let _ = state;
-        println!("Test mode: Email would be sent to {} with subject '{}'", email, subject);
+        println!(
+            "Test mode: Email would be sent to {} with subject '{}'",
+            email, subject
+        );
     }
 }
 
-pub async fn update_charger_state_change(
-    charger_id: uuid::Uuid,
-    state: web::Data<AppState>,
-) {
+pub async fn update_charger_state_change(charger_id: uuid::Uuid, state: web::Data<AppState>) {
     let Ok(mut conn) = get_connection(&state) else {
         log::error!("Failed to get database connection for updating charger state change");
         return;
@@ -211,7 +212,11 @@ pub async fn update_charger_state_change(
         {
             Ok(_) => Ok(()),
             Err(_err) => {
-                log::error!("Failed to update last_state_change for charger {}: {}", charger_id, _err);
+                log::error!(
+                    "Failed to update last_state_change for charger {}: {}",
+                    charger_id,
+                    _err
+                );
                 Err(Error::InternalError)
             }
         }

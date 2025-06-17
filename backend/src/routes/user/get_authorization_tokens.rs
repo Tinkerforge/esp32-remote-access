@@ -82,7 +82,7 @@ mod tests {
                 id: String::new(),
                 token: String::new(),
                 use_once: false,
-                name:String::new(),
+                name: String::new(),
                 created_at: 0,
                 last_used_at: None,
             };

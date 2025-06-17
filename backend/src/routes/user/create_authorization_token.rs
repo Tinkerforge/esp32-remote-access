@@ -106,7 +106,10 @@ pub mod tests {
         let req = TestRequest::post()
             .uri("/create_authorization_token")
             .cookie(Cookie::new("access_token", token))
-            .set_json(CreateAuthorizationTokenSchema { use_once, name: "Test Token".to_string() })
+            .set_json(CreateAuthorizationTokenSchema {
+                use_once,
+                name: "Test Token".to_string(),
+            })
             .to_request();
 
         let resp: ResponseAuthorizationToken = test::call_and_read_body_json(&app, req).await;
@@ -127,7 +130,10 @@ pub mod tests {
         let req = TestRequest::post()
             .uri("/create_authorization_token")
             .cookie(Cookie::new("access_token", token))
-            .set_json(CreateAuthorizationTokenSchema { use_once: true, name: "Test Token".to_string() })
+            .set_json(CreateAuthorizationTokenSchema {
+                use_once: true,
+                name: "Test Token".to_string(),
+            })
             .to_request();
 
         let resp = test::call_service(&app, req).await;
