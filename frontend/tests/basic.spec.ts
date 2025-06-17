@@ -128,16 +128,15 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
   await page.getByRole('button', { name: 'Show' }).click();
-  await page.getByLabel('Relay server hostname').fill(testDomain.substring(8));
+  await page.getByRole('textbox', { name: 'Relay server hostname or IP' }).fill(testDomain.substring(8));
   if (needCustomCert) {
-    await page.getByLabel('TLS cer­tif­i­cate', { exact: true }).selectOption('0');
+    await page.getByLabel('TLS certificate', { exact: true }).selectOption('0');
   } else {
-    await page.getByLabel('TLS cer­tif­i­cate', { exact: true }).selectOption('-1');
+    await page.getByLabel('TLS certificate', { exact: true }).selectOption('-1');
   }
-  await page.getByRole('row', { name: 'of 5 users config­ured.' }).getByRole('button').click();
-  await page.getByLabel('Email ad­dress').click();
-  await page.getByLabel('Email ad­dress').fill(testUser1Email);
-  await page.getByLabel('Email ad­dress').press('Tab');
+  await page.getByRole('row', { name: 'of 5 users configured' }).getByRole('button').click();
+  await page.getByRole('textbox', { name: 'Email address' }).click();
+  await page.getByRole('textbox', { name: 'Email address' }).fill(testUser1Email);
   await page.getByLabel('Passwordonly used for the reg').fill(testPassword1);
   await page.getByLabel('Passwordonly used for the reg').press('Enter');
   await page.getByRole('button', { name: 'Reboot' }).click();
@@ -180,9 +179,9 @@ test('add charger with auth token', async ({page}) => {
   await page.getByRole('button', { name: 'Event Log' }).click();
   await expect(page.getByPlaceholder('Loading event log...')).toContainText("Network connected");
   await page.getByRole('button', { name: 'Remote Access' }).click();
-  await page.getByRole('row', { name: 'of 5 users config­ured.' }).getByRole('button').click();
-  await page.getByLabel('Autho­ri­za­tion method').selectOption('token');
-  await page.getByLabel('Autho­ri­za­tion token').fill(token);
+  await page.getByRole('row', { name: 'of 5 users configured' }).getByRole('button').click();
+  await page.getByLabel('Authorization method').selectOption('token');
+  await page.getByLabel('Authorization token').fill(token);
   await page.getByRole('button', { name: 'Add' }).click();
   await page.getByRole('button', { name: 'Reboot' }).click();
 
