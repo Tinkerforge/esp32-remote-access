@@ -86,7 +86,7 @@ pub struct BridgeState {
 pub struct AppState {
     pub pool: Pool,
     pub jwt_secret: String,
-    pub mailer: SmtpTransport,
+    pub mailer: Option<SmtpTransport>,
     pub frontend_url: String,
     pub sender_email: String,
     pub sender_name: String,
@@ -250,7 +250,6 @@ pub(crate) mod tests {
     };
     use diesel::r2d2::ConnectionManager;
     use ipnetwork::Ipv4Network;
-    use lettre::transport::smtp::authentication::Credentials;
     use lru::LruCache;
     use rand::TryRngCore;
     use rand_core::OsRng;
@@ -295,18 +294,10 @@ pub(crate) mod tests {
     ) -> web::Data<AppState> {
         let pool = pool.unwrap_or_else(|| db_connector::test_connection_pool());
 
-        let mail = std::env::var("EMAIL_USER").expect("EMAIL must be set");
-        let pass = std::env::var("EMAIL_PASS").expect("EMAIL_PASS must be set");
-        let mailer = SmtpTransport::relay("mail.tinkerforge.com")
-            .unwrap()
-            .port(465)
-            .credentials(Credentials::new(mail, pass))
-            .build();
-
         let state = AppState {
             pool: pool.clone(),
             jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!"),
-            mailer,
+            mailer: None,
             frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
             sender_email: String::new(),
             sender_name: String::new(),

@@ -28,7 +28,9 @@ use diesel::{
     result::Error::NotFound,
     PgConnection,
 };
+#[cfg(not(test))]
 use lettre::message::header::ContentType;
+#[cfg(not(test))]
 use lettre::{Message, Transport};
 use rand::Rng;
 
@@ -159,21 +161,35 @@ pub async fn validate_auth_token(
 }
 
 pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<AppState>) {
-    let email = Message::builder()
-        .from(
-            format!("{} <{}>", state.sender_name, state.sender_email)
-                .parse()
-                .unwrap(),
-        )
-        .to(email.parse().unwrap())
-        .subject(subject)
-        .header(ContentType::TEXT_HTML)
-        .body(body)
-        .unwrap();
+    #[cfg(not(test))]
+    {
+        if let Some(ref mailer) = state.mailer {
+            let email = Message::builder()
+                .from(
+                    format!("{} <{}>", state.sender_name, state.sender_email)
+                        .parse()
+                        .unwrap(),
+                )
+                .to(email.parse().unwrap())
+                .subject(subject)
+                .header(ContentType::TEXT_HTML)
+                .body(body)
+                .unwrap();
 
-    match state.mailer.send(&email) {
-        Ok(_) => println!("Email sent successfully!"),
-        Err(e) => panic!("Could not send email: {e:?}"),
+            match mailer.send(&email) {
+                Ok(_) => println!("Email sent successfully!"),
+                Err(e) => panic!("Could not send email: {e:?}"),
+            }
+        } else {
+            println!("No mailer configured, email not sent");
+        }
+    }
+
+    #[cfg(test)]
+    {
+        let _ = body;
+        let _ = state;
+        println!("Test mode: Email would be sent to {} with subject '{}'", email, subject);
     }
 }
 

@@ -131,18 +131,20 @@ async fn main() -> std::io::Result<()> {
 
     reset_wg_keys(&pool);
 
-    let email = std::env::var("EMAIL_USER").expect("EMAIL_USER must be set");
-    let pass = std::env::var("EMAIL_PASS").expect("EMAIL_PASS must be set");
-    let relay = std::env::var("EMAIL_RELAY").expect("EMAIL_RELAY must be set");
-    let port: u16 = std::env::var("EMAIL_RELAY_PORT")
-        .expect("EMAIL_RELAY_PORT must be set")
-        .parse()
-        .unwrap();
-    let mailer = SmtpTransport::starttls_relay(&relay)
-        .unwrap()
-        .port(port)
-        .credentials(Credentials::new(email, pass))
-        .build();
+    let mailer = {
+        let email = std::env::var("EMAIL_USER").expect("EMAIL_USER must be set");
+        let pass = std::env::var("EMAIL_PASS").expect("EMAIL_PASS must be set");
+        let relay = std::env::var("EMAIL_RELAY").expect("EMAIL_RELAY must be set");
+        let port: u16 = std::env::var("EMAIL_RELAY_PORT")
+            .expect("EMAIL_RELAY_PORT must be set")
+            .parse()
+            .unwrap();
+        SmtpTransport::starttls_relay(&relay)
+            .unwrap()
+            .port(port)
+            .credentials(Credentials::new(email, pass))
+            .build()
+    };
 
     let sender_email = std::env::var("SENDER_EMAIL").expect("SENDER_EMAIL must be set");
     let sender_name = std::env::var("SENDER_NAME").expect("SENDER_NAME must be set");
@@ -150,7 +152,7 @@ async fn main() -> std::io::Result<()> {
     let state = web::Data::new(AppState {
         pool: pool.clone(),
         jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!"),
-        mailer,
+        mailer: Some(mailer),
         frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
         sender_email,
         sender_name,
