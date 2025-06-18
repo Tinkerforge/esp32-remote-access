@@ -47,6 +47,7 @@ pub struct GetChargerSchema {
     port: i32,
     valid: bool,
     last_state_change: Option<i64>,
+    firmware_version: String,
 }
 
 /// Get all chargers that the current user has access to.
@@ -129,6 +130,7 @@ pub async fn get_chargers(
                 port: c.webinterface_port,
                 valid: allowed_user.valid,
                 last_state_change: c.last_state_change.map(|ts| ts.and_utc().timestamp()),
+                firmware_version: c.firmware_version,
             }
         })
         .collect::<Vec<GetChargerSchema>>();
