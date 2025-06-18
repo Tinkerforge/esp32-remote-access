@@ -68,6 +68,7 @@ export const en = {
         "sorting_sequence_asc": "Ascending",
         "sorting_sequence_desc": "Descending",
         "note": "Note",
+        "firmware_version": "Firmware Version",
         "last_state_change": "State Change",
         "time_just_now": "Just now",
         "time_minutes_ago": "{{count}}m ago",

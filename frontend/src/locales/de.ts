@@ -64,6 +64,7 @@ export const de ={
         "sorting_sequence_asc": "Aufsteigend",
         "sorting_sequence_desc": "Absteigend",
         "note": "Notiz",
+        "firmware_version": "Firmwareversion",
         "last_state_change": "Statusänderung",
         "time_just_now": "Gerade eben",
         "time_minutes_ago": "vor {{count}}m",

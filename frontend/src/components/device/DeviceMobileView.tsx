@@ -44,6 +44,8 @@ export function DeviceMobileView({
                 return i18n.t("chargers.note");
             case "last_state_change":
                 return i18n.t("chargers.last_state_change");
+            case "firmware_version":
+                return i18n.t("chargers.firmware_version");
             default:
                 return i18n.t("chargers.select_sorting");
         }
@@ -59,6 +61,7 @@ export function DeviceMobileView({
                         <Dropdown.Item onClick={() => onMobileSort("status")}>{t("status")}</Dropdown.Item>
                         <Dropdown.Item onClick={() => onMobileSort("last_state_change")}>{t("last_state_change")}</Dropdown.Item>
                         <Dropdown.Item onClick={() => onMobileSort("note")}>{t("note")}</Dropdown.Item>
+                        <Dropdown.Item onClick={() => onMobileSort("firmware_version")}>{t("firmware_version")}</Dropdown.Item>
                     </DropdownButton>
                     <DropdownButton className="dropdown-btn" title={sortSequence === "asc" ? t("sorting_sequence_asc") : t("sorting_sequence_desc")}>
                         <Dropdown.Item onClick={() => onSortSequenceChange("asc")}>{t("sorting_sequence_asc")}</Dropdown.Item>

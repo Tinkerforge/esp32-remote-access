@@ -76,7 +76,7 @@ th:hover:has(div) {
   white-space: nowrap;
 }
 
-.charger-head th:last-of-type {
+.charger-head th:nth-last-child(2) {
   @media (max-width: 1600px) {
     width: 50% !important;
   }

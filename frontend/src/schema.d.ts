@@ -547,6 +547,7 @@ export interface components {
             tokens: components["schemas"]["ResponseAuthorizationToken"][];
         };
         GetChargerSchema: {
+            firmware_version: string;
             id: string;
             /** Format: int64 */
             last_state_change?: number | null;

@@ -30,6 +30,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
             valid: true,
             note: "",
             last_state_change: null,
+            firmware_version: "",
         };
         this.state = {
             devices: [],
@@ -112,6 +113,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     port: device.port,
                     valid: device.valid,
                     last_state_change: device.last_state_change,
+                    firmware_version: device.firmware_version,
                 }
                 stateDevices.push(state_charger);
             }

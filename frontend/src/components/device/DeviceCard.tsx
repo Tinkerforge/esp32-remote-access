@@ -82,6 +82,11 @@ export function DeviceCard({
                 </Row>
                 <hr style="margin-top: 5px;margin-bottom: 5px;"/>
                 <Row>
+                    <Col xs="auto"><b>{t("firmware_version")}</b></Col>
+                    <Col className="text-end">{device.firmware_version}</Col>
+                </Row>
+                <hr style="margin-top: 5px;margin-bottom: 5px;"/>
+                <Row>
                     <Col xs="auto">
                         <Row>
                             <b>{t("note")}</b>

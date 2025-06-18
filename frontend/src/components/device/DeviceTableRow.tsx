@@ -125,6 +125,9 @@ export function DeviceTableRow({
                     </Row>
                 </Container>
             </td>
+            <td class="align-middle" style={{width: "1px", whiteSpace: "nowrap", padding: "0.5rem 0.25rem"}}>
+                {device.firmware_version}
+            </td>
         </tr>
     );
 }
