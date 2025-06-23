@@ -106,6 +106,7 @@ async fn main() {
             routes::user::delete::delete_user,
             routes::check_expiration::check_expiration,
             routes::management::management,
+            routes::send_chargelog_to_user::send_chargelog,
         ),
         components(schemas(
             routes::auth::login::LoginSchema,
@@ -143,6 +144,7 @@ async fn main() {
             routes::check_expiration::CheckExpirationRequest,
             routes::check_expiration::TokenType,
             models::response_auth_token::ResponseAuthorizationToken,
+            routes::send_chargelog_to_user::SendChargelogSchema,
         )),
         modifiers(&JwtToken, &RefreshToken)
     )]

@@ -194,6 +194,62 @@ pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<Ap
     }
 }
 
+/// Send an email with a binary attachment (chargelog)
+pub fn send_email_with_attachment(
+    email: &str,
+    subject: &str,
+    body: String,
+    attachment_data: Vec<u8>,
+    attachment_filename: &str,
+    state: &web::Data<AppState>,
+) {
+    #[cfg(not(test))]
+    {
+        if let Some(ref mailer) = state.mailer {
+            let multipart = lettre::message::MultiPart::mixed()
+                .singlepart(
+                    lettre::message::SinglePart::builder()
+                        .header(lettre::message::header::ContentType::TEXT_HTML)
+                        .body(body),
+                )
+                .singlepart(
+                    lettre::message::Attachment::new(attachment_filename.to_string())
+                        .body(attachment_data, lettre::message::header::ContentType::parse("application/octet-stream").unwrap()),
+                );
+
+            let email = lettre::Message::builder()
+                .from(
+                    format!("{} <{}>", state.sender_name, state.sender_email)
+                        .parse()
+                        .unwrap(),
+                )
+                .to(email.parse().unwrap())
+                .subject(subject)
+                .multipart(multipart)
+                .unwrap();
+
+            match mailer.send(&email) {
+                Ok(_) => log::info!("Email with attachment sent successfully!"),
+                Err(e) => log::error!("Could not send email: {e:?}"),
+            }
+        } else {
+            log::error!("No mailer configured, email not sent");
+        }
+    }
+
+    #[cfg(test)]
+    {
+        let _ = body;
+        let _ = state;
+        let _ = attachment_data;
+        let _ = attachment_filename;
+        println!(
+            "Test mode: Email would be sent to {} with subject '{}' and attachment {}",
+            email, subject, attachment_filename
+        );
+    }
+}
+
 pub async fn update_charger_state_change(charger_id: uuid::Uuid, state: web::Data<AppState>) {
     let Ok(mut conn) = get_connection(&state) else {
         log::error!("Failed to get database connection for updating charger state change");

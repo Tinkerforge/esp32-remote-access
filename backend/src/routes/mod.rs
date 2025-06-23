@@ -25,6 +25,7 @@ pub mod selfdestruct;
 pub mod state;
 pub mod static_files;
 pub mod user;
+pub mod send_chargelog_to_user;
 
 use actix_web::web::{self, scope};
 
@@ -37,6 +38,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.configure(static_files::configure);
 
     cfg.service(management::management);
+    cfg.service(send_chargelog_to_user::send_chargelog);
     cfg.service(selfdestruct::selfdestruct);
     cfg.service(check_expiration::check_expiration);
 
