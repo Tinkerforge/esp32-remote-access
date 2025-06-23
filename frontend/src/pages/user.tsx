@@ -337,7 +337,7 @@ export function User() {
             </Form>
         </Modal>
 
-        {/* Reset password modal */}
+        {/* Change password modal */}
         <Modal show={showPasswordReset} onHide={handleUpdatePasswordClose} centered>
             <Form onSubmit={submitUpdatePassword} validated={validated.value} noValidate>
                 <Modal.Header>
