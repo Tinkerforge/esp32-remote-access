@@ -24,6 +24,7 @@ pub mod management;
 pub mod selfdestruct;
 pub mod state;
 pub mod user;
+pub mod send_chargelog_to_user;
 
 use actix_web::web::{self, scope};
 
@@ -35,6 +36,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.configure(charger::configure);
 
     cfg.service(management::management);
+    cfg.service(send_chargelog_to_user::send_chargelog);
     cfg.service(selfdestruct::selfdestruct);
     cfg.service(check_expiration::check_expiration);
 
