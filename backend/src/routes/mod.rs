@@ -22,10 +22,10 @@ pub mod charger;
 pub mod check_expiration;
 pub mod management;
 pub mod selfdestruct;
+pub mod send_chargelog_to_user;
 pub mod state;
 pub mod static_files;
 pub mod user;
-pub mod send_chargelog_to_user;
 
 use actix_web::web::{self, scope};
 

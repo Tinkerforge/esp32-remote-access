@@ -213,8 +213,11 @@ pub fn send_email_with_attachment(
                         .body(body),
                 )
                 .singlepart(
-                    lettre::message::Attachment::new(attachment_filename.to_string())
-                        .body(attachment_data, lettre::message::header::ContentType::parse("application/octet-stream").unwrap()),
+                    lettre::message::Attachment::new(attachment_filename.to_string()).body(
+                        attachment_data,
+                        lettre::message::header::ContentType::parse("application/octet-stream")
+                            .unwrap(),
+                    ),
                 );
 
             let email = lettre::Message::builder()
