@@ -167,7 +167,7 @@ let appSleeps = false;
 let lastAlive = Date.now();
 setInterval(() => {
     const now = Date.now();
-    if (now - lastAlive > 15000) {
+    if (now - lastAlive > 5000) {
         appSleeps = true;
     }
     lastAlive = now;
