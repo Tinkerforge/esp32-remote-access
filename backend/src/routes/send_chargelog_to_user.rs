@@ -58,8 +58,8 @@ pub async fn send_chargelog(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, App};
     use crate::{routes::user::tests::TestUser, tests::configure};
+    use actix_web::{test, App};
 
     #[actix_web::test]
     async fn test_send_chargelog_success() {
