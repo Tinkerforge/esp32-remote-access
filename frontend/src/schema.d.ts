@@ -320,6 +320,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/send_chargelog_to_user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["send_chargelog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/user/create_authorization_token": {
         parameters: {
             query?: never;
@@ -662,6 +678,12 @@ export interface components {
             id?: number | null;
             password: string;
             uuid?: string | null;
+        };
+        SendChargelogSchema: {
+            chargelog: number[];
+            charger_uuid: string;
+            password: string;
+            user_email: string;
         };
         /** @enum {string} */
         TokenType: "Recovery" | "Verification";
@@ -1262,6 +1284,42 @@ export interface operations {
             };
             /** @description The charger id and password do not match */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    send_chargelog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendChargelogSchema"];
+            };
+        };
+        responses: {
+            /** @description Chargelog sent via email */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid charger credentials or rate limit exceeded */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
