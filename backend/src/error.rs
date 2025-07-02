@@ -58,6 +58,8 @@ pub enum Error {
     ChargerCredentialsWrong,
     #[display("Charger does not exist")]
     ChargerDoesNotExist,
+    #[display("Invalid payload")]
+    InvalidPayload,
 }
 
 impl error::ResponseError for Error {
@@ -85,6 +87,7 @@ impl error::ResponseError for Error {
             Self::SessionDoesNotExist => StatusCode::UNAUTHORIZED,
             Self::ChargerCredentialsWrong => StatusCode::UNAUTHORIZED,
             Self::ChargerDoesNotExist => StatusCode::BAD_REQUEST,
+            Self::InvalidPayload => StatusCode::BAD_REQUEST,
         }
     }
 }
