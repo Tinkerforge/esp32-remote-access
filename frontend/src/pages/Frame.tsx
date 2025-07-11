@@ -296,7 +296,7 @@ export class Frame extends Component<{}, FrameState> {
                 });
 
                 if (info.error || !info.data) {
-                    showAlert(t("chargers.not_connected"), "danger");
+                    showAlert(t("not_connected"), "danger");
                     route("/devices", true);
                     return;
                 }
