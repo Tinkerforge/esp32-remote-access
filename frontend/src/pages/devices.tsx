@@ -117,7 +117,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 }
                 stateDevices.push(state_charger);
             }
-            this.setState({ devices: stateDevices });
+            this.setSortedDevices(stateDevices);
         } catch (e) {
             const error = `${e}`;
             if (error.indexOf("Network") !== -1) {
@@ -204,8 +204,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
         }
     }
 
-    getSortedDevices() {
-        const devices = [...this.state.devices];
+    setSortedDevices(devices: StateDevice[]) {
         devices.sort((a, b) => {
             let sortColumn = this.state.sortColumn;
             if (sortColumn === "none") {
@@ -238,7 +237,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 return ret * -1;
             }
         });
-        return devices;
+        this.setState({ devices });
     }
 
     handleDelete = (device: StateDevice) => {
@@ -296,7 +295,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
     render() {
         const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
         const { route } = useLocation();
-        const devices = this.getSortedDevices();
+        const devices = this.state.devices;
 
         const handleConnect = async (device: StateDevice) => {
             await this.connect_to_charger(device, route);
