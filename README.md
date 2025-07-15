@@ -1,6 +1,6 @@
 # ESP32-Remote-Access
 
-This repository contains everything needed to build and run the (**WIP**) remote access server for all Warp-Cargers and Tinkerforge ESP32-/ESP32-Ethernet-Bricks.
+This repository contains everything needed to build and run the (**WIP**) remote access server for Tinkerforge WARP Chargers, WARP Energy Managers and ESP32-/ESP32-Ethernet-Bricks.
 
 ## File structure
 
