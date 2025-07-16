@@ -8,7 +8,7 @@ File structure
 
 ::
 
-    .
+  .
   ├── backend
   ├── db_connector
   ├── docker
