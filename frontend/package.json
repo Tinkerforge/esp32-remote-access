@@ -22,7 +22,7 @@
     "i18next-http-backend": "^3",
     "js-base64": "^3.7.7",
     "libsodium-wrappers": "^0.7.13",
-    "median-js-bridge": "^2.3.2",
+    "median-js-bridge": "^2.11.0",
     "openapi-fetch": "^0.13",
     "preact": "^10",
     "preact-iso": "^2",
