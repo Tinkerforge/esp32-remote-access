@@ -40,7 +40,7 @@ use crate::{
 };
 
 pub const MAX_TOKEN_AGE_MINUTES: i64 = 6;
-const MAX_REFRESH_TOKEN_AGE_DAYS: i64 = 7;
+const MAX_REFRESH_TOKEN_AGE_DAYS: i64 = 30;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Validate, ToSchema)]
 pub struct LoginSchema {
