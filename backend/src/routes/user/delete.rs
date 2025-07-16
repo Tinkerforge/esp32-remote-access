@@ -99,7 +99,7 @@ pub async fn delete_user(
         match diesel::delete(users.find(user_id)).execute(&mut conn) {
             Ok(_) => Ok(()),
             Err(_err) => {
-                println!("err: {:?}", _err);
+                println!("err: {_err:?}");
                 Err(Error::InternalError)
             }
         }

@@ -323,7 +323,7 @@ pub async fn management(
     let ip: IpNetwork = match ip.parse() {
         Ok(ip) => ip,
         Err(_err) => {
-            log::error!("Error while parsing ip: {}", _err);
+            log::error!("Error while parsing ip: {_err}");
             return Err(Error::InternalError.into());
         }
     };
@@ -395,7 +395,7 @@ pub async fn management(
         {
             Ok(_) => Ok(()),
             Err(_err) => {
-                log::error!("Error while updating charger: {}", _err);
+                log::error!("Error while updating charger: {_err}");
                 Err(Error::InternalError)
             }
         }
@@ -407,7 +407,7 @@ pub async fn management(
     let time = match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(time) => time,
         Err(err) => {
-            log::error!("Error while getting current time: {}", err);
+            log::error!("Error while getting current time: {err}");
             return Err(Error::InternalError.into());
         }
     };
@@ -479,7 +479,7 @@ mod tests {
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert_eq!([1], *resp.configured_users);
         assert_eq!(vec![user_id.to_string()], resp.configured_users_uuids);
     }
@@ -517,7 +517,7 @@ mod tests {
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert_eq!([1], *resp.configured_users);
         let user_id = get_test_uuid(&mail).unwrap();
         assert_eq!(vec![user_id.to_string()], resp.configured_users_uuids);
@@ -550,7 +550,7 @@ mod tests {
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert_eq!([0; 0], *resp.configured_users);
         assert!(resp.configured_users_uuids.is_empty());
     }
@@ -585,7 +585,7 @@ mod tests {
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert_eq!([0; 0], *resp.configured_users);
         assert!(resp.configured_users_uuids.is_empty());
     }
@@ -622,7 +622,7 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_client_error());
         assert_eq!(resp.status().as_u16(), 401);
@@ -654,7 +654,7 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_client_error());
         assert_eq!(resp.status().as_u16(), 401);
@@ -702,7 +702,7 @@ mod tests {
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert_eq!([1], *resp.configured_users);
         assert_eq!(
             vec![get_test_uuid(&mail).unwrap().to_string()],
@@ -796,7 +796,7 @@ mod tests {
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert_eq!([1, 0], *resp.configured_users);
         assert_eq!(
             vec![get_test_uuid(&mail).unwrap().to_string(), String::new()],
@@ -874,7 +874,7 @@ mod tests {
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert_eq!([1, 0], *resp.configured_users);
         assert_eq!(
             vec![get_test_uuid(&mail).unwrap().to_string(), String::new()],
@@ -926,7 +926,7 @@ mod tests {
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert_eq!([0; 0], *resp.configured_users);
         assert!(resp.configured_users_uuids.is_empty());
 

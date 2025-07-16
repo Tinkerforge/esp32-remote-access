@@ -101,9 +101,7 @@ fn send_verification_mail(
                 Ok(body) => (body, "Email verifizieren"),
                 Err(e) => {
                     log::error!(
-                        "Failed to render German verification email template for user '{}': {}",
-                        name,
-                        e
+                        "Failed to render German verification email template for user '{name}': {e}"
                     );
                     return Err(Error::InternalError.into());
                 }
@@ -118,9 +116,7 @@ fn send_verification_mail(
                 Ok(body) => (body, "Verify email"),
                 Err(e) => {
                     log::error!(
-                        "Failed to render English verification email template for user '{}': {}",
-                        name,
-                        e
+                        "Failed to render English verification email template for user '{name}': {e}"
                     );
                     return Err(Error::InternalError.into());
                 }
@@ -363,7 +359,7 @@ pub(crate) mod tests {
         {
             Ok(_) => true,
             Err(NotFound) => false,
-            Err(err) => panic!("Something went wrong: {}", err),
+            Err(err) => panic!("Something went wrong: {err}"),
         }
     }
 

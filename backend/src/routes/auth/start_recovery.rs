@@ -54,7 +54,7 @@ fn send_email(
             match template.render() {
                 Ok(b) => (b, "Passwort Wiederherstellung"),
                 Err(e) => {
-                    log::error!("Failed to render German password recovery email template for user '{}': {}", name, e);
+                    log::error!("Failed to render German password recovery email template for user '{name}': {e}");
                     return Err(Error::InternalError.into());
                 }
             }
@@ -67,7 +67,7 @@ fn send_email(
             match template.render() {
                 Ok(b) => (b, "Password Recovery"),
                 Err(e) => {
-                    log::error!("Failed to render English password recovery email template for user '{}': {}", name, e);
+                    log::error!("Failed to render English password recovery email template for user '{name}': {e}");
                     return Err(Error::InternalError.into());
                 }
             }
@@ -195,7 +195,7 @@ pub mod tests {
         let app = test::init_service(app).await;
 
         let req = TestRequest::get()
-            .uri(&format!("/start_recovery?email={}", mail))
+            .uri(&format!("/start_recovery?email={mail}"))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
@@ -222,7 +222,7 @@ pub mod tests {
         let app = test::init_service(app).await;
 
         let req = TestRequest::get()
-            .uri(&format!("/start_recovery?email={}", mail))
+            .uri(&format!("/start_recovery?email={mail}"))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);

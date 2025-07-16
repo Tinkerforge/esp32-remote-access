@@ -29,24 +29,21 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
     let clients: Vec<SocketAddr> = {
         let web_client_map = brige_state.web_client_map.lock().await;
         web_client_map
-            .iter()
-            .map(|(client, _)| client.to_owned())
+            .keys()
+            .map(|client| client.to_owned())
             .collect()
     };
 
     let undiscovered_clients: Vec<RemoteConnMeta> = {
         let undiscoverd_clients = brige_state.undiscovered_clients.lock().await;
-        undiscoverd_clients
-            .iter()
-            .map(|(conn, _)| conn.clone())
-            .collect()
+        undiscoverd_clients.keys().cloned().collect()
     };
 
     let charger_management_map: Vec<SocketAddr> = {
         let charger_management_map = brige_state.charger_management_map.lock().await;
         charger_management_map
-            .iter()
-            .map(|(sock, _)| sock.to_owned())
+            .keys()
+            .map(|sock| sock.to_owned())
             .collect()
     };
 
@@ -54,22 +51,19 @@ pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<imp
         let charger_management_map_with_id =
             brige_state.charger_management_map_with_id.lock().await;
         charger_management_map_with_id
-            .iter()
-            .map(|(id, _)| id.to_string())
+            .keys()
+            .map(|id| id.to_string())
             .collect()
     };
 
     let port_discovery: Vec<ManagementResponseV2> = {
         let port_discovery = brige_state.port_discovery.lock().await;
-        port_discovery.iter().map(|(resp, _)| *resp).collect()
+        port_discovery.keys().copied().collect()
     };
 
     let charger_remote_conn_map: Vec<RemoteConnMeta> = {
         let charger_remote_conn_map = brige_state.charger_remote_conn_map.lock().await;
-        charger_remote_conn_map
-            .iter()
-            .map(|(meta, _)| meta.clone())
-            .collect()
+        charger_remote_conn_map.keys().cloned().collect()
     };
 
     let undiscovered_chargers = {

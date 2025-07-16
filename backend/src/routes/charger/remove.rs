@@ -338,7 +338,7 @@ pub(crate) mod tests {
             .to_request();
         match test::try_call_service(&app, req).await {
             Ok(resp) => {
-                println!("{:?}", resp);
+                println!("{resp:?}");
                 println!("{:?}", resp.response().body());
                 assert!(resp.status().is_success());
             }
@@ -426,7 +426,7 @@ pub(crate) mod tests {
             .to_request();
         let resp = test::try_call_service(&app, req).await.unwrap();
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert!(resp.status().is_success());
 
         let charger_id = uuid::Uuid::from_str(&charger.uuid).unwrap();
@@ -461,7 +461,7 @@ pub(crate) mod tests {
             .to_request();
         let resp = test::try_call_service(&app, req).await.unwrap();
 
-        println!("{:?}", resp);
+        println!("{resp:?}");
         assert!(resp.status().is_client_error());
         assert!(resp.status().as_u16() == 401);
     }

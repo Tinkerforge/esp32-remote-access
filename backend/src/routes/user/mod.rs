@@ -273,14 +273,14 @@ pub mod tests {
 
         pub async fn random() -> (Self, String) {
             let uuid = uuid::Uuid::new_v4().to_string();
-            let mail = format!("{}@test.invalid", uuid);
+            let mail = format!("{uuid}@test.invalid");
             let user = Self::new(&mail, None).await;
             (user, mail)
         }
 
         pub async fn random_with_secret(secret: Vec<u8>) -> (Self, String) {
             let uuid = uuid::Uuid::new_v4().to_string();
-            let mail = format!("{}@test.invalid", uuid);
+            let mail = format!("{uuid}@test.invalid");
             let user = Self::new(&mail, Some(secret)).await;
             (user, mail)
         }

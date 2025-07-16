@@ -130,7 +130,7 @@ pub async fn jwt_refresh(
                 .http_only(true)
                 .finish();
 
-            log::error!("JWT-Refresh failed: {}", err);
+            log::error!("JWT-Refresh failed: {err}");
             let mut err = err.error_response();
             err.add_removal_cookie(&access_token)?;
             err.add_removal_cookie(&refresh_token)?;
@@ -173,7 +173,7 @@ pub async fn jwt_refresh(
         .secure(true)
         .finish();
 
-    let cookie_string = format!("{}; Partitioned;", cookie);
+    let cookie_string = format!("{cookie}; Partitioned;");
 
     let refresh_cookie = create_refresh_token(&state, user.id).await?;
 

@@ -129,7 +129,7 @@ pub fn clean_verification_tokens(
             Ok(v) => v.into_iter().map(|v| v.user).collect(),
             Err(NotFound) => Vec::new(),
             Err(err) => {
-                log::error!("Failed to get Verification-Token from Database: {}", err);
+                log::error!("Failed to get Verification-Token from Database: {err}");
                 return;
             }
         }
@@ -149,7 +149,7 @@ pub fn clean_verification_tokens(
             Ok(u) => u,
             Err(NotFound) => Vec::new(),
             Err(err) => {
-                log::error!("Failed to get users for cleanup: {}", err);
+                log::error!("Failed to get users for cleanup: {err}");
                 return;
             }
         };
@@ -164,7 +164,7 @@ pub fn clean_verification_tokens(
                 ))
                 .execute(conn)
                 .or_else(|e| {
-                    log::error!("Failed to update user: {}", e);
+                    log::error!("Failed to update user: {e}");
                     Ok::<usize, diesel::result::Error>(0)
                 });
         }
@@ -186,7 +186,7 @@ pub fn clean_verification_tokens(
         )
         .execute(conn)
         .or_else(|e| {
-            log::error!("Failed to delete unverified users: {}", e);
+            log::error!("Failed to delete unverified users: {e}");
             Ok::<usize, diesel::result::Error>(0)
         });
     }
@@ -201,7 +201,7 @@ pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManage
         match chargers.select(Charger::as_select()).load(conn) {
             Ok(c) => c,
             Err(err) => {
-                log::error!("Failed to get chargers for cleanup: {}", err);
+                log::error!("Failed to get chargers for cleanup: {err}");
                 return;
             }
         }
@@ -220,13 +220,13 @@ pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManage
                     let _ = diesel::delete(chargers.find(&charger.id))
                         .execute(conn)
                         .or_else(|e| {
-                            log::error!("Failed to remove unreferenced charger: {}", e);
+                            log::error!("Failed to remove unreferenced charger: {e}");
                             Ok::<usize, diesel::result::Error>(0)
                         });
                 }
             }
             Err(err) => {
-                log::error!("Failed to get allowed user for charger cleanup: {}", err);
+                log::error!("Failed to get allowed user for charger cleanup: {err}");
             }
         };
     }
@@ -444,7 +444,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_clean_verification_tokens() {
         let user_id = uuid::Uuid::new_v4();
-        let email = format!("{}@invalid", user_id);
+        let email = format!("{user_id}@invalid");
         let user = User {
             id: user_id,
             name: user_id.to_string(),
@@ -464,7 +464,7 @@ pub(crate) mod tests {
         let user2 = User {
             id: user2_id,
             name: user2_id.to_string(),
-            email: format!("{}@invalid", user2_id),
+            email: format!("{user2_id}@invalid"),
             login_key: String::new(),
             email_verified: false,
             secret: Vec::new(),
@@ -480,7 +480,7 @@ pub(crate) mod tests {
         let user3 = User {
             id: user3_id,
             name: user3_id.to_string(),
-            email: format!("{}@invalid", user3_id),
+            email: format!("{user3_id}@invalid"),
             login_key: String::new(),
             email_verified: true,
             secret: Vec::new(),
@@ -496,7 +496,7 @@ pub(crate) mod tests {
         let user4 = User {
             id: user4_id,
             name: user4_id.to_string(),
-            email: format!("{}@invalid", user4_id),
+            email: format!("{user4_id}@invalid"),
             login_key: String::new(),
             email_verified: false,
             secret: Vec::new(),

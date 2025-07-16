@@ -80,7 +80,7 @@ async fn start_rate_limiters_reset_thread(
                     (false, uuid::Uuid::nil())
                 };
                 if remove {
-                    log::debug!("Charger {} has timeouted and will be removed.", id);
+                    log::debug!("Charger {id} has timeouted and will be removed.");
                     map.remove(&id);
                     arbiter.spawn(update_charger_state_change(id, state.clone()));
                 }

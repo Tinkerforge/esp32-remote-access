@@ -72,7 +72,7 @@ impl ManagementSocket {
         config.random_seed = rand::random();
         let mut interface = Interface::new(config, &mut device, smoltcp::time::Instant::now());
         interface.update_ip_addrs(|ip_addrs| {
-            log::debug!("listening on ip: {}", self_ip);
+            log::debug!("listening on ip: {self_ip}");
             let _ = ip_addrs.push(smoltcp::wire::IpCidr::new(
                 smoltcp::wire::IpAddress::Ipv4(self_ip),
                 24,
@@ -194,7 +194,7 @@ impl ManagementSocket {
             TunnResult::WriteToTunnelV6(_, _) => {
                 Err("Received an decryptable IPv6 packet, what is going on here?".to_string())
             }
-            TunnResult::Err(err) => Err(format!("{:?}", err)),
+            TunnResult::Err(err) => Err(format!("{err:?}")),
             TunnResult::Done => {
                 self.last_seen = Instant::now();
                 Ok(Vec::new())

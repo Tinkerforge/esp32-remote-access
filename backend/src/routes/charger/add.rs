@@ -280,7 +280,7 @@ async fn update_charger(
     let pub_key = web_block_unpacked(move || {
         let mut private_key = [0u8; 32];
         if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
-            log::error!("Failed to generate new private key: {}", error);
+            log::error!("Failed to generate new private key: {error}");
             return Err(Error::InternalError);
         }
 
@@ -346,7 +346,7 @@ pub async fn add_charger(
     let ret = web_block_unpacked(move || {
         let mut private_key = [0u8; 32];
         if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
-            log::error!("Failed to generate new private key: {}", error);
+            log::error!("Failed to generate new private key: {error}");
             return Err(Error::InternalError);
         }
 
@@ -507,11 +507,11 @@ pub(crate) mod tests {
             .service(add);
         let app = test::init_service(app).await;
 
-        println!("Id number: {}", uid);
+        println!("Id number: {uid}");
         let uid_str = bs58::encode(uid.to_be_bytes())
             .with_alphabet(bs58::Alphabet::FLICKR)
             .into_string();
-        println!("id: {}", uid_str);
+        println!("id: {uid_str}");
         let keys = generate_random_keys();
         let charger = AddChargerSchema {
             charger: ChargerSchema {
@@ -588,7 +588,7 @@ pub(crate) mod tests {
         let _ = remove_test_keys(&mail);
         remove_allowed_test_users(&cid);
         remove_test_charger(&cid);
-        println!("{:?}", resp);
+        println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
 
@@ -639,7 +639,7 @@ pub(crate) mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        println!("{:?}", resp);
+        println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
 
@@ -708,7 +708,7 @@ pub(crate) mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        println!("{:?}", resp);
+        println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert_eq!(resp.status(), 200);
 
@@ -760,7 +760,7 @@ pub(crate) mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        println!("{:?}", resp);
+        println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert_eq!(resp.status().as_u16(), 200);
 

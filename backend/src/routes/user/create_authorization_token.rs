@@ -102,7 +102,7 @@ pub mod tests {
             .service(create_authorization_token);
         let app = test::init_service(app).await;
 
-        println!("{}", use_once);
+        println!("{use_once}");
         let req = TestRequest::post()
             .uri("/create_authorization_token")
             .cookie(Cookie::new("access_token", token))

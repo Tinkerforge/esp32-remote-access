@@ -64,7 +64,7 @@ fn send_email_change_notification(
                 match template.render() {
                     Ok(body) => (body, "E-Mail-Adresse geändert"),
                     Err(e) => {
-                        log::error!("Failed to render German email change notification template for user '{}': {}", name, e);
+                        log::error!("Failed to render German email change notification template for user '{name}': {e}");
                         return;
                     }
                 }
@@ -77,18 +77,14 @@ fn send_email_change_notification(
                 match template.render() {
                     Ok(body) => (body, "Email address changed"),
                     Err(e) => {
-                        log::error!("Failed to render English email change notification template for user '{}': {}", name, e);
+                        log::error!("Failed to render English email change notification template for user '{name}': {e}");
                         return;
                     }
                 }
             }
         };
 
-        log::info!(
-            "Sending email change notification to '{}' for user '{}'",
-            old_email,
-            name
-        );
+        log::info!("Sending email change notification to '{old_email}' for user '{name}'");
         send_email(&old_email, subject, body, &state);
     });
 }
@@ -115,9 +111,7 @@ fn send_verification_mail(
                     Ok(body) => (body, "E-Mail-Adresse bestätigen"),
                     Err(e) => {
                         log::error!(
-                            "Failed to render German verification email template for user '{}': {}",
-                            name,
-                            e
+                            "Failed to render German verification email template for user '{name}': {e}"
                         );
                         return;
                     }
@@ -134,18 +128,14 @@ fn send_verification_mail(
                 match template.render() {
                     Ok(body) => (body, "Verify email address"),
                     Err(e) => {
-                        log::error!("Failed to render English verification email template for user '{}': {}", name, e);
+                        log::error!("Failed to render English verification email template for user '{name}': {e}");
                         return;
                     }
                 }
             }
         };
 
-        log::info!(
-            "Sending verification email to '{}' for user '{}'",
-            email,
-            name
-        );
+        log::info!("Sending verification email to '{email}' for user '{name}'");
         send_email(&email, subject, body, &state);
     });
 }
@@ -328,7 +318,7 @@ pub mod tests {
         let mail = "update_mail@test.invalid";
         let key = create_user(mail).await;
         defer!(delete_user(mail));
-        let update_mail = format!("t{}", mail);
+        let update_mail = format!("t{mail}");
         defer!(delete_user(&update_mail));
 
         let app = App::new()
@@ -460,7 +450,7 @@ pub mod tests {
 
         // Get current user and change email first time
         let db_user = get_test_user(&mail);
-        let new_email = format!("changed_{}", mail);
+        let new_email = format!("changed_{mail}");
         let update = UpdateUserSchema {
             name: db_user.name.clone(),
             email: new_email.clone(),
@@ -477,7 +467,7 @@ pub mod tests {
         assert!(resp.status().is_success());
 
         // Attempt second email change while first is pending
-        let another_email = format!("another_{}", mail);
+        let another_email = format!("another_{mail}");
         let update = UpdateUserSchema {
             name: db_user.name,
             email: another_email,

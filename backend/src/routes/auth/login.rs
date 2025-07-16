@@ -160,7 +160,7 @@ pub async fn login(
         .secure(true)
         .finish();
 
-    let cookie_string = format!("{}; Partitioned;", cookie);
+    let cookie_string = format!("{cookie}; Partitioned;");
     let refresh_cookie = create_refresh_token(&state, uuid).await?;
 
     Ok(HttpResponse::Ok()
@@ -226,7 +226,7 @@ pub async fn create_refresh_token(
         .secure(true)
         .finish();
 
-    Ok(format!("{}; Partitioned;", cookie))
+    Ok(format!("{cookie}; Partitioned;"))
 }
 
 #[cfg(test)]

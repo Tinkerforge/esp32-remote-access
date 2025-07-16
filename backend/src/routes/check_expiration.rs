@@ -62,7 +62,7 @@ async fn check_verification_token(
             Ok(_) => true,
             Err(NotFound) => false,
             Err(_err) => {
-                println!("Error checking verification token: {:?}", _err);
+                println!("Error checking verification token: {_err:?}");
                 return Err(Error::InternalError);
             }
         };
@@ -142,7 +142,7 @@ mod tests {
             })
             .to_request();
         let resp = test::call_service(&app, req).await;
-        println!("Response: {:?}", resp);
+        println!("Response: {resp:?}");
         assert!(resp.status().is_success());
         let valid: bool = test::read_body_json(resp).await;
         assert!(valid);

@@ -157,7 +157,7 @@ pub(crate) mod tests {
         use db_connector::schema::users::dsl::{email, users};
         use db_connector::schema::verification::dsl::*;
 
-        println!("mail: {}", mail);
+        println!("mail: {mail}");
 
         let u: User = users
             .filter(email.eq(mail))
@@ -186,7 +186,7 @@ pub(crate) mod tests {
         {
             Ok(_) => true,
             Err(NotFound) => false,
-            Err(err) => panic!("Something went wrong: {}", err),
+            Err(err) => panic!("Something went wrong: {err}"),
         }
     }
 
@@ -204,7 +204,7 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/verify?id={}", verify_id))
+            .uri(&format!("/verify?id={verify_id}"))
             .to_request();
 
         let resp = test::call_service(&app, req).await;
@@ -251,7 +251,7 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/verify?i={}", verify_id))
+            .uri(&format!("/verify?i={verify_id}"))
             .to_request();
 
         let resp = test::call_service(&app, req).await;
@@ -272,7 +272,7 @@ pub(crate) mod tests {
         let (mut user, mail) = TestUser::random().await;
         user.login().await.to_string();
 
-        let changed_mail = format!("changed_{}", mail);
+        let changed_mail = format!("changed_{mail}");
         let changed_mail_cpy = changed_mail.clone();
         defer!(delete_user(&changed_mail_cpy));
         let pool = db_connector::test_connection_pool();

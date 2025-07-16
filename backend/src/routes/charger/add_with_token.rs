@@ -157,7 +157,7 @@ mod tests {
         let _ = remove_test_keys(&mail);
         remove_allowed_test_users(&cid);
         remove_test_charger(&cid);
-        println!("{:?}", resp);
+        println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
 
@@ -208,7 +208,7 @@ mod tests {
         let _ = remove_test_keys(&mail);
         remove_allowed_test_users(&cid);
         remove_test_charger(&cid);
-        println!("{:?}", resp);
+        println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert_eq!(resp.status(), 401);
     }

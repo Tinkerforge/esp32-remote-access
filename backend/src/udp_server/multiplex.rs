@@ -169,15 +169,11 @@ pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
     match socket.send_to(data, addr) {
         Ok(s) => {
             if s < data.len() {
-                log::error!("Sent incomplete datagram to charger with ip '{}'", addr);
+                log::error!("Sent incomplete datagram to charger with ip '{addr}'");
             }
         }
         Err(err) => {
-            log::error!(
-                "Failed to send datagram to charger with ip '{}': {}",
-                addr,
-                err
-            );
+            log::error!("Failed to send datagram to charger with ip '{addr}': {err}");
         }
     }
 }
@@ -255,7 +251,7 @@ pub async fn run_server(
                                 .ok();
                             }
                         }
-                        log::debug!("Adding management connection from {}", addr);
+                        log::debug!("Adding management connection from {addr}");
                         tunn_data.clone()
                     }
                 }

@@ -151,7 +151,7 @@ impl WebClient {
                     }
                 }
             }
-            msg => log::info!("/ws got other msg: {:?}", msg),
+            msg => log::info!("/ws got other msg: {msg:?}"),
         }
     }
 
@@ -376,7 +376,7 @@ async fn start_ws(
                     client.handle_message(msg, &mut last_heartbeat).await
                 }
                 Either::Left((Some(err), _)) => {
-                    log::error!("Websocket Error during connection: {:?}", err);
+                    log::error!("Websocket Error during connection: {err:?}");
                     break;
                 }
                 Either::Left((None, _)) => break,

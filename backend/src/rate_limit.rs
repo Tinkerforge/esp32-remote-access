@@ -84,7 +84,7 @@ impl LoginRateLimiter {
 
         let key = LoginRateLimitKey { user: email, ip };
         if let Err(err) = self.0.check_key(&key) {
-            log::warn!("RateLimiter triggered for {:?}", key);
+            log::warn!("RateLimiter triggered for {key:?}");
             let now = self.0.clock().now();
 
             Err(RateLimitError::new(err, now).into())
@@ -129,7 +129,7 @@ impl ChargerRateLimiter {
 
         let key = ChargerRateLimitKey { charger_id, ip };
         if let Err(err) = self.0.check_key(&key) {
-            log::warn!("RateLimiter triggered for {:?}", key);
+            log::warn!("RateLimiter triggered for {key:?}");
             let now = self.0.clock().now();
 
             Err(RateLimitError::new(err, now).into())
@@ -199,7 +199,7 @@ impl IPRateLimiter {
         let ip = ip_from_req(req)?;
 
         if let Err(err) = self.0.check_key(&ip) {
-            log::warn!("RateLimiter triggered for {}", ip);
+            log::warn!("RateLimiter triggered for {ip}");
             let now = self.0.clock().now();
 
             Err(RateLimitError::new(err, now).into())
