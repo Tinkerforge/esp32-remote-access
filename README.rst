@@ -6,14 +6,15 @@ This repository contains everything needed to build and run the (**WIP**) remote
 File structure
 --------------
 
-``
-.
-├── backend
-├── db_connector
-├── docker
-├── frontend
-└── wg-webclient
-``
+::
+
+    .
+  ├── backend
+  ├── db_connector
+  ├── docker
+  ├── frontend
+  └── wg-webclient
+
 
 - ``backend`` The http backend server and relay server between the charger and the users browser
 - ``db_connector`` A crate containing the types needed to interface with the database server
