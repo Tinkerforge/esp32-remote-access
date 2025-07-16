@@ -79,7 +79,6 @@ export function DeviceTableRow({
                     <Row className="m-0">
                         <Col
                             className="d-flex align-items-center p-0"
-                            style={{minWidth: "180px", whiteSpace: "pre-line", overflowWrap: "anywhere"}}
                         >
                             <Container
                                 className="ps-0"

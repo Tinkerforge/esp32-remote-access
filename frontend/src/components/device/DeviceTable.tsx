@@ -93,7 +93,7 @@ export function DeviceTable({
                                 </Col>
                             </Row>
                         </th>
-                        <th onClick={() => onSort("firmware_version")} style={{width: "1px", whiteSpace: "nowrap", padding: "0.5rem 0.25rem"}}>
+                        <th onClick={() => onSort("firmware_version")}>
                             <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("firmware_version")}
