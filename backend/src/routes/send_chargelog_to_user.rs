@@ -16,7 +16,8 @@ pub struct SendChargelogSchema {
     pub charger_uuid: String,
     pub password: String,
     pub user_uuid: String,
-    pub chargelog: Vec<u8>, // binary data
+    pub filename: String,
+    pub chargelog: Vec<u8>,
 }
 
 #[utoipa::path(
@@ -64,7 +65,7 @@ pub async fn send_chargelog(
         subject,
         body,
         payload.chargelog.clone(),
-        "chargelog.pdf",
+        &payload.filename,
         &state,
     );
 
@@ -90,6 +91,7 @@ mod tests {
             charger_uuid: charger.uuid.clone(),
             password: charger.password.clone(),
             user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail).unwrap().to_string(),
+            filename: "chargelog.pdf".to_string(),
             chargelog: vec![1, 2, 3, 4, 5],
         };
 
@@ -115,6 +117,7 @@ mod tests {
             charger_uuid: charger.uuid.clone(),
             password: "wrongpassword".to_string(),
             user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail).unwrap().to_string(),
+            filename: "chargelog.pdf".to_string(),
             chargelog: vec![1, 2, 3, 4, 5],
         };
 
