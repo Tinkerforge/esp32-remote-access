@@ -187,21 +187,41 @@ export class DeviceList extends Component<{}, DeviceListState> {
     }
 
     setSort(column: SortColumn) {
+        let newSortColumn: SortColumn;
+        let newSortSequence: "asc" | "desc";
+
         if (this.state.sortColumn !== column) {
-            this.setState({ ...this.state, sortColumn: column, sortSequence: "asc" });
+            newSortColumn = column;
+            newSortSequence = "asc";
         } else if (this.state.sortSequence === "asc") {
-            this.setState({ ...this.state, sortSequence: "desc" });
+            newSortColumn = column;
+            newSortSequence = "desc";
         } else {
-            this.setState({ ...this.state, sortColumn: "none", sortSequence: "asc" });
+            newSortColumn = "none";
+            newSortSequence = "asc";
         }
+
+        this.setState({
+            ...this.state,
+            sortColumn: newSortColumn,
+            sortSequence: newSortSequence
+        }, () => {
+            this.setSortedDevices([...this.state.devices]);
+        });
     }
 
     setMobileSort(column: SortColumn) {
+        let newSortColumn: SortColumn;
+
         if (this.state.sortColumn !== column) {
-            this.setState({ sortColumn: column });
+            newSortColumn = column;
         } else {
-            this.setState({ sortColumn: "none" });
+            newSortColumn = "none";
         }
+
+        this.setState({ sortColumn: newSortColumn }, () => {
+            this.setSortedDevices([...this.state.devices]);
+        });
     }
 
     setSortedDevices(devices: StateDevice[]) {
@@ -346,7 +366,10 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     sortColumn={this.state.sortColumn}
                     sortSequence={this.state.sortSequence}
                     onMobileSort={(column) => this.setMobileSort(column)}
-                    onSortSequenceChange={(sequence) => this.setState({ sortSequence: sequence })}
+                    onSortSequenceChange={(sequence) => this.setState({ sortSequence: sequence }, () => {
+                        // Re-sort the devices after state update
+                        this.setSortedDevices([...this.state.devices]);
+                    })}
                     onConnect={handleConnect}
                     onDelete={this.handleDelete}
                     onEditNote={this.handleEditNote}
