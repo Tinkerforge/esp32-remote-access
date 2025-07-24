@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import preact from '@preact/preset-vite';
+import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [preact()],
@@ -15,7 +16,7 @@ export default defineConfig({
       "react": "preact/compat",
       "react-dom": "preact/compat",
       "argon2-browser": "argon2-browser/dist/argon2-bundled.min.js",
-      "logo": "src/assets/warp_logo.png",
+      "logo": resolve(__dirname, "src/assets/warp_logo.png"),
       "favicon": "src/assets/warp_favicon.png",
       "links": "src/links/warp.ts",
       "translations-de": "src/locales/branding/warp_de.ts",
