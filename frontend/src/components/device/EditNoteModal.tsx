@@ -6,7 +6,7 @@ interface EditNoteModalProps {
     note: string;
     onNoteChange: (note: string) => void;
     onSubmit: (e: Event) => Promise<void>;
-    onCancel: () => void;
+    onCancel: (e: Event) => void;
 }
 
 export function EditNoteModal({ show, note, onNoteChange, onSubmit, onCancel }: EditNoteModalProps) {
@@ -16,7 +16,7 @@ export function EditNoteModal({ show, note, onNoteChange, onSubmit, onCancel }: 
         <Modal
             show={show}
             centered
-            onHide={onCancel}
+            onHide={onCancel as any}
         >
             <Form onSubmit={onSubmit}>
                 <Modal.Header>

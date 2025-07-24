@@ -304,7 +304,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
         this.setState({ showEditNoteModal: false, editNote: "", editChargerIdx: -1, devices });
     }
 
-    handleEditNoteCancel = async (e: Event) => {
+    handleEditNoteCancel = (e: Event) => {
         e.preventDefault();
         this.setState({
             showEditNoteModal: false,
