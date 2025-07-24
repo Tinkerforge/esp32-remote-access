@@ -42,9 +42,9 @@ export class DeviceList extends Component<{}, DeviceListState> {
             sortSequence: "asc",
         };
 
-        this.updateChargers(this);
+        this.updateChargers();
         const that = this;
-        this.updatingInterval = setInterval(() => that.updateChargers(that), 5000);
+        this.updatingInterval = setInterval(() => that.updateChargers(), 5000);
     }
 
     componentWillUnmount() {
@@ -82,7 +82,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
         }
     }
 
-    async updateChargers(that: any) {
+    async updateChargers() {
         if (!secret) {
             await get_decrypted_secret();
         }
