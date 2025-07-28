@@ -45,14 +45,14 @@ export function DeviceTable({
             <Table striped hover responsive>
                 <thead>
                     <tr class="charger-head">
-                        <th onClick={() => onSort("status")}>
+                        <th id="sort-status-header" onClick={() => onSort("status")}>
                             <Row className="m-0 g-0">
                                 <Col className="text-center">
                                     {getIcon("status")}
                                 </Col>
                             </Row>
                         </th>
-                        <th onClick={() => onSort("name")}>
+                        <th id="sort-name-header" onClick={() => onSort("name")}>
                             <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("charger_name")}
@@ -62,7 +62,7 @@ export function DeviceTable({
                                 </Col>
                             </Row>
                         </th>
-                        <th onClick={() => onSort("uid")}>
+                        <th id="sort-uid-header" onClick={() => onSort("uid")}>
                             <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("charger_id")}
@@ -73,7 +73,7 @@ export function DeviceTable({
                             </Row>
                         </th>
                         <th/>
-                        <th onClick={() => onSort("last_state_change")}>
+                        <th id="sort-last-state-header" onClick={() => onSort("last_state_change")}>
                             <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("last_state_change")}
@@ -83,7 +83,7 @@ export function DeviceTable({
                                 </Col>
                             </Row>
                         </th>
-                        <th onClick={() => onSort("note")}>
+                        <th id="sort-note-header" onClick={() => onSort("note")}>
                             <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("note")}
@@ -93,7 +93,7 @@ export function DeviceTable({
                                 </Col>
                             </Row>
                         </th>
-                        <th onClick={() => onSort("firmware_version")}>
+                        <th id="sort-firmware-header" onClick={() => onSort("firmware_version")}>
                             <Row className="flex-nowrap g-0">
                                 <Col>
                                     {t("firmware_version")}

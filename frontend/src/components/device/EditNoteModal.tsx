@@ -25,15 +25,16 @@ export function EditNoteModal({ show, note, onNoteChange, onSubmit, onCancel }: 
                 <Modal.Body>
                     <Form.Control
                         as="textarea"
+                        id="edit-note-textarea"
                         value={note}
                         onChange={(e) => onNoteChange((e.target as HTMLInputElement).value)}
                     />
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={onCancel}>
+                    <Button id="edit-note-cancel" variant="secondary" onClick={onCancel}>
                         {t("decline")}
                     </Button>
-                    <Button type="submit">
+                    <Button id="edit-note-submit" type="submit">
                         {t("accept")}
                     </Button>
                 </Modal.Footer>

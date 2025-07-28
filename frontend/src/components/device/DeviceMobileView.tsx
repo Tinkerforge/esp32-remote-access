@@ -55,17 +55,17 @@ export function DeviceMobileView({
         <Container fluid className="d-md-none">
             <Col className={Median.isNativeApp() ? "mt-2" : undefined}>
                 <ButtonGroup>
-                    <DropdownButton className="dropdown-btn" title={getMobileSortName()}>
-                        <Dropdown.Item onClick={() => onMobileSort("name")}>{t("charger_name")}</Dropdown.Item>
-                        <Dropdown.Item onClick={() => onMobileSort("uid")}>{t("charger_id")}</Dropdown.Item>
-                        <Dropdown.Item onClick={() => onMobileSort("status")}>{t("status")}</Dropdown.Item>
-                        <Dropdown.Item onClick={() => onMobileSort("last_state_change")}>{t("last_state_change")}</Dropdown.Item>
-                        <Dropdown.Item onClick={() => onMobileSort("note")}>{t("note")}</Dropdown.Item>
-                        <Dropdown.Item onClick={() => onMobileSort("firmware_version")}>{t("firmware_version")}</Dropdown.Item>
+                    <DropdownButton id="mobile-sort-dropdown" className="dropdown-btn" title={getMobileSortName()}>
+                        <Dropdown.Item id="mobile-sort-name" onClick={() => onMobileSort("name")}>{t("charger_name")}</Dropdown.Item>
+                        <Dropdown.Item id="mobile-sort-uid" onClick={() => onMobileSort("uid")}>{t("charger_id")}</Dropdown.Item>
+                        <Dropdown.Item id="mobile-sort-status" onClick={() => onMobileSort("status")}>{t("status")}</Dropdown.Item>
+                        <Dropdown.Item id="mobile-sort-last-state" onClick={() => onMobileSort("last_state_change")}>{t("last_state_change")}</Dropdown.Item>
+                        <Dropdown.Item id="mobile-sort-note" onClick={() => onMobileSort("note")}>{t("note")}</Dropdown.Item>
+                        <Dropdown.Item id="mobile-sort-firmware" onClick={() => onMobileSort("firmware_version")}>{t("firmware_version")}</Dropdown.Item>
                     </DropdownButton>
-                    <DropdownButton className="dropdown-btn" title={sortSequence === "asc" ? t("sorting_sequence_asc") : t("sorting_sequence_desc")}>
-                        <Dropdown.Item onClick={() => onSortSequenceChange("asc")}>{t("sorting_sequence_asc")}</Dropdown.Item>
-                        <Dropdown.Item onClick={() => onSortSequenceChange("desc")}>{t("sorting_sequence_desc")}</Dropdown.Item>
+                    <DropdownButton id="mobile-sequence-dropdown" className="dropdown-btn" title={sortSequence === "asc" ? t("sorting_sequence_asc") : t("sorting_sequence_desc")}>
+                        <Dropdown.Item id="mobile-sequence-asc" onClick={() => onSortSequenceChange("asc")}>{t("sorting_sequence_asc")}</Dropdown.Item>
+                        <Dropdown.Item id="mobile-sequence-desc" onClick={() => onSortSequenceChange("desc")}>{t("sorting_sequence_desc")}</Dropdown.Item>
                     </DropdownButton>
                 </ButtonGroup>
             </Col>

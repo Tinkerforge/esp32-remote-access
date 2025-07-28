@@ -14,14 +14,15 @@ export function DeleteDeviceModal({ show, device, onConfirm, onCancel }: DeleteD
 
     return (
         <Modal show={show} centered onHide={onCancel}>
-            <Modal.Header>
+            <Modal.Header id="delete-modal-header">
                 {t("delete_modal_heading", { name: device.name })}
             </Modal.Header>
-            <Modal.Body>
+            <Modal.Body id="delete-modal-body">
                 {t("delete_modal_body", { name: device.name })}
             </Modal.Body>
             <Modal.Footer>
                 <Button
+                    id="delete-confirm-button"
                     variant="danger"
                     onClick={async () => {
                         await onConfirm();
@@ -30,6 +31,7 @@ export function DeleteDeviceModal({ show, device, onConfirm, onCancel }: DeleteD
                     {t("remove")}
                 </Button>
                 <Button
+                    id="delete-cancel-button"
                     variant="secondary"
                     onClick={onCancel}
                 >
