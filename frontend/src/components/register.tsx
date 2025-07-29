@@ -24,6 +24,8 @@ interface RegisterState {
     accepted: boolean,
     password: string,
     passwordValid: boolean,
+    confirmPassword: string,
+    confirmPasswordValid: boolean,
     name: string,
     nameValid: boolean,
     email: string,
@@ -44,6 +46,8 @@ export class Register extends Component<{}, RegisterState> {
             accepted: false,
             password: "",
             passwordValid: true,
+            confirmPassword: "",
+            confirmPasswordValid: true,
             name: "",
             nameValid: true,
             email: "",
@@ -63,13 +67,24 @@ export class Register extends Component<{}, RegisterState> {
     showModal: Signal<boolean>;
 
     checkPassword() {
+        let res = true;
 
-        const res = PASSWORD_PATTERN.test(this.state.password);
-        if (!res) {
+        const passwordPatternValid = PASSWORD_PATTERN.test(this.state.password);
+        if (!passwordPatternValid) {
             this.setState({passwordValid: false});
+            res = false;
         } else {
             this.setState({passwordValid: true});
         }
+
+        const passwordsMatch = this.state.password === this.state.confirmPassword;
+        if (!passwordsMatch) {
+            this.setState({confirmPasswordValid: false});
+            res = false;
+        } else {
+            this.setState({confirmPasswordValid: true});
+        }
+
         return res;
     }
 
@@ -210,9 +225,26 @@ export class Register extends Component<{}, RegisterState> {
                 <Form.Group className="mb-3" controlId="registerPassword">
                     <Form.Label>{t("password")}</Form.Label>
                     <PasswordComponent isInvalid={!this.state.passwordValid} onChange={(e) => {
-                        this.setState({password: (e.target as HTMLInputElement).value});
+                        const password = e;
+                        this.setState({password}, () => {
+                            if (!this.state.confirmPasswordValid || !this.state.passwordValid) {
+                                this.checkPassword();
+                            }
+                        });
                     }}
                     invalidMessage={t("password_error_message")} />
+                </Form.Group>
+                <Form.Group className="mb-3" controlId="registerConfirmPassword">
+                    <Form.Label>{t("confirm_password")}</Form.Label>
+                    <PasswordComponent isInvalid={!this.state.confirmPasswordValid} onChange={(e) => {
+                        const confirmPassword = e;
+                        this.setState({confirmPassword}, () => {
+                            if (!this.state.confirmPasswordValid || !this.state.passwordValid) {
+                                this.checkPassword();
+                            }
+                        });
+                    }}
+                    invalidMessage={t("confirm_password_error_message")} />
                 </Form.Group>
                 <Form.Group className="mb-3" onClick={() => this.setState({acceptPrivacyChecked: !this.state.acceptPrivacyChecked})}>
                     <Form.Check checked={this.state.acceptPrivacyChecked} type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice" ><a target="__blank" href={privacy_notice}>link</a></Trans>} isInvalid={!this.state.acceptPrivacyValid}/>

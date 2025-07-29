@@ -4,7 +4,7 @@ import { Eye, EyeOff } from "react-feather";
 import { useTranslation } from "react-i18next";
 
 interface PasswordComponentProps {
-    onChange: (e: Event) => void,
+    onChange: (e: string) => void,
     isInvalid?: boolean,
     invalidMessage?: string,
 }
@@ -16,7 +16,7 @@ export function PasswordComponent(props: PasswordComponentProps) {
         <Form.Control
             placeholder={t("password")}
             type={showPassword ? "text" : "password"}
-            onChange={props.onChange}
+            onChange={(e) => props.onChange((e.target as HTMLInputElement).value)}
             isInvalid={props.isInvalid} />
         <Button
             variant="outline-primary"

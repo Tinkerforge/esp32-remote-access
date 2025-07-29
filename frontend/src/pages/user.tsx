@@ -149,6 +149,8 @@ export function User() {
     const [currentPasswordIsValid, setCurrentPasswordIsValid] = useState(true);
     const [newPassword, setNewPassword] = useState("");
     const [newPasswordIsValid, setNewPasswordIsValid] = useState(true);
+    const [confirmNewPassword, setConfirmNewPassword] = useState("");
+    const [confirmNewPasswordIsValid, setConfirmNewPasswordIsValid] = useState(true);
     const validated = signal(false);
 
     const handleUpdatePasswordClose = () => setShowPasswordReset(false);
@@ -156,13 +158,20 @@ export function User() {
     const handleDelteUserClose = () => setDeleteUser({...deleteUser, show: false});
     const handleDeleteUserShow = () => setDeleteUser({...deleteUser, show: true});
 
-    const checkPasswords = () => {
+    const checkPasswords = (newPassword: string, confirmNewPassword: string) => {
         let ret = true;
         if (!PASSWORD_PATTERN.test(newPassword)) {
             setNewPasswordIsValid(false);
             ret = false;
         } else {
             setNewPasswordIsValid(true);
+        }
+
+        if (newPassword !== confirmNewPassword) {
+            setConfirmNewPasswordIsValid(false);
+            ret = false;
+        } else {
+            setConfirmNewPasswordIsValid(true);
         }
 
         if (currentPassword.length === 0) {
@@ -181,7 +190,7 @@ export function User() {
         e.preventDefault();
         e.stopPropagation();
 
-        if (!checkPasswords()) {
+        if (!checkPasswords(newPassword, confirmNewPassword)) {
             return;
         }
 
@@ -323,7 +332,7 @@ export function User() {
                 <Modal.Body>
                     <Form.Group className="pb-3" controlId="deleteUserPassword">
                         <Form.Label>{t("password")}</Form.Label>
-                        <PasswordComponent onChange={(e) => setDeleteUser({...deleteUser, password: (e.target as HTMLInputElement).value})} isInvalid={!deleteUser.password_valid} invalidMessage={t("password_invalid")} />
+                        <PasswordComponent onChange={(e) => setDeleteUser({...deleteUser, password: e})} isInvalid={!deleteUser.password_valid} invalidMessage={t("password_invalid")} />
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
@@ -349,12 +358,26 @@ export function User() {
                     <Form.Group className="pb-3" controlId="oldPassword">
                         <Form.Label>{t("current_password")}</Form.Label>
                         <PasswordComponent isInvalid={!currentPasswordIsValid} onChange={(e) => {
-                            setCurrentPassword((e.target as HTMLInputElement).value);
+                            setCurrentPassword(e);
                         }} />
                     </Form.Group>
                     <Form.Group className="pb-3" controlId="newPassword">
                         <Form.Label>{t("new_password")}</Form.Label>
-                        <PasswordComponent onChange={(e) => setNewPassword((e.target as HTMLInputElement).value)} isInvalid={!newPasswordIsValid} invalidMessage={t("new_password_error_message")} />
+                        <PasswordComponent onChange={(e) => {
+                            setNewPassword(e);
+                            if (!confirmNewPasswordIsValid || !newPasswordIsValid) {
+                                checkPasswords(e, confirmNewPassword);
+                            }
+                        }} isInvalid={!newPasswordIsValid} invalidMessage={t("new_password_error_message")} />
+                    </Form.Group>
+                    <Form.Group className="pb-3" controlId="confirmNewPassword">
+                        <Form.Label>{t("confirm_new_password")}</Form.Label>
+                        <PasswordComponent onChange={(e) => {
+                            setConfirmNewPassword(e);
+                            if (!confirmNewPasswordIsValid) {
+                                checkPasswords(newPassword, e);
+                            }
+                        }} isInvalid={!confirmNewPasswordIsValid} invalidMessage={t("confirm_new_password_error_message")} />
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
