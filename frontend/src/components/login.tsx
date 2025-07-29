@@ -134,7 +134,7 @@ export class Login extends Component<{}, LoginState> {
                 <Form.Group className="mb-3" controlId="loginPassword" >
                     <Form.Label>{t("password")}</Form.Label>
                     <PasswordComponent onChange={(e) => {
-                        this.setState({password: (e.target as HTMLInputElement).value});
+                        this.setState({password: e});
                     }}
                     invalidMessage={t("wrong_credentials")}
                     isInvalid={this.state.credentials_wrong}/>

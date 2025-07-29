@@ -130,7 +130,7 @@ export function Recovery() {
                             {t("recovery.new_password")}
                         </Form.Label>
                         <PasswordComponent isInvalid={!state.passwordValid}  onChange={(e) => {
-                            setState({...state, new_password: (e.target as HTMLInputElement).value});
+                            setState({...state, new_password: e});
                         }} />
                     </Form.Group>
                     <Form.Group className="mb-3" controlId="recoveryFile">

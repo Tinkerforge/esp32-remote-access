@@ -225,8 +225,7 @@ export class Register extends Component<{}, RegisterState> {
                 <Form.Group className="mb-3" controlId="registerPassword">
                     <Form.Label>{t("password")}</Form.Label>
                     <PasswordComponent isInvalid={!this.state.passwordValid} onChange={(e) => {
-                        const password = e;
-                        this.setState({password}, () => {
+                        this.setState({password: e}, () => {
                             if (!this.state.confirmPasswordValid || !this.state.passwordValid) {
                                 this.checkPassword();
                             }
@@ -237,8 +236,7 @@ export class Register extends Component<{}, RegisterState> {
                 <Form.Group className="mb-3" controlId="registerConfirmPassword">
                     <Form.Label>{t("confirm_password")}</Form.Label>
                     <PasswordComponent isInvalid={!this.state.confirmPasswordValid} onChange={(e) => {
-                        const confirmPassword = e;
-                        this.setState({confirmPassword}, () => {
+                        this.setState({confirmPassword: e}, () => {
                             if (!this.state.confirmPasswordValid || !this.state.passwordValid) {
                                 this.checkPassword();
                             }
