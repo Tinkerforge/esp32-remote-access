@@ -97,15 +97,16 @@ test('password change dialog validation', async ({ page }) => {
   await page.getByRole('button', { name: 'Change password' }).click();
 
   await page.getByLabel('Current password').fill(testPassword1);
-  await page.getByLabel('New password').fill('weak');
+  await page.getByRole('textbox', { name: 'New password', exact: true }).fill('weak');
   await page.getByRole('dialog').getByRole('button', { name: 'Change password' }).click();
   await expect(page.getByText('Must contain at least one')).toBeVisible();
 
   await page.getByLabel('Current password').clear();
   await page.getByLabel('Current password').fill('wrong_password');
-  await page.getByLabel('New password').clear();
-  await page.getByLabel('New password').fill('ValidPassword123!');
+  await page.getByRole('textbox', { name: 'New password', exact: true }).clear();
+  await page.getByRole('textbox', { name: 'New password', exact: true }).fill('ValidPassword123!');
   await page.getByRole('dialog').getByRole('button', { name: 'Change password' }).click();
+  await expect(page.getByText('Passwords do not match')).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).click();
 });
 
@@ -223,7 +224,8 @@ test('change password', async ({page}) => {
   await page.getByRole('button', { name: 'Change password' }).click();
   await page.getByLabel('Current password').click();
   await page.getByLabel('Current password').fill(testPassword1);
-  await page.getByLabel('New password').fill(testPassword2);
+  await page.getByRole('textbox', { name: 'New password', exact: true }).fill(testPassword2);
+  await page.getByRole('textbox', { name: 'Confirm new password' }).fill(testPassword2);
   await page.getByRole('dialog').getByRole('button', { name: 'Change password' }).click();
   await expect(page.getByText('LoginRegisterEmail-')).toBeVisible();
 
