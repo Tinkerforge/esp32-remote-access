@@ -4,6 +4,7 @@ import wasm from "vite-plugin-wasm"
 import topLevelAwait from 'vite-plugin-top-level-await';
 import { buildSync } from "esbuild";
 import { join } from "node:path";
+import versionPlugin from './vite-plugin-version';
 
 
 const swBuildPlugin: Plugin = {
@@ -26,9 +27,17 @@ export default defineConfig({
 	css: {
 		preprocessorOptions: {
 			scss: {
-				additionalData: process.env.IS_SEB === "true" ? `@import "./_seb.scss";` : `@import "./_warp.scss";`
+				additionalData: process.env.IS_SEB === "true" ? `@import "./_seb.scss";` : `@import "./_warp.scss";`,
+				quietDeps: true,
+				silenceDeprecations: [
+					"mixed-decls",
+					"import",
+					"color-functions",
+					"global-builtin",
+				],
+				verbose: false,
 			}
-		}
+		},
 	},
 	resolve: {
 		alias: {
@@ -49,6 +58,7 @@ export default defineConfig({
 		wasm(),
 		topLevelAwait(),
 		swBuildPlugin,
+		versionPlugin,
 	],
 	worker: {
 		format: "es",
