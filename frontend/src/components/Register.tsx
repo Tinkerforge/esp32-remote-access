@@ -5,8 +5,8 @@ import { PASSWORD_PATTERN, fetchClient, generate_hash, generate_random_bytes, ge
 import sodium from "libsodium-wrappers";
 import { Trans, useTranslation } from "react-i18next";
 import i18n from "../i18n";
-import { PasswordComponent } from "./password_component";
-import { RecoveryDataComponent } from "./recovery_data_component";
+import { PasswordComponent } from "./PasswordComponent";
+import { RecoveryDataComponent } from "./RecoveryDataComponent";
 import { Signal, signal } from "@preact/signals";
 import { privacy_notice, terms_of_use } from "links";
 

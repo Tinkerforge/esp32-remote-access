@@ -4,10 +4,10 @@ import { AppState, PASSWORD_PATTERN, concat_salts, fetchClient, generate_hash, g
 import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
 import { showAlert } from "../components/Alert";
 import { useTranslation } from "react-i18next";
-import { PasswordComponent } from "../components/password_component";
+import { PasswordComponent } from "../components/PasswordComponent";
 import { useEffect, useState } from "preact/hooks";
 import { useSignal } from "@preact/signals";
-import { RecoveryDataComponent } from "../components/recovery_data_component";
+import { RecoveryDataComponent } from "../components/RecoveryDataComponent";
 import { useLocation } from "preact-iso";
 
 interface RecoverySchema {

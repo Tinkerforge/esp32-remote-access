@@ -6,7 +6,7 @@ import { showAlert } from "./Alert";
 import { generate_hash, get_salt_for_user } from "../utils";
 import { Modal } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
-import { PasswordComponent } from "./password_component";
+import { PasswordComponent } from "./PasswordComponent";
 import sodium from "libsodium-wrappers";
 import { Base64 } from "js-base64";
 import i18n from "../i18n";

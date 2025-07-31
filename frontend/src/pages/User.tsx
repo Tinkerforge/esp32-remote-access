@@ -29,7 +29,7 @@ import { logout } from "../components/Navbar";
 import { useTranslation } from "react-i18next";
 import { Card, Collapse, Container } from "react-bootstrap";
 import { signal } from "@preact/signals";
-import { PasswordComponent } from "../components/password_component";
+import { PasswordComponent } from "../components/PasswordComponent";
 import i18n from "../i18n";
 import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
