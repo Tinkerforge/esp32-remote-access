@@ -40,6 +40,7 @@ import { Footer } from "./components/Footer";
 import favicon from "favicon";
 import logo from "logo";
 import { Message, MessageType } from './types';
+import { startVersionChecking } from './versionChecker';
 
 import "./styles/main.scss";
 import { docs } from "links";
@@ -86,12 +87,14 @@ export function App() {
 
     useEffect(() => {
         refresh_access_token();
+        startVersionChecking(10);
     })
     useEffect(() => {
         if (loggedIn.value === AppState.LoggedIn) {
             refreshInterval = setInterval(async () => {
                 await refresh_access_token();
             }, 1000 * 60 * refreshMinutes);
+
         } else {
             clearInterval(refreshInterval);
         }

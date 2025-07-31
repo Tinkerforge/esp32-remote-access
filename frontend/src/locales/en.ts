@@ -168,5 +168,10 @@ export const en = {
     },
     "wg_client": {
         "not_initialized": "The WireGuard client is not initialized. Please try again later.",
+    },
+    "version_checker": {
+        "new_version_available": "A new version of the application is available. Reload now to get the latest features and bug fixes?",
+        "already_latest": "You are already using the latest version.",
+        "new_version_confirm": "A new version is available. Reload now?"
     }
 };

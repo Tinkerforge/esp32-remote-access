@@ -164,5 +164,10 @@ export const de ={
     },
     "wg_client": {
         "not_initialized": "Der WireGuard-Client ist nicht initialisiert. Bitte lade die Seite neu."
+    },
+    "version_checker": {
+        "new_version_available": "Eine neue Version der Anwendung ist verfügbar. Jetzt neu laden, um die neuesten Funktionen und Fehlerbehebungen zu erhalten?",
+        "already_latest": "Du verwendest bereits die neueste Version.",
+        "new_version_confirm": "Eine neue Version ist verfügbar. Jetzt neu laden?"
     }
 };
