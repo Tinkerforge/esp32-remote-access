@@ -104,21 +104,89 @@ self.addEventListener("activate", () => {
     self.clients.claim();
 });
 
-self.addEventListener("message", (e) => {
-    const msg = e.data as Message;
-    if (msg.type === MessageType.FetchResponse) {
-        const resp_message = msg.data as ResponseMessage;
-        const response = new Response(
-            resp_message.body,
-            {
-                status: resp_message.status,
-                statusText: resp_message.statusText,
-                headers: new Headers(resp_message.headers)
-            }
-        );
+const SECRET_CACHE_NAME = 'secret-cache-v1';
 
-        // msg.id is never undefined when type is FetchResponse
-        const event = new CustomEvent(msg.id as string, {detail: response});
-        self.dispatchEvent(event);
+async function storeSecretKeyInCache(secretKey: string): Promise<void> {
+    const cache = await caches.open(SECRET_CACHE_NAME);
+    const response = new Response(secretKey);
+    await cache.put('secret-key', response);
+}
+
+async function getSecretKeyFromCache(): Promise<string | null> {
+    try {
+        const cache = await caches.open(SECRET_CACHE_NAME);
+        const response = await cache.match('secret-key');
+        if (response) {
+            const secretKey = await response.text();
+            return secretKey;
+        }
+    } catch (e) {
+        console.error('Service Worker: Failed to get secretKey from cache:', e);
+    }
+    return null;
+}
+
+async function clearSecretKeyFromCache(): Promise<void> {
+    try {
+        const cache = await caches.open(SECRET_CACHE_NAME);
+        await cache.delete('secret-key');
+    } catch (e) {
+        console.error('Service Worker: Failed to clear secretKey from cache:', e);
+    }
+}
+
+function isIframeMessage(e: ExtendableMessageEvent): boolean {
+    const source = e.source;
+    if (source instanceof WindowClient && source.url.indexOf("wg-") !== -1) {
+        return true;
+    }
+    return false;
+}
+
+self.addEventListener("message", async (e: ExtendableMessageEvent) => {
+    if (isIframeMessage(e)) {
+        console.warn("Service Worker ignoring message from invalid origin or iframe:", e.source);
+        return;
+    }
+
+    const msg = e.data as Message;
+
+    switch (msg.type) {
+        case MessageType.FetchResponse:
+            const resp_message = msg.data as ResponseMessage;
+            const response = new Response(
+                resp_message.body,
+                {
+                    status: resp_message.status,
+                    statusText: resp_message.statusText,
+                    headers: new Headers(resp_message.headers)
+                }
+            );
+
+            const event = new CustomEvent(msg.id as string, {detail: response});
+            self.dispatchEvent(event);
+            break;
+
+        case MessageType.StoreSecret:
+            await storeSecretKeyInCache(msg.data);
+            break;
+
+        case MessageType.RequestSecret:
+            const secretKey = await getSecretKeyFromCache();
+            if (secretKey) {
+                const responseMsg: Message = {
+                    type: MessageType.StoreSecret,
+                    data: secretKey
+                };
+                e.source?.postMessage(responseMsg);
+            }
+            break;
+
+        case MessageType.ClearSecret:
+            await clearSecretKeyFromCache();
+            break;
+
+        default:
+            break;
     }
 });

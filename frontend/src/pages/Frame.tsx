@@ -351,7 +351,12 @@ export class Frame extends Component<{}, FrameState> {
                         }}>{t("abort")}</Button>
                 </Row>
                 <Row className="flex-grow-1 m-0">
-                    <iframe class="p-0" hidden={this.state.show_spinner} width="100%" height="100%" id="interface"></iframe>
+                    <iframe
+                        class="p-0"
+                        hidden={this.state.show_spinner}
+                        width="100%"
+                        height="100%"
+                        id="interface" />
                 </Row>
                 {downLoadButton}
             </Container>

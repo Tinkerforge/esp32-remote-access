@@ -1,7 +1,7 @@
 import { Component } from "preact";
 import Button from "react-bootstrap/Button"
 import Form from "react-bootstrap/Form";
-import { AppState, bc, fetchClient, loggedIn } from "../utils";
+import { AppState, bc, fetchClient, loggedIn, storeSecretKeyInServiceWorker } from "../utils";
 import { showAlert } from "./Alert";
 import { generate_hash, get_salt_for_user } from "../utils";
 import { Modal } from "react-bootstrap";
@@ -80,7 +80,7 @@ export class Login extends Component<{}, LoginState> {
         const secret_key = await generate_hash(this.state.password, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
         const encoded_key = Base64.fromUint8Array(secret_key);
 
-        localStorage.setItem("secretKey", encoded_key);
+        await storeSecretKeyInServiceWorker(encoded_key);
         loggedIn.value = AppState.LoggedIn;
         bc.postMessage("login");
     }

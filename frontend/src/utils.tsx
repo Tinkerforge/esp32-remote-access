@@ -7,6 +7,7 @@ import { logout } from "./components/Navbar";
 import i18n from "./i18n";
 import { showAlert } from "./components/Alert";
 import { Base64 } from "js-base64";
+import { Message, MessageType } from "./types";
 
 export async function get_salt() {
     const {data, response} = await fetchClient.GET("/auth/generate_salt");
@@ -101,7 +102,9 @@ export async function refresh_access_token() {
         });
 
         if (!error || response.status === 502) {
-            if (!localStorage.getItem("loginSalt") || !localStorage.getItem("secretKey")) {
+            const hasLoginSalt = localStorage.getItem("loginSalt");
+            const hasSecret = await getSecretKeyFromServiceWorker();
+            if (!hasLoginSalt || !hasSecret) {
                 logout(false);
             }
             loggedIn.value = AppState.LoggedIn;
@@ -109,13 +112,15 @@ export async function refresh_access_token() {
             auth_already_failed = true;
             resetSecret();
             localStorage.removeItem("loginSalt");
-            localStorage.removeItem("secretKey");
+            await clearSecretKeyFromServiceWorker();
             loggedIn.value = AppState.LoggedOut;
         }
     } catch (e) {
         resetSecret();
         //This means we are logged in but the refresh failed
-        if (localStorage.getItem("loginSalt") && localStorage.getItem("secretKey")) {
+        const hasLoginSalt = localStorage.getItem("loginSalt");
+        const hasSecret = await getSecretKeyFromServiceWorker();
+        if (hasLoginSalt && hasSecret) {
             loggedIn.value = AppState.LoggedIn;
         }
         console.error(e);
@@ -124,6 +129,61 @@ export async function refresh_access_token() {
 
 export let secret: Uint8Array | null = null;
 export let pub_key: Uint8Array | null = null;
+
+// Service Worker communication functions
+export async function storeSecretKeyInServiceWorker(secretKey: string): Promise<void> {
+    if (!navigator.serviceWorker.controller) {
+        return;
+    }
+
+    const msg: Message = {
+        type: MessageType.StoreSecret,
+        data: secretKey
+    };
+    navigator.serviceWorker.controller.postMessage(msg);
+}
+
+export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
+    return new Promise((resolve) => {
+        if (!navigator.serviceWorker.controller) {
+            resolve(null);
+            return;
+        }
+
+        const timeout = setTimeout(() => {
+            resolve(null);
+        }, 5000); // 5 second timeout
+
+        const handleMessage = (event: MessageEvent) => {
+            const msg = event.data as Message;
+            if (msg.type === MessageType.StoreSecret) {
+                clearTimeout(timeout);
+                navigator.serviceWorker.removeEventListener('message', handleMessage);
+                resolve(msg.data);
+            }
+        };
+
+        navigator.serviceWorker.addEventListener('message', handleMessage);
+
+        const requestMsg: Message = {
+            type: MessageType.RequestSecret,
+            data: null
+        };
+        navigator.serviceWorker.controller.postMessage(requestMsg);
+    });
+}
+
+export async function clearSecretKeyFromServiceWorker(): Promise<void> {
+    if (!navigator.serviceWorker.controller) {
+        return;
+    }
+
+    const msg: Message = {
+        type: MessageType.ClearSecret,
+        data: null
+    };
+    navigator.serviceWorker.controller.postMessage(msg);
+}
 
 export async function get_decrypted_secret() {
     await sodium.ready;
@@ -134,9 +194,9 @@ export async function get_decrypted_secret() {
         showAlert(t("chargers.loading_secret_failed", {status, response: error}), "danger");
         return;
     }
-    const encoded_key = localStorage.getItem("secretKey");
+    const encoded_key = await getSecretKeyFromServiceWorker();
     if (!encoded_key) {
-        showAlert(t("chargers.loading_secret_failed", {status: 'no_key', response: 'No secretKey in localStorage'}), "danger");
+        showAlert(t("chargers.loading_secret_failed", {status: 'no_key', response: 'No secretKey in service worker cache'}), "danger");
         return;
     }
     const secret_key = Base64.toUint8Array(encoded_key);
@@ -147,6 +207,8 @@ export async function get_decrypted_secret() {
 export function resetSecret() {
     secret = null;
     pub_key = null;
+    // Also clear the secret from service worker cache
+    clearSecretKeyFromServiceWorker().catch((e: any) => console.warn("Failed to clear secret from service worker:", e));
 }
 
 export const isDebugMode = signal(false);

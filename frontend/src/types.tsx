@@ -4,7 +4,10 @@ export enum MessageType {
     Fetch,
     FetchResponse,
     Setup,
-    Error
+    Error,
+    StoreSecret,
+    RequestSecret,
+    ClearSecret,
 }
 
 export interface Message {

@@ -39,6 +39,7 @@ import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
 import favicon from "favicon";
 import logo from "logo";
+import { Message, MessageType } from './types';
 
 import "./styles/main.scss";
 import { docs } from "links";
@@ -95,6 +96,19 @@ export function App() {
             clearInterval(refreshInterval);
         }
     }, [loggedIn.value])
+
+    // Migrate secret from localStorage to service worker
+    useEffect(() => {
+        const secretFromLocalStorage = localStorage.getItem("secretKey");
+        if (secretFromLocalStorage) {
+            localStorage.removeItem("secretKey");
+            const msg: Message = {
+                type: MessageType.StoreSecret,
+                data: secretFromLocalStorage
+            };
+            navigator.serviceWorker.controller?.postMessage(msg);
+        }
+    }, []);
 
     if (!window.ServiceWorker) {
         return <Row fluid className="align-content-center justify-content-center vh-100">
