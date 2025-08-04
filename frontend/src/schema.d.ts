@@ -506,6 +506,7 @@ export interface components {
             /** Format: int32 */
             configured_port: number;
             connected: boolean;
+            firmware_version: string;
             id: string;
             name?: string | null;
         };

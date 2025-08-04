@@ -16,6 +16,7 @@ pub struct ChargerInfo {
     pub name: Option<String>,
     pub configured_port: i32,
     pub connected: bool,
+    pub firmware_version: String,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -58,15 +59,15 @@ pub async fn charger_info(
     .await?;
 
     let mut conn = get_connection(&state)?;
-    let port: i32 = web_block_unpacked(move || {
+    let (port, firmware_version) = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
 
         match chargers
             .filter(id.eq(charger_id))
-            .select(webinterface_port)
+            .select((webinterface_port, firmware_version))
             .get_result(&mut conn)
         {
-            Ok(port) => Ok(port),
+            Ok((port, version)) => Ok((port, version)),
             Err(_) => Err(Error::InternalError),
         }
     })
@@ -80,6 +81,7 @@ pub async fn charger_info(
         name: charger.name,
         configured_port: port,
         connected,
+        firmware_version: firmware_version,
     };
 
     Ok(HttpResponse::Ok().json(info))
@@ -154,10 +156,20 @@ mod tests {
                 .get_result(&mut conn)
                 .unwrap()
         };
+        let version: String = {
+            use db_connector::schema::chargers::dsl::*;
+
+            chargers
+                .filter(id.eq(uuid::Uuid::from_str(&charger.uuid).unwrap()))
+                .select(firmware_version)
+                .get_result(&mut conn)
+                .unwrap()
+        };
 
         assert_eq!(body.id, charger.uuid);
         assert_eq!(body.name, name);
-        assert_eq!(body.configured_port, port)
+        assert_eq!(body.configured_port, port);
+        assert_eq!(body.firmware_version, version);
     }
 
     #[actix::test]
