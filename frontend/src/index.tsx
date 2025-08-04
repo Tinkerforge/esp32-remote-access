@@ -88,7 +88,7 @@ export function App() {
     useEffect(() => {
         refresh_access_token();
         startVersionChecking(10);
-    })
+    }, []);
     useEffect(() => {
         if (loggedIn.value === AppState.LoggedIn) {
             refreshInterval = setInterval(async () => {
