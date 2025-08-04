@@ -1,50 +1,71 @@
 import '@testing-library/jest-dom';
 import { beforeAll, vi } from 'vitest';
-import { h } from 'preact';
+import { h, ComponentChildren } from 'preact';
+
+interface MockComponentProps {
+  children?: ComponentChildren;
+  [key: string]: unknown;
+}
+
+interface ModalProps extends MockComponentProps {
+  show?: boolean;
+}
+
+interface FormControlProps extends MockComponentProps {
+  as?: string;
+}
+
+interface CollapseProps extends MockComponentProps {
+  in?: boolean;
+}
+
+interface DropdownButtonProps extends MockComponentProps {
+  title?: string;
+}
 
 // Mock react-bootstrap components with simple HTML elements
 vi.mock('react-bootstrap', () => {
-  const Modal = ({ children, show, ...props }: any) =>
+  const Modal = ({ children, show, ...props }: ModalProps) =>
     show ? h('div', { ...props, role: 'dialog' }, children) : null;
 
-  Modal.Header = ({ children, ...props }: any) =>
+  Modal.Header = ({ children, ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'modal-header' }, children);
-  Modal.Body = ({ children, ...props }: any) =>
+  Modal.Body = ({ children, ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'modal-body' }, children);
-  Modal.Footer = ({ children, ...props }: any) =>
+  Modal.Footer = ({ children, ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'modal-footer' }, children);
 
-  const Card = ({ children, ...props }: any) =>
+  const Card = ({ children, ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'card' }, children);
 
-  Card.Header = ({ children, ...props }: any) =>
+  Card.Header = ({ children, ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'card-header' }, children);
-  Card.Body = ({ children, ...props }: any) =>
+  Card.Body = ({ children, ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'card-body' }, children);
 
-  const Form = ({ children, ...props }: any) =>
+  const Form = ({ children, ...props }: MockComponentProps) =>
     h('form', { ...props }, children);
 
-  Form.Control = ({ as, ...props }: any) =>
+  Form.Control = ({ as, ...props }: FormControlProps) =>
     as === 'textarea' ? h('textarea', { ...props, role: 'textbox' }) : h('input', { ...props });
 
   const Dropdown = {
-    Item: ({ children, ...props }: any) => h('button', { ...props }, children),
+    Item: ({ children, ...props }: MockComponentProps) => h('button', { ...props }, children),
   };
 
   return {
-    Container: ({ children, ...props }: any) => h('div', { ...props, 'data-testid': 'container' }, children),
-    Table: ({ children, ...props }: any) => h('table', { ...props }, children),
+    Container: ({ children, ...props }: MockComponentProps) => h('div', { ...props, 'data-testid': 'container' }, children),
+    Table: ({ children, ...props }: MockComponentProps) => h('table', { ...props }, children),
     Modal,
-    Button: ({ children, ...props }: any) => h('button', { ...props }, children),
+    Button: ({ children, ...props }: MockComponentProps) => h('button', { ...props }, children),
     Form,
     Card,
-    Row: ({ children, ...props }: any) => h('div', { ...props, className: 'row' }, children),
-    Col: ({ children, ...props }: any) => h('div', { ...props, className: 'col' }, children),
-    ButtonGroup: ({ children, ...props }: any) => h('div', { ...props }, children),
+    Row: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'row' }, children),
+    Col: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'col' }, children),
+    ButtonGroup: ({ children, ...props }: MockComponentProps) => h('div', { ...props }, children),
     Dropdown,
-    DropdownButton: ({ children, title, ...props }: any) => h('button', { ...props }, title),
-    Collapse: ({ children, in: inProp, ...props }: any) => inProp ? h('div', { ...props }, children) : null,
+    DropdownButton: ({ title, ...props }: DropdownButtonProps) => h('button', { ...props }, title),
+    Collapse: ({ children, in: inProp, ...props }: CollapseProps) => inProp ? h('div', { ...props }, children) : null,
   };
 });
 
@@ -60,11 +81,11 @@ vi.mock('react-feather', () => ({
 // Mock i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: any) => {
+    t: (key: string, options?: Record<string, unknown>) => {
       if (options && typeof options === 'object') {
         let result = key;
         Object.keys(options).forEach(optionKey => {
-          result = result.replace(`{{${optionKey}}}`, options[optionKey]);
+          result = result.replace(`{{${optionKey}}}`, String(options[optionKey]));
         });
         return result;
       }
@@ -128,11 +149,11 @@ vi.mock('median-js-bridge', () => ({
 // Mock i18n
 vi.mock('../i18n', () => ({
   default: {
-    t: (key: string, options?: any) => {
+    t: (key: string, options?: Record<string, unknown>) => {
       if (options && typeof options === 'object') {
         let result = key;
         Object.keys(options).forEach(optionKey => {
-          result = result.replace(`{{${optionKey}}}`, options[optionKey]);
+          result = result.replace(`{{${optionKey}}}`, String(options[optionKey]));
         });
         return result;
       }

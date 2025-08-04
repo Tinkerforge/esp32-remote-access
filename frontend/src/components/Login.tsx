@@ -1,9 +1,8 @@
 import { Component } from "preact";
 import Button from "react-bootstrap/Button"
 import Form from "react-bootstrap/Form";
-import { AppState, bc, fetchClient, loggedIn, storeSecretKeyInServiceWorker } from "../utils";
+import { AppState, bc, fetchClient, loggedIn, storeSecretKeyInServiceWorker, generate_hash, get_salt_for_user } from "../utils";
 import { showAlert } from "./Alert";
-import { generate_hash, get_salt_for_user } from "../utils";
 import { Modal } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "./PasswordComponent";
@@ -36,7 +35,7 @@ export class Login extends Component<{}, LoginState> {
 
     async onSubmit(e: SubmitEvent) {
         e.preventDefault();
-        const form = e.target as any;
+        const form = e.target as HTMLFormElement;
         if (form.checkValidity() === false) {
             e.stopPropagation();
         }
@@ -44,7 +43,7 @@ export class Login extends Component<{}, LoginState> {
         let login_salt: Uint8Array;
         try {
             login_salt = await get_salt_for_user(this.state.email);
-        } catch (e) {
+        } catch {
             this.setState({credentials_wrong: true});
             return;
         }
@@ -137,7 +136,7 @@ export class Login extends Component<{}, LoginState> {
                         this.setState({password: e});
                     }}
                     invalidMessage={t("wrong_credentials")}
-                    isInvalid={this.state.credentials_wrong}/>
+                    isInvalid={this.state.credentials_wrong} />
                 </Form.Group>
                 <Button variant="primary" type="submit" id="loginSubmit">
                     {t("login")}

@@ -37,7 +37,7 @@ function handleWGRequest(event: FetchEvent) {
         } else {
             receiver_id = event.request.headers.get("X-Connection-Id") as string;
         }
-        const promise: Promise<Response> = new Promise(async (resolve, reject) => {
+        const promise: Promise<Response> = new Promise(async (resolve) => {
             const id = crypto.randomUUID();
             const body = await event.request.arrayBuffer();
             const headers: [string, string][] = [];
@@ -46,13 +46,13 @@ function handleWGRequest(event: FetchEvent) {
             });
             const fetch: FetchMessage = {
                 method: event.request.method,
-                headers: headers,
+                headers,
                 body: body.byteLength === 0 ? undefined : body,
-                url: url
+                url
             };
             const msg: Message = {
-                receiver_id: receiver_id,
-                id: id,
+                receiver_id,
+                id,
                 type: MessageType.Fetch,
                 data: fetch
             };
@@ -81,7 +81,7 @@ self.addEventListener("fetch", (event: FetchEvent) => {
         if (now - lastAccessTokenRefresh < 1000 * 60 * 3 && responseCache) {
             event.respondWith(responseCache.clone());
         } else {
-            const promise = new Promise<Response>(async (resolve, reject) => {
+            const promise = new Promise<Response>(async (resolve) => {
                 const response = await fetch(event.request);
                 if (response.status === 200) {
                     lastAccessTokenRefresh = Date.now();
@@ -168,7 +168,7 @@ self.addEventListener("message", async (e: ExtendableMessageEvent) => {
             break;
 
         case MessageType.StoreSecret:
-            await storeSecretKeyInCache(msg.data);
+            await storeSecretKeyInCache(msg.data as string);
             break;
 
         case MessageType.RequestSecret:

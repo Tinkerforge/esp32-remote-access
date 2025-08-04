@@ -18,13 +18,13 @@
  */
 
 import { Client, set_pcap_logging } from "wg-webclient";
-import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage } from "./types";
+import { FetchMessage, Message, MessageType, ResponseMessage, SetupMessage, ChargerKeys } from "./types";
 import sodium from "libsodium-wrappers";
 
 declare const self: DedicatedWorkerGlobalScope;
 
-const tunnel_url = import.meta.env.VITE_BACKEND_WS_URL + "/ws?key_id="
-let wgClient: Client | undefined = undefined;
+const tunnel_url = `${import.meta.env.VITE_BACKEND_WS_URL  }/ws?key_id=`
+let wgClient: Client | undefined;
 let setup_data: SetupMessage;
 
 self.addEventListener("unhandledrejection", (event) => {
@@ -32,7 +32,7 @@ self.addEventListener("unhandledrejection", (event) => {
 
     const evt = {
         message: event.reason.message,
-        stack: stack
+        stack
     }
     self.postMessage({unresolved: true, msg: evt});
 });
@@ -111,8 +111,8 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 // Filter username and password from url
                 const regex = /[^:/]+:[^/@]+/;
                 const credetials = req_data.url.match(regex);
-                let username = undefined;
-                let password = undefined;
+                let username;
+                let password;
                 if (credetials) {
                     const split = credetials[0].split(":");
                     username = split[0];
@@ -127,7 +127,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
                     headers: new Headers(req_data.headers),
                     body: req_data.body,
                 });
-                let url = request.url.replace(self.location.origin, "");
+                const url = request.url.replace(self.location.origin, "");
                 if (!wgClient) {
                     const msg: Message = {
                         type: MessageType.Error,
@@ -149,7 +149,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 const response_msg: ResponseMessage = {
                     status: response.status,
                     statusText: response.statusText,
-                    headers: headers,
+                    headers,
                     body: await response.arrayBuffer(),
                 }
 
@@ -182,8 +182,8 @@ function connect_cb() {
 }
 
 async function start_connection(setup_data: SetupMessage) {
-    let keys: any;
-    const url = import.meta.env.VITE_BACKEND_URL + "/charger/get_key?cid=" + setup_data.chargerID;
+    let keys: ChargerKeys;
+    const url = `${import.meta.env.VITE_BACKEND_URL  }/charger/get_key?cid=${  setup_data.chargerID}`;
     try {
         const resp = await fetch(url, {credentials: "same-origin"});
         if (resp.status === 404) {
@@ -211,7 +211,7 @@ async function start_connection(setup_data: SetupMessage) {
             return;
         }
         keys = await resp.json();
-    } catch (e) {
+    } catch {
         setTimeout(() => {
             start_connection(setup_data);
         }, 1000);
@@ -232,7 +232,7 @@ async function start_connection(setup_data: SetupMessage) {
     );
 }
 
-function decrypt_keys(keys: any, secret: Uint8Array) {
+function decrypt_keys(keys: ChargerKeys, secret: Uint8Array) {
     const public_key = sodium.crypto_scalarmult_base(secret);
     const web_private = sodium.crypto_box_seal_open(new Uint8Array(keys.web_private), public_key, secret);
     const decoder = new TextDecoder();
@@ -241,7 +241,7 @@ function decrypt_keys(keys: any, secret: Uint8Array) {
     const psk_string = decoder.decode(psk);
 
     return {
-        web_private_string: web_private_string,
+        web_private_string,
         psk: psk_string
     };
 }

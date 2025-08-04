@@ -13,7 +13,7 @@ interface DeviceCardProps {
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice, index: number) => void;
     connectionPossible: (device: StateDevice) => boolean;
-    formatLastStateChange: (t: (key: string, options?: any) => string, timestamp?: number | null) => string;
+    formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
 }
 
 export function DeviceCard({
@@ -43,7 +43,7 @@ export function DeviceCard({
                 className="d-flex justify-content-between align-items-center p-2d5"
             >
                 <Col xs="auto" className="d-flex">
-                    {device.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
+                    {device.status === "Disconnected" ? <Circle color="danger" /> : <Circle color="success" />}
                 </Col>
                 <Col className="mx-3">
                     <h5 class="text-break" style="margin-bottom: 0;">{device.name}</h5>
@@ -57,7 +57,7 @@ export function DeviceCard({
                             await onConnect(device);
                         }}
                     >
-                        <Monitor/>
+                        <Monitor />
                     </Button>
                     <Button
                         variant="danger"
@@ -66,7 +66,7 @@ export function DeviceCard({
                             onDelete(device);
                         }}
                     >
-                        <Trash2/>
+                        <Trash2 />
                     </Button>
                 </Col>
             </Card.Header>
@@ -75,17 +75,17 @@ export function DeviceCard({
                     <Col xs="auto"><b>{t("mobile_charger_id")}</b></Col>
                     <Col className="text-end">{Base58.int_to_base58(device.uid)}</Col>
                 </Row>
-                <hr style="margin-top: 5px;margin-bottom: 5px;"/>
+                <hr style="margin-top: 5px;margin-bottom: 5px;" />
                 <Row>
                     <Col xs="auto"><b>{t("last_state_change")}</b></Col>
                     <Col className="text-end">{formatLastStateChange(t, device.last_state_change)}</Col>
                 </Row>
-                <hr style="margin-top: 5px;margin-bottom: 5px;"/>
+                <hr style="margin-top: 5px;margin-bottom: 5px;" />
                 <Row>
                     <Col xs="auto"><b>{t("firmware_version")}</b></Col>
                     <Col className="text-end">{device.firmware_version}</Col>
                 </Row>
-                <hr style="margin-top: 5px;margin-bottom: 5px;"/>
+                <hr style="margin-top: 5px;margin-bottom: 5px;" />
                 <Row>
                     <Col xs="auto">
                         <Row>
@@ -99,7 +99,7 @@ export function DeviceCard({
                                         onEditNote(device, index);
                                     }}
                                 >
-                                    <Edit color="#333"/>
+                                    <Edit color="#333" />
                                 </Button>
                             </Col>
                         </Row>

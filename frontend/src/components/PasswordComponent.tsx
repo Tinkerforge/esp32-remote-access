@@ -24,7 +24,7 @@ export function PasswordComponent(props: PasswordComponentProps) {
                 e.preventDefault();
                 setShowPassword(!showPassword);
             }}>
-            {!showPassword ? <Eye/> : <EyeOff/>}
+            {!showPassword ? <Eye /> : <EyeOff />}
         </Button>
         <Form.Control.Feedback type="invalid">
             {props.invalidMessage}

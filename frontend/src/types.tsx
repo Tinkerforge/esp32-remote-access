@@ -14,7 +14,7 @@ export interface Message {
     receiver_id?: string,
     type: MessageType,
     id?: string,
-    data: any
+    data: FetchMessage | ResponseMessage | SetupMessage | ErrorMessage | Uint8Array | string | null
 }
 
 export interface FetchMessage {
@@ -40,5 +40,15 @@ export interface SetupMessage {
 
 export interface ErrorMessage {
     translation: string,
-    format: any,
+    format: unknown,
+}
+
+export interface ChargerKeys {
+    id: string,
+    charger_id: string,
+    charger_pub: string,
+    charger_address: string,
+    web_private: number[],
+    psk: number[],
+    web_address: string,
 }

@@ -19,7 +19,7 @@ export async function get_salt() {
 }
 
 export async function get_salt_for_user(email: string) {
-    const {data, error} = await fetchClient.GET("/auth/get_login_salt", {params: {query: {email: email}}});
+    const {data, error} = await fetchClient.GET("/auth/get_login_salt", {params: {query: {email}}});
     if (error || !data) {
         throw `Failed to get login_salt for user ${email}: ${error}`;
     }
@@ -28,8 +28,8 @@ export async function get_salt_for_user(email: string) {
 
 export async function generate_hash(pass: string, salt: Uint8Array | string, len?: number) {
     const password_hash = await hash({
-        pass: pass,
-        salt: salt,
+        pass,
+        salt,
         // Takes about 1.5 seconds on a Nexus 4
         time: 2, // the number of iterations
         mem: 19 * 1024, // used memory, in KiB
@@ -73,7 +73,7 @@ export const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL;
 let auth_already_failed = false;
 export const fetchClient = createClient<paths>({baseUrl: BACKEND});
 const AuthMiddleware: Middleware = {
-    async onResponse({request, response, options}) {
+    async onResponse({request, response}) {
         // Ingnore jwt refresh route since it will cause a deadlock when failing
         if (request.url.indexOf("/jwt_refresh") !== -1) {
             return undefined;
@@ -82,9 +82,9 @@ const AuthMiddleware: Middleware = {
         if (response.status === 401 && !auth_already_failed) {
             await refresh_access_token();
             return await fetch(request);
-        } else {
-            return response;
         }
+            return response;
+
     }
 }
 fetchClient.use(AuthMiddleware);
@@ -159,7 +159,7 @@ export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
             if (msg.type === MessageType.StoreSecret) {
                 clearTimeout(timeout);
                 navigator.serviceWorker.removeEventListener('message', handleMessage);
-                resolve(msg.data);
+                resolve(msg.data as string);
             }
         };
 
@@ -208,7 +208,7 @@ export function resetSecret() {
     secret = null;
     pub_key = null;
     // Also clear the secret from service worker cache
-    clearSecretKeyFromServiceWorker().catch((e: any) => console.warn("Failed to clear secret from service worker:", e));
+    clearSecretKeyFromServiceWorker().catch((e: unknown) => console.warn("Failed to clear secret from service worker:", e));
 }
 
 export const isDebugMode = signal(false);

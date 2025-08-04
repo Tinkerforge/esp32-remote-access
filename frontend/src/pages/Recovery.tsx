@@ -26,7 +26,7 @@ export function Recovery() {
 
     useEffect(() => {
         fetchClient.POST("/check_expiration", {body: {token: query.token, token_type: "Recovery"}})
-            .then(({error, data}) => {
+            .then(({data}) => {
                 if (!data) {
                     showAlert(t("recovery.token_expired"), "danger");
                     loggedIn.value = AppState.LoggedOut;
@@ -162,7 +162,7 @@ export function Recovery() {
 
                                 secret.value = Base64.toUint8Array(file_object.secret);
                                 setState({...state, fileValid: true, validated: true});
-                            } catch (e) {
+                            } catch {
                                 setState({...state, fileValid: false, validated: true});
                             }
                         }} />

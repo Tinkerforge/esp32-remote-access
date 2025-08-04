@@ -15,7 +15,7 @@ interface DeviceMobileViewProps {
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice, index: number) => void;
     connectionPossible: (device: StateDevice) => boolean;
-    formatLastStateChange: (t: (key: string, options?: any) => string, timestamp?: number | null) => string;
+    formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
 }
 
 export function DeviceMobileView({

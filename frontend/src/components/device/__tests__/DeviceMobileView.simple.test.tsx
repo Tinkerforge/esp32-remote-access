@@ -1,6 +1,6 @@
 import { render } from '@testing-library/preact';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { StateDevice } from '../types';
+import { StateDevice, SortColumn } from '../types';
 
 // Create a simplified version without importing the actual component to avoid i18n issues
 const mockDevices: StateDevice[] = [
@@ -13,6 +13,7 @@ const mockDevices: StateDevice[] = [
     port: 8080,
     valid: true,
     last_state_change: 1640995200,
+    firmware_version: '1.0.0',
   },
   {
     id: '2',
@@ -23,11 +24,25 @@ const mockDevices: StateDevice[] = [
     port: 8081,
     valid: false,
     last_state_change: null,
+    firmware_version: '1.1.0',
   },
 ];
 
+interface DeviceMobileViewProps {
+  devices: StateDevice[];
+  sortColumn: SortColumn;
+  sortSequence: "asc" | "desc";
+  onMobileSort: (column: SortColumn) => void;
+  onSortSequenceChange: (sequence: "asc" | "desc") => void;
+  onConnect: (device: StateDevice) => Promise<void>;
+  onDelete: (device: StateDevice) => void;
+  onEditNote: (device: StateDevice, index: number) => void;
+  connectionPossible: (device: StateDevice) => boolean;
+  formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
+}
+
 // Mock the DeviceMobileView component to avoid i18n import issues
-const MockDeviceMobileView = (props: any) => {
+const MockDeviceMobileView = (props: DeviceMobileViewProps) => {
   return <div data-testid="device-mobile-view">Mobile View with {props.devices.length} devices</div>;
 };
 

@@ -1,4 +1,4 @@
-import { render, fireEvent } from '@testing-library/preact';
+import { render } from '@testing-library/preact';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditNoteModal } from '../EditNoteModal';
 

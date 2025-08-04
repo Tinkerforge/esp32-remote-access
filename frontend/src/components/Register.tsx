@@ -136,8 +136,8 @@ export class Register extends Component<{}, RegisterState> {
         let secret_salt: Uint8Array;
         try {
             secret_salt = await get_salt();
-        } catch (e: any) {
-            showAlert(e, "danger");
+        } catch (e: unknown) {
+            showAlert(String(e), "danger");
             return;
         }
 
@@ -156,8 +156,8 @@ export class Register extends Component<{}, RegisterState> {
         let login_salt: Uint8Array;
         try {
             login_salt = await get_salt();
-        } catch (e: any) {
-            showAlert(e, "danger");
+        } catch (e: unknown) {
+            showAlert(String(e), "danger");
             return;
         }
 
@@ -245,10 +245,10 @@ export class Register extends Component<{}, RegisterState> {
                     invalidMessage={t("confirm_password_error_message")} />
                 </Form.Group>
                 <Form.Group className="mb-3" onClick={() => this.setState({acceptPrivacyChecked: !this.state.acceptPrivacyChecked})}>
-                    <Form.Check checked={this.state.acceptPrivacyChecked} type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice" ><a target="__blank" href={privacy_notice}>link</a></Trans>} isInvalid={!this.state.acceptPrivacyValid}/>
+                    <Form.Check checked={this.state.acceptPrivacyChecked} type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice" ><a target="__blank" href={privacy_notice}>link</a></Trans>} isInvalid={!this.state.acceptPrivacyValid} />
                 </Form.Group>
                 <Form.Group className="mb-3" onClick={() => this.setState({termsAndConditionsChecked: !this.state.termsAndConditionsChecked})}>
-                    <Form.Check checked={this.state.termsAndConditionsChecked} type="checkbox" label={<Trans i18nKey="register.accept_terms_and_conditions" ><a target="__blank" href={terms_of_use}>link</a></Trans>} isInvalid={!this.state.termsAndConditionsValid}/>
+                    <Form.Check checked={this.state.termsAndConditionsChecked} type="checkbox" label={<Trans i18nKey="register.accept_terms_and_conditions" ><a target="__blank" href={terms_of_use}>link</a></Trans>} isInvalid={!this.state.termsAndConditionsValid} />
                 </Form.Group>
                 <Button variant="primary" type="submit">
                     {t("register")}

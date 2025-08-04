@@ -1,4 +1,3 @@
-import { ComponentProps } from 'preact';
 
 interface CircleProps {
   color: 'success' | 'danger' | 'warning' | 'info' | 'primary' | 'secondary';

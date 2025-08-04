@@ -150,5 +150,5 @@ export function forceReload(): void {
 
     keysToRemove.forEach(key => localStorage.removeItem(key));
 
-    window.location.href = window.location.href + (window.location.href.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    window.location.href = `${window.location.href + (window.location.href.includes('?') ? '&' : '?')  }_t=${  Date.now()}`;
 }

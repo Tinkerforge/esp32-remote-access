@@ -4,7 +4,7 @@ export const en = {
     "app_name": "Remote Access",
     "alert_default_text": "An Error occured!",
     "alert_default_success": "Success!",
-    "description": description,
+    description,
     "no_service_worker": "Your browser needs support for ServiceWorkers to be able to run the Remote Access.",
     "user": {
         "profile_information": "Account information",

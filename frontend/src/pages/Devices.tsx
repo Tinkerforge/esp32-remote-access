@@ -16,7 +16,7 @@ import { EditNoteModal } from "../components/device/EditNoteModal";
 
 export class DeviceList extends Component<{}, DeviceListState> {
     removalDevice: StateDevice;
-    updatingInterval: any;
+    updatingInterval: ReturnType<typeof setInterval>;
 
     constructor() {
         super();
@@ -42,9 +42,8 @@ export class DeviceList extends Component<{}, DeviceListState> {
             sortSequence: "asc",
         };
 
-        this.updateChargers(this);
-        const that = this;
-        this.updatingInterval = setInterval(() => that.updateChargers(that), 5000);
+        this.updateChargers();
+        this.updatingInterval = setInterval(() => this.updateChargers(), 5000);
     }
 
     componentWillUnmount() {
@@ -82,7 +81,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
         }
     }
 
-    async updateChargers(that: any) {
+    async updateChargers() {
         if (!secret) {
             await get_decrypted_secret();
         }
@@ -107,8 +106,8 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 const state_charger: StateDevice = {
                     id: device.id,
                     uid: device.uid,
-                    name: name,
-                    note: note,
+                    name,
+                    note,
                     status: device.status,
                     port: device.port,
                     valid: device.valid,
@@ -143,7 +142,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
         const body = {
             charger: device.id
         };
-        const { response, error } = await fetchClient.DELETE("/charger/remove", { body: body, credentials: "same-origin" });
+        const { response, error } = await fetchClient.DELETE("/charger/remove", { body, credentials: "same-origin" });
 
         if (response.status === 200) {
             const devices = this.state.devices.filter((c) => c.id !== device.id);
@@ -153,7 +152,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
         }
     }
 
-    formatLastStateChange(t: (key: string, options?: any) => string, timestamp?: number | null): string {
+    formatLastStateChange(t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null): string {
         if (!timestamp) {
             return "-";
         }
@@ -173,9 +172,9 @@ export class DeviceList extends Component<{}, DeviceListState> {
             return t("time_hours_ago", { count: diffHours });
         } else if (diffDays < 7) {
             return t("time_days_ago", { count: diffDays });
-        } else {
-            return date.toLocaleDateString();
         }
+            return date.toLocaleDateString();
+
     }
 
     connection_possible(device: StateDevice) {
@@ -253,9 +252,9 @@ export class DeviceList extends Component<{}, DeviceListState> {
             }
             if (this.state.sortSequence === "asc") {
                 return ret;
-            } else {
-                return ret * -1;
             }
+                return ret * -1;
+
         });
         this.setState({ devices });
     }

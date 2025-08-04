@@ -52,14 +52,14 @@ if (isDebugMode.value) {
 
         const evt = {
             message: event.reason.message,
-            stack: stack
+            stack
         }
         const msg = JSON.stringify(evt);
         const blob = new Blob([msg]);
         const url = URL.createObjectURL(blob);
         const filename = `warp_charger_error_${Date.now()}.json`
         if (Median.isNativeApp()) {
-            Median.share.downloadFile({url: url, filename: filename, open: true});
+            Median.share.downloadFile({url, filename, open: true});
         }
     });
 }
@@ -68,7 +68,7 @@ const icon: HTMLLinkElement | null = document.querySelector('link[rel="icon"]');
 if (icon) {
     icon.href = favicon;
 }
-let refreshInterval: NodeJS.Timeout | undefined = undefined;
+let refreshInterval: NodeJS.Timeout | undefined;
 const refreshMinutes = (Math.random() * (5 -3) + 3);
 
 const Tokens = lazy(() => import('./pages/Tokens.js').then(m => m.Tokens));
@@ -123,7 +123,7 @@ export function App() {
         case AppState.Loading:
             return <>
                 <Row fluid className="align-content-center justify-content-center vh-100">
-                    <Spinner animation='border' variant='primary'/>
+                    <Spinner animation='border' variant='primary' />
                 </Row>
             </>
 
@@ -133,9 +133,9 @@ export function App() {
             }
             return <>
                 <nav hidden={Median.isNativeApp()} id="logo-nav" class="navbar navbar-expand-md navbar-dark sticky-top flex-md-nowrap p-0 pb-2 pt-2 ps-2">
-                    <a href="/"><img class="pt-2 pb-2 ps-2" src={logo} style="max-width: calc(100vw - 72px);" alt="logo"/></a>
+                    <a href="/"><img class="pt-2 pb-2 ps-2" src={logo} style="max-width: calc(100vw - 72px);" alt="logo" /></a>
                 </nav>
-                <ErrorAlert/>
+                <ErrorAlert />
                 <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3">
                     <Card className="p-3 col-10 col-lg-5 col-xl-3">
                         <Trans i18nKey="description"><a target="__blank" href={docs} >link</a></Trans>
@@ -161,7 +161,7 @@ export function App() {
         case AppState.LoggedIn:
             return (
                 <>
-                    <ErrorAlert/>
+                    <ErrorAlert />
                     <CustomNavbar />
                     <Col>
                         <LocationProvider>
@@ -186,7 +186,7 @@ export function App() {
         // we need an extra recovery state, otherwise we would show the login/register page.
         case AppState.Recovery:
             return (<>
-                <ErrorAlert/>
+                <ErrorAlert />
                 <LocationProvider>
                     <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3">
                         <Router>

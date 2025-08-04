@@ -13,7 +13,7 @@ interface DeviceTableProps {
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice, index: number) => void;
     connectionPossible: (device: StateDevice) => boolean;
-    formatLastStateChange: (t: (key: string, options?: any) => string, timestamp?: number | null) => string;
+    formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
 }
 
 export function DeviceTable({
@@ -32,12 +32,12 @@ export function DeviceTable({
     const getIcon = (column: SortColumn) => {
         if (sortColumn !== column) {
             // Updown Icon
-            return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-down"><polyline points="7 14 12 19 17 14"></polyline><polyline points="7 10 12 5 17 10"></polyline></svg>;
+            return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-down"><polyline points="7 14 12 19 17 14" /><polyline points="7 10 12 5 17 10" /></svg>;
         } else if (sortSequence === "asc") {
-            return <ChevronDown/>;
-        } else {
-            return <ChevronUp/>;
+            return <ChevronDown />;
         }
+            return <ChevronUp />;
+
     };
 
     return (
@@ -72,7 +72,7 @@ export function DeviceTable({
                                 </Col>
                             </Row>
                         </th>
-                        <th/>
+                        <th />
                         <th onClick={() => onSort("last_state_change")}>
                             <Row className="flex-nowrap g-0">
                                 <Col>

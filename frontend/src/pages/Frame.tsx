@@ -14,6 +14,14 @@ import { components } from '../schema';
 import { Base64 } from 'js-base64';
 import * as sodium from 'libsodium-wrappers';
 
+// Extend the Window interface to include custom properties
+declare global {
+    interface Window {
+        close: () => void;
+        switchTo: (hash: string) => void;
+    }
+}
+
 interface VirtualNetworkInterfaceSetParentState {
     parentState: Dispatch<StateUpdater<Partial<FrameState>>>,
 }
@@ -26,7 +34,7 @@ class VirtualNetworkInterface {
     setParentState: VirtualNetworkInterfaceSetParentState;
     chargerInfo: components["schemas"]["ChargerInfo"];
     debugMode: boolean;
-    timeout: any;
+    timeout: ReturnType<typeof setTimeout>;
     route: (path: string, replace?: boolean) => void;
 
     constructor(
@@ -70,7 +78,8 @@ class VirtualNetworkInterface {
     }
 
     handleErrorMessage(msg: Message) {
-        showAlert(i18n.t(msg.data.translation, msg.data.format) as string, "danger");
+        const data = msg.data as { translation: string, format?: Record<string, unknown> };
+        showAlert(i18n.t(data.translation, data.format) as string, "danger");
         this.route("/devices");
     }
 
@@ -157,7 +166,7 @@ class VirtualNetworkInterface {
             const url = URL.createObjectURL(blob);
             const filename = `warp_charger_error_${Date.now()}.json`;
             if (Median.isNativeApp()) {
-                Median.share.downloadFile({url: url, filename: filename, open: true});
+                Median.share.downloadFile({url, filename, open: true});
             }
         } else {
             const msg = e.data as Message;
@@ -175,7 +184,7 @@ class VirtualNetworkInterface {
                     const blob = new Blob([msg.data as Uint8Array]);
                     const url = URL.createObjectURL(blob)
                     if (Median.isNativeApp()) {
-                        Median.share.downloadFile({url: url, filename: "out.pcap"});
+                        Median.share.downloadFile({url, filename: "out.pcap"});
                     } else {
                         const a = document.createElement("a");
                         a.href = url;
@@ -227,8 +236,8 @@ export class Frame extends Component<{}, FrameState> {
     constructor() {
         super();
 
-        // Will be set when component is first rendered
-        this.route = () => {};
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        this.route = () => {}; // Placeholder, will be set in render
         this.state = {
             show_spinner: true,
             connection_state: ConnectionState.Connecting,
@@ -250,7 +259,7 @@ export class Frame extends Component<{}, FrameState> {
 
         const that = this;
         // this is used by the app to close the remote connection via the native app menu.
-        (window as any).close = () => {
+        window.close = () => {
             if (that.interface) {
                 clearTimeout(that.interface.timeout);
             }
@@ -260,7 +269,7 @@ export class Frame extends Component<{}, FrameState> {
         }
 
         // this is used by the app to change location via the native app menu.
-        (window as any).switchTo = (hash: string) => {
+        window.switchTo = (hash: string) => {
             const frame = document.getElementById("interface") as HTMLIFrameElement;
 
             // the iframe always has a contentWindow
@@ -335,7 +344,7 @@ export class Frame extends Component<{}, FrameState> {
         return (
             <Container fluid className="d-flex flex-column h-100 p-0">
                 <Row hidden={!this.state.show_spinner} className="align-content-center justify-content-center m-0 h-100">
-                    <Spinner className="p-3" animation='border' variant='primary'/>
+                    <Spinner className="p-3" animation='border' variant='primary' />
                     <div className="text-center mt-2">
                       {this.state.connection_state === ConnectionState.Connecting ?
                         i18n.t("chargers.connecting") :
@@ -347,7 +356,7 @@ export class Frame extends Component<{}, FrameState> {
                         onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
-                            (window as any).close();
+                            window .close();
                         }}>{t("abort")}</Button>
                 </Row>
                 <Row className="flex-grow-1 m-0">

@@ -22,12 +22,11 @@ import Form from "react-bootstrap/Form"
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import { useState } from "preact/hooks";
-import { fetchClient, isDebugMode } from "../utils";
-import { PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
+import { fetchClient, isDebugMode, PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/Navbar";
 import { useTranslation } from "react-i18next";
-import { Card, Collapse, Container } from "react-bootstrap";
+import { Card, Container } from "react-bootstrap";
 import { signal } from "@preact/signals";
 import { PasswordComponent } from "../components/PasswordComponent";
 import i18n from "../i18n";
@@ -247,8 +246,6 @@ export function User() {
     const submitDeleteUser = async (e: SubmitEvent) => {
         e.preventDefault();
 
-        const t = i18n.t;
-
         // loginSalt will always be set if the user is logged in
         const loginSaltBs64 = window.localStorage.getItem("loginSalt") as string;
         const loginSalt = Base64.toUint8Array(loginSaltBs64);
@@ -280,7 +277,7 @@ export function User() {
                     <h5 className="mb-0">{t("profile_information")}</h5>
                 </Card.Header>
                 <Card.Body>
-                    <UserComponent/>
+                    <UserComponent />
                 </Card.Body>
                 <Card.Header className="border-top">
                     <h5 className="mb-0">{t("local_settings")}</h5>
@@ -300,7 +297,7 @@ export function User() {
                                 } else {
                                     localStorage.removeItem("debugMode");
                                 }
-                            }}/>
+                            }} />
                     </Card.Body>
                 <Card.Header className="border-top pb-2">
                     <h5 className="mb-0">{t("account_actions")}</h5>

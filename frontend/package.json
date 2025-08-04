@@ -10,7 +10,9 @@
     "test": "npx playwright test --project=chromium",
     "posttest": "npx playwright test --project=chromium -c post-playwright.config.ts",
     "test:unit": "vitest",
-    "test:unit:run": "vitest run"
+    "test:unit:run": "vitest run",
+    "lint": "eslint src --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint src --ext .ts,.tsx,.js,.jsx --fix"
   },
   "dependencies": {
     "@preact/signals": "^2",
@@ -51,6 +53,7 @@
     "sass": "1",
     "typescript": "^5.3.3",
     "vite": ">=6.3.5",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
     "vite-plugin-top-level-await": "^1.5.0",
     "vite-plugin-wasm": "^3.3.0",
     "vitest": "^3.2.3"

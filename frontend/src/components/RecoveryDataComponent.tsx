@@ -13,7 +13,7 @@ export async function saveRecoveryData(secret: Uint8Array, email: string) {
     const secret_b64 = Base64.fromUint8Array(secret);
     const hash = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(email + secret_b64));
     const backupData = {
-        email: email,
+        email,
         secret: secret_b64,
         hash: Base64.fromUint8Array(new Uint8Array(hash)),
     };

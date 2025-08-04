@@ -13,7 +13,7 @@ interface DeviceTableRowProps {
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice, index: number) => void;
     connectionPossible: (device: StateDevice) => boolean;
-    formatLastStateChange: (t: (key: string, options?: any) => string, timestamp?: number | null) => string;
+    formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
 }
 
 export function DeviceTableRow({
@@ -35,7 +35,7 @@ export function DeviceTableRow({
         <tr>
             <td class="align-middle text-center">
                 <Col className="d-flex justify-content-center align-items-center">
-                    {device.status === "Disconnected" ? <Circle color="danger"/> : <Circle color="success"/>}
+                    {device.status === "Disconnected" ? <Circle color="danger" /> : <Circle color="success" />}
                 </Col>
             </td>
             <td class="align-middle">
@@ -118,7 +118,7 @@ export function DeviceTableRow({
                                     setExpand(false);
                                 }}
                             >
-                                <Edit color="#333"/>
+                                <Edit color="#333" />
                             </Button>
                         </Col>
                     </Row>
