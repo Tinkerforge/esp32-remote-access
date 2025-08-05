@@ -77,6 +77,7 @@ File structure
   ├── db_connector
   ├── docker
   ├── frontend
+  ├── tun
   └── wg-webclient
 
 
@@ -84,6 +85,7 @@ File structure
 - ``db_connector`` A crate containing the types needed to interface with the database server
 - ``docker`` Files to run and build the docker containers
 - ``frontend`` Website that is served by the webserver
+- ``tun`` A cli tool able to create a WireGuard tunnel on linux platforms to a WARP Device
 - ``wg-webclient`` The Wireguard implementation containing also a network stack and Http and Websocket client.
 
 Build
@@ -103,15 +105,17 @@ Developement build
 ~~~~~~~~~~~~~~~~~~
 
 1. Create a ``certs`` directory in ``docker/nginx`` and place a X.509 certificate and key in pem format named ``cert.pem`` and ``key.pem`` inside.
-2. Fill in the needed variables in the env variables. All needed variables are listed inside the .env.example files.
-3. build the wg-package by running ``wasm-pack build`` inside ``wg-webclient``.
-4. build the website by running ``npm install && npm run build`` inside ``remote-access-page``.
-5. start the webserver + database by running ``docker compose -f docker-compose-dev.yml up --build`` inside ``docker``.
-6. start the backend server by running ``cargo run`` inside ``backend``.
+2. Clone the warp-charger ropository
+3. Fill in the needed variables in the env variables. All needed variables are listed inside the .env.example files.
+4. build the wg-package by running ``wasm-pack build`` inside ``wg-webclient``.
+5. build the website by running ``npm install && npm run build`` inside ``remote-access-page``.
+6. start the webserver + database by running ``docker compose -f docker-compose-dev.yml up --build`` inside ``docker``.
+7. start the backend server by running ``cargo run`` inside ``backend``.
 
 Production build
 ~~~~~~~~~~~~~~~~
 
 1. Ensure that the host is accessible via a Fully Qualified Domain Name, otherwise creating a Lets Encrypt Certificate will fail.
-2. Fill in the needed variables in the env file. All needed variables are listed inside the .env.example files.
-3. Start everything with ``docker compose up`` inside the ``docker`` directory.
+2. Clone the warp-charger repository to the same parent directory as this repository.
+3. Fill in the needed variables in the env file. All needed variables are listed inside the .env.example files.
+4. Start everything with ``docker compose up`` inside the ``docker`` directory.
