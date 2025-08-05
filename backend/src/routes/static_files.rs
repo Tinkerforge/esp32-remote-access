@@ -17,8 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use actix_web::{web, HttpRequest, Result};
 use actix_files::NamedFile;
+use actix_web::{web, HttpRequest, Result};
 use std::path::PathBuf;
 
 // Define static file serving path based on build configuration
@@ -31,7 +31,8 @@ async fn serve_gzip_static(req: HttpRequest) -> Result<NamedFile> {
 
     #[cfg(debug_assertions)]
     let static_serve_from = {
-        let env = std::env::var("WARP_CHARGER_GIT_URL").unwrap_or_else(|_| "warp-charger".to_string());
+        let env =
+            std::env::var("WARP_CHARGER_GIT_URL").unwrap_or_else(|_| "warp-charger".to_string());
         format!("{env}/firmwares/static_html/")
     };
     #[cfg(not(debug_assertions))]
@@ -45,8 +46,5 @@ async fn serve_gzip_static(req: HttpRequest) -> Result<NamedFile> {
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::resource("/static/{filename:.*}")
-            .route(web::get().to(serve_gzip_static))
-    );
+    cfg.service(web::resource("/static/{filename:.*}").route(web::get().to(serve_gzip_static)));
 }
