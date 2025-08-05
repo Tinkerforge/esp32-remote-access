@@ -32,7 +32,7 @@ async fn serve_gzip_static(req: HttpRequest) -> Result<NamedFile> {
     #[cfg(debug_assertions)]
     let static_serve_from = {
         let env =
-            std::env::var("WARP_CHARGER_GIT_URL").unwrap_or_else(|_| "warp-charger".to_string());
+            std::env::var("WARP_CHARGER_GIT_PATH").unwrap_or_else(|_| "warp-charger".to_string());
         format!("{env}/firmwares/static_html/")
     };
     #[cfg(not(debug_assertions))]
