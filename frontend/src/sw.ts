@@ -29,22 +29,44 @@ function handleWGRequest(event: FetchEvent) {
     });
     if (event.request.headers.has("X-Connection-Id") || url.startsWith("/wg-")) {
         let receiver_id = "";
+        let firmware_version: string | null = null;
         if (url.startsWith("/wg-")) {
             url = url.replace("/wg-", "");
             const first = url.indexOf("/");
             receiver_id = url.substring(0, first);
             url = url.replace(receiver_id, "");
+            const parsedUrl = new URL(url, self.location.origin);
+            firmware_version = parsedUrl.searchParams.get("firmware_version");
+            firmware_version = firmware_version?.replace("+", "_") || null;
+            firmware_version = firmware_version?.replaceAll(".", "_") || null;
         } else {
             receiver_id = event.request.headers.get("X-Connection-Id") as string;
         }
         const promise: Promise<Response> = new Promise(async (resolve) => {
+            if (firmware_version) {
+                const response = await fetch(`/api/static/${firmware_version}_index.html`);
+                if (response.status === 200) {
+                    const ds = new DecompressionStream("gzip");
+                    const stream = response.body?.pipeThrough(ds);
+                    if (stream) {
+                        const decompressedResponse = new Response(stream, {
+                            status: response.status,
+                            statusText: response.statusText,
+                            headers: response.headers
+                        });
+                        resolve(decompressedResponse);
+                        return;
+                    }
+                }
+            }
+
             const id = crypto.randomUUID();
             const body = await event.request.arrayBuffer();
             const headers: [string, string][] = [];
             event.request.headers.forEach((val, key) => {
                 headers.push([key, val]);
             });
-            const fetch: FetchMessage = {
+            const message: FetchMessage = {
                 method: event.request.method,
                 headers,
                 body: body.byteLength === 0 ? undefined : body,
@@ -54,7 +76,7 @@ function handleWGRequest(event: FetchEvent) {
                 receiver_id,
                 id,
                 type: MessageType.Fetch,
-                data: fetch
+                data: message
             };
             self.addEventListener(id, (e: Event) => {
                 const event = e as CustomEvent;

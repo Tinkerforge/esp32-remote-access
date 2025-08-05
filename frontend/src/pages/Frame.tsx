@@ -86,6 +86,11 @@ class VirtualNetworkInterface {
     // This handles Messages from the iframe/ Device-Webinterface
     iframeMessageHandler(e: MessageEvent) {
         const iframe = document.getElementById("interface") as HTMLIFrameElement;
+        if (typeof e.data !== "string") {
+            const data = e.data as Message;
+            this.handleErrorMessage(data);
+            return;
+        }
         switch (e.data) {
             case "initIFrame":
                 this.worker.postMessage("connect");
@@ -149,8 +154,9 @@ class VirtualNetworkInterface {
             switch (e.data) {
                 case "ready":
                     this.setParentState.parentState({connection_state: ConnectionState.LoadingWebinterface});
+                    const firmware_version = this.chargerInfo.firmware_version;
                     const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                    iframe.src = `/wg-${this.id}/${this.path}`;
+                    iframe.src = `/wg-${this.id}/${this.path}?firmware_version=${encodeURIComponent(firmware_version)}`;
                     iframe.addEventListener("load", () => {
                         clearTimeout(this.timeout);
                         this.setParentState.parentState({show_spinner: false});

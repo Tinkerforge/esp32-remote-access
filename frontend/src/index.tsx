@@ -86,6 +86,12 @@ export function App() {
     }, [connected.value, t]);
 
     useEffect(() => {
+        if (window.parent !== window) {
+            console.warn("Warp Charger is running in an iframe, closing window");
+            const errorMessage = t("iframe.error_message");
+            window.parent.postMessage({ type: "error", message: errorMessage }, "*");
+            return;
+        }
         refresh_access_token();
         startVersionChecking(10);
     }, []);

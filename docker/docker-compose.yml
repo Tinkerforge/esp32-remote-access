@@ -43,6 +43,7 @@ services:
     working_dir: /app
     volumes:
       - ../backend/target/release:/app
+      - ../../warp-charger/firmwares/static_html:/static
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}

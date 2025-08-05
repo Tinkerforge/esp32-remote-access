@@ -23,6 +23,7 @@ pub mod check_expiration;
 pub mod management;
 pub mod selfdestruct;
 pub mod state;
+pub mod static_files;
 pub mod user;
 
 use actix_web::web::{self, scope};
@@ -33,6 +34,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.configure(user::configure);
     cfg.configure(auth::configure);
     cfg.configure(charger::configure);
+    cfg.configure(static_files::configure);
 
     cfg.service(management::management);
     cfg.service(selfdestruct::selfdestruct);
