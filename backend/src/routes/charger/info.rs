@@ -81,7 +81,7 @@ pub async fn charger_info(
         name: charger.name,
         configured_port: port,
         connected,
-        firmware_version: firmware_version,
+        firmware_version,
     };
 
     Ok(HttpResponse::Ok().json(info))
