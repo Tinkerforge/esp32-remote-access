@@ -66,61 +66,71 @@ export class Register extends Component<{}, RegisterState> {
 
     showModal: Signal<boolean>;
 
-    checkPassword() {
+    async checkPassword() {
         let res = true;
 
+        const state = this.state as RegisterState;
         const passwordPatternValid = PASSWORD_PATTERN.test(this.state.password);
         if (!passwordPatternValid) {
-            this.setState({passwordValid: false});
+            state.passwordValid = false;
             res = false;
         } else {
-            this.setState({passwordValid: true});
+            state.passwordValid = true;
         }
 
         const passwordsMatch = this.state.password === this.state.confirmPassword;
         if (!passwordsMatch) {
-            this.setState({confirmPasswordValid: false});
+            state.confirmPasswordValid = false;
             res = false;
         } else {
-            this.setState({confirmPasswordValid: true});
+            state.confirmPasswordValid = true;
         }
 
-        return res;
+        const promise = new Promise<boolean>((resolve) => {
+            this.setState(state, () => {
+                resolve(res);
+            });
+        });
+
+        return promise;
     }
 
-    checkForm() {
+    async checkForm() {
         let ret = true;
-        if (!this.checkPassword()) {
+        if (!await this.checkPassword()) {
            ret = false;
         }
 
-        if (this.state.email.length === 0) {
-            this.setState({emailValid: false});
+        const state = this.state as RegisterState;
+        if (state.email.length === 0) {
+            state.emailValid = false;
             ret = false;
         } else {
-            this.setState({emailValid: true});
+            state.emailValid = true;
         }
 
-        if (this.state.name.length === 0) {
-            this.setState({nameValid: false});
+        if (state.name.length === 0) {
+            state.nameValid = false;
             ret = false;
         } else {
-            this.setState({nameValid: true});
+            state.nameValid = true;
         }
 
-        if (!this.state.acceptPrivacyChecked) {
-            this.setState({acceptPrivacyValid: false});
+        if (!state.acceptPrivacyChecked) {
+            state.acceptPrivacyValid = false;
             ret = false;
         } else {
-            this.setState({acceptPrivacyValid: true});
+            state.acceptPrivacyValid = true;
         }
 
-        if (!this.state.termsAndConditionsChecked) {
-            this.setState({termsAndConditionsValid: false});
+        if (!state.termsAndConditionsChecked) {
+            state.termsAndConditionsValid = false;
             ret = false;
         } else {
-            this.setState({termsAndConditionsValid: true});
+            state.termsAndConditionsValid = true;
         }
+
+        this.setState(state);
 
         return ret;
     }
@@ -128,7 +138,7 @@ export class Register extends Component<{}, RegisterState> {
     async onSubmit(e: SubmitEvent) {
         e.preventDefault()
 
-        if (!this.checkForm()) {
+        if (! await this.checkForm()) {
             e.stopPropagation();
             return;
         }
@@ -206,7 +216,7 @@ export class Register extends Component<{}, RegisterState> {
             <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)} noValidate>
                 <Form.Group className="mb-3" controlId="registerName">
                     <Form.Label>{t("name")}</Form.Label>
-                    <Form.Control type="text" placeholder="John Doe" value={this.state.name} isInvalid={!this.state.nameValid} onChange={(e) => {
+                    <Form.Control name="Name" type="text" placeholder="John Doe" value={this.state.name} isInvalid={!this.state.nameValid} onChange={(e) => {
                         this.setState({name: (e.target as HTMLInputElement).value})
                     }} />
                     <Form.Control.Feedback type="invalid">
@@ -225,9 +235,9 @@ export class Register extends Component<{}, RegisterState> {
                 <Form.Group className="mb-3" controlId="registerPassword">
                     <Form.Label>{t("password")}</Form.Label>
                     <PasswordComponent isInvalid={!this.state.passwordValid} onChange={(e) => {
-                        this.setState({password: e}, () => {
+                        this.setState({password: e}, async () => {
                             if (!this.state.confirmPasswordValid || !this.state.passwordValid) {
-                                this.checkPassword();
+                                await this.checkPassword();
                             }
                         });
                     }}
