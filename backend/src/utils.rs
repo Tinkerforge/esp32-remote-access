@@ -247,8 +247,7 @@ pub fn send_email_with_attachment(
         let _ = attachment_data;
         let _ = attachment_filename;
         println!(
-            "Test mode: Email would be sent to {} with subject '{}' and attachment {}",
-            email, subject, attachment_filename
+            "Test mode: Email would be sent to {email} with subject '{subject}' and attachment {attachment_filename}"
         );
     }
 }

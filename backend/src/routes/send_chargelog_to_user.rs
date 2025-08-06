@@ -6,7 +6,10 @@ use utoipa::ToSchema;
 use crate::{
     error::Error,
     rate_limit::ChargerRateLimiter,
-    routes::{charger::add::{get_charger_from_db, password_matches}, user::get_user},
+    routes::{
+        charger::add::{get_charger_from_db, password_matches},
+        user::get_user,
+    },
     utils::{parse_uuid, send_email_with_attachment},
     AppState,
 };
@@ -38,14 +41,16 @@ pub async fn send_chargelog(
     let mut bytes = web::BytesMut::new();
     while let Some(chunk) = payload.next().await {
         let chunk = chunk.map_err(|_| Error::InternalError)?;
-        let chunk = chunk.into_iter().filter(|b| *b != b'\r' && *b != b'\n').collect::<Vec<u8>>();
+        let chunk = chunk
+            .into_iter()
+            .filter(|b| *b != b'\r' && *b != b'\n')
+            .collect::<Vec<u8>>();
         bytes.extend_from_slice(&chunk);
     }
-    let payload: SendChargelogSchema = serde_json::from_slice(&bytes)
-        .map_err(|err| {
-            log::error!("Failed to parse payload: {}", err);
-            Error::InvalidPayload
-        })?;
+    let payload: SendChargelogSchema = serde_json::from_slice(&bytes).map_err(|err| {
+        log::error!("Failed to parse payload: {err}");
+        Error::InvalidPayload
+    })?;
 
     rate_limiter.check(payload.charger_uuid.clone(), &req)?;
 
@@ -90,7 +95,9 @@ mod tests {
         let payload = SendChargelogSchema {
             charger_uuid: charger.uuid.clone(),
             password: charger.password.clone(),
-            user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail).unwrap().to_string(),
+            user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail)
+                .unwrap()
+                .to_string(),
             filename: "chargelog.pdf".to_string(),
             chargelog: vec![1, 2, 3, 4, 5],
         };
@@ -116,7 +123,9 @@ mod tests {
         let payload = SendChargelogSchema {
             charger_uuid: charger.uuid.clone(),
             password: "wrongpassword".to_string(),
-            user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail).unwrap().to_string(),
+            user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail)
+                .unwrap()
+                .to_string(),
             filename: "chargelog.pdf".to_string(),
             chargelog: vec![1, 2, 3, 4, 5],
         };
