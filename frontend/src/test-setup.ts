@@ -7,20 +7,59 @@ interface MockComponentProps {
   [key: string]: unknown;
 }
 
-interface ModalProps extends MockComponentProps {
-  show?: boolean;
-}
-
-interface FormControlProps extends MockComponentProps {
-  as?: string;
-}
-
 interface CollapseProps extends MockComponentProps {
   in?: boolean;
 }
 
 interface DropdownButtonProps extends MockComponentProps {
   title?: string;
+}
+
+interface FormControlProps extends MockComponentProps {
+  onChange?: (event: Event) => void;
+  value?: string | number;
+  isInvalid?: boolean;
+  type?: string;
+  as?: string;
+  controlId?: string;
+}
+
+interface FormCheckProps extends MockComponentProps {
+  checked?: boolean;
+  label?: string;
+  isInvalid?: boolean;
+}
+
+interface FormFeedbackProps extends MockComponentProps {
+  children?: ComponentChildren;
+  type?: string;
+}
+
+interface ModalProps extends MockComponentProps {
+  show?: boolean;
+  onHide?: () => void;
+}
+
+interface ModalHeaderProps extends MockComponentProps {
+  closeButton?: boolean;
+}
+
+interface TabsProps extends MockComponentProps {
+  activeKey?: string;
+  onSelect?: (key: string | null) => void;
+}
+
+interface TabProps extends MockComponentProps {
+  eventKey?: string;
+  title?: string;
+}
+
+interface AlertProps extends MockComponentProps {
+  variant?: string;
+}
+
+interface ButtonProps extends MockComponentProps {
+  type?: string;
 }
 
 // Mock react-bootstrap components with simple HTML elements
@@ -42,7 +81,7 @@ vi.mock('react-bootstrap', () => {
   Form.Label = ({ children, controlId, ...props }: MockComponentProps) =>
     h('label', { ...props, htmlFor: controlId }, children);
 
-  Form.Control = ({ onChange, value, isInvalid, type, as, controlId, ...props }: any) => {
+  Form.Control = ({ onChange, value, isInvalid, type, as, controlId, ...props }: FormControlProps) => {
     if (as === 'textarea') {
       return h('textarea', {
         ...props,
@@ -65,7 +104,7 @@ vi.mock('react-bootstrap', () => {
     });
   };
 
-  Form.Check = ({ checked, label, isInvalid, ...props }: any) =>
+  Form.Check = ({ checked, label, isInvalid, ...props }: FormCheckProps) =>
     h('div', {}, [
       h('input', {
         ...props,
@@ -77,10 +116,11 @@ vi.mock('react-bootstrap', () => {
       h('label', {}, label)
     ]);
 
-  (Form.Control as any).Feedback = ({ children, type, ...props }: any) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (Form.Control as any).Feedback = ({ children, type, ...props }: FormFeedbackProps) =>
     h('div', { ...props, 'data-testid': `${type}-feedback` }, children);
 
-  const Modal = ({ children, show, onHide, ...props }: any) =>
+  const Modal = ({ children, show, onHide, ...props }: ModalProps) =>
     show ? h('div', { ...props, 'data-testid': 'modal' }, [
       h('div', { className: 'modal-content' }, [
         children,
@@ -88,7 +128,7 @@ vi.mock('react-bootstrap', () => {
       ])
     ]) : null;
 
-  Modal.Header = ({ children, closeButton, ...props }: any) =>
+  Modal.Header = ({ children, closeButton, ...props }: ModalHeaderProps) =>
     h('div', { ...props, 'data-testid': 'modal-header' }, [
       children,
       closeButton && h('button', { 'data-testid': 'modal-close' }, 'x')
@@ -139,13 +179,13 @@ vi.mock('react-bootstrap', () => {
   InputGroup.Text = ({ children, ...props }: MockComponentProps) =>
     h('span', { ...props, className: 'input-group-text' }, children);
 
-  const Tabs = ({ children, activeKey, onSelect, ...props }: any) =>
+  const Tabs = ({ children, activeKey: _activeKey, onSelect: _onSelect, ...props }: TabsProps) =>
     h('div', { ...props, className: 'tabs' }, children);
 
-  const Tab = ({ children, eventKey, title, ...props }: any) =>
+  const Tab = ({ children, eventKey: _eventKey, title: _title, ...props }: TabProps) =>
     h('div', { ...props, className: 'tab-pane' }, children);
 
-  const Alert = ({ children, variant, ...props }: any) =>
+  const Alert = ({ children, variant, ...props }: AlertProps) =>
     h('div', { ...props, className: `alert alert-${variant || 'primary'}` }, children);
 
   const Spinner = ({ ...props }: MockComponentProps) =>
@@ -153,7 +193,7 @@ vi.mock('react-bootstrap', () => {
 
   return {
     Alert,
-    Button: ({ children, type, ...props }: any) => h('button', { ...props, type, 'data-testid': 'submit-button' }, children),
+    Button: ({ children, type, ...props }: ButtonProps) => h('button', { ...props, type, 'data-testid': 'submit-button' }, children),
     ButtonGroup: ({ children, ...props }: MockComponentProps) => h('div', { ...props }, children),
     Card,
     Col: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'col' }, children),

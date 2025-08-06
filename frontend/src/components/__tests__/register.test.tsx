@@ -22,7 +22,7 @@ vi.mock('react-i18next', () => ({
   initReactI18next: vi.fn().mockResolvedValue({
     type: "i18n"
   }),
-  Trans: ({ children }: any) => children,
+  Trans: ({ children }: { children: React.ReactNode }) => children,
   useTranslation: () => ({
     t: vi.fn((key: string) => key),
   }),
@@ -35,7 +35,12 @@ vi.mock("../Navbar", () => {
 });
 
 vi.mock('../PasswordComponent', () => ({
-  PasswordComponent: ({ onChange, isInvalid, invalidMessage, controlId }: any) => {
+  PasswordComponent: ({ onChange, isInvalid, invalidMessage, controlId }: {
+    onChange: (value: string) => void;
+    isInvalid: boolean;
+    invalidMessage: string;
+    controlId: string;
+  }) => {
     return <div>
       <input
         type="textbox"
@@ -50,7 +55,11 @@ vi.mock('../PasswordComponent', () => ({
 }));
 
 vi.mock('../recovery_data_component', () => ({
-  RecoveryDataComponent: ({ show, email, secret }: any) => (
+  RecoveryDataComponent: ({ show, email, secret }: {
+    show: { value: boolean };
+    email: string;
+    secret: Uint8Array;
+  }) => (
     show?.value ? (
       <div data-testid="recovery-modal">
         Recovery modal for {email} with secret length: {secret.length}
@@ -65,8 +74,11 @@ vi.mock('links', () => ({
 }));
 
 describe('Register Component', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockSodium: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockUtils: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockShowAlert: any;
 
   beforeEach(async () => {
@@ -150,7 +162,7 @@ describe('Register Component', () => {
   });
 
   it('validates form fields correctly', async () => {
-    const { container } = render(<Register />);
+    render(<Register />);
     const submitButton = screen.getByTestId('submit-button');
 
     fireEvent.click(submitButton);
@@ -164,7 +176,7 @@ describe('Register Component', () => {
   });
 
   it('validates password pattern', async () => {
-    const { container } = render(<Register />);
+    render(<Register />);
     const passwordInputs = screen.getAllByTestId('password-input');
     const passwordInput = passwordInputs[0];
     const confirmPasswordInput = passwordInputs[1];
@@ -183,7 +195,7 @@ describe('Register Component', () => {
   });
 
   it('validates password confirmation match', async () => {
-    const { container } = render(<Register />);
+    render(<Register />);
     const passwordInput = screen.getByRole('textbox', { name: 'password' });
     const confirmPasswordInput = screen.getByRole('textbox', { name: 'confirm_password' });
 
@@ -201,7 +213,7 @@ describe('Register Component', () => {
   });
 
   it('requires privacy policy acceptance', async () => {
-    const { container } = render(<Register />);
+    render(<Register />);
     const nameInput = screen.getByRole('textbox', { name: 'name' });
     const emailInput = screen.getByRole('textbox', { name: 'email' });
     const passwordInput = screen.getByRole('textbox', { name: 'password' });
@@ -224,7 +236,7 @@ describe('Register Component', () => {
   });
 
   it('requires terms and conditions acceptance', async () => {
-    const { container } = render(<Register />);
+    render(<Register />);
     const nameInput = screen.getByRole('textbox', { name: 'name' });
     const emailInput = screen.getByRole('textbox', { name: 'email' });
     const passwordInput = screen.getByRole('textbox', { name: 'password' });
@@ -247,7 +259,7 @@ describe('Register Component', () => {
   });
 
   it('submits registration with valid data', async () => {
-    const { container } = render(<Register />);
+    render(<Register />);
 
     const nameInput = screen.getByRole('textbox', { name: 'name' });
     const emailInput = screen.getByRole('textbox', { name: 'email' });
@@ -289,7 +301,7 @@ describe('Register Component', () => {
   });
 
   it('shows success alert on successful registration', async () => {
-    const { container } = render(<Register />);
+    render(<Register />);
 
     // Fill and submit valid form
     const nameInput = screen.getByTestId('text-input');
@@ -319,7 +331,7 @@ describe('Register Component', () => {
   });
 
   it('shows recovery modal after successful registration', async () => {
-    const { container } = render(<Register />);
+    render(<Register />);
 
     const nameInput = screen.getByRole('textbox', { name: 'name' });
     const emailInput = screen.getByRole('textbox', { name: 'email' });
@@ -348,7 +360,7 @@ describe('Register Component', () => {
       error: 'Registration failed',
     });
 
-    const { container } = render(<Register />);
+    render(<Register />);
 
     const nameInput = screen.getByTestId('text-input');
     const emailInput = screen.getByTestId('email-input');
@@ -376,7 +388,7 @@ describe('Register Component', () => {
   it('handles salt generation error', async () => {
     mockUtils.get_salt.mockRejectedValue('Salt generation failed');
 
-    const { container } = render(<Register />);
+    render(<Register />);
 
     const nameInput = screen.getByTestId('text-input');
     const emailInput = screen.getByTestId('email-input');
@@ -400,7 +412,7 @@ describe('Register Component', () => {
   });
 
   it('calls checkPassword when password fields change', async () => {
-    const { container } = render(<Register />);
+    render(<Register />);
     const passwordInput = screen.getByRole('textbox', { name: 'password' });
     const confirmPasswordInput = screen.getByRole('textbox', { name: 'confirm_password' });
     const submitButton = screen.getByTestId('submit-button');
