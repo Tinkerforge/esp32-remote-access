@@ -18,9 +18,7 @@
  */
 
 import { Component } from "preact";
-import Form from "react-bootstrap/Form"
-import Button from "react-bootstrap/Button";
-import Modal from "react-bootstrap/Modal";
+import { Form, Button, Modal } from "react-bootstrap";
 import { useState } from "preact/hooks";
 import { fetchClient, isDebugMode, PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
@@ -288,7 +286,7 @@ export function User() {
                             id="debugMode"
                             label={t("debug_mode")}
                             checked={isDebugMode.value}
-                            onChange={(e) => {
+                            onClick={(e) => {
                                 e.stopPropagation();
                                 const newDebugMode = !isDebugMode.value;
                                 isDebugMode.value = newDebugMode;
@@ -337,7 +335,7 @@ export function User() {
                         {t("close")}
                     </Button>
                     <Button variant="danger" type="submit">
-                        {t("delete_user")}
+                        {t("delete_user_button")}
                     </Button>
                 </Modal.Footer>
             </Form>
@@ -345,7 +343,9 @@ export function User() {
 
         {/* Change password modal */}
         <Modal show={showPasswordReset} onHide={handleUpdatePasswordClose} centered>
-            <Form onSubmit={submitUpdatePassword} validated={validated.value} noValidate>
+            <Form onSubmit={(e) => {
+                submitUpdatePassword(e);
+            }} validated={validated.value} noValidate>
                 <Modal.Header>
                     <Modal.Title>
                         {t("change_password")}
@@ -382,7 +382,7 @@ export function User() {
                         {t("close")}
                     </Button>
                     <Button variant="primary" type="submit">
-                        {t("change_password")}
+                        {t("change_password_button")}
                     </Button>
                 </Modal.Footer>
             </Form>
