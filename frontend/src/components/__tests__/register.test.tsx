@@ -34,26 +34,6 @@ vi.mock("../Navbar", () => {
     };
 });
 
-vi.mock('../PasswordComponent', () => ({
-  PasswordComponent: ({ onChange, isInvalid, invalidMessage, controlId }: {
-    onChange: (value: string) => void;
-    isInvalid: boolean;
-    invalidMessage: string;
-    controlId: string;
-  }) => {
-    return <div>
-      <input
-        type="textbox"
-        data-testid="password-input"
-        onChange={(e) => onChange((e.target as HTMLInputElement).value)}
-        id={controlId}
-        className={isInvalid ? 'invalid' : ''}
-      />
-      {isInvalid && <div data-testid="password-error">{invalidMessage}</div>}
-    </div>;
-  },
-}));
-
 vi.mock('../recovery_data_component', () => ({
   RecoveryDataComponent: ({ show, email, secret }: {
     show: { value: boolean };
