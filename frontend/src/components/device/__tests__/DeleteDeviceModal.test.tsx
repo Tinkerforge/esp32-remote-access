@@ -12,6 +12,7 @@ const mockDevice: StateDevice = {
   port: 8080,
   valid: true,
   last_state_change: 1640995200,
+  firmware_version: '1.0.0',
 };
 
 const defaultProps = {

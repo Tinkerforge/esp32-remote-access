@@ -12,6 +12,7 @@ const mockDevice: StateDevice = {
   port: 8080,
   valid: true,
   last_state_change: 1640995200,
+  firmware_version: '1.0.0',
 };
 
 const defaultProps = {
@@ -128,7 +129,7 @@ describe('DeviceCard', () => {
     expect(container2.firstChild).toBeTruthy();
   });
 
-  it('renders with minimal device data', () => {
+  it('handles minimal device configuration', () => {
     const minimalDevice: StateDevice = {
       id: '1',
       uid: 1,
@@ -138,6 +139,7 @@ describe('DeviceCard', () => {
       port: 80,
       valid: true,
       last_state_change: null,
+      firmware_version: '1.0.0',
     };
 
     const { container } = render(<DeviceCard {...defaultProps} device={minimalDevice} />);
