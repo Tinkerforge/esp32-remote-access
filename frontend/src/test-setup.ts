@@ -22,12 +22,17 @@ interface FormControlProps extends MockComponentProps {
   type?: string;
   as?: string;
   controlId?: string;
+  disabled?: boolean;
+  required?: boolean;
 }
 
 interface FormCheckProps extends MockComponentProps {
   checked?: boolean;
   label?: string;
   isInvalid?: boolean;
+  disabled?: boolean;
+  id?: string;
+  type?: string;
 }
 
 interface FormFeedbackProps extends MockComponentProps {
@@ -60,6 +65,9 @@ interface AlertProps extends MockComponentProps {
 
 interface ButtonProps extends MockComponentProps {
   type?: string;
+  variant?: string;
+  disabled?: boolean;
+  onClick?: () => void;
 }
 
 // Mock react-bootstrap components with simple HTML elements
@@ -70,6 +78,9 @@ vi.mock('react-bootstrap', () => {
   Form.Group = ({ children, controlId, ...props }: MockComponentProps) => {
     if (children && Array.isArray(children)) {
       children = children.map((child) => {
+        if (typeof child !== "object") {
+          return child;
+        }
         child.props = { ...child.props, controlId };
         return child;
       })
@@ -81,7 +92,7 @@ vi.mock('react-bootstrap', () => {
   Form.Label = ({ children, controlId, ...props }: MockComponentProps) =>
     h('label', { ...props, htmlFor: controlId }, children);
 
-  Form.Control = ({ onChange, value, isInvalid, type, as, controlId, ...props }: FormControlProps) => {
+  Form.Control = ({ onChange, value, isInvalid, type, as, controlId, disabled, required, ...props }: FormControlProps) => {
     if (as === 'textarea') {
       return h('textarea', {
         ...props,
@@ -89,6 +100,8 @@ vi.mock('react-bootstrap', () => {
         value,
         onChange,
         id: controlId,
+        disabled,
+        required,
         className: isInvalid ? 'invalid' : '',
         'data-testid': `${type || 'textarea'}-input`
       });
@@ -99,22 +112,30 @@ vi.mock('react-bootstrap', () => {
       value,
       onChange,
       id: controlId,
+      disabled,
+      required,
       className: isInvalid ? 'invalid' : '',
       'data-testid': `${type}-input`
     });
   };
 
-  Form.Check = ({ checked, label, isInvalid, ...props }: FormCheckProps) =>
-    h('div', {}, [
+  Form.Check = ({ checked, label, isInvalid, disabled, id, type, ...props }: FormCheckProps) => {
+    return h('div', {}, [
       h('input', {
         ...props,
-        type: 'checkbox',
+        type: type || 'checkbox',
         checked,
+        disabled,
+        id,
         className: isInvalid ? 'invalid' : '',
         'data-testid': 'checkbox'
       }),
-      h('label', {}, label)
+      h('label', { htmlFor: id }, label)
     ]);
+  };
+
+  Form.Text = ({ children, ...props }: MockComponentProps) =>
+    h('div', { ...props, 'data-testid': 'form-text' }, children);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (Form.Control as any).Feedback = ({ children, type, ...props }: FormFeedbackProps) =>
@@ -193,7 +214,14 @@ vi.mock('react-bootstrap', () => {
 
   return {
     Alert,
-    Button: ({ children, type, ...props }: ButtonProps) => h('button', { ...props, type, 'data-testid': 'submit-button' }, children),
+    Button: ({ children, type, variant, disabled, onClick, ...props }: ButtonProps) => h('button', {
+      ...props,
+      type,
+      disabled,
+      onClick,
+      className: variant ? `btn btn-${variant}` : 'btn',
+      'data-testid': 'submit-button'
+    }, children),
     ButtonGroup: ({ children, ...props }: MockComponentProps) => h('div', { ...props }, children),
     Card,
     Col: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'col' }, children),
@@ -220,6 +248,7 @@ vi.mock('react-feather', () => ({
   ChevronUp: () => h('svg', { 'data-testid': 'chevron-up' }),
   Edit: () => h('svg', { 'data-testid': 'edit-icon' }),
   Eye: () => h('svg', { 'data-testid': 'eye-icon' }),
+  EyeOff: () => h('svg', { 'data-testid': 'eye-off-icon' }),
   Monitor: () => h('svg', { 'data-testid': 'monitor-icon' }),
   Trash2: () => h('svg', { 'data-testid': 'trash-icon', className: 'feather-trash-2' }),
 }));
@@ -247,6 +276,7 @@ vi.mock('libsodium-wrappers', () => ({
     crypto_box_seal: vi.fn(),
     crypto_box_keypair: vi.fn(),
     crypto_secretbox_easy: vi.fn(),
+    crypto_secretbox_open_easy: vi.fn(),
     crypto_secretbox_NONCEBYTES: 24,
     crypto_secretbox_KEYBYTES: 32,
   },
@@ -266,19 +296,27 @@ vi.mock('js-base64', () => ({
 }));
 
 // Mock utils
-vi.mock('../utils', () => ({
+vi.mock('./utils', () => ({
   fetchClient: {
     GET: vi.fn(),
     POST: vi.fn(),
+    PUT: vi.fn(),
     DELETE: vi.fn(),
   },
   get_decrypted_secret: vi.fn(),
   pub_key: new Uint8Array(),
   secret: new Uint8Array(),
+  PASSWORD_PATTERN: /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/,
+  generate_hash: vi.fn(),
+  generate_random_bytes: vi.fn(),
+  get_salt: vi.fn(),
+  get_salt_for_user: vi.fn(),
+  concat_salts: vi.fn(),
+  isDebugMode: { value: false },
 }));
 
 // Mock Alert component
-vi.mock('../components/Alert', () => ({
+vi.mock('./components/Alert', () => ({
   showAlert: vi.fn(),
 }));
 
@@ -314,10 +352,71 @@ vi.mock('./i18n', () => ({
 }));
 
 // Mock Circle component
-vi.mock('../components/Circle', () => ({
+vi.mock('./components/Circle', () => ({
   Circle: vi.fn(() => null),
 }));
 
+// Mock Navbar component
+vi.mock('./components/Navbar', () => ({
+  logout: vi.fn(),
+}));
+
+// Mock PasswordComponent
+vi.mock('./components/PasswordComponent', () => ({
+  PasswordComponent: ({ onChange, isInvalid, invalidMessage, controlId }: {
+    onChange: (value: string) => void;
+    isInvalid: boolean;
+    invalidMessage: string;
+    controlId: string;
+  }) => {
+    return h('div', {}, [
+      h('input', {
+        type: 'textbox',
+        'data-testid': 'password-input',
+        onChange: (e: Event) => onChange((e.target as HTMLInputElement).value),
+        id: controlId,
+        className: isInvalid ? 'invalid' : '',
+      }),
+      isInvalid && h('div', { 'data-testid': 'password-error' }, invalidMessage)
+    ]);
+  },
+}));
+
+// Mock @preact/signals
+vi.mock('@preact/signals', async (useOriginal) => {
+  const original = await useOriginal();
+  return {
+    ...(typeof original === 'object' && original !== null ? original : {}),
+    signal: (value: unknown) => ({
+      value,
+    }),
+  }
+});
+
 beforeAll(() => {
   // Setup any global test configuration here
+
+  // Mock localStorage
+  const localStorageMock = {
+    getItem: vi.fn(),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn(),
+  };
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+  });
+
+  // Mock window.location.reload
+  Object.defineProperty(window, 'location', {
+    value: {
+      reload: vi.fn(),
+      href: 'http://localhost:3000',
+    },
+    writable: true,
+  });
+
+  // Mock console methods to reduce noise in tests
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 });
