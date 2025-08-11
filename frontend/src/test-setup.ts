@@ -415,8 +415,4 @@ beforeAll(() => {
     },
     writable: true,
   });
-
-  // Mock console methods to reduce noise in tests
-  vi.spyOn(console, 'warn').mockImplementation(() => {});
-  vi.spyOn(console, 'error').mockImplementation(() => {});
 });
