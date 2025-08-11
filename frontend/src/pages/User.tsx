@@ -18,13 +18,12 @@
  */
 
 import { Component } from "preact";
-import { Form, Button, Modal } from "react-bootstrap";
+import { Form, Button, Modal, Card, Container } from "react-bootstrap";
 import { useState } from "preact/hooks";
 import { fetchClient, isDebugMode, PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/Navbar";
 import { useTranslation } from "react-i18next";
-import { Card, Container } from "react-bootstrap";
 import { signal } from "@preact/signals";
 import { PasswordComponent } from "../components/PasswordComponent";
 import i18n from "../i18n";

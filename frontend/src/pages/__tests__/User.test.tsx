@@ -1,13 +1,42 @@
 import { render, fireEvent, waitFor, screen } from '@testing-library/preact';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { User } from '../User';
 
 describe('User Component', () => {
-  let mockUtils: any;
-  let mockShowAlert: any;
-  let mockLogout: any;
-  let mockSodium: any;
-  let mockBase64: any;
+  type FetchClientMock = {
+    GET: Mock;
+    PUT: Mock;
+    DELETE: Mock;
+  };
+
+  type UtilsMock = {
+    fetchClient: FetchClientMock;
+    generate_hash: Mock;
+    generate_random_bytes: Mock;
+    get_salt: Mock;
+    get_salt_for_user: Mock;
+    concat_salts: Mock;
+    isDebugMode: { value: boolean };
+  };
+
+  type SodiumMock = {
+    default: {
+      crypto_secretbox_open_easy: Mock;
+      crypto_secretbox_easy: Mock;
+    };
+  };
+
+  type Base64Mock = {
+    Base64: {
+      toUint8Array: Mock;
+    };
+  };
+
+  let mockUtils: UtilsMock;
+  let mockShowAlert: Mock;
+  let mockLogout: Mock;
+  let mockSodium: SodiumMock;
+  let mockBase64: Base64Mock;
 
   const mockUserData = {
     id: 'user-123',
@@ -24,13 +53,13 @@ describe('User Component', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    const { showAlert } = await import('../../components/Alert') as any;
+  const { showAlert } = (await import('../../components/Alert')) as unknown as { showAlert: Mock };
     mockShowAlert = showAlert;
 
-    const { logout } = await import('../../components/Navbar') as any;
+  const { logout } = (await import('../../components/Navbar')) as unknown as { logout: Mock };
     mockLogout = logout;
 
-    mockUtils = await import('../../utils') as any;
+    mockUtils = (await import('../../utils')) as unknown as UtilsMock;
     mockUtils.fetchClient.GET.mockResolvedValue({
       data: mockUserData,
       error: null,
@@ -50,15 +79,17 @@ describe('User Component', () => {
     mockUtils.get_salt_for_user.mockResolvedValue(new Uint8Array([13, 14, 15, 16]));
     mockUtils.concat_salts.mockReturnValue(new Uint8Array([17, 18, 19, 20]));
 
-    mockSodium = await vi.importMock('libsodium-wrappers') as any;
+    mockSodium = (await vi.importMock('libsodium-wrappers')) as unknown as SodiumMock;
     mockSodium.default.crypto_secretbox_open_easy.mockReturnValue(new Uint8Array([21, 22, 23, 24]));
     mockSodium.default.crypto_secretbox_easy.mockReturnValue(new Uint8Array([25, 26, 27, 28]));
 
-    mockBase64 = await vi.importMock('js-base64') as any;
+    mockBase64 = (await vi.importMock('js-base64')) as unknown as Base64Mock;
     mockBase64.Base64.toUint8Array.mockReturnValue(new Uint8Array([29, 30, 31, 32]));
 
     vi.spyOn(window.localStorage, 'getItem').mockReturnValue('base64encodedSalt');
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {});
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     vi.spyOn(window.localStorage, 'removeItem').mockImplementation(() => {});
   });
 
@@ -189,7 +220,6 @@ describe('User Component', () => {
       });
 
       const nameInput = screen.getByDisplayValue('John Doe');
-      const submitButton = screen.getByText('save_changes');
 
       fireEvent.change(nameInput, { target: { value: 'Jane Doe' } });
 
