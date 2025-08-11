@@ -81,7 +81,8 @@ test('account information validation', async ({ page }) => {
 
   await page.getByRole('link', { name: 'Account' }).click();
 
-  await page.getByLabel('Name').fill("");
+  await expect(page.getByLabel('Name')).toBeVisible();
+  await page.getByLabel('Name').clear();
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('The name must not be empty')).toBeVisible();
 
