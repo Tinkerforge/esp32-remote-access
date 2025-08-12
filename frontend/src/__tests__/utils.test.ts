@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+// Mock argon2-browser early to avoid wasm loading in test environment
+vi.mock('argon2-browser', () => ({
+  hash: vi.fn(async () => ({ hash: 'MOCK_HASH' })),
+  ArgonType: { Argon2id: 2 }
+}));
 
 // We'll load the actual utils implementation (bypassing the broad mock in test-setup)
 let utils: typeof import('../utils');
@@ -207,6 +212,132 @@ describe('utils', () => {
       await utils.refresh_access_token();
       expect(removeItemSpy).toHaveBeenCalledWith('loginSalt');
       expect(utils.loggedIn.value).toBe(utils.AppState.LoggedOut);
+    });
+
+    it('treats 502 error as success and keeps user logged in', async () => {
+      (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
+      const postMessage = vi.fn((msg: any) => {
+        if (msg.type === MessageType.RequestSecret) {
+          triggerSWMessage({ type: MessageType.StoreSecret, data: 'ANY' });
+        }
+      });
+      withServiceWorker({ postMessage } as any);
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          return { error: 'bad_gateway', response: { status: 502 } };
+        }
+        return { error: null, response: { status: 200 } };
+      });
+      await utils.refresh_access_token();
+      expect(utils.loggedIn.value).toBe(utils.AppState.LoggedIn);
+    });
+
+    it('catch block keeps user logged in if tokens present', async () => {
+      (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
+      vi.spyOn(utils, 'getSecretKeyFromServiceWorker').mockResolvedValue('secret');
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          throw new Error('network');
+        }
+        return { error: null, response: { status: 200 } };
+      });
+      await utils.refresh_access_token();
+      expect(utils.loggedIn.value).toBe(utils.AppState.LoggedIn);
+    });
+
+    it('catch block resets secret if tokens missing', async () => {
+      (window.localStorage.getItem as any).mockImplementation(() => null);
+  // Ensure no service worker controller so helper returns fast null
+  Object.defineProperty(navigator, 'serviceWorker', { value: { controller: null }, configurable: true });
+  // Start from LoggedOut so we can ensure it does not become LoggedIn
+  utils.loggedIn.value = utils.AppState.LoggedOut;
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          throw new Error('network');
+        }
+        return { error: null, response: { status: 200 } };
+      });
+      await utils.refresh_access_token();
+  // Should not have transitioned to LoggedIn
+  expect(utils.loggedIn.value).not.toBe(utils.AppState.LoggedIn);
+    });
+  });
+
+  describe('get_salt & get_salt_for_user', () => {
+    it('retrieves a new salt successfully', async () => {
+      const sample = [1,2,3];
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/generate_salt') {
+          return { data: sample, response: { status: 200, text: () => Promise.resolve('ok') } };
+        }
+        return { data: null, response: { status: 404, text: () => Promise.resolve('nf') } };
+      });
+      const salt = await utils.get_salt();
+      expect(Array.from(salt)).toEqual(sample);
+    });
+
+    it('throws on failed salt retrieval', async () => {
+      (utils.fetchClient as any).GET = vi.fn(async (_: string) => ({ data: null, response: { status: 500, text: () => Promise.resolve('err') } }));
+      await expect(utils.get_salt()).rejects.toMatch(/Failed to get new salt/);
+    });
+
+    it('retrieves login salt for user', async () => {
+      const sample = [9,8];
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/get_login_salt') {
+          return { data: sample, error: null };
+        }
+        return { data: null, error: 'nf' };
+      });
+      const salt = await utils.get_salt_for_user('user@example.com');
+      expect(Array.from(salt)).toEqual(sample);
+    });
+
+    it('throws if login salt fetch fails', async () => {
+      (utils.fetchClient as any).GET = vi.fn(async () => ({ data: null, error: 'boom' }));
+      await expect(utils.get_salt_for_user('x@y.z')).rejects.toMatch(/Failed to get login_salt/);
+    });
+  });
+
+  describe('generate_hash', () => {
+    it('uses argon2-browser hash and returns its hash field', async () => {
+      const result = await utils.generate_hash('pw', 'salt', 16);
+      expect(result).toBe('MOCK_HASH');
+    });
+  });
+
+  describe('get_decrypted_secret', () => {
+    it('returns early with alert when backend error (smoke path)', async () => {
+      (utils.fetchClient as any).GET = vi.fn(async () => ({ data: null, error: 'err', response: { status: 500 } }));
+      // We just ensure it does not throw
+      await utils.get_decrypted_secret();
+    });
+  });
+
+  describe('BroadcastChannel + appReload listener', () => {
+    it('handles logout message by setting LoggedOut state', () => {
+      utils.loggedIn.value = utils.AppState.LoggedIn;
+      const handler = (utils.bc as any).onmessage;
+      handler && handler({ data: 'logout' });
+      expect(utils.loggedIn.value).toBe(utils.AppState.LoggedOut);
+    });
+
+    it('triggers reload on login message', () => {
+  const reloadSpy = vi.spyOn(window.location, 'reload').mockImplementation(() => { /* no-op */ });
+  const handler = (utils.bc as any).onmessage;
+  handler && handler({ data: 'login' });
+      expect(reloadSpy).toHaveBeenCalled();
+    });
+
+    it('reloads page on appReload event when threshold exceeded', () => {
+  const reloadSpy = vi.spyOn(window.location, 'reload').mockImplementation(() => { /* no-op */ });
+      const originalNow = Date.now;
+      // Make Date.now large so (now - lastAlive) >= threshold
+  // We don't know lastAlive initial value, but adding large offset suffices.
+  Date.now = () => originalNow() + 1000 * 60 * 3;
+      window.dispatchEvent(new Event('appReload'));
+      expect(reloadSpy).toHaveBeenCalled();
+      Date.now = originalNow;
     });
   });
 });
