@@ -27,7 +27,19 @@ const tunnel_url = `${import.meta.env.VITE_BACKEND_WS_URL  }/ws?key_id=`
 let wgClient: Client | undefined;
 let setup_data: SetupMessage;
 
+function isFailedToFetch(reason: unknown): boolean {
+    if (!reason) return false;
+    if (typeof reason === 'string') return reason.includes('Failed to fetch');
+    if (reason instanceof Error) return reason.message.includes('Failed to fetch');
+    return false;
+}
+
 self.addEventListener("unhandledrejection", (event) => {
+    if (isFailedToFetch(event.reason)) {
+        event.preventDefault();
+        return;
+    }
+
     const stack = event.reason.stack.split("\n");
 
     const evt = {

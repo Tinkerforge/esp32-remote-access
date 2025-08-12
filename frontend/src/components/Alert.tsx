@@ -20,6 +20,11 @@ const clearAlertTimeout = (id: string) => {
 };
 
 export function showAlert(text: string, variant: "danger" | "success" | "warning", id?: string, heading?: string, timeout_ms?: number) {
+    if (text.indexOf("Failed to fetch") !== -1) {
+        console.warn("Alert suppressed due to 'Failed to fetch' message");
+        return;
+    }
+
     id = id ? id : Math.random().toString(36).substr(2);
     const alert: AlertItem = {
         id,
