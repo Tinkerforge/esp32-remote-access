@@ -272,6 +272,8 @@ vi.mock('react-i18next', () => ({
 // Mock libsodium-wrappers
 vi.mock('libsodium-wrappers', () => ({
   default: {
+  // Provide a resolved ready promise to mirror the real libsodium API
+  ready: Promise.resolve(),
     crypto_box_seal_open: vi.fn(),
     crypto_box_seal: vi.fn(),
     crypto_box_keypair: vi.fn(),
