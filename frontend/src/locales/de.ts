@@ -27,6 +27,7 @@ export const de ={
         "delete_user_button": "Konto löschen",
         "password": "Passwort",
         "password_invalid": "Passwort falsch",
+        "invalid_name": "Name darf nicht leer sein.",
         "logout_all": "Von allen Sessions ausloggen",
         "get_user_failed": "Laden der Kontodaten mit dem Code {{status}} fehlgeschlagen: {{response}}",
         "update_user_failed": "Aktualisieren der Kontodaten mit dem Code {{status}} fehlgeschlagen: {{response}}",
@@ -97,6 +98,7 @@ export const de ={
         "close": "Schließen"
     },
     "register": {
+        "register": "Registrieren",
         "name": "Name",
         "name_error_message": "Der Name darf nicht leer sein",
         "email": "E-Mail-Adresse",

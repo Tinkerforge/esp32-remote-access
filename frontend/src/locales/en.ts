@@ -27,6 +27,7 @@ export const en = {
         "delete_user_button": "Delete account",
         "password": "Password",
         "password_invalid": "Password is wrong",
+        "invalid_name": "The name must not be empty",
         "logout_all": "Logout from all sessions",
         "get_user_failed": "Loading account data failed with status code {{status}}: {{response}}. Please reload the page.",
         "update_user_failed": "Updating the account-data failed with status code {{status}}: {{response}}. Please reload the page.",
@@ -97,6 +98,7 @@ export const en = {
         "close": "Close"
     },
     "register": {
+        "register": "Register",
         "name": "Name",
         "name_error_message": "The name must not be empty",
         "email": "Email-address",

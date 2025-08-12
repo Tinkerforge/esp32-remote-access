@@ -24,7 +24,7 @@ test('invalid register form', async ({ page }) => {
   await page.getByRole('button', { name: 'Register' }).click();
   await expect(page.getByText('The name must not be empty')).toBeVisible();
   await expect(page.getByText('The email-address must not be')).toBeVisible();
-  await expect(page.getByText('Must contain at least one')).toBeVisible();
+  await expect(page.getByText('Must be at least')).toBeVisible();
 });
 
 test('invalid login attempts', async ({ page }) => {
@@ -100,7 +100,7 @@ test('password change dialog validation', async ({ page }) => {
   await page.getByLabel('Current password').fill(testPassword1);
   await page.getByRole('textbox', { name: 'New password', exact: true }).fill('weak');
   await page.getByRole('dialog').getByRole('button', { name: 'Change password' }).click();
-  await expect(page.getByText('Must contain at least one')).toBeVisible();
+  await expect(page.getByText('Must be at least 8 characters long and contain at least one lowercase and uppercase letter, and one special character.')).toBeVisible();
 
   await page.getByLabel('Current password').clear();
   await page.getByLabel('Current password').fill('wrong_password');
@@ -194,8 +194,8 @@ test('change accountname', async ({page}) => {
   await page.getByRole('button', { name: 'Logout', exact: true }).click();
 
 
-  const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser2, from_timestamp: (Date.now() / 1000) - 5 });
-  if (!inbox.data || inbox.data.length === 0) {
+  const inbox = await mailiskClient?.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser2, from_timestamp: (Date.now() / 1000) - 5 });
+  if (!inbox?.data || inbox.data.length === 0) {
       throw new Error("No emails found in inbox");
   }
   const firstEmail = inbox.data[0];
