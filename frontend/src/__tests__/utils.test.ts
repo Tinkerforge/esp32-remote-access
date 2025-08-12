@@ -112,6 +112,19 @@ describe('utils', () => {
       await utils.clearSecretKeyFromServiceWorker();
       expect(postMessage).toHaveBeenCalledWith({ type: MessageType.ClearSecret, data: null });
     });
+
+    it('coalesces concurrent getSecretKeyFromServiceWorker calls into single request', async () => {
+      const postMessage = vi.fn();
+      withServiceWorker({ postMessage } as any);
+      const p1 = utils.getSecretKeyFromServiceWorker();
+      const p2 = utils.getSecretKeyFromServiceWorker();
+  // Only one request should have been posted (coalesced)
+      expect(postMessage).toHaveBeenCalledTimes(1);
+      expect(postMessage).toHaveBeenCalledWith({ type: MessageType.RequestSecret, data: null });
+      triggerSWMessage({ type: MessageType.StoreSecret, data: 'value123' });
+      await expect(p1).resolves.toBe('value123');
+      await expect(p2).resolves.toBe('value123');
+    });
   });
 
   describe('resetSecret', () => {
@@ -132,6 +145,68 @@ describe('utils', () => {
       return Promise.resolve().then(() => {
         expect(postMessage).toHaveBeenCalledWith({ type: MessageType.ClearSecret, data: null });
       });
+    });
+  });
+
+  describe('refresh_access_token', () => {
+    beforeEach(() => {
+      // Ensure pathname exists & default
+      Object.defineProperty(window, 'location', {
+        value: { ...(window.location || {}), pathname: '/', reload: vi.fn(), href: 'http://localhost:3000' },
+        configurable: true,
+      });
+      // Mock navigator.locks
+      (navigator as any).locks = {
+        request: vi.fn((_name: string, cb: () => Promise<unknown>) => cb()),
+      };
+    });
+
+    it('sets state to Recovery when on /recovery path', async () => {
+      Object.assign(window.location, { pathname: '/recovery' });
+      await utils.refresh_access_token();
+      expect(utils.loggedIn.value).toBe(utils.AppState.Recovery);
+    });
+
+    it('logs user in on successful refresh when secrets available', async () => {
+      Object.assign(window.location, { pathname: '/' });
+      // Provide loginSalt & secret
+      (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
+      // Mock service worker so getSecretKeyFromServiceWorker resolves with value
+      const postMessage = vi.fn((msg: any) => {
+        if (msg.type === MessageType.RequestSecret) {
+          triggerSWMessage({ type: MessageType.StoreSecret, data: 'SGVjcmV0' });
+        }
+      });
+      withServiceWorker({ postMessage } as any);
+      // Mock refresh endpoint success
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          return { error: null, response: { status: 200 } };
+        }
+        return { error: 'unexpected', response: { status: 500 } };
+      });
+
+      await utils.refresh_access_token();
+      expect(utils.loggedIn.value).toBe(utils.AppState.LoggedIn);
+    });
+
+    it('sets state to LoggedOut and clears loginSalt on refresh failure', async () => {
+      Object.assign(window.location, { pathname: '/' });
+      (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
+      const removeItemSpy = window.localStorage.removeItem as any;
+      const postMessage = vi.fn();
+      withServiceWorker({ postMessage } as any);
+      // Fail refresh
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          return { error: 'unauthorized', response: { status: 401 } };
+        }
+        return { error: 'unexpected', response: { status: 500 } };
+      });
+
+      await utils.refresh_access_token();
+      expect(removeItemSpy).toHaveBeenCalledWith('loginSalt');
+      expect(utils.loggedIn.value).toBe(utils.AppState.LoggedOut);
     });
   });
 });
