@@ -116,12 +116,13 @@ export async function refresh_access_token() {
             loggedIn.value = AppState.LoggedOut;
         }
     } catch (e) {
-        resetSecret();
         //This means we are logged in but the refresh failed
         const hasLoginSalt = localStorage.getItem("loginSalt");
         const hasSecret = await getSecretKeyFromServiceWorker();
         if (hasLoginSalt && hasSecret) {
             loggedIn.value = AppState.LoggedIn;
+        } else {
+            resetSecret();
         }
         console.error(e);
     }
@@ -143,22 +144,36 @@ export async function storeSecretKeyInServiceWorker(secretKey: string): Promise<
     navigator.serviceWorker.controller.postMessage(msg);
 }
 
+let gettingSecretInProgress = false;
+let secretKeyPromise: Promise<string | null> | null = null;
+
 export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
-    return new Promise((resolve) => {
+    if (gettingSecretInProgress) {
+        return secretKeyPromise;
+    }
+
+    secretKeyPromise = new Promise((resolve) => {
         if (!navigator.serviceWorker.controller) {
+            console.error("No service worker controller found");
             resolve(null);
             return;
         }
+        gettingSecretInProgress = true;
 
         const timeout = setTimeout(() => {
-            resolve(null);
-        }, 5000); // 5 second timeout
+            console.error("Service Worker: Failed to get secretKey within timeout");
+            if (!appSleeps) {
+                gettingSecretInProgress = false;
+                resolve(null);
+            }
+        }, 5000);
 
         const handleMessage = (event: MessageEvent) => {
             const msg = event.data as Message;
             if (msg.type === MessageType.StoreSecret) {
                 clearTimeout(timeout);
                 navigator.serviceWorker.removeEventListener('message', handleMessage);
+                gettingSecretInProgress = false;
                 resolve(msg.data as string);
             }
         };
@@ -171,6 +186,8 @@ export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
         };
         navigator.serviceWorker.controller.postMessage(requestMsg);
     });
+
+    return secretKeyPromise;
 }
 
 export async function clearSecretKeyFromServiceWorker(): Promise<void> {
