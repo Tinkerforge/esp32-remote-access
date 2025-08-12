@@ -43,7 +43,7 @@ export function Recovery() {
         fileValid: true,
         validated: false,
     });
-    const secret = useSignal(new Uint8Array());
+    const secret = useSignal<Uint8Array>(new Uint8Array());
     const showModal = useSignal(false);
 
     const validateForm = () => {
@@ -87,11 +87,11 @@ export function Recovery() {
         if (secret.value.length == 0) {
             const key_pair = crypto_box_keypair();
             const new_secret = key_pair.privateKey;
-            secret.value = new_secret;
+            secret.value = new Uint8Array(new_secret);
             encrypted_secret = crypto_secretbox_easy(new_secret, secret_nonce, secret_key);
             secret_reuse = false;
         } else {
-            encrypted_secret = crypto_secretbox_easy(secret.value, secret_nonce, secret_key);
+            encrypted_secret = crypto_secretbox_easy(secret.value as Uint8Array, secret_nonce, secret_key);
             secret_reuse = true;
         }
 
@@ -115,7 +115,7 @@ export function Recovery() {
     }
 
     return <>
-        <RecoveryDataComponent email={state.email} secret={secret.value} show={showModal} />
+    <RecoveryDataComponent email={state.email} secret={secret.value as Uint8Array} show={showModal} />
 
         <Card className="p-0 col-10 col-lg-5 col-xl-3">
             <Form onSubmit={(e: SubmitEvent) => onSubmit(e)} noValidate>
@@ -160,7 +160,7 @@ export function Recovery() {
                                     throw "Data has been modified";
                                 }
 
-                                secret.value = Base64.toUint8Array(file_object.secret);
+                                secret.value = new Uint8Array(Base64.toUint8Array(file_object.secret));
                                 setState({...state, fileValid: true, validated: true});
                             } catch {
                                 setState({...state, fileValid: false, validated: true});
