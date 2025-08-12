@@ -41,7 +41,8 @@ async fn get_user_id(state: &web::Data<AppState>, recovery_key: Uuid) -> actix_w
             .get_result(&mut conn)
         {
             Ok(t) => Ok(t),
-            Err(NotFound) => Err(Error::Unauthorized),
+            // Provide a clearer error than generic Unauthorized when the token does not exist or was already used.
+            Err(NotFound) => Err(Error::InvalidRecoveryToken),
             Err(_err) => Err(Error::InternalError),
         }
     })
@@ -380,5 +381,35 @@ mod tests {
                 .unwrap();
             assert_eq!(res.len(), 0);
         }
+    }
+
+    #[actix_web::test]
+    async fn test_invalid_recovery_token_returns_clear_error() {
+        let (_user, _mail) = TestUser::random().await;
+        // Don't start recovery so the token stays unknown.
+        let body = RecoverySchema {
+            recovery_key: uuid::Uuid::new_v4().to_string(),
+            new_login_key: vec![],
+            new_login_salt: vec![],
+            new_encrypted_secret: vec![],
+            new_secret_nonce: vec![],
+            new_secret_salt: vec![],
+            reused_secret: true,
+        };
+
+        let app = App::new().configure(configure).service(recovery);
+        let app = test::init_service(app).await;
+
+        let req = TestRequest::post()
+            .uri("/recovery")
+            .set_json(body)
+            .append_header(ContentType::json())
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 400);
+        let body = test::read_body(resp).await;
+        let body_str = String::from_utf8(body.to_vec()).unwrap();
+        assert!(body_str.contains("Recovery token unknown"));
     }
 }
