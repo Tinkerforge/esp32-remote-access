@@ -211,5 +211,65 @@ mod tests {
         println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert_eq!(resp.status(), 401);
+        let body = test::read_body(resp).await;
+        let body_str = String::from_utf8(body.to_vec()).unwrap();
+        assert!(body_str.contains("Authorization token invalid"));
+    }
+
+    #[actix_web::test]
+    async fn test_one_time_token_reuse() {
+        let (mut user, mail) = TestUser::random().await; // store mail
+        user.login().await;
+        let auth_token = user.create_authorization_token(true).await; // one-time token
+
+        let app = App::new().configure(configure).service(add_with_token);
+        let app = test::init_service(app).await;
+
+        let keys = generate_random_keys();
+        let cid = uuid::Uuid::new_v4().to_string();
+        let uid = OsRng.try_next_u32().unwrap() as i32;
+        let base_schema = |token: String| AddChargerWithTokenSchema {
+            user_id: get_test_uuid(&mail).unwrap().to_string(),
+            token,
+            charger: ChargerSchema {
+                uid: bs58::encode(uid.to_be_bytes())
+                    .with_alphabet(bs58::Alphabet::FLICKR)
+                    .into_string(),
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                psk: String::new(),
+            },
+            keys: keys.clone(),
+            name: String::new(),
+            note: String::new(),
+        };
+
+        // First use succeeds
+        let req = test::TestRequest::put()
+            .uri("/add_with_token")
+            .set_json(base_schema(auth_token.token.clone()))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        // Second use fails with already used message
+        let req = test::TestRequest::put()
+            .uri("/add_with_token")
+            .set_json(base_schema(auth_token.token.clone()))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 401);
+        let body = test::read_body(resp).await;
+        let body_str = String::from_utf8(body.to_vec()).unwrap();
+        assert!(body_str.contains("Authorization token already used"));
+
+        let _ = remove_test_keys(&mail);
+        remove_allowed_test_users(&cid);
+        remove_test_charger(&cid);
     }
 }

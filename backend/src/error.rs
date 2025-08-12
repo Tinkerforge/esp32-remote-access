@@ -60,6 +60,12 @@ pub enum Error {
     ChargerDoesNotExist,
     #[display("Invalid payload")]
     InvalidPayload,
+    #[display("Recovery token unknown or already used")]
+    InvalidRecoveryToken,
+    #[display("Authorization token invalid")]
+    AuthorizationTokenInvalid,
+    #[display("Authorization token already used")]
+    AuthorizationTokenAlreadyUsed,
 }
 
 impl error::ResponseError for Error {
@@ -88,6 +94,9 @@ impl error::ResponseError for Error {
             Self::ChargerCredentialsWrong => StatusCode::UNAUTHORIZED,
             Self::ChargerDoesNotExist => StatusCode::BAD_REQUEST,
             Self::InvalidPayload => StatusCode::BAD_REQUEST,
+            Self::InvalidRecoveryToken => StatusCode::BAD_REQUEST,
+            Self::AuthorizationTokenInvalid => StatusCode::UNAUTHORIZED,
+            Self::AuthorizationTokenAlreadyUsed => StatusCode::UNAUTHORIZED,
         }
     }
 }

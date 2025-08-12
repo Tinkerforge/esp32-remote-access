@@ -133,14 +133,14 @@ pub async fn validate_auth_token(
             .get_result(&mut conn)
         {
             Ok(v) => Ok(v),
-            Err(NotFound) => Err(Error::Unauthorized),
+            Err(NotFound) => Err(Error::AuthorizationTokenInvalid),
             Err(_err) => Err(Error::InternalError),
         }
     })
     .await?;
 
     if token.use_once && token.last_used_at.is_some() {
-        return Err(Error::Unauthorized.into());
+        return Err(Error::AuthorizationTokenAlreadyUsed.into());
     }
 
     let mut conn = get_connection(state)?;
