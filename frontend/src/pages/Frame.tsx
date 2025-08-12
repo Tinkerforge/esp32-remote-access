@@ -187,16 +187,24 @@ class VirtualNetworkInterface {
                     break;
 
                 case MessageType.FileDownload:
-                    const blob = new Blob([msg.data as Uint8Array]);
-                    const url = URL.createObjectURL(blob)
-                    if (Median.isNativeApp()) {
-                        Median.share.downloadFile({url, filename: "out.pcap"});
-                    } else {
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = "out.pcap";
-                        a.target = "_blank";
-                        a.click();
+                    if (!(msg.data instanceof Uint8Array)) {
+                        console.error("Expected Uint8Array for FileDownload message, got", msg.data);
+                        break;
+                    }
+                    {
+                        const copy = new Uint8Array(msg.data.length);
+                        copy.set(msg.data);
+                        const blob = new Blob([copy.buffer], {type: 'application/vnd.tcpdump.pcap'});
+                        const url = URL.createObjectURL(blob);
+                        if (Median.isNativeApp()) {
+                            Median.share.downloadFile({url, filename: "out.pcap"});
+                        } else {
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = "out.pcap";
+                            a.target = "_blank";
+                            a.click();
+                        }
                     }
                     break;
 
