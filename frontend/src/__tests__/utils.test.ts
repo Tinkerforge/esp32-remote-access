@@ -318,14 +318,18 @@ describe('utils', () => {
     it('handles logout message by setting LoggedOut state', () => {
       utils.loggedIn.value = utils.AppState.LoggedIn;
       const handler = (utils.bc as any).onmessage;
-      handler && handler({ data: 'logout' });
+      if (handler) {
+        handler({ data: 'logout' });
+      }
       expect(utils.loggedIn.value).toBe(utils.AppState.LoggedOut);
     });
 
     it('triggers reload on login message', () => {
   const reloadSpy = vi.spyOn(window.location, 'reload').mockImplementation(() => { /* no-op */ });
   const handler = (utils.bc as any).onmessage;
-  handler && handler({ data: 'login' });
+  if (handler) {
+    handler({ data: 'login' });
+  }
       expect(reloadSpy).toHaveBeenCalled();
     });
 

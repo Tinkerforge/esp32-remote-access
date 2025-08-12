@@ -43,6 +43,14 @@
     "no-else-return": "warn",
     "no-async-promise-executor": "off"
   },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "src/__tests__/**"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off"
+      }
+    }
+  ],
   "ignorePatterns": [
     "dist/",
     "node_modules/",
