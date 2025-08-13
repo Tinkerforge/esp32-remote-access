@@ -27,12 +27,14 @@ pub mod recovery;
 pub mod register;
 pub mod start_recovery;
 pub mod verify;
+pub mod resend_verification;
 
 pub const VERIFICATION_EXPIRATION_DAYS: u64 = 1;
 
 pub fn configure(cfg: &mut ServiceConfig) {
     let scope = web::scope("/auth")
         .service(register::register)
+        .service(resend_verification::resend_verification)
         .service(verify::verify)
         .service(get_login_salt::get_login_salt)
         .service(generate_salt::generate_salt)
