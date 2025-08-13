@@ -5,7 +5,12 @@ use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{get_connection, web_block_unpacked}, AppState};
+use crate::{
+    error::Error,
+    routes::auth::VERIFICATION_EXPIRATION_DAYS,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
+};
 
 use db_connector::models::{users::User, verification::Verification};
 
@@ -40,12 +45,30 @@ fn send_verification_mail(
 
     let (body, subject) = match lang.as_str() {
         "de" | "de-DE" => {
-            let template = VerifyEmailDETemplate { name: &name, link: &link };
-            match template.render() { Ok(body) => (body, "Email verifizieren"), Err(e) => { log::error!("Failed to render German verification email template for user '{name}': {e}"); return Err(Error::InternalError.into()); } }
+            let template = VerifyEmailDETemplate {
+                name: &name,
+                link: &link,
+            };
+            match template.render() {
+                Ok(body) => (body, "Email verifizieren"),
+                Err(e) => {
+                    log::error!("Failed to render German verification email template for user '{name}': {e}");
+                    return Err(Error::InternalError.into());
+                }
+            }
         }
         _ => {
-            let template = VerifyEmailENTemplate { name: &name, link: &link };
-            match template.render() { Ok(body) => (body, "Verify email"), Err(e) => { log::error!("Failed to render English verification email template for user '{name}': {e}"); return Err(Error::InternalError.into()); } }
+            let template = VerifyEmailENTemplate {
+                name: &name,
+                link: &link,
+            };
+            match template.render() {
+                Ok(body) => (body, "Verify email"),
+                Err(e) => {
+                    log::error!("Failed to render English verification email template for user '{name}': {e}");
+                    return Err(Error::InternalError.into());
+                }
+            }
         }
     };
 
@@ -69,7 +92,6 @@ pub async fn resend_verification(
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::users::dsl as u_dsl;
 
-
     let mut conn = get_connection(&state)?;
     let user_email = data.email.to_lowercase();
 
@@ -78,14 +100,17 @@ pub async fn resend_verification(
         match u_dsl::users
             .filter(u_dsl::email.eq(&user_email))
             .select(User::as_select())
-            .get_result(&mut conn) {
-                Ok(u) => Ok(u),
-                Err(diesel::result::Error::NotFound) => Err(Error::UserDoesNotExist),
-                Err(_) => Err(Error::InternalError)
-            }
-    }).await?;
+            .get_result(&mut conn)
+        {
+            Ok(u) => Ok(u),
+            Err(diesel::result::Error::NotFound) => Err(Error::UserDoesNotExist),
+            Err(_) => Err(Error::InternalError),
+        }
+    })
+    .await?;
 
-    if db_user.email_verified { // silently return success
+    if db_user.email_verified {
+        // silently return success
         return Ok(HttpResponse::Ok());
     }
 
@@ -98,12 +123,23 @@ pub async fn resend_verification(
         // remove old tokens
         let _ = diesel::delete(verification.filter(user.eq(user_id))).execute(&mut conn);
 
-        let exp = chrono::Utc::now().checked_add_days(Days::new(VERIFICATION_EXPIRATION_DAYS)).ok_or(Error::InternalError)?;
+        let exp = chrono::Utc::now()
+            .checked_add_days(Days::new(VERIFICATION_EXPIRATION_DAYS))
+            .ok_or(Error::InternalError)?;
 
-        let verify = Verification { id: uuid::Uuid::new_v4(), user: user_id, expiration: exp.naive_utc() };
-        diesel::insert_into(verification).values(&verify).execute(&mut conn).map_err(|_| Error::InternalError)?;
+        let verify = Verification {
+            id: uuid::Uuid::new_v4(),
+            user: user_id,
+            expiration: exp.naive_utc(),
+        };
+        diesel::insert_into(verification)
+            .values(&verify)
+            .execute(&mut conn)
+            .map_err(|_| Error::InternalError)?;
         Ok(verify)
-    }).await.and_then(|_verify| {
+    })
+    .await
+    .map(|_verify| {
         #[cfg(not(test))]
         {
             let user_name = db_user.name.clone();
@@ -111,12 +147,13 @@ pub async fn resend_verification(
             let state_cpy = state.clone();
             let email_cpy = data.email.clone();
             std::thread::spawn(move || {
-                if let Err(e) = send_verification_mail(user_name, _verify, email_cpy, state_cpy, lang) {
+                if let Err(e) =
+                    send_verification_mail(user_name, _verify, email_cpy, state_cpy, lang)
+                {
                     log::error!("Failed to resend verification mail: {e:?}");
                 }
             });
         }
-        Ok(())
     })?;
 
     Ok(HttpResponse::Ok())
@@ -125,10 +162,10 @@ pub async fn resend_verification(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, App};
-    use crate::tests::configure;
     use crate::routes::auth::register::tests::{create_user, delete_user};
     use crate::routes::auth::verify::tests::fast_verify;
+    use crate::tests::configure;
+    use actix_web::{test, App};
 
     #[actix_web::test]
     async fn test_resend_unverified() {
@@ -136,7 +173,12 @@ mod tests {
         create_user(mail).await;
         let app = App::new().configure(configure).service(resend_verification);
         let app = test::init_service(app).await;
-        let req = test::TestRequest::post().uri("/resend_verification").set_json(&ResendSchema{ email: mail.to_string() }).to_request();
+        let req = test::TestRequest::post()
+            .uri("/resend_verification")
+            .set_json(&ResendSchema {
+                email: mail.to_string(),
+            })
+            .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
         delete_user(mail);
@@ -149,7 +191,12 @@ mod tests {
         fast_verify(mail);
         let app = App::new().configure(configure).service(resend_verification);
         let app = test::init_service(app).await;
-        let req = test::TestRequest::post().uri("/resend_verification").set_json(&ResendSchema{ email: mail.to_string() }).to_request();
+        let req = test::TestRequest::post()
+            .uri("/resend_verification")
+            .set_json(&ResendSchema {
+                email: mail.to_string(),
+            })
+            .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
         delete_user(mail);
@@ -160,7 +207,12 @@ mod tests {
         let mail = "resend_missing@test.invalid";
         let app = App::new().configure(configure).service(resend_verification);
         let app = test::init_service(app).await;
-        let req = test::TestRequest::post().uri("/resend_verification").set_json(&ResendSchema{ email: mail.to_string() }).to_request();
+        let req = test::TestRequest::post()
+            .uri("/resend_verification")
+            .set_json(&ResendSchema {
+                email: mail.to_string(),
+            })
+            .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status().as_u16(), 400); // mapped from UserDoesNotExist
     }

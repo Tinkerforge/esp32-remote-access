@@ -25,9 +25,9 @@ pub mod jwt_refresh;
 pub mod login;
 pub mod recovery;
 pub mod register;
+pub mod resend_verification;
 pub mod start_recovery;
 pub mod verify;
-pub mod resend_verification;
 
 pub const VERIFICATION_EXPIRATION_DAYS: u64 = 1;
 
