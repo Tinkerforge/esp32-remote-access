@@ -1,5 +1,4 @@
-import { render, screen } from '@testing-library/preact';
-import { fireEvent } from '@testing-library/preact';
+import { render, screen, fireEvent } from '@testing-library/preact';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Helper to flush timers when using setTimeout
@@ -23,7 +22,7 @@ describe('Alert component & showAlert', () => {
 
   it('suppresses alert containing Failed to fetch', async () => {
     const real = await vi.importActual<typeof import('../Alert')>('../Alert');
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     real.showAlert('Failed to fetch resource', 'danger');
     render(<real.ErrorAlert />);
     expect(screen.queryByText('Failed to fetch resource')).toBeNull();

@@ -255,13 +255,26 @@ vi.mock('react-bootstrap', () => {
 
 // Separate mock for direct 'react-bootstrap/Alert' import used in Alert component
 vi.mock('react-bootstrap/Alert', () => {
-  const { h } = require('preact');
-  const Alert = ({ children, variant, dismissible, onClose }: { children?: any; variant?: string; dismissible?: boolean; onClose?: () => void; }) =>
+  interface MockAlertProps {
+    children?: ComponentChildren;
+    variant?: string;
+    dismissible?: boolean;
+    onClose?: () => void;
+  }
+  
+  interface AlertComponent {
+    (props: MockAlertProps): ReturnType<typeof h>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Heading?: (props: { children?: ComponentChildren }) => any;
+  }
+  // Define without annotation first to prevent TS from narrowing attributes incompatibly
+  const AlertFn = ({ children, variant, dismissible, onClose }: MockAlertProps) =>
     h('div', { className: `alert alert-${variant || 'primary'}` }, [
       children,
       dismissible && h('button', { 'data-testid': 'close-alert', onClick: onClose }, '×')
     ]);
-  (Alert as any).Heading = ({ children }: { children?: any }) => h('h4', { 'data-testid': 'alert-heading' }, children);
+  const Alert = AlertFn as AlertComponent;
+  Alert.Heading = ({ children }: { children?: ComponentChildren }) => h('h4', { 'data-testid': 'alert-heading' }, children);
   return { default: Alert };
 });
 
