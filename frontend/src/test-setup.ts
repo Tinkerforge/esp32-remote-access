@@ -261,7 +261,7 @@ vi.mock('react-bootstrap/Alert', () => {
     dismissible?: boolean;
     onClose?: () => void;
   }
-  
+
   interface AlertComponent {
     (props: MockAlertProps): ReturnType<typeof h>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -276,6 +276,14 @@ vi.mock('react-bootstrap/Alert', () => {
   const Alert = AlertFn as AlertComponent;
   Alert.Heading = ({ children }: { children?: ComponentChildren }) => h('h4', { 'data-testid': 'alert-heading' }, children);
   return { default: Alert };
+});
+
+// Direct import path mock for Button (components import from 'react-bootstrap/Button')
+vi.mock('react-bootstrap/Button', () => {
+  return {
+    default: ({ children, type, disabled, onClick }: { children?: ComponentChildren; type?: string; disabled?: boolean; onClick?: () => void }) =>
+      h('button', { type, disabled, onClick, 'data-testid': 'submit-button' }, children),
+  };
 });
 
 // Mock react-feather icons
@@ -329,7 +337,8 @@ vi.mock('base58', () => ({
 vi.mock('js-base64', () => ({
   Base64: {
     toUint8Array: vi.fn(),
-    fromUint8Array: vi.fn(),
+  // Provide deterministic return; tests can override with mockReturnValueOnce
+  fromUint8Array: vi.fn(() => 'encoded'),
   },
 }));
 
@@ -350,6 +359,11 @@ vi.mock('./utils', () => ({
   get_salt: vi.fn(),
   get_salt_for_user: vi.fn(),
   concat_salts: vi.fn(),
+  // App/login related state & helpers for Login component tests
+  AppState: { Loading: 0, LoggedIn: 1, LoggedOut: 2, Recovery: 3 },
+  loggedIn: { value: 0 },
+  storeSecretKeyInServiceWorker: vi.fn(),
+  bc: { postMessage: vi.fn() },
   isDebugMode: { value: false },
 }));
 
