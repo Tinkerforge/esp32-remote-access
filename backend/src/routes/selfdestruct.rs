@@ -37,7 +37,7 @@ async fn get_charger(
         rate_limiter.check(uid.to_string(), req)?;
         Ok(get_charger_by_uid(uid, Some(schema.password), state).await?)
     } else {
-        return Err(Error::ChargerCredentialsWrong.into());
+        Err(Error::ChargerCredentialsWrong.into())
     }
 }
 
