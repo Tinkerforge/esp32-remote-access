@@ -39,8 +39,9 @@ function handleWGRequest(event: FetchEvent) {
             firmware_version = parsedUrl.searchParams.get("firmware_version");
             firmware_version = firmware_version?.replace("+", "_") || null;
             firmware_version = firmware_version?.replaceAll(".", "_") || null;
-            if (url.indexOf("?") !== -1) {
-                url = url.slice(0, url.indexOf("?"));
+            if (parsedUrl.pathname !== "/") {
+                firmware_version = null;
+                url = parsedUrl.pathname;
             }
         } else {
             receiver_id = event.request.headers.get("X-Connection-Id") as string;
