@@ -61,6 +61,8 @@ interface TabProps extends MockComponentProps {
 
 interface AlertProps extends MockComponentProps {
   variant?: string;
+  dismissible?: boolean;
+  onClose?: () => void;
 }
 
 interface ButtonProps extends MockComponentProps {
@@ -207,7 +209,16 @@ vi.mock('react-bootstrap', () => {
     h('div', { ...props, className: 'tab-pane' }, children);
 
   const Alert = ({ children, variant, ...props }: AlertProps) =>
-    h('div', { ...props, className: `alert alert-${variant || 'primary'}` }, children);
+    h('div', { ...props, className: `alert alert-${variant || 'primary'}` }, [
+      children,
+      // Provide a close button when dismissible to simulate react-bootstrap behaviour
+      props.dismissible && h('button', { 'data-testid': 'close-alert', onClick: props.onClose }, '×')
+    ]);
+
+  // Support <Alert.Heading> used by the component under test
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (Alert as any).Heading = ({ children, ...props }: MockComponentProps) =>
+    h('h4', { ...props, 'data-testid': 'alert-heading' }, children);
 
   const Spinner = ({ ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'spinner' }, 'Loading...');
@@ -240,6 +251,18 @@ vi.mock('react-bootstrap', () => {
     Table: ({ children, ...props }: MockComponentProps) => h('table', { ...props }, children),
     Tabs,
   };
+});
+
+// Separate mock for direct 'react-bootstrap/Alert' import used in Alert component
+vi.mock('react-bootstrap/Alert', () => {
+  const { h } = require('preact');
+  const Alert = ({ children, variant, dismissible, onClose }: { children?: any; variant?: string; dismissible?: boolean; onClose?: () => void; }) =>
+    h('div', { className: `alert alert-${variant || 'primary'}` }, [
+      children,
+      dismissible && h('button', { 'data-testid': 'close-alert', onClick: onClose }, '×')
+    ]);
+  (Alert as any).Heading = ({ children }: { children?: any }) => h('h4', { 'data-testid': 'alert-heading' }, children);
+  return { default: Alert };
 });
 
 // Mock react-feather icons
@@ -315,11 +338,6 @@ vi.mock('./utils', () => ({
   get_salt_for_user: vi.fn(),
   concat_salts: vi.fn(),
   isDebugMode: { value: false },
-}));
-
-// Mock Alert component
-vi.mock('./components/Alert', () => ({
-  showAlert: vi.fn(),
 }));
 
 // Mock preact-iso
@@ -417,4 +435,10 @@ beforeAll(() => {
     },
     writable: true,
   });
+
+  window.scrollTo = vi.fn();
 });
+
+vi.mock('./components/Alert', () => ({
+  showAlert: vi.fn(),
+}));
