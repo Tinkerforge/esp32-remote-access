@@ -7,6 +7,7 @@ import { Trans, useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { PasswordComponent } from "./PasswordComponent";
 import { RecoveryDataComponent } from "./RecoveryDataComponent";
+import { ResendVerification } from "./ResendVerification";
 import { Signal, signal } from "@preact/signals";
 import { privacy_notice, terms_of_use } from "links";
 
@@ -37,6 +38,7 @@ interface RegisterState {
     recoverySafed: boolean,
     encryptedSecret: Uint8Array,
     secret: Uint8Array,
+    registrationSuccess: boolean,
 }
 
 export class Register extends Component<{}, RegisterState> {
@@ -59,6 +61,7 @@ export class Register extends Component<{}, RegisterState> {
             recoverySafed: false,
             encryptedSecret: new Uint8Array(),
             secret: new Uint8Array(),
+            registrationSuccess: false,
         }
 
         this.showModal = signal(false);
@@ -202,18 +205,18 @@ export class Register extends Component<{}, RegisterState> {
             showAlert(text, "danger");
             return;
         }
-
-        this.setState({encryptedSecret: new Uint8Array(encrypted_secret), secret: keypair.privateKey});
-        this.showModal.value = true;
+        this.setState({
+            encryptedSecret: new Uint8Array(encrypted_secret),
+            secret: keypair.privateKey,
+            registrationSuccess: true,
+        });
+        this.showModal.value = true; // keep existing behavior of showing recovery modal
     }
 
     render() {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "register"})
 
-        return (<>
-            <RecoveryDataComponent email={this.state.email} secret={this.state.secret} show={this.showModal} />
-
-            <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)} noValidate>
+        const form = <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)} noValidate>
                 <Form.Group className="mb-3" controlId="registerName">
                     <Form.Label>{t("name")}</Form.Label>
                     <Form.Control name="Name" type="text" placeholder="John Doe" value={this.state.name} isInvalid={!this.state.nameValid} onChange={(e) => {
@@ -263,7 +266,14 @@ export class Register extends Component<{}, RegisterState> {
                 <Button variant="primary" type="submit">
                     {t("register")}
                 </Button>
-            </Form>
+            </Form>;
+
+        return (<>
+            <RecoveryDataComponent email={this.state.email} secret={this.state.secret} show={this.showModal} />
+
+            { !this.state.registrationSuccess && form}
+
+            { this.state.registrationSuccess && this.state.email && <ResendVerification email={this.state.email} /> }
         </>)
     }
 }

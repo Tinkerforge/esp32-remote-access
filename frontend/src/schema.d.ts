@@ -139,6 +139,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/resend_verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resend a verification email if user exists and not verified yet. */
+        post: operations["resend_verification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/start_recovery": {
         parameters: {
             query?: never;
@@ -663,6 +680,9 @@ export interface components {
             secret_nonce: number[];
             secret_salt: number[];
         };
+        ResendSchema: {
+            email: string;
+        };
         ResponseAuthorizationToken: {
             /** Format: int64 */
             created_at: number;
@@ -682,8 +702,9 @@ export interface components {
         SendChargelogSchema: {
             chargelog: number[];
             charger_uuid: string;
+            filename: string;
             password: string;
-            user_email: string;
+            user_uuid: string;
         };
         /** @enum {string} */
         TokenType: "Recovery" | "Verification";
@@ -942,6 +963,35 @@ export interface operations {
             };
             /** @description A user with this email already exists */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resend_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendSchema"];
+            };
+        };
+        responses: {
+            /** @description Verification email resent (or already verified but hidden). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

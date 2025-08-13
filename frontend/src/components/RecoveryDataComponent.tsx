@@ -56,7 +56,6 @@ export function RecoveryDataComponent(props: RecoveryDataProps) {
             <Modal.Footer>
                 <Button variant={saved.value ? "primary" : "danger"} onClick={() => {
                     props.show.value = false;
-                    window.location.replace("/");
                 }}>{t("close")}</Button>
             </Modal.Footer>
     </Modal>

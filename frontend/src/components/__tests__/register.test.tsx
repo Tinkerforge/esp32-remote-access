@@ -334,6 +334,31 @@ describe('Register Component', () => {
     });
   });
 
+  it('renders ResendVerification component after successful registration', async () => {
+    render(<Register />);
+
+    const nameInput = screen.getByRole('textbox', { name: 'name' });
+    const emailInput = screen.getByRole('textbox', { name: 'email' });
+    const passwordInput = screen.getByRole('textbox', { name: 'password' });
+    const confirmPasswordInput = screen.getByRole('textbox', { name: 'confirm_password' });
+    const checkboxes = screen.getAllByRole('checkbox');
+
+    fireEvent.change(nameInput, { target: { value: 'Jane Doe' } });
+    fireEvent.change(emailInput, { target: { value: 'jane@example.com' } });
+    fireEvent.change(passwordInput, { target: { value: 'ValidPass123!' } });
+    fireEvent.change(confirmPasswordInput, { target: { value: 'ValidPass123!' } });
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(checkboxes[1]);
+
+    const submitButton = screen.getByTestId('submit-button');
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      // ResendVerification wrapper div
+      expect(screen.getByTestId('resend-verification')).toBeTruthy();
+    });
+  });
+
   it('handles registration error correctly', async () => {
     mockUtils.fetchClient.POST.mockResolvedValue({
       response: { status: 400 },
