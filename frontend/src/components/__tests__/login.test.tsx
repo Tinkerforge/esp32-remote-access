@@ -1,5 +1,6 @@
 import { render, fireEvent, waitFor, screen } from '@testing-library/preact';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { h } from 'preact';
 
 // Mock utils before importing component to avoid side effects
 vi.mock('../../utils', () => ({
@@ -14,8 +15,8 @@ vi.mock('../../utils', () => ({
 
 // Subpath mock for Form used as default import replicating global test-setup structure
 vi.mock('react-bootstrap/Form', () => {
-  const { h } = require('preact');
-  const Form = ({ children, onSubmit }: { children?: unknown; onSubmit?: (e: Event) => void }) => h('form', { onSubmit }, children);
+  const Form = ({ children, onSubmit }: { children?: any; onSubmit?: (e: Event) => void }) =>
+    h('form', { onSubmit }, children as any);
   Form.Group = ({ children, controlId }: { children?: any; controlId?: string }) => {
     if (children && Array.isArray(children)) {
       children = children.map((child) => {
@@ -24,11 +25,31 @@ vi.mock('react-bootstrap/Form', () => {
         return child;
       });
     }
-    return h('div', {}, children);
+    return h('div', {}, children as any);
   };
-  Form.Label = ({ children, controlId }: { children?: unknown; controlId?: string }) => h('label', { htmlFor: controlId }, children);
-  Form.Control = ({ type, value, onChange, isInvalid, controlId }: { type: string; value?: string; onChange?: (e: Event) => void; isInvalid?: boolean; controlId?: string }) =>
-    h('input', { id: controlId, type, value, onChange, 'data-testid': `${type}-input`, className: isInvalid ? 'invalid' : '' });
+  Form.Label = ({ children, controlId }: { children?: any; controlId?: string }) =>
+    h('label', { htmlFor: controlId }, children as any);
+  Form.Control = ({
+    type,
+    value,
+    onChange,
+    isInvalid,
+    controlId,
+  }: {
+    type: string;
+    value?: string;
+    onChange?: (e: Event) => void;
+    isInvalid?: boolean;
+    controlId?: string;
+  }) =>
+    h('input', {
+      id: controlId,
+      type,
+      value,
+      onChange,
+      'data-testid': `${type}-input`,
+      className: isInvalid ? 'invalid' : '',
+    } as any);
   return { default: Form };
 });
 
@@ -52,20 +73,22 @@ describe('Login Component', () => {
   let mockUtils: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockAlert: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockBase64: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     mockUtils = await import('../../utils');
     mockAlert = await import('../Alert');
-    mockBase64 = await import('js-base64');
+    await import('js-base64');
 
     // default happy path mocks
     mockUtils.get_salt_for_user.mockResolvedValue(new Uint8Array([1, 2, 3]));
     mockUtils.generate_hash.mockResolvedValue(new Uint8Array([9, 10, 11]));
     mockUtils.fetchClient.POST.mockResolvedValue({ response: { status: 200 }, error: null });
-    mockUtils.fetchClient.GET.mockResolvedValue({ data: { secret_salt: [5, 6, 7] }, response: { status: 200 }, error: null });
+    mockUtils.fetchClient.GET.mockResolvedValue({
+      data: { secret_salt: [5, 6, 7] },
+      response: { status: 200 },
+      error: null,
+    });
   });
 
   function fillAndSubmit(email = 'user@example.com', password = 'ValidPass123!') {
@@ -99,7 +122,12 @@ describe('Login Component', () => {
     fillAndSubmit();
 
     await waitFor(() => {
-      expect(mockAlert.showAlert).toHaveBeenCalledWith('login.verify_before_login', 'danger', 'login', 'login.verify_before_login_heading');
+      expect(mockAlert.showAlert).toHaveBeenCalledWith(
+        'login.verify_before_login',
+        'danger',
+        'login',
+        'login.verify_before_login_heading'
+      );
       expect(mockUtils.fetchClient.GET).not.toHaveBeenCalled();
     });
   });
@@ -114,11 +142,18 @@ describe('Login Component', () => {
   });
 
   it('alerts when secret retrieval fails (non-200)', async () => {
-    mockUtils.fetchClient.GET.mockResolvedValue({ data: null, response: { status: 500 }, error: 'boom' });
+    mockUtils.fetchClient.GET.mockResolvedValue({
+      data: null,
+      response: { status: 500 },
+      error: 'boom',
+    });
     fillAndSubmit();
 
     await waitFor(() => {
-      expect(mockAlert.showAlert).toHaveBeenCalledWith('Failed with status 500: boom', 'danger');
+      expect(mockAlert.showAlert).toHaveBeenCalledWith(
+        'Failed with status 500: boom',
+        'danger'
+      );
     });
   });
 
@@ -140,14 +175,22 @@ describe('Login Component', () => {
     expect(screen.getByTestId('modal')).toBeTruthy();
 
     mockUtils.fetchClient.GET.mockResolvedValueOnce({ response: { status: 200 } });
-    const emailInput = screen.getAllByRole('textbox', { name: 'email' }).find(i => (i as HTMLInputElement).id === 'startRecoveryEmail')!;
+    const emailInput = screen
+      .getAllByRole('textbox', { name: 'email' })
+      .find((i) => (i as HTMLInputElement).id === 'startRecoveryEmail');
+    if (!emailInput) throw new Error('Recovery email input not found');
     fireEvent.change(emailInput, { target: { value: 'recover@example.com' } });
 
     const sendBtn = screen.getByRole('button', { name: 'send' });
     fireEvent.click(sendBtn);
 
     await waitFor(() => {
-      expect(mockAlert.showAlert).toHaveBeenCalledWith('success_alert_text', 'success', 'login', 'success_alert_heading');
+      expect(mockAlert.showAlert).toHaveBeenCalledWith(
+        'success_alert_text',
+        'success',
+        'login',
+        'success_alert_heading'
+      );
     });
   });
 
@@ -156,8 +199,14 @@ describe('Login Component', () => {
     fireEvent.click(screen.getByText('password_recovery'));
     expect(screen.getByTestId('modal')).toBeTruthy();
 
-    mockUtils.fetchClient.GET.mockResolvedValueOnce({ response: { status: 500 }, error: 'fail' });
-    const emailInput = screen.getAllByRole('textbox', { name: 'email' }).find(i => (i as HTMLInputElement).id === 'startRecoveryEmail')!;
+    mockUtils.fetchClient.GET.mockResolvedValueOnce({
+      response: { status: 500 },
+      error: 'fail',
+    });
+    const emailInput = screen
+      .getAllByRole('textbox', { name: 'email' })
+      .find((i) => (i as HTMLInputElement).id === 'startRecoveryEmail');
+    if (!emailInput) throw new Error('Recovery email input not found');
     fireEvent.change(emailInput, { target: { value: 'recover@example.com' } });
 
     const sendBtn = screen.getByRole('button', { name: 'send' });
