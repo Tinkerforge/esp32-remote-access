@@ -1,0 +1,11 @@
+staging:
+  hosts:
+    staging:
+      ansible_host: mystaging.warp-charger.com
+
+production:
+  hosts:
+    warp-charger:
+      ansible_host: my.warp-charger.com
+    seb:
+      ansible_host: my.smart-energy-broker.com

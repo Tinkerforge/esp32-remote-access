@@ -1,0 +1,50 @@
+- name: Change production version
+  hosts: staging
+  tasks:
+    - name: Update packages
+      become: true
+      ansible.builtin.apt:
+        update_cache: yes
+        upgrade: safe
+        autoremove: true
+
+    - name: Check if reboot is required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+
+    - name: Reboot if required
+      reboot:
+      when: reboot_required_file.stat.exists
+
+    - name: checkout git
+      ansible.builtin.git:
+        repo: https://github.com/Tinkerforge/esp32-remote-access.git
+        dest: /home/freddy/esp32-remote-access
+        version: v1.2.38
+        update: yes
+        clone: yes
+      register: git_checkout
+
+    - name: Verify checked out tag
+      ansible.builtin.command: git describe --tags --exact-match
+      args:
+        chdir: /home/freddy/esp32-remote-access
+      register: git_tag
+
+    - name: Stop Docker containers
+      community.docker.docker_compose_v2:
+        project_src: /home/freddy/esp32-remote-access/docker
+        state: stopped
+      when: git_checkout.changed
+
+    - name: Pull and rerun docker images
+      community.docker.docker_compose_v2:
+        build: always
+        pull: always
+        project_src: /home/freddy/esp32-remote-access/docker
+      when: git_checkout.changed
+
+    - name: Show current tag
+      ansible.builtin.debug:
+        msg: "Checked out tag: {{ git_tag.stdout | default('none') }}"
