@@ -1,4 +1,3 @@
-
 upstream host_service {
     server backend:8081;
 }
@@ -18,7 +17,7 @@ log_format anon '$remote_addr_anon - $remote_user [$time_local] "$request" '
 server {
     listen 80 default_server;
 
-    server_name my.warp-charger.com;
+    server_name ${SERVICEDOMAIN};
 
     access_log /var/log/nginx/access.log anon;
 
@@ -27,9 +26,9 @@ server {
 
 server {
     listen 443 ssl;
-    server_name my.warp-charger.com;
-    ssl_certificate /usr/share/nginx/certs/live/my.warp-charger.com/fullchain.pem;
-    ssl_certificate_key /usr/share/nginx/certs/live/my.warp-charger.com/privkey.pem;
+    server_name ${SERVICEDOMAIN};
+    ssl_certificate /usr/share/nginx/certs/live/${SERVICEDOMAIN}/fullchain.pem;
+    ssl_certificate_key /usr/share/nginx/certs/live/${SERVICEDOMAIN}/privkey.pem;
 
     ssl_protocols       TLSv1.3 TLSv1.2;
 

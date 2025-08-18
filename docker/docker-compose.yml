@@ -10,11 +10,13 @@ services:
       certbot:
         condition: service_completed_successfully
     container_name: nginx
+    environment:
+      - SERVICEDOMAIN=${SERVICEDOMAIN}
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/config:/etc/nginx/conf.d
+      - ./nginx/config:/etc/nginx/templates
       - ./nginx/certs:/usr/share/nginx/certs
       - ../frontend/dist:/usr/share/nginx/html
 
