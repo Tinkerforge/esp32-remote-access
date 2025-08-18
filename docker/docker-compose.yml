@@ -111,7 +111,7 @@ services:
     restart: always
     image: adminer
     ports:
-      - "127.0.0.1:8080:8080"
+      - "${ADMINER_IP}:8080:8080"
 
   certbot:
     image: certbot/certbot
