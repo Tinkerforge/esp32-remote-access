@@ -1,5 +1,5 @@
 - name: Change production version
-  hosts: staging
+  hosts: production
   tasks:
     - name: Update packages
       become: true
@@ -21,7 +21,7 @@
       ansible.builtin.git:
         repo: https://github.com/Tinkerforge/esp32-remote-access.git
         dest: /home/freddy/esp32-remote-access
-        version: v1.2.38
+        version: v1.2.39
         update: yes
         clone: yes
       register: git_checkout
