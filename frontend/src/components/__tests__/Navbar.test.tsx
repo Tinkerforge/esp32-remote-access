@@ -1,9 +1,9 @@
 import { render, screen, fireEvent } from '@testing-library/preact';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as NavbarModule from './Navbar';
-import { connected as connectedSignal } from './Navbar';
+import * as NavbarModule from '../Navbar';
+import { connected as connectedSignal } from '../Navbar';
 import { useLocation } from 'preact-iso';
-import { fetchClient, AppState, loggedIn, bc, resetSecret, clearSecretKeyFromServiceWorker } from '../utils';
+import { fetchClient, AppState, loggedIn, bc, resetSecret, clearSecretKeyFromServiceWorker } from '../../utils';
 
 // Use actual module for component and functions (test-setup re-exports actual)
 const { CustomNavbar } = NavbarModule;
@@ -54,7 +54,7 @@ describe('Navbar', () => {
     (fetchClient.GET as unknown as ReturnType<typeof vi.fn>).mockReset();
     (fetchClient.GET as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ error: undefined });
 
-    const actual = await vi.importActual<typeof import('./Navbar')>('./Navbar');
+  const actual = await vi.importActual<typeof import('../Navbar')>('../Navbar');
     await actual.logout(false);
 
     // Assert
@@ -69,10 +69,10 @@ describe('Navbar', () => {
   it('logout() shows alert when logout_all fails', async () => {
     (fetchClient.GET as unknown as ReturnType<typeof vi.fn>).mockReset();
     (fetchClient.GET as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ error: 'boom' });
-    const { showAlert } = await vi.importMock<typeof import('./Alert')>('./Alert');
+  const { showAlert } = await vi.importMock<typeof import('../Alert')>('../Alert');
     const showAlertSpy = showAlert as unknown as ReturnType<typeof vi.fn>;
 
-    const actual = await vi.importActual<typeof import('./Navbar')>('./Navbar');
+  const actual = await vi.importActual<typeof import('../Navbar')>('../Navbar');
     await actual.logout(true);
 
     // Assert
@@ -83,7 +83,7 @@ describe('Navbar', () => {
   it('setAppNavigation configures sidebar via Median', async () => {
     const Median = await vi.importMock<typeof import('median-js-bridge')>('median-js-bridge');
     const setItems = vi.spyOn(Median.default.sidebar, 'setItems');
-    const mod = await vi.importActual<typeof import('./Navbar')>('./Navbar');
+  const mod = await vi.importActual<typeof import('../Navbar')>('../Navbar');
     mod.setAppNavigation();
     expect(setItems).toHaveBeenCalled();
   });
