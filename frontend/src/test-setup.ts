@@ -337,6 +337,7 @@ vi.mock('react-i18next', () => ({
       return key;
     },
   }),
+  Trans: ({ children }: { children?: ComponentChildren }) => h('span', {}, children),
 }));
 
 // Mock libsodium-wrappers
@@ -394,7 +395,42 @@ vi.mock('./utils', () => ({
   resetSecret: vi.fn(),
   clearSecretKeyFromServiceWorker: vi.fn().mockResolvedValue(undefined),
   FRONTEND_URL: '',
+  refresh_access_token: vi.fn(),
+  startVersionChecking: vi.fn(),
 }));
+
+// Some files import from './utils.js' (with extension) — provide identical mock for that path
+vi.mock('./utils.js', () => ({
+  fetchClient: {
+    GET: vi.fn(),
+    POST: vi.fn(),
+    PUT: vi.fn(),
+    DELETE: vi.fn(),
+  },
+  get_decrypted_secret: vi.fn(),
+  pub_key: new Uint8Array(),
+  secret: new Uint8Array(),
+  PASSWORD_PATTERN: /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/,
+  generate_hash: vi.fn(),
+  generate_random_bytes: vi.fn(),
+  get_salt: vi.fn(),
+  get_salt_for_user: vi.fn(),
+  concat_salts: vi.fn(),
+  AppState: { Loading: 0, LoggedIn: 1, LoggedOut: 2, Recovery: 3 },
+  loggedIn: { value: 0 },
+  storeSecretKeyInServiceWorker: vi.fn(),
+  bc: { postMessage: vi.fn() },
+  isDebugMode: { value: false },
+  resetSecret: vi.fn(),
+  clearSecretKeyFromServiceWorker: vi.fn().mockResolvedValue(undefined),
+  FRONTEND_URL: '',
+  refresh_access_token: vi.fn(),
+  startVersionChecking: vi.fn(),
+}));
+
+// Assets aliases used in index.tsx
+vi.mock('logo', () => ({ default: 'logo.png' }));
+vi.mock('favicon', () => ({ default: '/favicon.png' }));
 
 // Mock preact-iso
 vi.mock('preact-iso', () => ({
@@ -402,6 +438,11 @@ vi.mock('preact-iso', () => ({
     route: vi.fn(),
     url: '/',
   }),
+  useRoute: () => ({ params: {} }),
+  LocationProvider: ({ children }: { children?: ComponentChildren }) => h('div', {}, children),
+  Router: ({ children }: { children?: ComponentChildren }) => h('div', {}, children),
+  Route: ({ children }: { children?: ComponentChildren }) => h('div', {}, children),
+  lazy: (_loader: () => Promise<unknown>) => (props: Record<string, unknown>) => h('div', { 'data-testid': 'lazy-component', ...props }),
 }));
 
 // Mock median-js-bridge
@@ -409,6 +450,7 @@ vi.mock('median-js-bridge', () => ({
   default: {
     isNativeApp: () => false,
     sidebar: { setItems: vi.fn() },
+  share: { downloadFile: vi.fn() },
   },
 }));
 
@@ -549,6 +591,22 @@ beforeAll(() => {
   }
 });
 
+// Provide a consistent mock for modules importing './components/Alert'
 vi.mock('./components/Alert', () => ({
   showAlert: vi.fn(),
+  ErrorAlert: () => h('div', { 'data-testid': 'error-alert' }),
+}));
+
+// Direct import path mocks for react-bootstrap components used by index.tsx
+vi.mock('react-bootstrap/Row', () => ({
+  default: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'row' }, children),
+}));
+vi.mock('react-bootstrap/Card', () => ({
+  default: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'card' }, children),
+}));
+vi.mock('react-bootstrap/Tabs', () => ({
+  default: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'tabs' }, children),
+}));
+vi.mock('react-bootstrap/Tab', () => ({
+  default: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'tab-pane' }, children),
 }));
