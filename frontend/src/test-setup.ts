@@ -178,23 +178,23 @@ vi.mock('react-bootstrap', () => {
     Item: ({ children, ...props }: MockComponentProps) => h('button', { ...props }, children),
   };
 
-  const Nav = ({ children, ...props }: MockComponentProps) =>
-    h('nav', { ...props }, children);
+  const Nav = ({ children, className }: MockComponentProps) =>
+    h('div', { className }, children);
 
-  Nav.Link = ({ children, ...props }: MockComponentProps) =>
-    h('a', { ...props }, children);
+  Nav.Link = ({ children, href, onClick, className }: MockComponentProps) =>
+    h('a', { href, onClick, className }, children);
 
-  const Navbar = ({ children, ...props }: MockComponentProps) =>
-    h('nav', { ...props, className: 'navbar' }, children);
+  const Navbar = ({ children, id, hidden, className }: MockComponentProps) =>
+    h('nav', { id, hidden, className: className ? className : 'navbar', role: 'navigation' }, children);
 
-  Navbar.Brand = ({ children, ...props }: MockComponentProps) =>
-    h('a', { ...props, className: 'navbar-brand' }, children);
+  Navbar.Brand = ({ children, href, className }: MockComponentProps) =>
+    h('a', { href, className: className ? className : 'navbar-brand' }, children);
 
-  Navbar.Toggle = ({ children, ...props }: MockComponentProps) =>
-    h('button', { ...props, className: 'navbar-toggle' }, children);
+  Navbar.Toggle = ({ children, onClick, id, 'aria-controls': ariaControls }: MockComponentProps & { 'aria-controls'?: string }) =>
+    h('button', { onClick, id, 'aria-controls': ariaControls, className: 'navbar-toggle' }, children);
 
-  Navbar.Collapse = ({ children, ...props }: MockComponentProps) =>
-    h('div', { ...props, className: 'navbar-collapse' }, children);
+  Navbar.Collapse = ({ children, id, className }: MockComponentProps) =>
+    h('div', { id, className: className ? className : 'navbar-collapse' }, children);
 
   const InputGroup = ({ children, ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'input-group' }, children);
@@ -286,15 +286,41 @@ vi.mock('react-bootstrap/Button', () => {
   };
 });
 
-// Mock react-feather icons
+// Direct import path mocks for Nav and Navbar
+vi.mock('react-bootstrap/Nav', () => {
+  const Nav = ({ children, className }: MockComponentProps) => h('div', { className }, children);
+  const NavWithStatics = Object.assign(Nav, {
+    Link: ({ children, href, onClick, className }: MockComponentProps) =>
+      h('a', { href, onClick, className }, children),
+  });
+  return { default: NavWithStatics };
+});
+
+vi.mock('react-bootstrap/Navbar', () => {
+  const Navbar = ({ children, id, hidden, className }: MockComponentProps) =>
+    h('nav', { id, hidden, className, role: 'navigation' }, children);
+  const NavbarWithStatics = Object.assign(Navbar, {
+    Brand: ({ children, href, className }: MockComponentProps) => h('a', { href, className }, children),
+    Toggle: ({ children, onClick, id, 'aria-controls': ariaControls }: MockComponentProps & { 'aria-controls'?: string }) =>
+      h('button', { onClick, id, 'aria-controls': ariaControls, className: 'navbar-toggle' }, children),
+    Collapse: ({ children, id, className }: MockComponentProps) => h('div', { id, className }, children),
+  });
+  return { default: NavbarWithStatics };
+});
+
+// Mock react-feather icons (use non-SVG to avoid namespace issues in jsdom)
 vi.mock('react-feather', () => ({
-  ChevronDown: () => h('svg', { 'data-testid': 'chevron-down' }),
-  ChevronUp: () => h('svg', { 'data-testid': 'chevron-up' }),
-  Edit: () => h('svg', { 'data-testid': 'edit-icon' }),
-  Eye: () => h('svg', { 'data-testid': 'eye-icon' }),
-  EyeOff: () => h('svg', { 'data-testid': 'eye-off-icon' }),
-  Monitor: () => h('svg', { 'data-testid': 'monitor-icon' }),
-  Trash2: () => h('svg', { 'data-testid': 'trash-icon', className: 'feather-trash-2' }),
+  ChevronDown: () => h('span', { 'data-testid': 'chevron-down' }),
+  ChevronUp: () => h('span', { 'data-testid': 'chevron-up' }),
+  Edit: () => h('span', { 'data-testid': 'edit-icon' }),
+  Eye: () => h('span', { 'data-testid': 'eye-icon' }),
+  EyeOff: () => h('span', { 'data-testid': 'eye-off-icon' }),
+  Monitor: () => h('span', { 'data-testid': 'monitor-icon' }),
+  Trash2: () => h('span', { 'data-testid': 'trash-icon', className: 'feather-trash-2' }),
+  Key: () => h('span', { 'data-testid': 'key-icon' }),
+  LogOut: () => h('span', { 'data-testid': 'logout-icon' }),
+  Server: () => h('span', { 'data-testid': 'server-icon' }),
+  User: () => h('span', { 'data-testid': 'user-icon' }),
 }));
 
 // Mock i18next
@@ -365,12 +391,16 @@ vi.mock('./utils', () => ({
   storeSecretKeyInServiceWorker: vi.fn(),
   bc: { postMessage: vi.fn() },
   isDebugMode: { value: false },
+  resetSecret: vi.fn(),
+  clearSecretKeyFromServiceWorker: vi.fn().mockResolvedValue(undefined),
+  FRONTEND_URL: '',
 }));
 
 // Mock preact-iso
 vi.mock('preact-iso', () => ({
   useLocation: () => ({
     route: vi.fn(),
+    url: '/',
   }),
 }));
 
@@ -378,6 +408,7 @@ vi.mock('preact-iso', () => ({
 vi.mock('median-js-bridge', () => ({
   default: {
     isNativeApp: () => false,
+    sidebar: { setItems: vi.fn() },
   },
 }));
 
@@ -403,9 +434,18 @@ vi.mock('./components/Circle', () => ({
   Circle: vi.fn(() => null),
 }));
 
-// Mock Navbar component
-vi.mock('./components/Navbar', () => ({
-  logout: vi.fn(),
+// Mock components/Navbar to stub logout but keep other exports real
+vi.mock('./components/Navbar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./components/Navbar')>();
+  return {
+    ...actual,
+    logout: vi.fn(),
+  };
+});
+
+// Also mock direct Alert import path used by components (Navbar imports './Alert')
+vi.mock('./Alert', () => ({
+  showAlert: vi.fn(),
 }));
 
 // Mock PasswordComponent
