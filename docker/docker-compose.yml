@@ -25,6 +25,7 @@ services:
     restart: no
     container_name: backend-build
     command: cargo build --release
+    user: "${UID:-1000}:${GID:-1000}"
     working_dir: /app
     volumes:
       - ../backend:/app
@@ -35,6 +36,7 @@ services:
     restart: always
     container_name: backend
     command: ./backend
+    user: "${UID:-1000}:${GID:-1000}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,12 +72,16 @@ services:
     restart: no
     build:
       dockerfile: wg-webclient-builder/Dockerfile
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ../wg-webclient:/build
 
   frontend-build:
     build:
       dockerfile: frontend-build/Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
     restart: no
     command:
       - /bin/sh
@@ -87,6 +93,7 @@ services:
       wg-webclient-builder:
         condition: service_completed_successfully
     working_dir: /build
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - IS_SEB=${IS_SEB}
     volumes:
