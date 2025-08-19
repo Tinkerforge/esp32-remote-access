@@ -498,12 +498,47 @@ beforeAll(() => {
   Object.defineProperty(window, 'location', {
     value: {
       reload: vi.fn(),
+      replace: vi.fn(),
       href: 'http://localhost:3000',
     },
     writable: true,
   });
 
   window.scrollTo = vi.fn();
+
+  // Provide minimal Web Crypto mock used by components
+  if (!('crypto' in window)) {
+    // @ts-expect-error - define minimal crypto
+    window.crypto = {};
+  }
+  if (!('subtle' in window.crypto)) {
+    // @ts-expect-error - define minimal subtle
+    window.crypto.subtle = { digest: vi.fn().mockResolvedValue(new ArrayBuffer(0)) };
+  }
+
+  // URL.createObjectURL / revokeObjectURL in jsdom
+  if (!('createObjectURL' in URL)) {
+    // @ts-expect-error - add createObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:mock');
+  }
+  if (!('revokeObjectURL' in URL)) {
+    // @ts-expect-error - add revokeObjectURL
+    URL.revokeObjectURL = vi.fn();
+  }
+
+  // File polyfill for environments missing it
+  if (typeof (globalThis as unknown as { File?: unknown }).File === 'undefined') {
+    class PolyfillFile extends Blob {
+      name: string;
+      lastModified: number;
+      constructor(bits: BlobPart[], name: string, options?: FilePropertyBag) {
+        super(bits, options);
+        this.name = name;
+        this.lastModified = Date.now();
+      }
+    }
+    (globalThis as unknown as { File: unknown }).File = PolyfillFile;
+  }
 });
 
 vi.mock('./components/Alert', () => ({
