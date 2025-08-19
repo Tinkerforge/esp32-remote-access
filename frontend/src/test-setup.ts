@@ -484,14 +484,22 @@ beforeAll(() => {
   // Setup any global test configuration here
 
   // Mock localStorage
+  const store = new Map<string, string>();
   const localStorageMock = {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-  };
+    getItem: vi.fn((key: string) => {
+      const val = store.get(key);
+      return typeof val === 'undefined' ? null : val;
+    }),
+    setItem: vi.fn((key: string, value: string) => { store.set(key, String(value)); }),
+    removeItem: vi.fn((key: string) => { store.delete(key); }),
+    clear: vi.fn(() => { store.clear(); }),
+    key: vi.fn((index: number) => Array.from(store.keys())[index] ?? null),
+  } as unknown as Storage;
+  Object.defineProperty(localStorageMock, 'length', { get: () => store.size });
   Object.defineProperty(window, 'localStorage', {
     value: localStorageMock,
+    configurable: true,
+    writable: true,
   });
 
   // Mock window.location.reload
