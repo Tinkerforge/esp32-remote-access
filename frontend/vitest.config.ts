@@ -10,6 +10,33 @@ export default defineConfig({
     globals: true,
     include: ['src/**/*.{test,spec}.{js,ts,jsx,tsx}'],
     exclude: ['tests/**', 'pre-test/**', 'post-test/**', 'node_modules/**'],
+    coverage: {
+      exclude: [
+        'node_modules/**',
+        'tests/**',
+        'pre-test/**',
+        'post-test/**',
+        'coverage/**',
+        'dist/**',
+        '*.config.{js,ts,mjs,cjs}',
+        '**/*.config.{js,ts,mjs,cjs}',
+        'vite-plugin-version.ts',
+        'playwright.config.ts',
+        'pre-playwright.config.ts',
+        'post-playwright.config.ts',
+        'vitest.config.ts',
+        'vite.config.ts',
+        'tsconfig.json',
+        'package.json',
+        'package-lock.json',
+        '.eslintrc.json',
+        '**/*.d.ts',
+        'src/locales/**',
+        'src/links/**',
+        '**/Circle.tsx',
+        "**/i18n.ts"
+      ]
+    }
   },
   resolve: {
     alias: {
