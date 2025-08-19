@@ -10,14 +10,14 @@ vi.mock('preact', async (importOriginal) => {
 });
 
 // Silence console noise from iframe warning in App
-vi.spyOn(console, 'warn').mockImplementation(() => {});
+vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
 describe('index.tsx', () => {
   beforeEach(() => {
     // Clean up spies between tests
     vi.restoreAllMocks();
     // Re-silence console.warn after restore
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     // Default state and environment
     (utils.loggedIn as { value: number }).value = utils.AppState.LoggedOut;
@@ -164,7 +164,9 @@ describe('index.tsx', () => {
     vi.doMock('preact-iso', () => ({
       LocationProvider: ({ children }: { children?: any }) => <div>{children}</div>,
       Router: ({ children, onRouteChange }: { children?: any; onRouteChange?: () => void }) => {
-        onRouteChange && onRouteChange();
+        if (onRouteChange) {
+          onRouteChange();
+        }
         return <div>{children}</div>;
       },
       Route: ({ children }: { children?: any }) => <div>{children}</div>,
