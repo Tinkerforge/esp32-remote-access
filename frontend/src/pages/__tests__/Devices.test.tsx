@@ -1,13 +1,22 @@
 import { render, screen, waitFor, cleanup } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { DeviceList } from '../Devices';
-import { createRef } from 'preact';
+import { createRef, type RefObject } from 'preact';
 import { fetchClient, get_decrypted_secret } from '../../utils';
 import { Base64 } from 'js-base64';
 import sodium from 'libsodium-wrappers';
 import { showAlert } from '../../components/Alert';
 
 describe('Devices.tsx - DeviceList', () => {
+  // Helper to safely access the component instance without using non-null assertions
+  const getRef = (ref: RefObject<DeviceList>): DeviceList => {
+    const current = ref.current;
+    if (!current) {
+      throw new Error('DeviceList ref not set');
+    }
+    return current;
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -138,36 +147,36 @@ describe('Devices.tsx - DeviceList', () => {
       { id: 'a', uid: 2, name: 'Bravo', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
       { id: 'b', uid: 1, name: 'Alpha', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    ref.current!.setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
-    await waitFor(() => expect(ref.current!.state.devices.length).toBe(2));
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    await waitFor(() => expect(getRef(ref).state.devices.length).toBe(2));
 
     // First click -> sort by name asc
-    ref.current!.setSort('name');
-    await waitFor(() => expect(ref.current!.state.sortColumn).toBe('name'));
-    expect(ref.current!.state.sortSequence).toBe('asc');
-    expect(ref.current!.state.devices.map(d => d.name)).toEqual(['Alpha', 'Bravo']);
+    getRef(ref).setSort('name');
+    await waitFor(() => expect(getRef(ref).state.sortColumn).toBe('name'));
+    expect(getRef(ref).state.sortSequence).toBe('asc');
+    expect(getRef(ref).state.devices.map(d => d.name)).toEqual(['Alpha', 'Bravo']);
 
     // Second click -> name desc
-    ref.current!.setSort('name');
-    await waitFor(() => expect(ref.current!.state.sortSequence).toBe('desc'));
-    expect(ref.current!.state.devices.map(d => d.name)).toEqual(['Bravo', 'Alpha']);
+    getRef(ref).setSort('name');
+    await waitFor(() => expect(getRef(ref).state.sortSequence).toBe('desc'));
+    expect(getRef(ref).state.devices.map(d => d.name)).toEqual(['Bravo', 'Alpha']);
 
     // Third click -> none (defaults to name asc)
-    ref.current!.setSort('name');
-    await waitFor(() => expect(ref.current!.state.sortColumn).toBe('none'));
-    expect(ref.current!.state.devices.map(d => d.name)).toEqual(['Alpha', 'Bravo']);
+    getRef(ref).setSort('name');
+    await waitFor(() => expect(getRef(ref).state.sortColumn).toBe('none'));
+    expect(getRef(ref).state.devices.map(d => d.name)).toEqual(['Alpha', 'Bravo']);
   });
 
   it('setMobileSort toggles between selected and none', async () => {
     const ref = createRef<DeviceList>();
     render(<DeviceList ref={ref} />);
-    ref.current!.setState({ devices: [], sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    getRef(ref).setState({ devices: [], sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
 
-    ref.current!.setMobileSort('uid');
-    await waitFor(() => expect(ref.current!.state.sortColumn).toBe('uid'));
+    getRef(ref).setMobileSort('uid');
+    await waitFor(() => expect(getRef(ref).state.sortColumn).toBe('uid'));
 
-    ref.current!.setMobileSort('uid');
-    await waitFor(() => expect(ref.current!.state.sortColumn).toBe('none'));
+    getRef(ref).setMobileSort('uid');
+    await waitFor(() => expect(getRef(ref).state.sortColumn).toBe('none'));
   });
 
   it('handleDelete and handleDeleteConfirm remove device on success', async () => {
@@ -179,15 +188,15 @@ describe('Devices.tsx - DeviceList', () => {
       { id: 'x', uid: 10, name: 'X', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
       { id: 'y', uid: 11, name: 'Y', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    ref.current!.setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
 
-    ref.current!.handleDelete(devices[0]);
-    await waitFor(() => expect(ref.current!.state.showDeleteModal).toBe(true));
+    getRef(ref).handleDelete(devices[0]);
+    await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(true));
 
     (fetchClient.DELETE as unknown as Mock).mockResolvedValue({ response: { status: 200 } });
-    await ref.current!.handleDeleteConfirm();
-    await waitFor(() => expect(ref.current!.state.showDeleteModal).toBe(false));
-    expect(ref.current!.state.devices.map(d => d.id)).toEqual(['y']);
+    await getRef(ref).handleDeleteConfirm();
+    await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(false));
+    expect(getRef(ref).state.devices.map(d => d.id)).toEqual(['y']);
   });
 
   it('handleEditNote flows: submit updates note and cancel resets', async () => {
@@ -198,26 +207,26 @@ describe('Devices.tsx - DeviceList', () => {
     const devices = [
       { id: 'z', uid: 5, name: 'Z', status: 'Connected', note: 'old', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    ref.current!.setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
-    await waitFor(() => expect(ref.current!.state.devices.length).toBe(1));
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
 
-    ref.current!.handleEditNote(devices[0], 0);
-    await waitFor(() => expect(ref.current!.state.showEditNoteModal).toBe(true));
+    getRef(ref).handleEditNote(devices[0], 0);
+    await waitFor(() => expect(getRef(ref).state.showEditNoteModal).toBe(true));
 
     (sodium.crypto_box_seal as unknown as Mock).mockReturnValue(new Uint8Array([9, 9]));
     (fetchClient.POST as unknown as Mock).mockResolvedValue({ error: undefined });
     const evt = { preventDefault: vi.fn() } as unknown as Event;
-    ref.current!.setState({ editNote: 'new', editChargerIdx: 0 });
-    await ref.current!.handleEditNoteSubmit(evt);
-    await waitFor(() => expect(ref.current!.state.devices[0].note).toBe('new'));
-    expect(ref.current!.state.showEditNoteModal).toBe(false);
+    getRef(ref).setState({ editNote: 'new', editChargerIdx: 0 });
+    await getRef(ref).handleEditNoteSubmit(evt);
+    await waitFor(() => expect(getRef(ref).state.devices[0].note).toBe('new'));
+    expect(getRef(ref).state.showEditNoteModal).toBe(false);
 
-    ref.current!.handleEditNote(devices[0], 0);
-    await waitFor(() => expect(ref.current!.state.showEditNoteModal).toBe(true));
-    ref.current!.handleEditNoteCancel();
-    await waitFor(() => expect(ref.current!.state.showEditNoteModal).toBe(false));
-    expect(ref.current!.state.editNote).toBe('');
-    expect(ref.current!.state.editChargerIdx).toBe(-1);
+    getRef(ref).handleEditNote(devices[0], 0);
+    await waitFor(() => expect(getRef(ref).state.showEditNoteModal).toBe(true));
+    getRef(ref).handleEditNoteCancel();
+    await waitFor(() => expect(getRef(ref).state.showEditNoteModal).toBe(false));
+    expect(getRef(ref).state.editNote).toBe('');
+    expect(getRef(ref).state.editChargerIdx).toBe(-1);
   });
 
   it('handleEditNoteSubmit shows alert on error', async () => {
@@ -228,13 +237,13 @@ describe('Devices.tsx - DeviceList', () => {
     const devices = [
       { id: 'n1', uid: 1, name: 'Name', status: 'Connected', note: 'old', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    ref.current!.setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: true, editNote: 'upd', editChargerIdx: 0 });
-    await waitFor(() => expect(ref.current!.state.devices.length).toBe(1));
-    await waitFor(() => expect(ref.current!.state.showEditNoteModal).toBe(true));
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: true, editNote: 'upd', editChargerIdx: 0 });
+    await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
+    await waitFor(() => expect(getRef(ref).state.showEditNoteModal).toBe(true));
     (sodium.crypto_box_seal as unknown as Mock).mockReturnValue(new Uint8Array([1]));
     (fetchClient.POST as unknown as Mock).mockResolvedValue({ error: 'err' });
     const evt = { preventDefault: vi.fn() } as unknown as Event;
-    await ref.current!.handleEditNoteSubmit(evt);
+    await getRef(ref).handleEditNoteSubmit(evt);
     await waitFor(() => expect((showAlert as unknown as Mock)).toHaveBeenCalled());
   });
 
@@ -246,12 +255,12 @@ describe('Devices.tsx - DeviceList', () => {
     const devices = [
       { id: 'u', uid: 7, name: 'U', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    ref.current!.setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
-    await waitFor(() => expect(ref.current!.state.devices.length).toBe(1));
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
 
     (fetchClient.GET as unknown as Mock).mockImplementation(() => { throw new Error('Network fail'); });
-    await ref.current!.updateChargers();
-    expect(ref.current!.state.devices[0].status).toBe('Disconnected');
+    await getRef(ref).updateChargers();
+    expect(getRef(ref).state.devices[0].status).toBe('Disconnected');
   });
 
   it('updateChargers marks device invalid when decryption fails', async () => {
@@ -264,17 +273,17 @@ describe('Devices.tsx - DeviceList', () => {
       error: undefined,
       response: { status: 200 },
     });
-    await ref.current!.updateChargers();
-    expect(ref.current!.state.devices[0].valid).toBe(false);
-    expect(ref.current!.state.devices[0].name).toBe('');
-    expect(typeof ref.current!.state.devices[0].note).toBe('string');
+    await getRef(ref).updateChargers();
+    expect(getRef(ref).state.devices[0].valid).toBe(false);
+    expect(getRef(ref).state.devices[0].name).toBe('');
+    expect(typeof getRef(ref).state.devices[0].note).toBe('string');
   });
 
   it('componentWillUnmount clears the interval', () => {
     const ref = createRef<DeviceList>();
     render(<DeviceList ref={ref} />);
     const spy = vi.spyOn(global, 'clearInterval');
-    ref.current!.componentWillUnmount();
+    getRef(ref).componentWillUnmount();
     expect(spy).toHaveBeenCalled();
   });
 });
