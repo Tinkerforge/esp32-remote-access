@@ -107,13 +107,10 @@ where
     }
 
     pub fn disconnect(&self) {
-        match &*self.state.borrow_mut() {
-            WebsocketState::Connected(state) => {
-                let mut socket = state.stream.borrow_mut();
-                let _ = socket.close(None);
-                let _ = socket.flush();
-            }
-            _ => (),
+        if let WebsocketState::Connected(state) = &*self.state.borrow_mut() {
+            let mut socket = state.stream.borrow_mut();
+            let _ = socket.close(None);
+            let _ = socket.flush();
         }
     }
 
@@ -167,7 +164,7 @@ fn create_setup_closure<Device>(
         let read: usize = match stream.read(&mut buf) {
             Ok(len) => len,
             Err(e) => {
-                log::error!("error while reading from stream: {}", e.to_string());
+                log::error!("error while reading from stream: {}", e);
                 return;
             }
         };
@@ -180,13 +177,13 @@ fn create_setup_closure<Device>(
                     return;
                 }
                 Err(e) => {
-                    log::error!("error while parsing response: {}", e.to_string());
+                    log::error!("error while parsing response: {}", e);
                     return;
                 }
             };
 
         if let Some(accept_key) = response.headers().get("Sec-WebSocket-Accept") {
-            if accept_key.as_bytes() != derive_accept_key(&key.as_bytes()).as_bytes() {
+            if accept_key.as_bytes() != derive_accept_key(key.as_bytes()).as_bytes() {
                 panic!("invalid accept key");
             }
         } else {
@@ -251,7 +248,7 @@ fn create_websocket_closure<Device>(
                         },
                         _ => log::error!(
                             "error while reading from Websocket: {}",
-                            e.to_string()
+                            e
                         ),
                     }
                     return;

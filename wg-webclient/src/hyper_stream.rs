@@ -49,7 +49,7 @@ impl hyper::rt::Read for HyperStream {
         let mut stream = self.stream.borrow_mut();
         stream.poll();
         if !stream.can_recv() {
-            cx.waker().clone().wake();
+            cx.waker().wake_by_ref();
             return Poll::Pending;
         }
         let write_buf = unsafe { buf.as_mut() };
@@ -77,8 +77,7 @@ impl hyper::rt::Write for HyperStream {
         let mut stream = self.stream.borrow_mut();
         match stream.write(buf) {
             Ok(len) => Poll::Ready(Ok(len)),
-            Err(_) => Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            Err(_) => Poll::Ready(Err(std::io::Error::other(
                 "failed to write data",
             ))),
         }
@@ -96,8 +95,7 @@ impl hyper::rt::Write for HyperStream {
         }
         match stream.flush() {
             Ok(_) => Poll::Ready(Ok(())),
-            Err(err) => Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            Err(err) => Poll::Ready(Err(std::io::Error::other(
                 format!("failed to flush data: {:?}", err),
             ))),
         }

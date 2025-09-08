@@ -58,10 +58,10 @@ pub struct WgTunDevice {
     socket: Rc<WebSocket>,
     socket_state: Rc<RefCell<WsConnectionState>>,
     _reset_rate_limiter_interval: Rc<IntervalHandle<JsValue>>,
-    _onopen_closure: Rc<Closure<dyn FnMut(JsValue) -> ()>>,
-    _onclose_closure: Rc<Closure<dyn FnMut(JsValue) -> ()>>,
-    _onerror_closure: Rc<Closure<dyn FnMut(JsValue) -> ()>>,
-    _onmessage_closure: Rc<Closure<dyn FnMut(MessageEvent) -> ()>>,
+    _onopen_closure: Rc<Closure<dyn FnMut(JsValue)>>,
+    _onclose_closure: Rc<Closure<dyn FnMut(JsValue)>>,
+    _onerror_closure: Rc<Closure<dyn FnMut(JsValue)>>,
+    _onmessage_closure: Rc<Closure<dyn FnMut(MessageEvent)>>,
 }
 
 impl WgTunDevice {
@@ -151,7 +151,7 @@ fn create_onopen_closure(
     onopen_socket_state: Weak<RefCell<WsConnectionState>>,
     onopen_tun: Weak<RefCell<Tunn>>,
     onopen_socket: Weak<WebSocket>,
-) -> Closure<dyn FnMut(JsValue) -> ()> {
+) -> Closure<dyn FnMut(JsValue)> {
     Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
         log::debug!("Parent WebSocket Opened");
         let onopen_socket_state = onopen_socket_state.upgrade().unwrap();
@@ -199,7 +199,7 @@ fn create_onmessage_closure(
     message_vec: Weak<RefCell<VecDeque<Vec<u8>>>>,
     message_pcap: Weak<RefCell<PcapNgWriter<Vec<u8>>>>,
     connect_cb: js_sys::Function,
-) -> Closure<dyn FnMut(MessageEvent) -> ()> {
+) -> Closure<dyn FnMut(MessageEvent)> {
     let connected = Rc::new(RefCell::new(false));
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         let data = e.data();
@@ -233,7 +233,7 @@ fn create_onmessage_closure(
                 TunnResult::WriteToNetwork(d) => {
                     if pcap_logging_enabled() {
                         let pcap_strong = message_pcap.upgrade().unwrap();
-                        log_pcap_data(&pcap_strong, &d);
+                        log_pcap_data(&pcap_strong, d);
                     }
                     let mut connected = connected.borrow_mut();
                     if !*connected {
@@ -256,7 +256,7 @@ fn create_onmessage_closure(
                     {
                         if pcap_logging_enabled() {
                             let pcap_strong = message_pcap.upgrade().unwrap();
-                            log_pcap_data(&pcap_strong, &d);
+                            log_pcap_data(&pcap_strong, d);
                         }
                         let _ = message_socket.send_with_u8_array(d);
                     }
@@ -273,7 +273,7 @@ fn create_onmessage_closure(
                 TunnResult::WriteToTunnelV4(d, _) => {
                     if pcap_logging_enabled() {
                         let pcap_strong = message_pcap.upgrade().unwrap();
-                        log_pcap_data(&pcap_strong, &d);
+                        log_pcap_data(&pcap_strong, d);
                     }
                     let message_vec = message_vec.upgrade().unwrap();
                     (*message_vec.borrow_mut()).push_back(d.to_vec());

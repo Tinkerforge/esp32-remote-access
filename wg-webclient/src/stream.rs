@@ -131,7 +131,7 @@ impl<Device: phy::Device + Clone + IsUp> Write for TcpStream<'_, Device> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let mut inner_buf = self.buf.borrow_mut();
-        Ok(inner_buf.write(buf)?)
+        inner_buf.write(buf)
     }
 
     #[inline]
@@ -140,7 +140,7 @@ impl<Device: phy::Device + Clone + IsUp> Write for TcpStream<'_, Device> {
         match self
             .iface
             .borrow_mut()
-            .send_slice(self.handle, &mut buf[..])
+            .send_slice(self.handle, &buf[..])
         {
             Ok(sent) => {
                 if sent != buf.len() {
@@ -149,8 +149,7 @@ impl<Device: phy::Device + Clone + IsUp> Write for TcpStream<'_, Device> {
                 }
             }
             Err(e) => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                return Err(std::io::Error::other(
                     format!("failed to send data: {:?}", e),
                 ))
             }
@@ -192,8 +191,7 @@ impl<Device: phy::Device + Clone + IsUp> Read for TcpStream<'_, Device> {
             Ok(len) => Ok(len),
             Err(e) => match e {
                 RecvError::Finished => Ok(0),
-                RecvError::InvalidState => Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                RecvError::InvalidState => Err(std::io::Error::other(
                     "failed to recv data",
                 )),
             },

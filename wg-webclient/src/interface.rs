@@ -64,7 +64,7 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
     }
 
     #[inline]
-    pub fn get_socket(&self, handle: SocketHandle) -> &Socket {
+    pub fn get_socket(&self, handle: SocketHandle) -> &Socket<'_> {
         self.sockets.get::<Socket>(handle)
     }
 

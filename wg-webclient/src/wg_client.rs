@@ -37,6 +37,12 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{CustomEvent, MessageEvent, Response};
 
+type EventClosure = Closure<dyn FnMut(CustomEvent)>;
+type EventQueue = Rc<RefCell<VecDeque<EventClosure>>>;
+type HyperResp = hyper::Response<hyper::body::Incoming>;
+type RequestFuture = Pin<Box<dyn Future<Output = hyper::Result<HyperResp>>>>;
+type ConnPin = Pin<Box<Connection<HyperStream, Box<Body>>>>;
+type RespPin = Pin<Box<HyperResp>>;
 
 /// The exported client struct. It Wraps the actual Client and a Queue to keep the needed
 /// callbacks alive.
@@ -44,7 +50,7 @@ use web_sys::{CustomEvent, MessageEvent, Response};
 #[wasm_bindgen]
 pub struct Client(
     WgClient,
-    Rc<RefCell<VecDeque<Closure<dyn FnMut(CustomEvent)>>>>,
+    EventQueue,
 );
 
 #[wasm_bindgen]
@@ -52,6 +58,7 @@ impl Client {
 
     /// Creates a new Client struct by also creating the wrapped objects.
     #[wasm_bindgen(constructor)]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         secret_str: &str,
         peer_str: &str,
@@ -178,6 +185,7 @@ enum RequestState {
 impl WgClient {
 
     /// Creates a new object.
+    #[allow(clippy::too_many_arguments)]
     fn new(
         secret_str: &str,
         peer_str: &str,
@@ -231,7 +239,7 @@ impl WgClient {
             current_request: Rc::new(RefCell::new(None)),
             request_queue: Rc::new(RefCell::new(VecDeque::new())),
             pcap,
-            internal_peer_ip: (&internal_peer_ip[0..internal_peer_ip.len() - 3]).to_string(),
+            internal_peer_ip: internal_peer_ip[0..internal_peer_ip.len() - 3].to_string(),
             _polling_interval: polling_interval,
             username: Rc::new(RefCell::new(String::new())),
             password: Rc::new(RefCell::new(String::new())),
@@ -252,9 +260,9 @@ impl WgClient {
         let port = port as u16;
         let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), self.port);
         if let Err(err) = stream.connect(endpoint, port) {
-            log::error!("Error when connecting websocket: {}", err.to_string());
+            log::error!("Error when connecting websocket: {}", err);
         }
-        let auth_header = if self.nonce.borrow().len() != 0 {
+        let auth_header = if !self.nonce.borrow().is_empty() {
             Some(self.build_authentication_header("GET", "/ws"))
         } else {
             None
@@ -269,7 +277,7 @@ impl WgClient {
         let ha1 = md5::compute(format!("{}:{}:{}", self.username.borrow(), self.realm.borrow(), self.password.borrow()));
         let ha2 = md5::compute(format!("{}:{}", method, uri));
 
-        let this: JsValue = js_sys::global().try_into().unwrap();
+        let this: JsValue = js_sys::global().into();
         let this = web_sys::WorkerGlobalScope::from(this);
         let crypto = this.crypto().unwrap();
 
@@ -367,7 +375,7 @@ impl WgClient {
 
                     // FIXME: throw exception instead of panic
                     if let Err(err) = stream.upgrade().unwrap().borrow_mut().connect(endpoint, out_port) {
-                        log::error!("Error connecting to endpoint {}: {}", endpoint, err.to_string());
+                        log::error!("Error connecting to endpoint {}: {}", endpoint, err);
                         return;
                     }
                     *state_ref = RequestState::Started;
@@ -429,7 +437,7 @@ impl WgClient {
         let document = window.document().unwrap();
         let element = document.create_element("a").unwrap();
         element.set_attribute("download", "out.pcap").unwrap();
-        element.set_attribute("href", &file.to_string()).unwrap();
+        element.set_attribute("href", &file).unwrap();
         element.set_attribute("target", "_blank").unwrap();
         let element = wasm_bindgen::JsValue::from(element);
         let element = web_sys::HtmlElement::from(element);
@@ -451,7 +459,7 @@ impl WgClient {
 
 
 /// Transforms the raw tcp stream into sender and receiver objects for hyper.
-fn setup_connection(sender: Weak<RefCell<Option<SendRequest<Box<Body>>>>>, conn: Weak<RefCell<Option<std::pin::Pin<Box<Connection<HyperStream, Box<Body>>>>>>>, state: Weak<RefCell<RequestState>>, stream: Weak<RefCell<TcpStream<'static, WgTunDevice>>>) {
+fn setup_connection(sender: Weak<RefCell<Option<SendRequest<Box<Body>>>>>, conn: Weak<RefCell<Option<ConnPin>>>, state: Weak<RefCell<RequestState>>, stream: Weak<RefCell<TcpStream<'static, WgTunDevice>>>) {
     wasm_bindgen_futures::spawn_local(async move {
         let stream = HyperStream::new(stream.upgrade().unwrap().clone());
 
@@ -470,7 +478,7 @@ fn send_http_reqeust(
     js_request: Rc<web_sys::Request>,
     url: Rc<String>,
     sender: Weak<RefCell<Option<SendRequest<Box<Body>>>>>,
-    request: Weak<RefCell<Option<Pin<Box<dyn Future<Output = hyper::Result<hyper::Response<hyper::body::Incoming>>>>>>>>,
+    request: Weak<RefCell<Option<RequestFuture>>>,
     state: Weak<RefCell<RequestState>>,
     self_cpy: WgClient,
 ) {
@@ -502,7 +510,7 @@ fn send_http_reqeust(
             req = req.header(key, value);
         }
 
-        if self_cpy.nonce.borrow().len() != 0 {
+        if !self_cpy.nonce.borrow().is_empty() {
             let auth_header = self_cpy.build_authentication_header(&method_str, &url);
             req = req.header("Authorization", auth_header);
         }
@@ -525,10 +533,10 @@ fn send_http_reqeust(
 
 /// Polls the sending end of the hyper connection until the request is sent.
 fn poll_request(
-    request: Rc<RefCell<Option<Pin<Box<dyn Future<Output = hyper::Result<hyper::Response<hyper::body::Incoming>>>>>>>>,
-    resp: Rc<RefCell<Option<Pin<Box<hyper::Response<hyper::body::Incoming>>>>>>,
+    request: Rc<RefCell<Option<RequestFuture>>>,
+    resp: Rc<RefCell<Option<RespPin>>>,
     mut state: std::cell::RefMut<'_, RequestState>,
-    conn: Rc<RefCell<Option<std::pin::Pin<Box<Connection<HyperStream, Box<Body>>>>>>>,
+    conn: Rc<RefCell<Option<ConnPin>>>,
 ) {
     let waker = futures::task::noop_waker();
     let mut cx = std::task::Context::from_waker(&waker);
@@ -556,12 +564,12 @@ fn poll_request(
 
 /// Collects the raw response stream and parses it into a Response object.
 fn poll_response(
-    resp: Rc<RefCell<Option<Pin<Box<hyper::Response<hyper::body::Incoming>>>>>>,
+    resp: Rc<RefCell<Option<RespPin>>>,
     result: Rc<RefCell<Vec<u8>>>,
     mut state_ref: std::cell::RefMut<'_, RequestState>,
     self_cpy: WgClient,
     id: f64,
-    conn: Rc<RefCell<Option<std::pin::Pin<Box<Connection<HyperStream, Box<Body>>>>>>>,
+    conn: Rc<RefCell<Option<ConnPin>>>,
 ) {
     let waker = futures::task::noop_waker();
     let mut cx = std::task::Context::from_waker(&waker);
