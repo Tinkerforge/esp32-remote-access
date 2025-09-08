@@ -80,8 +80,9 @@ export function DeviceTableRow({
                         <Col
                             className="d-flex align-items-center p-0"
                         >
+                            {/* This Container is needed to enable multiple lines in the note */}
                             <Container
-                                className="ps-0"
+                                className="ps-0 m-0 mw-100"
                                 onClick={split.length <= 2 ? undefined : () => setExpand(!expand)}
                                 style={{cursor: split.length <= 1 ? undefined : "pointer"}}
                             >
@@ -124,7 +125,7 @@ export function DeviceTableRow({
                     </Row>
                 </Container>
             </td>
-            <td class="align-middle" style={{width: "1px", whiteSpace: "nowrap", padding: "0.5rem 0.25rem"}}>
+            <td class="align-middle">
                 {device.firmware_version}
             </td>
         </tr>
