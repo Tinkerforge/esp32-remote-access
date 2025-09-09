@@ -6,6 +6,13 @@ export const en = {
     "alert_default_success": "Success!",
     description,
     "no_service_worker": "Your browser needs support for ServiceWorkers to be able to run the Remote Access.",
+    "not_now": "Not now",
+    "allow": "Allow",
+    "storage_persistence": {
+        "title": "Keep you signed in",
+        "body": "We use your browser's storage to keep you signed in. Some browsers clear this data automatically (e.g., on low storage or after some time). Allowing persistent storage helps prevent unexpected logouts.",
+        "remember_choice": "Don't ask again"
+    },
     "user": {
         "account_actions": "Account actions",
         "profile_information": "Account information",

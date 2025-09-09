@@ -32,7 +32,9 @@ import Tab from "react-bootstrap/Tab";
 import { ErrorAlert } from './components/Alert.js';
 import { isDebugMode, refresh_access_token } from './utils';
 import { AppState, loggedIn } from './utils.js';
-import { Col, Spinner } from 'react-bootstrap';
+import { Col, Form, Spinner } from 'react-bootstrap';
+import Modal from "react-bootstrap/Modal";
+import Button from "react-bootstrap/Button";
 import { Recovery } from './pages/Recovery.js';
 import { Trans, useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
@@ -44,7 +46,7 @@ import { startVersionChecking } from './versionChecker';
 
 import "./styles/main.scss";
 import { docs } from "links";
-import { useEffect } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 
 if (isDebugMode.value) {
     addEventListener("unhandledrejection", (event) => {
@@ -78,6 +80,52 @@ const Frame = lazy(() => import('./pages/Frame.js').then(m => m.Frame));
 
 export function App() {
     const {t} = useTranslation("", {useSuspense: false});
+
+    const [modalConfig, setModalConfig] = useState({ show: false, rememberChoice: false });
+
+    console.log(window.navigator.userAgent);
+    if (window.navigator.userAgent.indexOf("Firefox") !== -1 && localStorage.getItem("persistedChoice") !== "true") {
+        useEffect(() => {
+            (async () => {
+                try {
+                    const persisted = await navigator.storage.persisted();
+                    console.log(`Storage persisted: ${persisted}`);
+                    if (!persisted) {
+                        setModalConfig({...modalConfig, show: true });
+                    }
+                } catch (e) {
+                    console.warn("Failed to check storage persistence", e);
+                }
+            })();
+        }, []);
+    } else {
+        useEffect(() => {
+            (async () => {
+                try {
+                    const granted = await navigator.storage.persist();
+                    console.log(`Storage persistence granted: ${granted}`);
+                    if (!granted) {
+                        console.warn("Storage persistence not granted. You may be logged out from time to time.");
+                    }
+                } catch (e) {
+                    console.warn("Failed to request storage persistence", e);
+                }
+            })();
+        }, []);
+    }
+
+    const requestPersistence = async () => {
+        try {
+            const granted = await navigator.storage.persist();
+            if (!granted) {
+                console.warn("Storage persistence not granted. You may be logged out from time to time.");
+            }
+        } catch (e) {
+            console.warn("Failed to request storage persistence", e);
+        } finally {
+            setModalConfig({...modalConfig, show: false });
+        }
+    };
 
     useEffect(() => {
         if (!connected.value) {
@@ -118,6 +166,39 @@ export function App() {
             navigator.serviceWorker.controller?.postMessage(msg);
         }
     }, []);
+
+    // Prepare persistence explanation modal to render alongside any app state
+    const persistModal = (
+        <Modal show={modalConfig.show} onHide={() => setModalConfig({...modalConfig, show: false})} backdrop="static" keyboard={false} centered>
+            <Modal.Header closeButton>
+                <Modal.Title>{t("storage_persistence.title", { defaultValue: "Keep you signed in" })}</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                {t("storage_persistence.body")}
+                <div className="mt-3"
+                     onClick={() => setModalConfig({...modalConfig, rememberChoice: !modalConfig.rememberChoice})}>
+                    <Form.Check
+                        type="checkbox"
+                        label={t("storage_persistence.remember_choice")}
+                        checked={modalConfig.rememberChoice}
+                    />
+                </div>
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="secondary" onClick={() => {
+                    setModalConfig({...modalConfig, show: false});
+                    if (modalConfig.rememberChoice) {
+                        localStorage.setItem("persistedChoice", "true");
+                    }
+                }}>
+                    {t("not_now")}
+                </Button>
+                <Button variant="primary" onClick={requestPersistence}>
+                    {t("allow")}
+                </Button>
+            </Modal.Footer>
+        </Modal>
+    );
 
     if (!window.ServiceWorker) {
         return <Row fluid className="align-content-center justify-content-center vh-100">
@@ -187,6 +268,7 @@ export function App() {
                         </LocationProvider>
                     </Col>
                     { Median.isNativeApp() ? <></> : <Footer /> }
+                    {persistModal}
                 </>
             );
         // we need an extra recovery state, otherwise we would show the login/register page.

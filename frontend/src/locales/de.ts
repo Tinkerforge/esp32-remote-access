@@ -6,6 +6,13 @@ export const de ={
     "alert_default_success": "Erfolg!",
     description,
     "no_service_worker": "Dein Browser benötigt Unterstützung für ServiceWorker um den Fernzugriff nutzen zu können.",
+    "not_now": "Jetzt nicht",
+    "allow": "Erlauben",
+    "storage_persistence": {
+        "title": "Angemeldet bleiben",
+        "body": "Wir verwenden den Speicher deines Browsers, um dich angemeldet zu halten. Einige Browser löschen diese Daten automatisch (z. B. bei wenig Speicherplatz oder nach einiger Zeit). Das Zulassen von dauerhaftem Speicher hilft unerwartete Abmeldungen zu vermeiden.",
+        "remember_choice": "Nicht mehr fragen"
+    },
     "user": {
         "account_actions": "Kontoaktionen",
         "profile_information": "Kontoinformationen",
