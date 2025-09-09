@@ -18,13 +18,13 @@
  */
 
 import { Component } from "preact";
-import { Form, Button, Modal, Card, Container } from "react-bootstrap";
+import { Form, Button, Modal, Card, Container, Collapse, Row, Col } from "react-bootstrap";
 import { useState } from "preact/hooks";
 import { fetchClient, isDebugMode, PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/Navbar";
 import { useTranslation } from "react-i18next";
-import { signal } from "@preact/signals";
+import { useSignal } from "@preact/signals";
 import { PasswordComponent } from "../components/PasswordComponent";
 import i18n from "../i18n";
 import { showAlert } from "../components/Alert";
@@ -147,7 +147,12 @@ export function User() {
     const [newPasswordIsValid, setNewPasswordIsValid] = useState(true);
     const [confirmNewPassword, setConfirmNewPassword] = useState("");
     const [confirmNewPasswordIsValid, setConfirmNewPasswordIsValid] = useState(true);
-    const validated = signal(false);
+    const storagePersisted = useSignal(false);
+
+    navigator.storage.persisted().then((persisted) => {
+        storagePersisted.value = persisted;
+    });
+    const validated = useSignal(false);
 
     const handleUpdatePasswordClose = () => setShowPasswordReset(false);
     const handleUpdatePasswordShow = () => setShowPasswordReset(true);
@@ -295,6 +300,20 @@ export function User() {
                                     localStorage.removeItem("debugMode");
                                 }
                             }} />
+                        <Collapse in={isDebugMode.value}>
+                            <div className="mt-3">
+                                <Row>
+                                    <Col>{`Storage persisted: ${storagePersisted.value ? "yes" : "no"}`}</Col>
+                                </Row>
+                                <Button
+                                    className="mt-2"
+                                    variant="secondary"
+                                    disabled={storagePersisted.value}
+                                    size="sm" onClick={async () => {
+                                        storagePersisted.value = await navigator.storage.persist();
+                                    }}>Request Storage Persistence</Button>
+                            </div>
+                        </Collapse>
                     </Card.Body>
                 <Card.Header className="border-top pb-2">
                     <h5 className="mb-0">{t("account_actions")}</h5>
