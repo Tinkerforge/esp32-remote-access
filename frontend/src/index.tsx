@@ -83,7 +83,19 @@ export function App() {
 
     const [modalConfig, setModalConfig] = useState({ show: false, rememberChoice: false });
 
-    console.log(window.navigator.userAgent);
+    const requestPersistence = async () => {
+        try {
+            const granted = await navigator.storage.persist();
+            if (!granted) {
+                console.warn("Storage persistence not granted. You may be logged out from time to time.");
+            }
+        } catch (e) {
+            console.warn("Failed to request storage persistence", e);
+        } finally {
+            setModalConfig({...modalConfig, show: false });
+        }
+    };
+
     if (window.navigator.userAgent.indexOf("Firefox") !== -1 && localStorage.getItem("persistedChoice") !== "true") {
         useEffect(() => {
             (async () => {
@@ -101,31 +113,12 @@ export function App() {
     } else {
         useEffect(() => {
             (async () => {
-                try {
-                    const granted = await navigator.storage.persist();
-                    console.log(`Storage persistence granted: ${granted}`);
-                    if (!granted) {
-                        console.warn("Storage persistence not granted. You may be logged out from time to time.");
-                    }
-                } catch (e) {
-                    console.warn("Failed to request storage persistence", e);
+                if (!await navigator.storage.persisted()) {
+                    await requestPersistence();
                 }
             })();
         }, []);
     }
-
-    const requestPersistence = async () => {
-        try {
-            const granted = await navigator.storage.persist();
-            if (!granted) {
-                console.warn("Storage persistence not granted. You may be logged out from time to time.");
-            }
-        } catch (e) {
-            console.warn("Failed to request storage persistence", e);
-        } finally {
-            setModalConfig({...modalConfig, show: false });
-        }
-    };
 
     useEffect(() => {
         if (!connected.value) {
