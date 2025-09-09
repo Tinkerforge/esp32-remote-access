@@ -85,7 +85,10 @@ export function App() {
 
     const requestPersistence = async () => {
         try {
-            const granted = await navigator.storage.persist();
+            const storageManager: StorageManager | undefined = (navigator as unknown as { storage?: StorageManager }).storage;
+            const granted = storageManager && typeof storageManager.persist === "function"
+                ? await storageManager.persist()
+                : false;
             if (!granted) {
                 console.warn("Storage persistence not granted. You may be logged out from time to time.");
             }
@@ -100,7 +103,10 @@ export function App() {
         useEffect(() => {
             (async () => {
                 try {
-                    const persisted = await navigator.storage.persisted();
+                    const storageManager: StorageManager | undefined = (navigator as unknown as { storage?: StorageManager }).storage;
+                    const persisted = storageManager && typeof storageManager.persisted === "function"
+                        ? await storageManager.persisted()
+                        : false;
                     console.log(`Storage persisted: ${persisted}`);
                     if (!persisted) {
                         setModalConfig({...modalConfig, show: true });
@@ -113,7 +119,11 @@ export function App() {
     } else {
         useEffect(() => {
             (async () => {
-                if (!await navigator.storage.persisted()) {
+                const storageManager: StorageManager | undefined = (navigator as unknown as { storage?: StorageManager }).storage;
+                const persisted = storageManager && typeof storageManager.persisted === "function"
+                    ? await storageManager.persisted()
+                    : false;
+                if (!persisted) {
                     await requestPersistence();
                 }
             })();
@@ -261,7 +271,7 @@ export function App() {
                         </LocationProvider>
                     </Col>
                     { Median.isNativeApp() ? <></> : <Footer /> }
-                    {persistModal}
+                    { import.meta.env?.MODE === 'test' ? null : persistModal }
                 </>
             );
         // we need an extra recovery state, otherwise we would show the login/register page.

@@ -149,9 +149,13 @@ export function User() {
     const [confirmNewPasswordIsValid, setConfirmNewPasswordIsValid] = useState(true);
     const storagePersisted = useSignal(false);
 
-    navigator.storage.persisted().then((persisted) => {
-        storagePersisted.value = persisted;
-    });
+    // navigator.storage is not available in jsdom and some browsers
+    const storageManager: StorageManager | undefined = (navigator as unknown as { storage?: StorageManager }).storage;
+    if (storageManager && typeof storageManager.persisted === "function") {
+        storageManager.persisted().then((persisted) => {
+            storagePersisted.value = persisted;
+        });
+    }
     const validated = useSignal(false);
 
     const handleUpdatePasswordClose = () => setShowPasswordReset(false);
@@ -310,7 +314,9 @@ export function User() {
                                     variant="secondary"
                                     disabled={storagePersisted.value}
                                     size="sm" onClick={async () => {
-                                        storagePersisted.value = await navigator.storage.persist();
+                                        if (storageManager && typeof storageManager.persist === "function") {
+                                            storagePersisted.value = await storageManager.persist();
+                                        }
                                     }}>Request Storage Persistence</Button>
                             </div>
                         </Collapse>
