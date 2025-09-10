@@ -28,27 +28,31 @@ function handleWGRequest(event: FetchEvent) {
         headers1.push([key, val]);
     });
     if (event.request.headers.has("X-Connection-Id") || url.startsWith("/wg-")) {
-        let receiver_id = "";
-        let firmware_version: string | null = null;
+        let receiverId = "";
+        let chargerId: string | null = null;
         if (url.startsWith("/wg-")) {
             url = url.replace("/wg-", "");
             const first = url.indexOf("/");
-            receiver_id = url.substring(0, first);
-            url = url.replace(receiver_id, "");
+            receiverId = url.substring(0, first);
+            url = url.replace(receiverId, "");
             const parsedUrl = new URL(url, self.location.origin);
-            firmware_version = parsedUrl.searchParams.get("firmware_version");
-            firmware_version = firmware_version?.replace("+", "_") || null;
-            firmware_version = firmware_version?.replaceAll(".", "_") || null;
+            chargerId = parsedUrl.searchParams.get("charger");
             if (parsedUrl.pathname !== "/") {
-                firmware_version = null;
                 url = parsedUrl.pathname;
             }
         } else {
-            receiver_id = event.request.headers.get("X-Connection-Id") as string;
+            receiverId = event.request.headers.get("X-Connection-Id") as string;
         }
         const promise: Promise<Response> = new Promise(async (resolve) => {
-            if (firmware_version) {
-                const response = await fetch(`/api/static/${firmware_version}_index.html`);
+            if (chargerId) {
+                const params = new URLSearchParams([
+                    ['charger', chargerId]
+                ]);
+                const req = new Request(`/api/webinterface?${params.toString()}`, {cache: 'no-cache'});
+                const response = await fetch(req, {
+                    method: 'GET',
+                    headers: new Headers(headers1)
+                });
                 if (response.status === 200) {
                     const ds = new DecompressionStream("gzip");
                     const stream = response.body?.pipeThrough(ds);
@@ -77,7 +81,7 @@ function handleWGRequest(event: FetchEvent) {
                 url
             };
             const msg: Message = {
-                receiver_id,
+                receiver_id: receiverId,
                 id,
                 type: MessageType.Fetch,
                 data: message

@@ -82,7 +82,7 @@ async fn main() {
             routes::auth::register::register,
             routes::auth::verify::verify,
             routes::auth::generate_salt::generate_salt,
-            routes::auth:: jwt_refresh::jwt_refresh,
+            routes::auth::jwt_refresh::jwt_refresh,
             routes::auth::get_login_salt::get_login_salt,
             routes::auth::recovery::recovery,
             routes::auth::start_recovery::start_recovery,
@@ -108,6 +108,7 @@ async fn main() {
             routes::check_expiration::check_expiration,
             routes::management::management,
             routes::send_chargelog_to_user::send_chargelog,
+            routes::webinterface::get_webinterface,
         ),
         components(schemas(
             routes::auth::login::LoginSchema,
