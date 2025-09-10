@@ -7,8 +7,8 @@ use utoipa::ToSchema;
 use crate::{
     error::Error,
     rate_limit::ChargerRateLimiter,
-    routes::charger::add::{get_charger_from_db, password_matches},
-    utils::{get_charger_by_uid, get_connection, parse_uuid, web_block_unpacked},
+    routes::charger::add::password_matches,
+    utils::{get_charger_by_uid, get_charger_from_db, get_connection, parse_uuid, web_block_unpacked},
     AppState,
 };
 

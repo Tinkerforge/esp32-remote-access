@@ -117,6 +117,29 @@ pub async fn get_charger_by_uid(
     Err(Error::ChargerCredentialsWrong.into())
 }
 
+pub async fn get_charger_from_db(
+    charger_id: uuid::Uuid,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<Charger> {
+    let mut conn = get_connection(state)?;
+    let charger: Charger = web_block_unpacked(move || {
+        use db_connector::schema::chargers::dsl::*;
+
+        match chargers
+            .filter(id.eq(charger_id))
+            .select(Charger::as_select())
+            .get_result(&mut conn)
+        {
+            Ok(c) => Ok(c),
+            Err(NotFound) => Err(Error::WrongCredentials),
+            Err(_err) => Err(Error::InternalError),
+        }
+    })
+    .await?;
+
+    Ok(charger)
+}
+
 pub async fn validate_auth_token(
     token: String,
     user_id: uuid::Uuid,

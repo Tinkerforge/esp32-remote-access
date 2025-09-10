@@ -7,10 +7,10 @@ use crate::{
     error::Error,
     rate_limit::ChargerRateLimiter,
     routes::{
-        charger::add::{get_charger_from_db, password_matches},
+        charger::add::password_matches,
         user::get_user,
     },
-    utils::{parse_uuid, send_email_with_attachment},
+    utils::{get_charger_from_db, parse_uuid, send_email_with_attachment},
     AppState,
 };
 

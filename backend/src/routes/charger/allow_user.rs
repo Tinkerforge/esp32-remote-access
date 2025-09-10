@@ -29,10 +29,9 @@ use crate::{
     rate_limit::ChargerRateLimiter,
     routes::{
         auth::login::{validate_password, FindBy},
-        charger::add::get_charger_from_db,
         user::get_user_id,
     },
-    utils::{get_connection, parse_uuid, validate_auth_token, web_block_unpacked},
+    utils::{get_charger_from_db, get_connection, parse_uuid, validate_auth_token, web_block_unpacked},
     AppState,
 };
 

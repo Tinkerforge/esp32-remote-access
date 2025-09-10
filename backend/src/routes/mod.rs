@@ -24,7 +24,7 @@ pub mod management;
 pub mod selfdestruct;
 pub mod send_chargelog_to_user;
 pub mod state;
-pub mod static_files;
+pub mod webinterface;
 pub mod user;
 
 use actix_web::web::{self, scope};
@@ -35,7 +35,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.configure(user::configure);
     cfg.configure(auth::configure);
     cfg.configure(charger::configure);
-    cfg.configure(static_files::configure);
 
     cfg.service(management::management);
     cfg.service(send_chargelog_to_user::send_chargelog);
@@ -47,6 +46,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
     let scope = scope("")
         .wrap(JwtMiddleware)
-        .service(ws_udp_bridge::start_ws);
+        .service(ws_udp_bridge::start_ws)
+        .service(webinterface::get_webinterface);
     cfg.service(scope);
 }

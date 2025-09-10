@@ -21,7 +21,7 @@ use actix_web::{put, web, HttpResponse, Responder};
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::prelude::*;
 use ipnetwork::IpNetwork;
 use rand::{distr::Alphanumeric, Rng, TryRngCore};
 use rand_core::OsRng;
@@ -201,28 +201,6 @@ pub async fn register_charger(
     Ok(resp)
 }
 
-pub async fn get_charger_from_db(
-    charger_id: uuid::Uuid,
-    state: &web::Data<AppState>,
-) -> actix_web::Result<Charger> {
-    let mut conn = get_connection(state)?;
-    let charger: Charger = web_block_unpacked(move || {
-        use db_connector::schema::chargers::dsl::*;
-
-        match chargers
-            .filter(id.eq(charger_id))
-            .select(Charger::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(c) => Ok(c),
-            Err(NotFound) => Err(Error::WrongCredentials),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
-
-    Ok(charger)
-}
 
 pub fn password_matches(password: &str, password_in_db: &str) -> actix_web::Result<bool> {
     let password_hash = match PasswordHash::new(password_in_db) {
