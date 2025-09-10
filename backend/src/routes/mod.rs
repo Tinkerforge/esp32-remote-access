@@ -24,8 +24,8 @@ pub mod management;
 pub mod selfdestruct;
 pub mod send_chargelog_to_user;
 pub mod state;
-pub mod webinterface;
 pub mod user;
+pub mod webinterface;
 
 use actix_web::web::{self, scope};
 

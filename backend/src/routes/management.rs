@@ -34,8 +34,8 @@ use crate::{
     rate_limit::ChargerRateLimiter,
     routes::{auth::login::FindBy, user::get_user_id},
     utils::{
-        get_charger_by_uid, get_charger_from_db, get_connection, parse_uuid, update_charger_state_change,
-        web_block_unpacked,
+        get_charger_by_uid, get_charger_from_db, get_connection, parse_uuid,
+        update_charger_state_change, web_block_unpacked,
     },
     AppState, BridgeState,
 };

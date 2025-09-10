@@ -201,7 +201,6 @@ pub async fn register_charger(
     Ok(resp)
 }
 
-
 pub fn password_matches(password: &str, password_in_db: &str) -> actix_web::Result<bool> {
     let password_hash = match PasswordHash::new(password_in_db) {
         Ok(p) => p,

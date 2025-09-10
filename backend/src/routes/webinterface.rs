@@ -19,8 +19,8 @@
 
 use actix_files::NamedFile;
 use actix_web::{get, web, Result};
-use utoipa::IntoParams;
 use std::path::PathBuf;
+use utoipa::IntoParams;
 
 use crate::utils::{get_charger_from_db, parse_uuid};
 

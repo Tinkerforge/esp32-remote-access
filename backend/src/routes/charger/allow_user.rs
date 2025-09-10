@@ -31,7 +31,9 @@ use crate::{
         auth::login::{validate_password, FindBy},
         user::get_user_id,
     },
-    utils::{get_charger_from_db, get_connection, parse_uuid, validate_auth_token, web_block_unpacked},
+    utils::{
+        get_charger_from_db, get_connection, parse_uuid, validate_auth_token, web_block_unpacked,
+    },
     AppState,
 };
 
