@@ -17,11 +17,11 @@
       reboot:
       when: reboot_required_file.stat.exists
 
-    - name: checkout git
+    - name: Checkout remote access git
       ansible.builtin.git:
         repo: https://github.com/Tinkerforge/esp32-remote-access.git
         dest: /home/freddy/esp32-remote-access
-        version: v1.2.40
+        version: v1.2.41
         update: yes
         clone: yes
       register: git_checkout
@@ -31,6 +31,16 @@
       args:
         chdir: /home/freddy/esp32-remote-access
       register: git_tag
+
+    - name: checkout warp-charger git
+      ansible.builtin.git:
+        repo: https://github.com/Tinkerforge/warp-charger.git
+        dest: /home/freddy/warp-charger
+        version: master
+        update: yes
+        clone: yes
+      register: git_checkout_warp
+
 
     - name: Stop Docker containers
       community.docker.docker_compose_v2:
