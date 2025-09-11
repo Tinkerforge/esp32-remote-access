@@ -279,6 +279,7 @@ async fn update_charger(
             webinterface_port: 0,
             firmware_version: String::new(),
             last_state_change: Some(chrono::Utc::now().naive_utc()),
+            device_type: None,
         };
         match diesel::update(&charger).set(&charger).execute(&mut conn) {
             Ok(_) => Ok(pub_key),
@@ -346,6 +347,7 @@ pub async fn add_charger(
             webinterface_port: 0,
             firmware_version: String::new(),
             last_state_change: None,
+            device_type: None,
         };
 
         match diesel::insert_into(chargers::chargers)

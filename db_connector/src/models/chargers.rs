@@ -20,4 +20,5 @@ pub struct Charger {
     pub webinterface_port: i32,
     pub firmware_version: String,
     pub last_state_change: Option<chrono::NaiveDateTime>,
+    pub device_type: Option<String>,
 }
