@@ -385,15 +385,13 @@ pub async fn management(
     };
 
     let user_agent = req.headers().get("User-Agent");
-    let device_type = user_agent
-        .and_then(|h| h.to_str().ok())
-        .and_then(|ua| {
-            if ua == "ESP32 HTTP Client/1.0" {
-                None
-            } else {
-                Some(ua.to_string())
-            }
-        });
+    let device_type = user_agent.and_then(|h| h.to_str().ok()).and_then(|ua| {
+        if ua == "ESP32 HTTP Client/1.0" {
+            None
+        } else {
+            Some(ua.to_string())
+        }
+    });
 
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
@@ -508,7 +506,10 @@ mod tests {
             .select(DbCharger::as_select())
             .get_result(&mut conn)
             .unwrap();
-        assert_eq!(db_charger.device_type.as_deref(), Some("Tinkerforge-WARP2_Charger/2.8.0+6811d0b1"));
+        assert_eq!(
+            db_charger.device_type.as_deref(),
+            Some("Tinkerforge-WARP2_Charger/2.8.0+6811d0b1")
+        );
     }
 
     #[actix_web::test]

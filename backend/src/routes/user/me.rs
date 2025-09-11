@@ -317,7 +317,10 @@ pub(crate) mod tests {
         assert!(resp.status().is_success());
 
         let body: UserInfo = test::read_body_json(resp).await;
-        assert!(!body.has_old_charger, "device_type present should prevent flag");
+        assert!(
+            !body.has_old_charger,
+            "device_type present should prevent flag"
+        );
     }
 
     #[actix_web::test]
