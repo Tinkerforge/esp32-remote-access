@@ -14,7 +14,7 @@ describe('Alert component & showAlert', () => {
 
   it('renders an alert with heading and text', async () => {
     const real = await vi.importActual<typeof import('../Alert')>('../Alert');
-    real.showAlert('Some text', 'danger', 'abc', 'Heading Text');
+    await real.showAlert('Some text', 'danger', 'abc', 'Heading Text');
     render(<real.ErrorAlert />);
     expect(screen.getByText('Some text')).toBeTruthy();
     expect(screen.getByTestId('alert-heading')).toHaveTextContent('Heading Text');
@@ -22,8 +22,8 @@ describe('Alert component & showAlert', () => {
 
   it('suppresses alert containing Failed to fetch', async () => {
     const real = await vi.importActual<typeof import('../Alert')>('../Alert');
-  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    real.showAlert('Failed to fetch resource', 'danger');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await real.showAlert('Failed to fetch resource', 'danger');
     render(<real.ErrorAlert />);
     expect(screen.queryByText('Failed to fetch resource')).toBeNull();
     expect(warnSpy).toHaveBeenCalled();
@@ -32,7 +32,7 @@ describe('Alert component & showAlert', () => {
 
   it('auto dismisses alert after timeout', async () => {
     const real = await vi.importActual<typeof import('../Alert')>('../Alert');
-    real.showAlert('Autoclose', 'success', 'auto', 'Auto Heading', 2000);
+    await real.showAlert('Autoclose', 'success', 'auto', 'Auto Heading', 2000);
     const { rerender } = render(<real.ErrorAlert />);
     expect(screen.getByText('Autoclose')).toBeTruthy();
     await advanceTimers(2000);
@@ -43,10 +43,10 @@ describe('Alert component & showAlert', () => {
   it('replaces alert with same id and clears previous timeout', async () => {
     const real = await vi.importActual<typeof import('../Alert')>('../Alert');
     const clearSpy = vi.spyOn(window, 'clearTimeout');
-    real.showAlert('First', 'warning', 'same', 'First Heading', 5000);
+    await real.showAlert('First', 'warning', 'same', 'First Heading', 5000);
     const utils = render(<real.ErrorAlert />);
     expect(screen.getByText('First')).toBeTruthy();
-    real.showAlert('Second', 'warning', 'same', 'Second Heading');
+    await real.showAlert('Second', 'warning', 'same', 'Second Heading');
     utils.rerender(<real.ErrorAlert />);
     expect(screen.getByText('Second')).toBeTruthy();
     expect(screen.queryByText('First')).toBeNull();
@@ -54,9 +54,25 @@ describe('Alert component & showAlert', () => {
     clearSpy.mockRestore();
   });
 
+  it('replaces alert with same text/heading/variant (no id) and clears previous timeout', async () => {
+    const real = await vi.importActual<typeof import('../Alert')>('../Alert');
+    const clearSpy = vi.spyOn(window, 'clearTimeout');
+    await real.showAlert('Same Text', 'warning', undefined, 'Same Heading', 2000);
+    const utils = render(<real.ErrorAlert />);
+    expect(screen.getByText('Same Text')).toBeTruthy();
+    await real.showAlert('Same Text', 'warning', undefined, 'Same Heading');
+    utils.rerender(<real.ErrorAlert />);
+    expect(screen.getByText('Same Text')).toBeTruthy();
+    await advanceTimers(2000);
+    utils.rerender(<real.ErrorAlert />);
+    expect(screen.getByText('Same Text')).toBeTruthy();
+    expect(clearSpy).toHaveBeenCalled();
+    clearSpy.mockRestore();
+  });
+
   it('manual dismiss via close button triggers onClose and removes alert', async () => {
     const real = await vi.importActual<typeof import('../Alert')>('../Alert');
-    real.showAlert('Dismiss me', 'danger', 'dismiss', 'Dismiss Heading');
+    await real.showAlert('Dismiss me', 'danger', 'dismiss', 'Dismiss Heading');
     const { rerender } = render(<real.ErrorAlert />);
     expect(screen.getByText('Dismiss me')).toBeTruthy();
     const closeButtons = screen.getAllByTestId('close-alert');

@@ -19,13 +19,16 @@ const clearAlertTimeout = (id: string) => {
     }
 };
 
-export function showAlert(text: string, variant: "danger" | "success" | "warning", id?: string, heading?: string, timeout_ms?: number) {
+export async function showAlert(text: string, variant: "danger" | "success" | "warning", id?: string, heading?: string, timeout_ms?: number) {
     if (text.indexOf("Failed to fetch") !== -1) {
         console.warn("Alert suppressed due to 'Failed to fetch' message");
         return;
     }
 
-    id = id ? id : Math.random().toString(36).substr(2);
+    const hash = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(text + variant + (heading || ""))).then(buf => {
+        return new TextDecoder().decode(buf);
+    });
+    id = id ? id : hash;
     const alert: AlertItem = {
         id,
         text,
