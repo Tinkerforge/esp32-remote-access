@@ -95,7 +95,7 @@ async fn me(
     for charger in chargers.into_iter() {
         if let Ok(version) = semver::Version::parse(&charger.firmware_version) {
             let required_version = semver::Version::new(2, 6, 7);
-            if version < required_version {
+            if charger.device_type.is_none() && version < required_version {
                 has_old_charger = true;
             }
         }
@@ -239,6 +239,85 @@ pub(crate) mod tests {
 
         let body: UserInfo = test::read_body_json(resp).await;
         assert!(body.has_old_charger);
+    }
+
+    // This case happens when a wem2 or seb is added to an account
+    #[actix_web::test]
+    async fn test_old_firmware_version_with_device_type() {
+        let mail = "old_firmware_with_device_type@test.invalid";
+        let key = create_user(mail).await;
+        defer!(delete_user(mail));
+
+        // Add charger with old firmware version BUT with a device_type set
+        let user = get_test_user(mail);
+        let uid = rand::random::<i32>();
+        let charger = TestCharger {
+            uid,
+            password: "password".to_string(),
+            uuid: uuid::Uuid::new_v4().to_string(),
+        };
+        let pool = db_connector::test_connection_pool();
+        let mut conn = pool.get().unwrap();
+
+        use db_connector::models::allowed_users::AllowedUser;
+        use db_connector::models::chargers::Charger;
+        use db_connector::schema::allowed_users::dsl as au;
+        use db_connector::schema::chargers::dsl as c;
+        use uuid::Uuid;
+
+        // Insert test charger with old firmware but device_type Some => should NOT count as old
+        let charger_id = Uuid::new_v4();
+        let test_charger = Charger {
+            id: charger_id,
+            uid: charger.uid,
+            password: charger.password,
+            name: None,
+            charger_pub: "".to_string(),
+            management_private: "".to_string(),
+            wg_charger_ip: "0.0.0.0/0".parse().unwrap(),
+            wg_server_ip: "0.0.0.0/0".parse().unwrap(),
+            psk: "".to_string(),
+            webinterface_port: 0,
+            firmware_version: "2.6.6".to_string(), // Old version
+            last_state_change: None,
+            device_type: Some("WEM2".to_string()),
+        };
+        diesel::insert_into(c::chargers)
+            .values(&test_charger)
+            .execute(&mut conn)
+            .unwrap();
+
+        // Add allowed_user entry
+        let allowed_user = AllowedUser {
+            id: Uuid::new_v4(),
+            user_id: user.id,
+            charger_id,
+            charger_uid: charger.uid,
+            valid: true,
+            note: None,
+            name: None,
+        };
+        diesel::insert_into(au::allowed_users)
+            .values(&allowed_user)
+            .execute(&mut conn)
+            .unwrap();
+
+        let app = App::new()
+            .configure(configure)
+            .service(me)
+            .wrap(crate::middleware::jwt::JwtMiddleware);
+        let app = test::init_service(app).await;
+
+        let (token, _) = verify_and_login_user(mail, key).await;
+        let req = test::TestRequest::get()
+            .uri("/me")
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        let body: UserInfo = test::read_body_json(resp).await;
+        assert!(!body.has_old_charger, "device_type present should prevent flag");
     }
 
     #[actix_web::test]
