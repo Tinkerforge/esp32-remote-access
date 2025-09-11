@@ -1,5 +1,4 @@
 mod http;
-mod util;
 
 use boringtun::noise::TunnResult;
 use clap::{Parser, Subcommand};
