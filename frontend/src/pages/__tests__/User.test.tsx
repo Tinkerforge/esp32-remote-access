@@ -348,7 +348,6 @@ describe('User Component', () => {
       const changePasswordButton = screen.getByText('change_password');
       fireEvent.click(changePasswordButton);
       const test = screen.getByTestId("modal");
-      console.log("test", test);
 
       const currentPasswordInput = screen.getByRole('textbox', { name: 'current_password' });
       const newPasswordInput = screen.getByRole('textbox', { name: 'new_password' });

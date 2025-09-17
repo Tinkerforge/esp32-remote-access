@@ -107,7 +107,6 @@ export function App() {
                     const persisted = storageManager && typeof storageManager.persisted === "function"
                         ? await storageManager.persisted()
                         : false;
-                    console.log(`Storage persisted: ${persisted}`);
                     if (!persisted) {
                         setModalConfig({...modalConfig, show: true });
                     }
