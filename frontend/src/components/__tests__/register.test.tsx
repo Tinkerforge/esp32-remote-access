@@ -304,7 +304,7 @@ describe('Register Component', () => {
       expect(mockShowAlert).toHaveBeenCalledWith(
         'register.registration_successful',
         'success',
-        'registe',
+        'register',
         'alert_default_success'
       );
     });
