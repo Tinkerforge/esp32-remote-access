@@ -146,18 +146,25 @@ export async function storeSecretKeyInServiceWorker(secretKey: string): Promise<
 
 let gettingSecretInProgress = false;
 let secretKeyPromise: Promise<string | null> | null = null;
+let retries = 0;
 
 export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
     if (gettingSecretInProgress) {
         return secretKeyPromise;
     }
 
-    secretKeyPromise = new Promise((resolve) => {
-        if (!navigator.serviceWorker.controller) {
-            console.error("No service worker controller found");
+    secretKeyPromise = new Promise(async (resolve) => {
+        if (!navigator.serviceWorker.controller && retries < 3) {
+            console.error("No service worker controller found. Retrying...");
+            retries++;
+            resolve(await getSecretKeyFromServiceWorker());
+            return;
+        } else if (!navigator.serviceWorker.controller) {
+            console.error("No service worker controller found after retries.");
             resolve(null);
             return;
         }
+        retries = 0;
         gettingSecretInProgress = true;
 
         const timeout = setTimeout(() => {
