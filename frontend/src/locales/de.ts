@@ -164,7 +164,6 @@ export const de ={
         "used": "Verwendet",
         "last_used": "Zuletzt verwendet",
         "never_used": "Nie",
-        "expired": "Abgelaufen",
         "create": "Token erstellen",
         "existing_tokens": "Vorhandene Token",
         "reusable": "Wiederverwendbar",

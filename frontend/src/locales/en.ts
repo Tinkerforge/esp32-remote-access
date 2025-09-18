@@ -164,7 +164,6 @@ export const en = {
         "used": "Used",
         "last_used": "Last used",
         "never_used": "Never",
-        "expired": "Expired",
         "create": "Create token",
         "existing_tokens": "Existing tokens",
         "reusable": "Reusable",

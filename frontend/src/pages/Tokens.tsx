@@ -241,15 +241,15 @@ export function Tokens() {
                 </Card.Header>
                 <Card.Body>
                     {tokens.map((token, index) => {
-                        const isExpired = token.use_once && token.lastUsedAt !== null;
-                        const statusVariant = isExpired ? "danger" : (token.use_once ? "success" : "warning");
-                        const statusText = isExpired ? t("tokens.expired") : (token.use_once ? t("tokens.use_once") : t("tokens.reusable"));
+                        const isUsed = token.use_once && token.lastUsedAt !== null;
+                        const statusVariant = isUsed ? "danger" : (token.use_once ? "success" : "warning");
+                        const statusText = isUsed ? t("tokens.used") : (token.use_once ? t("tokens.use_once") : t("tokens.reusable"));
 
                         return (
                             <div key={index} className={`token-item ${index !== tokens.length - 1 ? 'mb-4' : ''}`}>
                                 <div className="d-flex justify-content-between align-items-start mb-2">
                                     <div>
-                                        <h6 className={`mb-1 fw-bold ${isExpired ? 'text-muted' : ''}`}>{token.name}</h6>
+                                        <h6 className={`mb-1 fw-bold ${isUsed ? 'text-muted' : ''}`}>{token.name}</h6>
                                         <small className="text-muted">
                                             {t("tokens.created")}: {token.createdAt.toLocaleDateString()} {token.createdAt.toLocaleTimeString()}
                                         </small>
@@ -275,9 +275,9 @@ export function Tokens() {
                                     <Form.Control
                                         type="text"
                                         readOnly
-                                        value={isExpired ? "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••" : token.token}
-                                        className={`${isExpired ? 'text-muted' : ''}`}
-                                        style={isExpired ? { fontFamily: 'monospace' } : {}}
+                                        value={isUsed ? "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••" : token.token}
+                                        className={`${isUsed ? 'text-muted' : ''}`}
+                                        style={isUsed ? { fontFamily: 'monospace' } : {}}
                                     />
                                 </InputGroup>
                                 <div className="d-flex flex-wrap gap-2">
@@ -286,7 +286,7 @@ export function Tokens() {
                                         size="sm"
                                         className="d-flex align-items-center gap-2"
                                         onClick={() => handleCopyToken(token.token)}
-                                        disabled={isExpired}
+                                        disabled={isUsed}
                                     >
                                         <Clipboard size={16} />
                                         {t("tokens.copy")}
