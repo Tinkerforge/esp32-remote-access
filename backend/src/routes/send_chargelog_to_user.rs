@@ -1,4 +1,5 @@
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
+use askama::Template;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -20,6 +21,61 @@ pub struct SendChargelogSchema {
     pub chargelog: Vec<u8>,
 }
 
+#[derive(Template)]
+#[template(path = "chargelog_de.html")]
+struct ChargelogDETemplate<'a> {
+    name: &'a str,
+    month: &'a str,
+    filename: &'a str,
+}
+
+#[derive(Template)]
+#[template(path = "chargelog_en.html")]
+struct ChargelogENTemplate<'a> {
+    name: &'a str,
+    month: &'a str,
+    filename: &'a str,
+}
+
+fn render_chargelog_email(
+    user_name: &str,
+    month: &str,
+    filename: &str,
+    lang: &str,
+) -> actix_web::Result<(String, &'static str)> {
+    let (body, subject) = match lang {
+        "de" | "de-DE" => {
+            let template = ChargelogDETemplate {
+                name: user_name,
+                month,
+                filename,
+            };
+            match template.render() {
+                Ok(b) => (b, "Dein Ladelog"),
+                Err(e) => {
+                    log::error!("Failed to render German chargelog email template for user '{}': {}", user_name, e);
+                    return Err(crate::error::Error::InternalError.into());
+                }
+            }
+        }
+        _ => {
+            let template = ChargelogENTemplate {
+                name: user_name,
+                month,
+                filename,
+            };
+            match template.render() {
+                Ok(b) => (b, "Your Charge Log"),
+                Err(e) => {
+                    log::error!("Failed to render English chargelog email template for user '{}': {}", user_name, e);
+                    return Err(crate::error::Error::InternalError.into());
+                }
+            }
+        }
+    };
+    Ok((body, subject))
+}
+
 #[utoipa::path(
     request_body = SendChargelogSchema,
     responses(
@@ -34,6 +90,7 @@ pub async fn send_chargelog(
     state: web::Data<AppState>,
     rate_limiter: web::Data<ChargerRateLimiter>,
     mut payload: web::Payload,
+    #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> actix_web::Result<impl Responder> {
     let mut bytes = web::BytesMut::new();
     while let Some(chunk) = payload.next().await {
@@ -60,8 +117,20 @@ pub async fn send_chargelog(
     let user = parse_uuid(&payload.user_uuid)?;
     let user = get_user(&state, user).await?;
 
-    let subject = "Your Charger Log";
-    let body = "Attached is your requested chargelog.".to_string();
+    #[cfg(not(test))]
+    let lang_str: String = lang.into();
+    #[cfg(test)]
+    let lang_str = String::from("en");
+
+    let month = chrono::Utc::now().format("%B %Y").to_string();
+
+    let (body, subject) = render_chargelog_email(
+        &user.name,
+        &month,
+        &payload.filename,
+        &lang_str,
+    )?;
+
     send_email_with_attachment(
         &user.email,
         subject,
