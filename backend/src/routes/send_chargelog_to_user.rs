@@ -42,7 +42,7 @@ fn render_chargelog_email(
     month: &str,
     filename: &str,
     lang: &str,
-) -> actix_web::Result<(String, &'static str)> {
+) -> actix_web::Result<(String, String)> {
     let (body, subject) = match lang {
         "de" | "de-DE" => {
             let template = ChargelogDETemplate {
@@ -51,9 +51,13 @@ fn render_chargelog_email(
                 filename,
             };
             match template.render() {
-                Ok(b) => (b, "Dein Ladelog"),
+                Ok(b) => (b, format!("Dein Ladelog für {}", month)),
                 Err(e) => {
-                    log::error!("Failed to render German chargelog email template for user '{}': {}", user_name, e);
+                    log::error!(
+                        "Failed to render German chargelog email template for user '{}': {}",
+                        user_name,
+                        e
+                    );
                     return Err(crate::error::Error::InternalError.into());
                 }
             }
@@ -65,9 +69,13 @@ fn render_chargelog_email(
                 filename,
             };
             match template.render() {
-                Ok(b) => (b, "Your Charge Log"),
+                Ok(b) => (b, format!("Your Charge Log for {}", month)),
                 Err(e) => {
-                    log::error!("Failed to render English chargelog email template for user '{}': {}", user_name, e);
+                    log::error!(
+                        "Failed to render English chargelog email template for user '{}': {}",
+                        user_name,
+                        e
+                    );
                     return Err(crate::error::Error::InternalError.into());
                 }
             }
@@ -124,16 +132,11 @@ pub async fn send_chargelog(
 
     let month = chrono::Utc::now().format("%B %Y").to_string();
 
-    let (body, subject) = render_chargelog_email(
-        &user.name,
-        &month,
-        &payload.filename,
-        &lang_str,
-    )?;
+    let (body, subject) = render_chargelog_email(&user.name, &month, &payload.filename, &lang_str)?;
 
     send_email_with_attachment(
         &user.email,
-        subject,
+        &subject,
         body,
         payload.chargelog.clone(),
         &payload.filename,
