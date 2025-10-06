@@ -8,6 +8,30 @@
         upgrade: safe
         autoremove: true
 
+    - name: Ensure needrestart is installed
+      become: true
+      ansible.builtin.apt:
+        name: needrestart
+        state: present
+        update_cache: yes
+
+    - name: Check if reboot is required
+      shell:
+        cmd: needrestart -b | awk '/NEEDRESTART-KEXP|NEEDRESTART-KCUR/ {print $2}'
+      become: true
+      register: reboot_required_file
+
+    - name: Reboot if required
+      reboot:
+        msg: "Rebooting due to system updates"
+        connect_timeout: 5
+        reboot_timeout: 360
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: uptime
+      become: true
+      when: reboot_required_file.stdout_lines[0] != reboot_required_file.stdout_lines[1]
+
     - name: Check if reboot is required
       stat:
         path: /var/run/reboot-required
@@ -39,21 +63,18 @@
         version: master
         update: yes
         clone: yes
-      register: git_checkout_warp
-
 
     - name: Stop Docker containers
       community.docker.docker_compose_v2:
         project_src: /home/freddy/esp32-remote-access/docker
         state: stopped
-      when: git_checkout.changed
 
     - name: Pull and rerun docker images
       community.docker.docker_compose_v2:
         build: always
         pull: always
         project_src: /home/freddy/esp32-remote-access/docker
-      when: git_checkout.changed
+
 
     - name: Show current tag
       ansible.builtin.debug:
