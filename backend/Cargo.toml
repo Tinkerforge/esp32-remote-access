@@ -54,6 +54,7 @@ semver = "1.0.24"
 openssl = "0.10.72"
 actix-ws = "0.3.0"
 serde_json = "1.0.140"
+actix-multipart = "0.7.2"
 
 [dev-dependencies]
 libsodium-sys-stable = "1.20.4"
