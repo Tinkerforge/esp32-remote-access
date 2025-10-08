@@ -130,11 +130,17 @@ pub async fn send_chargelog(
     #[cfg(test)]
     let lang_str = String::from("en");
 
+    let Some(last_month) = chrono::Utc::now()
+        .date_naive()
+        .checked_sub_months(chrono::Months::new(1))
+    else {
+        return Err(Error::InternalError.into());
+    };
     let month = match lang_str.as_str() {
-        "de" => chrono::Utc::now()
+        "de" => last_month
             .format_localized("%B %Y", chrono::Locale::de_DE)
             .to_string(),
-        _ => chrono::Utc::now().format("%B %Y").to_string(),
+        _ => last_month.format("%B %Y").to_string(),
     };
 
     let (body, subject) = render_chargelog_email(&user.name, &month, &payload.filename, &lang_str)?;
