@@ -18,6 +18,7 @@ pub struct SendChargelogSchema {
     pub password: String,
     pub user_uuid: String,
     pub filename: String,
+    pub display_name: String,
     pub chargelog: Vec<u8>,
 }
 
@@ -27,6 +28,7 @@ struct ChargelogDETemplate<'a> {
     name: &'a str,
     month: &'a str,
     filename: &'a str,
+    display_name: &'a str,
 }
 
 #[derive(Template)]
@@ -35,12 +37,14 @@ struct ChargelogENTemplate<'a> {
     name: &'a str,
     month: &'a str,
     filename: &'a str,
+    display_name: &'a str,
 }
 
 fn render_chargelog_email(
     user_name: &str,
     month: &str,
     filename: &str,
+    display_name: &str,
     lang: &str,
 ) -> actix_web::Result<(String, String)> {
     let (body, subject) = match lang {
@@ -49,9 +53,13 @@ fn render_chargelog_email(
                 name: user_name,
                 month,
                 filename,
+                display_name,
             };
             match template.render() {
-                Ok(b) => (b, format!("Dein Ladelog für {}", month)),
+                Ok(b) => (
+                    b,
+                    format!("Dein Ladelog für {} von {}", month, display_name),
+                ),
                 Err(e) => {
                     log::error!(
                         "Failed to render German chargelog email template for user '{}': {}",
@@ -67,9 +75,13 @@ fn render_chargelog_email(
                 name: user_name,
                 month,
                 filename,
+                display_name,
             };
             match template.render() {
-                Ok(b) => (b, format!("Your Charge Log for {}", month)),
+                Ok(b) => (
+                    b,
+                    format!("Your Charge Log for {} from {}", month, display_name),
+                ),
                 Err(e) => {
                     log::error!(
                         "Failed to render English chargelog email template for user '{}': {}",
@@ -143,7 +155,13 @@ pub async fn send_chargelog(
         _ => last_month.format("%B %Y").to_string(),
     };
 
-    let (body, subject) = render_chargelog_email(&user.name, &month, &payload.filename, &lang_str)?;
+    let (body, subject) = render_chargelog_email(
+        &user.name,
+        &month,
+        &payload.filename,
+        &payload.display_name,
+        &lang_str,
+    )?;
 
     send_email_with_attachment(
         &user.email,
@@ -178,6 +196,7 @@ mod tests {
             user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail)
                 .unwrap()
                 .to_string(),
+            display_name: "Test Device".to_string(),
             filename: "chargelog.pdf".to_string(),
             chargelog: vec![1, 2, 3, 4, 5],
         };
@@ -206,6 +225,7 @@ mod tests {
             user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail)
                 .unwrap()
                 .to_string(),
+            display_name: "Test Device".to_string(),
             filename: "chargelog.pdf".to_string(),
             chargelog: vec![1, 2, 3, 4, 5],
         };
