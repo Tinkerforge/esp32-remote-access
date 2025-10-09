@@ -8,9 +8,7 @@ use crate::{
     error::Error,
     routes::{
         auth::login::{validate_password, FindBy},
-        charger::remove::{
-            delete_charger, remove_charger_from_state,
-        },
+        charger::remove::{delete_charger, remove_charger_from_state},
         user::logout::delete_all_refresh_tokens,
     },
     utils::{get_connection, web_block_unpacked},
