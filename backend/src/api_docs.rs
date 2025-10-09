@@ -148,6 +148,7 @@ async fn main() {
             routes::check_expiration::TokenType,
             models::response_auth_token::ResponseAuthorizationToken,
             routes::send_chargelog_to_user::SendChargelogSchema,
+            routes::send_chargelog_to_user::SendChargelogMetadata,
         )),
         modifiers(&JwtToken, &RefreshToken)
     )]

@@ -1,7 +1,8 @@
+use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
+use std::io::Read;
 use utoipa::ToSchema;
 
 use crate::{
@@ -13,13 +14,20 @@ use crate::{
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
-pub struct SendChargelogSchema {
+pub struct SendChargelogMetadata {
     pub charger_uuid: String,
     pub password: String,
     pub user_uuid: String,
     pub filename: String,
     pub display_name: String,
-    pub chargelog: Vec<u8>,
+}
+
+#[derive(ToSchema, MultipartForm)]
+pub struct SendChargelogSchema {
+    #[schema(value_type = SendChargelogMetadata)]
+    pub json: MpJson<SendChargelogMetadata>,
+    #[schema(value_type = Vec<u8>, format = "binary", content_media_type = "application/octet-stream")]
+    pub chargelog: TempFile,
 }
 
 #[derive(Template)]
@@ -109,32 +117,21 @@ pub async fn send_chargelog(
     req: HttpRequest,
     state: web::Data<AppState>,
     rate_limiter: web::Data<ChargerRateLimiter>,
-    mut payload: web::Payload,
+    form: MultipartForm<SendChargelogSchema>,
     #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> actix_web::Result<impl Responder> {
-    let mut bytes = web::BytesMut::new();
-    while let Some(chunk) = payload.next().await {
-        let chunk = chunk.map_err(|_| Error::InternalError)?;
-        let chunk = chunk
-            .into_iter()
-            .filter(|b| *b != b'\r' && *b != b'\n')
-            .collect::<Vec<u8>>();
-        bytes.extend_from_slice(&chunk);
-    }
-    let payload: SendChargelogSchema = serde_json::from_slice(&bytes).map_err(|err| {
-        log::error!("Failed to parse payload: {err}");
-        Error::InvalidPayload
-    })?;
+    let SendChargelogSchema { json, chargelog } = form.into_inner();
+    let metadata = json.into_inner();
 
-    rate_limiter.check(payload.charger_uuid.clone(), &req)?;
+    rate_limiter.check(metadata.charger_uuid.clone(), &req)?;
 
-    let charger_id = parse_uuid(&payload.charger_uuid)?;
+    let charger_id = parse_uuid(&metadata.charger_uuid)?;
     let charger = get_charger_from_db(charger_id, &state).await?;
-    if !password_matches(&payload.password, &charger.password)? {
+    if !password_matches(&metadata.password, &charger.password)? {
         return Err(Error::ChargerCredentialsWrong.into());
     }
 
-    let user = parse_uuid(&payload.user_uuid)?;
+    let user = parse_uuid(&metadata.user_uuid)?;
     let user = get_user(&state, user).await?;
 
     #[cfg(not(test))]
@@ -158,17 +155,39 @@ pub async fn send_chargelog(
     let (body, subject) = render_chargelog_email(
         &user.name,
         &month,
-        &payload.filename,
-        &payload.display_name,
+        &metadata.filename,
+        &metadata.display_name,
         &lang_str,
     )?;
+
+    let mut chargelog_file = chargelog.file.reopen().map_err(|err| {
+        log::error!(
+            "Failed to reopen chargelog temporary file '{}' for user '{}': {}",
+            metadata.filename,
+            user.email,
+            err
+        );
+        Error::InternalError
+    })?;
+    let mut chargelog_bytes = Vec::with_capacity(chargelog.size);
+    chargelog_file
+        .read_to_end(&mut chargelog_bytes)
+        .map_err(|err| {
+            log::error!(
+                "Failed to read chargelog temporary file '{}' for user '{}': {}",
+                metadata.filename,
+                user.email,
+                err
+            );
+            Error::InternalError
+        })?;
 
     send_email_with_attachment(
         &user.email,
         &subject,
         body,
-        payload.chargelog.clone(),
-        &payload.filename,
+        chargelog_bytes,
+        &metadata.filename,
         &state,
     );
 
@@ -180,6 +199,28 @@ mod tests {
     use super::*;
     use crate::{routes::user::tests::TestUser, tests::configure};
     use actix_web::{test, App};
+    use serde_json::{json, Value};
+
+    fn build_multipart_body(boundary: &str, metadata: &Value, file_bytes: &[u8]) -> Vec<u8> {
+        let metadata_str = metadata.to_string();
+        let mut body = Vec::new();
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"json\"\r\nContent-Type: application/json\r\n\r\n{}\r\n",
+                metadata_str
+            )
+            .as_bytes(),
+        );
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"chargelog\"; filename=\"chargelog.pdf\"\r\nContent-Type: application/pdf\r\n\r\n"
+            )
+            .as_bytes(),
+        );
+        body.extend_from_slice(file_bytes);
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        body
+    }
 
     #[actix_web::test]
     async fn test_send_chargelog_success() {
@@ -190,21 +231,27 @@ mod tests {
         let app = App::new().configure(configure).service(send_chargelog);
         let app = test::init_service(app).await;
 
-        let payload = SendChargelogSchema {
-            charger_uuid: charger.uuid.clone(),
-            password: charger.password.clone(),
-            user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail)
+        let metadata = json!({
+            "charger_uuid": charger.uuid,
+            "password": charger.password,
+            "user_uuid": crate::routes::user::tests::get_test_uuid(&user.mail)
                 .unwrap()
                 .to_string(),
-            display_name: "Test Device".to_string(),
-            filename: "chargelog.pdf".to_string(),
-            chargelog: vec![1, 2, 3, 4, 5],
-        };
+            "display_name": "Test Device",
+            "filename": "chargelog.pdf"
+        });
+
+        let boundary = "----testboundary";
+        let body = build_multipart_body(boundary, &metadata, &[1, 2, 3, 4, 5]);
 
         let req = test::TestRequest::post()
             .uri("/send_chargelog_to_user")
             .append_header(("X-Forwarded-For", "123.123.123.3"))
-            .set_json(payload)
+            .append_header((
+                "Content-Type",
+                format!("multipart/form-data; boundary={boundary}"),
+            ))
+            .set_payload(body)
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
@@ -219,21 +266,27 @@ mod tests {
         let app = App::new().configure(configure).service(send_chargelog);
         let app = test::init_service(app).await;
 
-        let payload = SendChargelogSchema {
-            charger_uuid: charger.uuid.clone(),
-            password: "wrongpassword".to_string(),
-            user_uuid: crate::routes::user::tests::get_test_uuid(&user.mail)
+        let metadata = json!({
+            "charger_uuid": charger.uuid,
+            "password": "wrongpassword",
+            "user_uuid": crate::routes::user::tests::get_test_uuid(&user.mail)
                 .unwrap()
                 .to_string(),
-            display_name: "Test Device".to_string(),
-            filename: "chargelog.pdf".to_string(),
-            chargelog: vec![1, 2, 3, 4, 5],
-        };
+            "display_name": "Test Device",
+            "filename": "chargelog.pdf"
+        });
+
+        let boundary = "----testboundary2";
+        let body = build_multipart_body(boundary, &metadata, &[1, 2, 3, 4, 5]);
 
         let req = test::TestRequest::post()
             .uri("/send_chargelog_to_user")
             .append_header(("X-Forwarded-For", "123.123.123.3"))
-            .set_json(payload)
+            .append_header((
+                "Content-Type",
+                format!("multipart/form-data; boundary={boundary}"),
+            ))
+            .set_payload(body)
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 401);
