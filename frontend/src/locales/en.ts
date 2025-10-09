@@ -7,10 +7,10 @@ export const en = {
     description,
     "no_service_worker": "Your browser needs support for ServiceWorkers to be able to run the Remote Access.",
     "not_now": "Not now",
-    "allow": "Allow",
+    "allow": "Show browser prompt",
     "storage_persistence": {
         "title": "Keep you signed in",
-        "body": "We use your browser's storage to keep you signed in. Some browsers clear this data automatically (e.g., on low storage or after some time). Allowing persistent storage helps prevent unexpected logouts.",
+        "body": "We use your browser's storage to keep you signed in. Some browsers clear this data automatically (e.g., on low storage or after some time). Allowing persistent storage helps prevent unexpected logouts. After you tap the 'Show browser prompt' button, your browser will show a permission prompt so you can confirm.",
         "remember_choice": "Don't ask again"
     },
     "user": {
