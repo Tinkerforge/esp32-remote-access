@@ -5,7 +5,7 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
-import { Container } from "react-bootstrap";
+import { Button, Container } from "react-bootstrap";
 import i18n from "../i18n";
 import { useLocation } from "preact-iso";
 import { Device, StateDevice, SortColumn, DeviceListState } from "../components/device/types";
@@ -355,6 +355,13 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     <div className="text-muted">
                         <h5>{t("no_devices")}</h5>
                     </div>
+                    <Button
+                        variant="primary"
+                        className="mt-3"
+                        onClick={() => route("/tokens")}
+                    >
+                        {i18n.t("tokens.create_token")}
+                    </Button>
                 </Container>
             );
         }
