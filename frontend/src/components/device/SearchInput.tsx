@@ -16,7 +16,7 @@ export function SearchInput({ searchTerm, onSearchChange, placeholder }: SearchI
     };
 
     return (
-        <InputGroup className="mb-3">
+        <InputGroup className="mb-1">
             <InputGroup.Text>
                 <Search size={16} />
             </InputGroup.Text>
@@ -28,7 +28,7 @@ export function SearchInput({ searchTerm, onSearchChange, placeholder }: SearchI
                 aria-label={t("search_devices")}
             />
             {searchTerm && (
-                <InputGroup.Text 
+                <InputGroup.Text
                     onClick={handleClear}
                     style={{ cursor: "pointer" }}
                     title={t("clear_search")}

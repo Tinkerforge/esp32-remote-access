@@ -277,7 +277,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 return ret * -1;
 
         });
-        
+
         const filteredDevices = this.filterDevices(devices, this.state.searchTerm);
         this.setState({ devices, filteredDevices });
     }
@@ -376,7 +376,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     onCancel={this.handleEditNoteCancel}
                 />
 
-                <Container fluid className="mb-3">
+                <Container fluid>
                     <SearchInput
                         searchTerm={this.state.searchTerm}
                         onSearchChange={this.handleSearchChange}
