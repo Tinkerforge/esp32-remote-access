@@ -196,6 +196,10 @@ export function Tokens() {
 
     return (
         <Container>
+            <Alert variant="info" className="mt-3">
+                <h5 className="mb-1">{t("tokens.info_heading")}</h5>
+                <p className="mb-0">{t("tokens.info_body")}</p>
+            </Alert>
             <Alert variant="danger" className="mt-3">
                 {t("tokens.layout_changed")}
             </Alert>

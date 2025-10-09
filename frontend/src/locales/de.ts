@@ -157,6 +157,8 @@ export const de ={
         "unexpected_error": "Ein unerwarteter Fehler ist aufgetreten. Bitte lade die Seite neu.",
         "create_token_failed": "Token konnte nicht erstellt werden. Bitte lade die Seite neu.",
         "delete_token_failed": "Token konnte nicht gelöscht werden. Bitte lade die Seite neu.",
+        "info_heading": "Was Autorisierungstoken ermöglichen",
+        "info_body": "Autorisierungstoken erlauben es Geräte hinzuzufügen, ohne dein Passwort zu teilen. Einmal-Token verfallen direkt nach der ersten Verwendung, wiederverwendbare Token bleiben aktiv, bis du sie löschst.",
         "copy_success": "Erfolg",
         "copy_success_text": "Token in die Zwischenablage kopiert",
         "copy_failed": "Token konnte nicht kopiert werden",

@@ -157,6 +157,8 @@ export const en = {
         "unexpected_error": "An unexpected error occurred. Please reload the page.",
         "create_token_failed": "Token could not be created. Please reload the page.",
         "delete_token_failed": "Token could not be deleted. Please reload the page.",
+        "info_heading": "What authorization tokens do",
+        "info_body": "Authorization tokens let you add devices without sharing your password. Single-use tokens expire right after their first use, while reusable tokens stay active until you delete them.",
         "copy_success": "Success",
         "copy_success_text": "Token copied to clipboard",
         "copy_failed": "Token could not be copied",
