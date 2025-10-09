@@ -124,7 +124,7 @@ test('charger lifecycle', async ({ page }) => {
   } else {
     await page.getByLabel('TLS certificate', { exact: true }).selectOption('-1');
   }
-  await page.getByRole('row', { name: 'of 5 users configured' }).getByRole('button').click();
+  await page.getByRole('row', { name: 'of 5 accounts configured' }).getByRole('button').click();
   await page.getByRole('textbox', { name: 'Email address' }).click();
   await page.getByRole('textbox', { name: 'Email address' }).fill(testUser1Email);
   await page.getByLabel('Passwordonly used for the reg').fill(testPassword1);
@@ -165,7 +165,7 @@ test('add charger with auth token', async ({page}) => {
   await page.getByRole('button', { name: 'Event Log' }).click();
   await expect(page.getByPlaceholder('Loading event log...')).toContainText("Network connected");
   await page.getByRole('button', { name: 'Remote Access' }).click();
-  await page.getByRole('row', { name: 'of 5 users configured' }).getByRole('button').click();
+  await page.getByRole('row', { name: 'of 5 accounts configured' }).getByRole('button').click();
   await page.getByLabel('Authorization method').selectOption('token');
   await page.getByLabel('Authorization token').fill(token);
   await page.getByRole('button', { name: 'Add' }).click();
