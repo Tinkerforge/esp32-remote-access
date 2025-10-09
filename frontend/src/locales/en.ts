@@ -94,7 +94,11 @@ export const en = {
         "loading_webinterface": "Loading webinterface",
         "invalid_key": "The keys saved on the device seem to be corrupted. If the error persists, remove the device and add it again.",
         "connection_timeout": "Timeout",
-        "connection_timeout_text": "A timeout occured while establishing the connection. Please try again later or contact us in case the problem persists."
+        "connection_timeout_text": "A timeout occured while establishing the connection. Please try again later or contact us in case the problem persists.",
+        "search_devices": "Search devices",
+        "search_devices_placeholder": "Search by name, ID, note, or status...",
+        "clear_search": "Clear search",
+        "no_devices_found": "No devices found matching your search."
     },
     "navbar": {
         "home": "Home",

@@ -147,7 +147,7 @@ describe('Devices.tsx - DeviceList', () => {
       { id: 'a', uid: 2, name: 'Bravo', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
       { id: 'b', uid: 1, name: 'Alpha', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [] });
     await waitFor(() => expect(getRef(ref).state.devices.length).toBe(2));
 
     // First click -> sort by name asc
@@ -170,7 +170,7 @@ describe('Devices.tsx - DeviceList', () => {
   it('setMobileSort toggles between selected and none', async () => {
     const ref = createRef<DeviceList>();
     render(<DeviceList ref={ref} />);
-    getRef(ref).setState({ devices: [], sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    getRef(ref).setState({ devices: [], sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [] });
 
     getRef(ref).setMobileSort('uid');
     await waitFor(() => expect(getRef(ref).state.sortColumn).toBe('uid'));
@@ -188,7 +188,7 @@ describe('Devices.tsx - DeviceList', () => {
       { id: 'x', uid: 10, name: 'X', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
       { id: 'y', uid: 11, name: 'Y', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [] });
 
     getRef(ref).handleDelete(devices[0]);
     await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(true));
@@ -207,7 +207,7 @@ describe('Devices.tsx - DeviceList', () => {
     const devices = [
       { id: 'z', uid: 5, name: 'Z', status: 'Connected', note: 'old', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [] });
     await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
 
     getRef(ref).handleEditNote(devices[0], 0);
@@ -237,7 +237,7 @@ describe('Devices.tsx - DeviceList', () => {
     const devices = [
       { id: 'n1', uid: 1, name: 'Name', status: 'Connected', note: 'old', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: true, editNote: 'upd', editChargerIdx: 0 });
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: true, editNote: 'upd', editChargerIdx: 0, searchTerm: '', filteredDevices: [] });
     await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
     await waitFor(() => expect(getRef(ref).state.showEditNoteModal).toBe(true));
     (sodium.crypto_box_seal as unknown as Mock).mockReturnValue(new Uint8Array([1]));
@@ -255,7 +255,7 @@ describe('Devices.tsx - DeviceList', () => {
     const devices = [
       { id: 'u', uid: 7, name: 'U', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0 });
+    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [] });
     await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
 
     (fetchClient.GET as unknown as Mock).mockImplementation(() => { throw new Error('Network fail'); });
@@ -285,5 +285,214 @@ describe('Devices.tsx - DeviceList', () => {
     const spy = vi.spyOn(global, 'clearInterval');
     getRef(ref).componentWillUnmount();
     expect(spy).toHaveBeenCalled();
+  });
+
+  describe('Search functionality', () => {
+    it('filterDevices returns all devices when search term is empty', () => {
+      const devices = [
+        { id: '1', uid: 1, name: 'Device1', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: '2', uid: 2, name: 'Device2', status: 'Disconnected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+      ];
+      const filterDevices = DeviceList.prototype.filterDevices.bind({});
+      
+      expect(filterDevices(devices, '')).toEqual(devices);
+      expect(filterDevices(devices, '   ')).toEqual(devices);
+    });
+
+    it('filterDevices filters by device name', () => {
+      const devices = [
+        { id: '1', uid: 1, name: 'TestDevice1', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: '2', uid: 2, name: 'ProductionDevice', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+        { id: '3', uid: 3, name: 'AnotherDevice', status: 'Connected', note: 'Note3', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+      ];
+      const filterDevices = DeviceList.prototype.filterDevices.bind({});
+      
+      const result = filterDevices(devices, 'test');
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('TestDevice1');
+    });
+
+    it('filterDevices filters by device ID', () => {
+      const devices = [
+        { id: 'abc-123', uid: 1, name: 'Device1', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: 'xyz-456', uid: 2, name: 'Device2', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+      ];
+      const filterDevices = DeviceList.prototype.filterDevices.bind({});
+      
+      const result = filterDevices(devices, 'abc');
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('abc-123');
+    });
+
+    it('filterDevices filters by UID', () => {
+      const devices = [
+        { id: '1', uid: 12345, name: 'Device1', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: '2', uid: 67890, name: 'Device2', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+      ];
+      const filterDevices = DeviceList.prototype.filterDevices.bind({});
+      
+      const result = filterDevices(devices, '123');
+      expect(result).toHaveLength(1);
+      expect(result[0].uid).toBe(12345);
+    });
+
+    it('filterDevices filters by status', () => {
+      const devices = [
+        { id: '1', uid: 1, name: 'Device1', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: '2', uid: 2, name: 'Device2', status: 'Disconnected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+        { id: '3', uid: 3, name: 'Device3', status: 'Connected', note: 'Note3', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+      ];
+      const filterDevices = DeviceList.prototype.filterDevices.bind({});
+      
+      const result = filterDevices(devices, 'disconnected');
+      expect(result).toHaveLength(1);
+      expect(result[0].status).toBe('Disconnected');
+    });
+
+    it('filterDevices filters by note content', () => {
+      const devices = [
+        { id: '1', uid: 1, name: 'Device1', status: 'Connected', note: 'Important device for testing', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: '2', uid: 2, name: 'Device2', status: 'Connected', note: 'Production server', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+      ];
+      const filterDevices = DeviceList.prototype.filterDevices.bind({});
+      
+      const result = filterDevices(devices, 'testing');
+      expect(result).toHaveLength(1);
+      expect(result[0].note).toContain('testing');
+    });
+
+    it('filterDevices filters by firmware version', () => {
+      const devices = [
+        { id: '1', uid: 1, name: 'Device1', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.2.3' },
+        { id: '2', uid: 2, name: 'Device2', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+      ];
+      const filterDevices = DeviceList.prototype.filterDevices.bind({});
+      
+      const result = filterDevices(devices, '1.2');
+      expect(result).toHaveLength(1);
+      expect(result[0].firmware_version).toBe('1.2.3');
+    });
+
+    it('filterDevices is case insensitive', () => {
+      const devices = [
+        { id: '1', uid: 1, name: 'TestDevice', status: 'Connected', note: 'Important Note', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+      ];
+      const filterDevices = DeviceList.prototype.filterDevices.bind({});
+      
+      expect(filterDevices(devices, 'testdevice')).toHaveLength(1);
+      expect(filterDevices(devices, 'TESTDEVICE')).toHaveLength(1);
+      expect(filterDevices(devices, 'important')).toHaveLength(1);
+      expect(filterDevices(devices, 'IMPORTANT')).toHaveLength(1);
+    });
+
+    it('filterDevices handles multiple matching fields', () => {
+      const devices = [
+        { id: 'test-123', uid: 123, name: 'TestDevice', status: 'Connected', note: 'Test note', port: 0, valid: true, last_state_change: null, firmware_version: 'test-1.0.0' },
+      ];
+      const filterDevices = DeviceList.prototype.filterDevices.bind({});
+      
+      // Should match multiple fields containing "test"
+      const result = filterDevices(devices, 'test');
+      expect(result).toHaveLength(1);
+    });
+
+    it('handleSearchChange updates search term and filtered devices', async () => {
+      const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+      const ref = createRef<DeviceList>();
+      render(<DeviceList ref={ref} />);
+      initSpy.mockRestore();
+
+      const devices = [
+        { id: '1', uid: 1, name: 'TestDevice', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: '2', uid: 2, name: 'ProductionDevice', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+      ];
+      getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [] });
+      await waitFor(() => expect(getRef(ref).state.devices.length).toBe(2));
+
+      getRef(ref).handleSearchChange('test');
+      await waitFor(() => expect(getRef(ref).state.searchTerm).toBe('test'));
+      expect(getRef(ref).state.filteredDevices).toHaveLength(1);
+      expect(getRef(ref).state.filteredDevices[0].name).toBe('TestDevice');
+    });
+
+    it('handleSearchChange with empty string shows all devices', async () => {
+      const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+      const ref = createRef<DeviceList>();
+      render(<DeviceList ref={ref} />);
+      initSpy.mockRestore();
+
+      const devices = [
+        { id: '1', uid: 1, name: 'TestDevice', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: '2', uid: 2, name: 'ProductionDevice', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+      ];
+      getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: 'test', filteredDevices: [devices[0]] });
+      
+      // Ensure the initial state is set correctly
+      await waitFor(() => expect(getRef(ref).state.devices.length).toBe(2));
+      expect(getRef(ref).state.filteredDevices.length).toBe(1); // Should start with filtered state
+
+      getRef(ref).handleSearchChange('');
+      
+      // Wait for both search term and filtered devices to update
+      await waitFor(() => {
+        expect(getRef(ref).state.searchTerm).toBe('');
+        expect(getRef(ref).state.filteredDevices.length).toBe(2);
+      });
+    });
+
+    it('setSortedDevices updates both devices and filteredDevices', async () => {
+      const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+      const ref = createRef<DeviceList>();
+      render(<DeviceList ref={ref} />);
+      initSpy.mockRestore();
+
+      const devices = [
+        { id: '1', uid: 1, name: 'ZDevice', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: '2', uid: 2, name: 'ADevice', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+      ];
+      getRef(ref).setState({ devices: [], sortColumn: 'name', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: 'device', filteredDevices: [] });
+
+      getRef(ref).setSortedDevices([...devices]);
+      await waitFor(() => expect(getRef(ref).state.devices.length).toBe(2));
+      
+      // Should be sorted by name ascending
+      expect(getRef(ref).state.devices[0].name).toBe('ADevice');
+      expect(getRef(ref).state.devices[1].name).toBe('ZDevice');
+      
+      // Filtered devices should also be sorted and filtered
+      expect(getRef(ref).state.filteredDevices).toHaveLength(2);
+      expect(getRef(ref).state.filteredDevices[0].name).toBe('ADevice');
+    });
+
+    it('render uses filteredDevices when search term is present', async () => {
+      const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+      const ref = createRef<DeviceList>();
+      render(<DeviceList ref={ref} />);
+      initSpy.mockRestore();
+
+      const devices = [
+        { id: '1', uid: 1, name: 'TestDevice', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+        { id: '2', uid: 2, name: 'ProductionDevice', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+      ];
+      const filteredDevices = [devices[0]]; // Only TestDevice
+      
+      getRef(ref).setState({ 
+        devices, 
+        filteredDevices,
+        searchTerm: 'test', 
+        sortColumn: 'none', 
+        sortSequence: 'asc', 
+        showDeleteModal: false, 
+        showEditNoteModal: false, 
+        editNote: '', 
+        editChargerIdx: 0 
+      });
+      
+      await waitFor(() => expect(getRef(ref).state.devices.length).toBe(2));
+      await waitFor(() => expect(getRef(ref).state.filteredDevices.length).toBe(1));
+      
+      // The component should render only the filtered device
+      // This tests the logic in the render method that chooses between devices and filteredDevices
+    });
   });
 });

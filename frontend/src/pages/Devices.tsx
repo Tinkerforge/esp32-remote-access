@@ -13,6 +13,7 @@ import { DeviceTable } from "../components/device/DeviceTable";
 import { DeviceMobileView } from "../components/device/DeviceMobileView";
 import { DeleteDeviceModal } from "../components/device/DeleteDeviceModal";
 import { EditNoteModal } from "../components/device/EditNoteModal";
+import { SearchInput } from "../components/device/SearchInput";
 
 export class DeviceList extends Component<{}, DeviceListState> {
     removalDevice: StateDevice;
@@ -40,6 +41,8 @@ export class DeviceList extends Component<{}, DeviceListState> {
             editChargerIdx: 0,
             sortColumn: "none",
             sortSequence: "asc",
+            searchTerm: "",
+            filteredDevices: [],
         };
 
         this.updateChargers();
@@ -223,6 +226,24 @@ export class DeviceList extends Component<{}, DeviceListState> {
         });
     }
 
+    filterDevices(devices: StateDevice[], searchTerm: string): StateDevice[] {
+        if (!searchTerm.trim()) {
+            return devices;
+        }
+
+        const lowerSearchTerm = searchTerm.toLowerCase().trim();
+        return devices.filter(device => {
+            return (
+                device.name.toLowerCase().includes(lowerSearchTerm) ||
+                device.id.toLowerCase().includes(lowerSearchTerm) ||
+                device.uid.toString().includes(lowerSearchTerm) ||
+                device.status.toLowerCase().includes(lowerSearchTerm) ||
+                device.note.toLowerCase().includes(lowerSearchTerm) ||
+                device.firmware_version.toLowerCase().includes(lowerSearchTerm)
+            );
+        });
+    }
+
     setSortedDevices(devices: StateDevice[]) {
         devices.sort((a, b) => {
             let sortColumn = this.state.sortColumn;
@@ -256,7 +277,9 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 return ret * -1;
 
         });
-        this.setState({ devices });
+        
+        const filteredDevices = this.filterDevices(devices, this.state.searchTerm);
+        this.setState({ devices, filteredDevices });
     }
 
     handleDelete = (device: StateDevice) => {
@@ -311,17 +334,22 @@ export class DeviceList extends Component<{}, DeviceListState> {
         });
     }
 
+    handleSearchChange = (searchTerm: string) => {
+        const filteredDevices = this.filterDevices(this.state.devices, searchTerm);
+        this.setState({ searchTerm, filteredDevices });
+    }
+
     render() {
         const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
         const { route } = useLocation();
-        const devices = this.state.devices;
+        const devices = this.state.filteredDevices.length > 0 || this.state.searchTerm ? this.state.filteredDevices : this.state.devices;
 
         const handleConnect = async (device: StateDevice) => {
             await this.connect_to_charger(device, route);
         };
 
-        // Show empty state message if no devices
-        if (devices.length === 0) {
+        // Show empty state message if no devices at all
+        if (this.state.devices.length === 0) {
             return (
                 <Container fluid className="text-center mt-5">
                     <div className="text-muted">
@@ -348,33 +376,50 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     onCancel={this.handleEditNoteCancel}
                 />
 
-                <DeviceTable
-                    devices={devices}
-                    sortColumn={this.state.sortColumn}
-                    sortSequence={this.state.sortSequence}
-                    onSort={(column) => this.setSort(column)}
-                    onConnect={handleConnect}
-                    onDelete={this.handleDelete}
-                    onEditNote={this.handleEditNote}
-                    connectionPossible={(device) => this.connection_possible(device)}
-                    formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
-                />
+                <Container fluid className="mb-3">
+                    <SearchInput
+                        searchTerm={this.state.searchTerm}
+                        onSearchChange={this.handleSearchChange}
+                    />
+                </Container>
 
-                <DeviceMobileView
-                    devices={devices}
-                    sortColumn={this.state.sortColumn}
-                    sortSequence={this.state.sortSequence}
-                    onMobileSort={(column) => this.setMobileSort(column)}
-                    onSortSequenceChange={(sequence) => this.setState({ sortSequence: sequence }, () => {
-                        // Re-sort the devices after state update
-                        this.setSortedDevices([...this.state.devices]);
-                    })}
-                    onConnect={handleConnect}
-                    onDelete={this.handleDelete}
-                    onEditNote={this.handleEditNote}
-                    connectionPossible={(device) => this.connection_possible(device)}
-                    formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
-                />
+                {devices.length === 0 && this.state.searchTerm ? (
+                    <Container fluid className="text-center mt-5">
+                        <div className="text-muted">
+                            <h5>{t("no_devices_found")}</h5>
+                        </div>
+                    </Container>
+                ) : (
+                    <>
+                        <DeviceTable
+                            devices={devices}
+                            sortColumn={this.state.sortColumn}
+                            sortSequence={this.state.sortSequence}
+                            onSort={(column) => this.setSort(column)}
+                            onConnect={handleConnect}
+                            onDelete={this.handleDelete}
+                            onEditNote={this.handleEditNote}
+                            connectionPossible={(device) => this.connection_possible(device)}
+                            formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
+                        />
+
+                        <DeviceMobileView
+                            devices={devices}
+                            sortColumn={this.state.sortColumn}
+                            sortSequence={this.state.sortSequence}
+                            onMobileSort={(column) => this.setMobileSort(column)}
+                            onSortSequenceChange={(sequence) => this.setState({ sortSequence: sequence }, () => {
+                                // Re-sort the devices after state update
+                                this.setSortedDevices([...this.state.devices]);
+                            })}
+                            onConnect={handleConnect}
+                            onDelete={this.handleDelete}
+                            onEditNote={this.handleEditNote}
+                            connectionPossible={(device) => this.connection_possible(device)}
+                            formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
+                        />
+                    </>
+                )}
             </>
         );
     }

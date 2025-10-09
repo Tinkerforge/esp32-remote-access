@@ -31,5 +31,7 @@ export interface DeviceListState {
     editNote: string,
     editChargerIdx: number,
     sortColumn: SortColumn,
-    sortSequence: "asc" | "desc"
+    sortSequence: "asc" | "desc",
+    searchTerm: string,
+    filteredDevices: StateDevice[]
 }

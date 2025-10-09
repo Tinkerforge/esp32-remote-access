@@ -321,6 +321,8 @@ vi.mock('react-feather', () => ({
   LogOut: () => h('span', { 'data-testid': 'logout-icon' }),
   Server: () => h('span', { 'data-testid': 'server-icon' }),
   User: () => h('span', { 'data-testid': 'user-icon' }),
+  Search: () => h('span', { 'data-testid': 'search-icon' }),
+  X: () => h('span', { 'data-testid': 'x-icon', style: { cursor: 'pointer' } }),
 }));
 
 // Mock i18next

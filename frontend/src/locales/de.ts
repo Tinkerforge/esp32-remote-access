@@ -94,7 +94,11 @@ export const de ={
         "loading_webinterface": "Webinterface wird geladen",
         "invalid_key": "Die auf dem Gerät gespeicherten Schlüssel scheinen fehlerhaft zu sein. Sollte der Fehler weiterhin bestehen, entferne das Gerät und füge es erneut hinzu.",
         "connection_timeout": "Timeout",
-        "connection_timeout_text": "Ein Timeout ist während des Aufbaus der Verbindung aufgetreten. Bitte versuche es später erneut oder kontaktiere uns falls das Problem bestehen bleibt."
+        "connection_timeout_text": "Ein Timeout ist während des Aufbaus der Verbindung aufgetreten. Bitte versuche es später erneut oder kontaktiere uns falls das Problem bestehen bleibt.",
+        "search_devices": "Geräte suchen",
+        "search_devices_placeholder": "Suche nach Name, ID, Notiz oder Status...",
+        "clear_search": "Suche löschen",
+        "no_devices_found": "Keine Geräte gefunden, die deiner Suche entsprechen."
     },
     "navbar": {
         "home": "Home",
