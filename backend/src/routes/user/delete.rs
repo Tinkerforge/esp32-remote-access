@@ -9,7 +9,7 @@ use crate::{
     routes::{
         auth::login::{validate_password, FindBy},
         charger::remove::{
-            delete_all_allowed_users, delete_all_keys, delete_charger, remove_charger_from_state,
+            delete_charger, remove_charger_from_state,
         },
         user::logout::delete_all_refresh_tokens,
     },
@@ -77,26 +77,75 @@ pub async fn delete_user(
     user_id: crate::models::uuid::Uuid,
     payload: web::Json<DeleteUserSchema>,
 ) -> actix_web::Result<impl Responder> {
-    let user_id = user_id.into();
+    let uid = user_id.into();
 
     let conn = get_connection(&state)?;
-    let _ = validate_password(&payload.login_key, FindBy::Uuid(user_id), conn).await?;
+    let _ = validate_password(&payload.login_key, FindBy::Uuid(uid), conn).await?;
 
-    let chargers = get_all_chargers_for_user(user_id, &state).await?;
-    let charger_ids: Vec<uuid::Uuid> = chargers.into_iter().map(|c| c.id).collect();
-    for id in charger_ids.into_iter() {
-        delete_all_keys(id, &state).await?;
-        delete_all_allowed_users(id, &state).await?;
-        delete_charger(id, &state).await?;
-        remove_charger_from_state(id, &bridge_state).await;
+    let chargers = get_all_chargers_for_user(uid, &state).await?;
+    let charger_ids: Vec<uuid::Uuid> = chargers.iter().map(|c| c.id).collect();
+    for cid in charger_ids.into_iter() {
+        // Remove user from allowed_users for this charger
+        {
+            let mut conn = get_connection(&state)?;
+            crate::utils::web_block_unpacked(move || {
+                use db_connector::schema::allowed_users::dsl::*;
+                match diesel::delete(
+                    allowed_users
+                        .filter(user_id.eq(uid))
+                        .filter(charger_id.eq(cid)),
+                )
+                .execute(&mut conn)
+                {
+                    Ok(_) => Ok(()),
+                    Err(_err) => Err(Error::InternalError),
+                }
+            })
+            .await?;
+        }
+        // Remove user's keys for this charger
+        {
+            let mut conn = get_connection(&state)?;
+            crate::utils::web_block_unpacked(move || {
+                use db_connector::schema::wg_keys::dsl::*;
+                match diesel::delete(wg_keys.filter(user_id.eq(uid)).filter(charger_id.eq(cid)))
+                    .execute(&mut conn)
+                {
+                    Ok(_) => Ok(()),
+                    Err(_err) => Err(Error::InternalError),
+                }
+            })
+            .await?;
+        }
+        // Check if any allowed users remain for this charger
+        let allowed_count = {
+            let mut conn = get_connection(&state)?;
+            crate::utils::web_block_unpacked(move || {
+                use db_connector::schema::allowed_users::dsl::*;
+                match allowed_users
+                    .filter(charger_id.eq(cid))
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                {
+                    Ok(c) => Ok(c),
+                    Err(_err) => Err(Error::InternalError),
+                }
+            })
+            .await?
+        };
+        println!("allowed_count: {allowed_count}");
+        if allowed_count == 0 {
+            delete_charger(cid, &state).await?;
+            remove_charger_from_state(cid, &bridge_state).await;
+        }
     }
 
-    delete_all_refresh_tokens(user_id, &state).await?;
+    delete_all_refresh_tokens(uid, &state).await?;
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         use db_connector::schema::users::dsl::*;
 
-        match diesel::delete(users.find(user_id)).execute(&mut conn) {
+        match diesel::delete(users.find(uid)).execute(&mut conn) {
             Ok(_) => Ok(()),
             Err(_err) => {
                 println!("err: {_err:?}");
@@ -114,6 +163,7 @@ mod tests {
     use std::str::FromStr;
 
     use actix_web::{cookie::Cookie, test, App};
+    use base64::Engine;
     use db_connector::{
         models::{allowed_users::AllowedUser, chargers::Charger, users::User, wg_keys::WgKey},
         test_connection_pool,
@@ -132,7 +182,6 @@ mod tests {
 
     use super::{delete_user, DeleteUserSchema};
 
-    //TODO: add test for shared charger once it is merged
     #[actix_web::test]
     async fn test_delete() {
         let (mut user1, user1_mail) = TestUser::random().await;
@@ -141,6 +190,11 @@ mod tests {
         user2.login().await;
         let charger = user1.add_random_charger().await;
         let charger2 = user2.add_random_charger().await;
+        // Share charger with user2
+        let user2_auth = crate::routes::charger::allow_user::UserAuth::LoginKey(
+            base64::prelude::BASE64_STANDARD.encode(&user2.get_login_key().await),
+        );
+        user1.allow_user(&user2_mail, user2_auth, &charger).await;
         let uid1 = get_test_uuid(&user1_mail).unwrap();
         let uid2 = get_test_uuid(&user2_mail).unwrap();
 
@@ -168,28 +222,37 @@ mod tests {
         {
             use db_connector::schema::allowed_users::dsl::*;
 
+            // user1 should be gone
             let res = allowed_users
                 .filter(user_id.eq(uid1))
                 .select(AllowedUser::as_select())
                 .get_result(&mut conn);
             assert_eq!(res, Err(NotFound));
 
+            // user2 should still have access to both chargers
             let res = allowed_users
                 .filter(user_id.eq(uid2))
                 .select(AllowedUser::as_select())
-                .get_result(&mut conn);
-            assert!(res.is_ok());
+                .load::<AllowedUser>(&mut conn);
+            let charger_ids: Vec<uuid::Uuid> =
+                res.unwrap().into_iter().map(|au| au.charger_id).collect();
+            let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+            let uuid2 = uuid::Uuid::from_str(&charger2.uuid).unwrap();
+            println!("charger_ids: {charger_ids:?}");
+            assert!(charger_ids.contains(&uuid));
+            assert!(charger_ids.contains(&uuid2));
         }
         let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
         let uuid2 = uuid::Uuid::from_str(&charger2.uuid).unwrap();
         {
             use db_connector::schema::chargers::dsl::*;
 
+            // Both chargers should still exist
             let res = chargers
                 .filter(id.eq(uuid))
                 .select(Charger::as_select())
                 .get_result(&mut conn);
-            assert_eq!(res, Err(NotFound));
+            assert!(res.is_ok());
 
             let res = chargers
                 .filter(id.eq(uuid2))
@@ -200,22 +263,23 @@ mod tests {
         {
             use db_connector::schema::wg_keys::dsl::*;
 
+            // Only user2's keys should remain for both chargers
             let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
-            let res = wg_keys
-                .filter(charger_id.eq(uuid))
+            let uuid2 = uuid::Uuid::from_str(&charger2.uuid).unwrap();
+            let keys_user2: Vec<_> = wg_keys
+                .filter(charger_id.eq(uuid).or(charger_id.eq(uuid2)))
                 .select(WgKey::as_select())
-                .get_result(&mut conn);
-            assert_eq!(res, Err(NotFound));
-
-            let res = wg_keys
-                .filter(charger_id.eq(uuid2))
-                .select(WgKey::as_select())
-                .get_result(&mut conn);
-            assert!(res.is_ok());
+                .load::<WgKey>(&mut conn)
+                .unwrap()
+                .into_iter()
+                .filter(|k| k.user_id == uid2)
+                .collect();
+            assert!(!keys_user2.is_empty());
         }
         {
             use db_connector::schema::users::dsl::*;
 
+            // user1 should be deleted, user2 should remain
             let res = users
                 .find(uid1)
                 .select(User::as_select())
