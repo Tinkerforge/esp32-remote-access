@@ -77,14 +77,14 @@ class VirtualNetworkInterface {
         this.abort.abort();
     }
 
-    handleErrorMessage(msg: Message) {
+    private handleErrorMessage(msg: Message) {
         const data = msg.data as { translation: string, format?: Record<string, unknown> };
         showAlert(i18n.t(data.translation, data.format) as string, "danger");
         this.route("/devices");
     }
 
     // This handles Messages from the iframe/ Device-Webinterface
-    iframeMessageHandler(e: MessageEvent) {
+    private iframeMessageHandler(e: MessageEvent) {
         const iframe = document.getElementById("interface") as HTMLIFrameElement;
         if (typeof e.data !== "string") {
             const data = e.data as Message;
@@ -116,7 +116,7 @@ class VirtualNetworkInterface {
     }
 
     // This waits for the Worker to be done with the setup
-    setupHandler(e: MessageEvent) {
+    private setupHandler(e: MessageEvent) {
         if (e.data === "started") {
             this.worker.onmessage = (e) => this.handleWorkerMessage(e);
             const message_data: SetupMessage = {
@@ -149,7 +149,7 @@ class VirtualNetworkInterface {
     }
 
     // This handles the Message coming from the Charger once the setup is done
-    handleWorkerMessage(e: MessageEvent) {
+    private handleWorkerMessage(e: MessageEvent) {
         if (typeof e.data === "string") {
             switch (e.data) {
                 case "ready":
@@ -224,7 +224,7 @@ class VirtualNetworkInterface {
         }
     }
 
-    keyDownHandler(e: KeyboardEvent) {
+    private keyDownHandler(e: KeyboardEvent) {
         if (e.ctrlKey && e.altKey && e.code === "KeyP") {
             this.worker.postMessage("download");
         } else if(e.ctrlKey && e.altKey && e.shiftKey && e.code === "KeyR") {
@@ -340,6 +340,14 @@ export class Frame extends Component<{}, FrameState> {
                     const name = sodium.to_string(decryptedName);
                     document.title = name;
                 }
+
+                const iframe = document.getElementById("interface") as HTMLIFrameElement;
+                iframe.addEventListener("load", (v) => {
+                    const iframeSrc = (v.target as HTMLIFrameElement).contentWindow?.location.href;
+                    if (iframeSrc?.includes("devices")) {
+                        location.reload();
+                    }
+                });
 
                 connected.value = true;
             });
