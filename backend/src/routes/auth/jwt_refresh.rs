@@ -47,6 +47,11 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
 
     let (token_id, exp) = extract_token(token, &state.jwt_secret)?;
 
+    // Check expiration BEFORE doing any database operations
+    if exp < Utc::now().timestamp() as usize {
+        return Err(ErrorUnauthorized("Session expired"));
+    }
+
     let mut conn = get_connection(state)?;
     let refresh_token: RefreshToken = web_block_unpacked(move || {
         use db_connector::schema::refresh_tokens::dsl::*;
@@ -59,10 +64,8 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
     })
     .await?;
 
+    // Only delete the token after we've confirmed it exists and is valid
     delete_refresh_token(token_id, state).await?;
-    if exp < Utc::now().timestamp() as usize {
-        return Err(ErrorUnauthorized("Session expired"));
-    }
 
     let mut conn = get_connection(state)?;
     let user: User = web_block_unpacked(move || {
