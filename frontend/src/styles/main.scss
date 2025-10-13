@@ -1,6 +1,57 @@
-@import "../../node_modules/bootstrap/scss/bootstrap.scss";
+// Bootstrap imports
 @import "../../node_modules/bootstrap/scss/functions";
 @import "../../node_modules/bootstrap/scss/variables";
+@import "../../node_modules/bootstrap/scss/bootstrap.scss";
+
+// =============================================================================
+// Navigation & Header
+// =============================================================================
+
+.navbar {
+  background-color: $navbar-color;
+  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15) !important;
+  height: $navbar-height;
+  color: white;
+  z-index: 1020;
+
+  .nav-link .active {
+    color: #fff !important;
+  }
+
+  .navbar-toggler {
+    top: 0.25rem;
+    right: 1rem;
+  }
+}
+
+.navbar-extend {
+  background-color: $navbar-color;
+  border-radius: 0 0 15px 15px;
+}
+
+.navbar-divide {
+  color: #fff !important;
+}
+
+.navbar-dark .navbar-toggler:hover {
+  background-color: #5a6268;
+}
+
+// =============================================================================
+// Footer
+// =============================================================================
+
+.footer {
+  background-color: $navbar-color;
+
+  a {
+    color: #fff;
+  }
+}
+
+// =============================================================================
+// Mobile Responsive Styles
+// =============================================================================
 
 @media (max-width: 767.98px) {
   .sidebar {
@@ -9,63 +60,40 @@
     bottom: 0;
     left: 0;
     width: 100%;
-    z-index: 1019; /* Behind the navbar */
+    z-index: 1019; // Behind the navbar
     background-color: rgba(var(--bs-light-rgb), 1);
-    padding: $navbar-height 0 0; /* Height of navbar */
+    padding: $navbar-height 0 0; // Height of navbar
     box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.1);
-  }
 
-  .sidebar .nav-link {
+    .navbar-nav .nav-link {
       font-weight: 500;
       color: #333;
+    }
+  }
+
+  .active {
+    color: #000 !important;
   }
 }
 
-.footer {
-  background-color: $navbar-color;
-}
-
-.footer a {
-  color: #ffff;
-}
-
-.navbar-extend {
-  background-color: $navbar-color;
-  border-radius: 0 0 15px 15px;
-}
-
-@media (hover: hover) {
-  .sidebar .nav-link:hover {
+.sidebar {
+  @media (hover: hover) {
+    .nav-link:hover {
       color: var(--primary);
+    }
   }
 }
 
-.navbar {
-  background-color: $navbar-color;
-  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15) !important;
-  height: $navbar-height;
-  color: white;
-  z-index: 1020;
-}
-
-.navbar .navbar-toggler {
-  top: 0.25rem;
-  right: 1rem;
-}
-
-.navbar-divide {
-  color: #ffff !important;
-}
-
-.navbar-dark .navbar-toggler:hover {
-  background-color: #5a6268
-}
 
 @media (max-width: 370px) {
   .navbar-toggler.mr-3 {
-      margin-right: .5rem !important;
+    margin-right: 0.5rem !important;
   }
 }
+
+// =============================================================================
+// Table Styles
+// =============================================================================
 
 th:hover:has(div) {
   background-color: rgba(var(--bs-emphasis-color-rgb), 0.075);
@@ -74,28 +102,60 @@ th:hover:has(div) {
 .charger-head th {
   width: min-content;
   white-space: nowrap;
-}
 
-.charger-head th:nth-last-child(2) {
-  @media (max-width: 1600px) {
-    width: 50% !important;
+  &:nth-last-child(2) {
+    width: 60%;
+
+    @media (max-width: 1600px) {
+      width: 50% !important;
+    }
+
+    @media (max-width: 1200px) {
+      width: 40% !important;
+    }
   }
-  @media (max-width: 1200px) {
-    width: 40% !important;
+}
+
+// =============================================================================
+// Button Groups
+// =============================================================================
+
+.btn-group {
+  .dropdown-btn {
+    &:first-child button {
+      border-bottom-right-radius: 0 !important;
+      border-top-right-radius: 0 !important;
+      margin-right: 1px;
+    }
+
+    &:not(:first-child) button {
+      border-bottom-left-radius: 0 !important;
+      border-top-left-radius: 0 !important;
+    }
   }
-  width: 60%;
 }
 
-.btn-group .dropdown-btn:first-child button {
-  border-bottom-right-radius: 0 !important;
-  border-top-right-radius: 0 !important;
-  margin-right: 1px;
+.token-group {
+  @media (min-width: 768px) {
+    gap: 0 !important;
+
+    .btn {
+      border-radius: 0 !important;
+      margin-left: 0;
+      margin-right: 0;
+
+      &:last-of-type {
+        margin-right: 0 !important;
+        border-top-right-radius: 0.25rem !important;
+        border-bottom-right-radius: 0.25rem !important;
+      }
+    }
+  }
 }
 
-.btn-group .dropdown-btn:not(:first-child) button {
-  border-bottom-left-radius: 0 !important;
-  border-top-left-radius: 0 !important;
-}
+// =============================================================================
+// Alert System
+// =============================================================================
 
 .alert-container {
   position: fixed;
@@ -113,21 +173,4 @@ th:hover:has(div) {
   pointer-events: auto;
   width: 100%;
   padding: 0.5rem 1rem;
-}
-
-.token-group {
-  @media (min-width: 768px) {
-    gap: 0 !important;
-
-    .btn {
-      border-radius: 0 !important;
-      margin-left: 0;
-      margin-right: 0;
-    }
-    .btn:last-of-type {
-      margin-right: 0 !important;
-      border-top-right-radius: 0.25rem !important;
-      border-bottom-right-radius: 0.25rem !important;
-    }
-  }
 }

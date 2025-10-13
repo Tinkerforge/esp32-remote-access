@@ -52,7 +52,7 @@ export function setAppNavigation() {
 }
 
 export function CustomNavbar() {
-    const { url } = useLocation();
+    const { path } = useLocation();
     const [expanded, setExpanded] = useState(false);
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "navbar"});
 
@@ -66,19 +66,19 @@ export function CustomNavbar() {
                 <Navbar.Toggle onClick={() => setExpanded(!expanded)} id="navbar-toggler" aria-controls="basic-navbar-nav" />
                 <Navbar.Collapse id="navbar-nav" className="sidebar px-2 py-1">
                     <Nav className="me-auto ps-2">
-                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/devices" active={url === "/chargers"}>
+                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/devices" active={ path === "/devices"}>
                             <Server />
                             <p class="ms-1 mb-0">
                                 {t("chargers")}
                             </p>
                         </Nav.Link>
-                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/tokens" active={url === "/tokens"}>
+                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/tokens" active={ path === "/tokens"}>
                             <Key />
                             <p class="ms-1 mb-0">
                                 {t("token")}
                             </p>
                         </Nav.Link>
-                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/user" active={url === "/user"}>
+                        <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/user" active={ path === "/user"}>
                             <User />
                             <p class="ms-1 mb-0">
                                 {t("user")}
@@ -86,7 +86,7 @@ export function CustomNavbar() {
                         </Nav.Link>
                     </Nav>
                     <hr class="d-block d-md-none my-1" style={{color: "#5a6268"}} />
-                    <Nav>
+                    <Nav className="ps-2">
                         <Nav.Link className="d-flex align-items-center" onClick={(e) => {
                             e.preventDefault();
                             logout(false);

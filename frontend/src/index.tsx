@@ -251,9 +251,9 @@ export function App() {
             return (
                 <>
                     <ErrorAlert />
-                    <CustomNavbar />
                     <Col>
                         <LocationProvider>
+                            <CustomNavbar />
                             <Router onRouteChange={() => {
                                 connected.value = false;
                                 // Ensure title is reset to translated app name when navigating away from a device connection
