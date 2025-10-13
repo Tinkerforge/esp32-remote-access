@@ -69,7 +69,7 @@ export function RecoveryDataComponent(props: RecoveryDataProps) {
                         id="recovery-confirmation"
                         label={t("save_recovery_data_confirmation")}
                         checked={confirmed.value}
-                        onChange={(e: any) => { confirmed.value = e.target.checked; }}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => { confirmed.value = e.currentTarget.checked; }}
                         className="mt-3"
                     />
                 )}

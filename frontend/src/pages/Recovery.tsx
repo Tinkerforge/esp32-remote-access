@@ -148,10 +148,10 @@ export function Recovery() {
                 <p>{t("recovery.no_file_warning_body")}</p>
                 <Form.Check
                     type="checkbox"
-                    id="no-file-ack"
+                    id="acknowledge-no-file"
                     label={t("recovery.no_file_warning_ack")}
                     checked={acknowledgeNoFile.value}
-                    onChange={(e: any) => { acknowledgeNoFile.value = e.target.checked; }}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => { acknowledgeNoFile.value = e.currentTarget.checked; }}
                 />
             </Modal.Body>
             <Modal.Footer>

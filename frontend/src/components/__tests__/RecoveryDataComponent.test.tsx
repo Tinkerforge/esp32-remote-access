@@ -18,6 +18,13 @@ describe('RecoveryDataComponent', () => {
     const email = 'john.doe@example.com';
     const secret = new Uint8Array([1, 2, 3]);
 
+    // Mock the anchor click to avoid interference with other tests
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype as unknown as { click: () => void }, 'click')
+      .mockImplementation(() => {
+        // Mock implementation for testing. This is comment is to silence lint warnings
+      });
+
     render(<RecoveryDataComponent email={email} secret={secret} show={show} />);
 
     expect(screen.getByTestId('modal-title').textContent).toBe('save_recovery_data');
@@ -51,12 +58,21 @@ describe('RecoveryDataComponent', () => {
 
     fireEvent.click(closeButton);
     expect(show.value).toBe(false);
+
+    clickSpy.mockRestore();
   });
 
   it('prevents closing modal until file is saved and confirmed', async () => {
     const { RecoveryDataComponent } = await importComponent();
 
     const show = signal(true);
+
+    // Mock the anchor click to avoid interference with other tests
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype as unknown as { click: () => void }, 'click')
+      .mockImplementation(() => {
+        // Mock implementation for testing. This is comment is to silence lint warnings
+      });
 
     render(<RecoveryDataComponent email={'a@b.c'} secret={new Uint8Array()} show={show} />);
 
@@ -81,9 +97,11 @@ describe('RecoveryDataComponent', () => {
     await waitFor(() => {
       expect(closeButton).not.toBeDisabled();
     });
-    
+
     fireEvent.click(closeButton);
     expect(show.value).toBe(false);
+
+    clickSpy.mockRestore();
   });
 });
 
@@ -117,6 +135,11 @@ describe('saveRecoveryData', () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(revokeUrl).toHaveBeenCalledWith('blob:test-url');
 
-  expect(window.crypto.subtle.digest).toHaveBeenCalledWith('SHA-256', expect.anything());
+    expect(window.crypto.subtle.digest).toHaveBeenCalledWith('SHA-256', expect.anything());
+
+    // Clean up spies
+    createUrl.mockRestore();
+    clickSpy.mockRestore();
+    revokeUrl.mockRestore();
   });
 });
