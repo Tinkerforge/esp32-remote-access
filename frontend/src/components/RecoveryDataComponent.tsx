@@ -1,6 +1,6 @@
 import { Signal, useSignal } from "@preact/signals";
 import { Base64 } from "js-base64";
-import { Button, Modal } from "react-bootstrap";
+import { Button, Modal, Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 
 interface RecoveryDataProps {
@@ -36,27 +36,56 @@ export async function saveRecoveryData(secret: Uint8Array, email: string) {
 export function RecoveryDataComponent(props: RecoveryDataProps) {
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "register"});
     const saved = useSignal(false);
+    const confirmed = useSignal(false);
 
     return <Modal show={props.show.value} onHide={() => {
-                    props.show.value = false;
-                    window.location.replace("/");
+                    // Only allow closing if user has saved and confirmed
+                    if (saved.value && confirmed.value) {
+                        props.show.value = false;
+                        window.location.replace("/");
+                    }
                 }}>
-            <Modal.Header closeButton>
+            <Modal.Header closeButton={saved.value && confirmed.value}>
                 <Modal.Title>{t("save_recovery_data")}</Modal.Title>
             </Modal.Header>
 
             <Modal.Body>
                 <p className="mb-3">{t("save_recovery_data_text")}</p>
-                <Button variant="primary" onClick={() => {
-                    saveRecoveryData(props.secret, props.email);
-                    saved.value = true;
-                }}>{t("save")}</Button>
+                <div className="mb-3">
+                    <Button 
+                        variant="primary" 
+                        size="lg"
+                        className="w-100"
+                        onClick={() => {
+                            saveRecoveryData(props.secret, props.email);
+                            saved.value = true;
+                        }}>
+                        {t("save")}
+                    </Button>
+                </div>
+                {saved.value && (
+                    <Form.Check
+                        type="checkbox"
+                        id="recovery-confirmation"
+                        label={t("save_recovery_data_confirmation")}
+                        checked={confirmed.value}
+                        onChange={(e: any) => { confirmed.value = e.target.checked; }}
+                        className="mt-3"
+                    />
+                )}
             </Modal.Body>
 
             <Modal.Footer>
-                <Button variant={saved.value ? "primary" : "danger"} onClick={() => {
-                    props.show.value = false;
-                }}>{t("close")}</Button>
+                <Button 
+                    variant={saved.value && confirmed.value ? "primary" : "secondary"} 
+                    disabled={!saved.value || !confirmed.value}
+                    onClick={() => {
+                        if (saved.value && confirmed.value) {
+                            props.show.value = false;
+                        }
+                    }}>
+                    {t("close")}
+                </Button>
             </Modal.Footer>
     </Modal>
 }

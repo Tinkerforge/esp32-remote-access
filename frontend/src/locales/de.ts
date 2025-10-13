@@ -130,6 +130,7 @@ export const de ={
         "save_recovery_data": "Wiederhestellungsdatei speichern",
         "save": "Speichern",
         "save_recovery_data_text": "Da die Zugangsdaten für die Geräte nur mithilfe des korrekten Passworts entschlüsselt werden können brauchst du, falls du dein Passwort vergessen solltest, diese Datei um den Zugang zu deinen Geräten wiederherzustellen. Bewahre diese Datei sicher und für niemanden sonst zugänglich auf, da sie mit deinem Passwort gleichzustellen ist.",
+        "save_recovery_data_confirmation": "Ich habe die Wiederherstellungsdatei heruntergeladen und sicher gespeichert",
         "close": "Schließen",
         "registration_successful": "Die Registrierung war erfolgreich. Du solltest innerhalb der nächsten paar Minuten eine Email mit einem Bestätigungslink erhalten"
     ,"resend_verification": "Bestätigungs-E-Mail erneut senden"

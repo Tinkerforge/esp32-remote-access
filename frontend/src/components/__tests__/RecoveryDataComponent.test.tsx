@@ -10,7 +10,7 @@ describe('RecoveryDataComponent', () => {
     vi.clearAllMocks();
   });
 
-  it('renders modal content when shown and triggers save', async () => {
+  it('renders modal content when shown and triggers save with confirmation', async () => {
     const mod = await importComponent();
     const { RecoveryDataComponent } = mod;
 
@@ -25,12 +25,27 @@ describe('RecoveryDataComponent', () => {
     const footer = screen.getByTestId('modal-footer');
     const closeButton = within(footer).getByRole('button', { name: 'close' });
 
-    expect(closeButton.className).toContain('btn-danger');
+    // Initially close button should be disabled
+    expect(closeButton).toBeDisabled();
+    expect(closeButton.className).toContain('btn-secondary');
 
     const saveButton = screen.getByRole('button', { name: 'save' });
     fireEvent.click(saveButton);
 
+    // After saving, confirmation checkbox should appear
     await waitFor(() => {
+      expect(screen.getByLabelText('save_recovery_data_confirmation')).toBeInTheDocument();
+    });
+
+    // Close button should still be disabled until checkbox is checked
+    expect(closeButton).toBeDisabled();
+
+    // Check the confirmation checkbox
+    const confirmationCheckbox = screen.getByLabelText('save_recovery_data_confirmation');
+    fireEvent.click(confirmationCheckbox);
+
+    await waitFor(() => {
+      expect(closeButton).not.toBeDisabled();
       expect(closeButton.className).toContain('btn-primary');
     });
 
@@ -38,21 +53,37 @@ describe('RecoveryDataComponent', () => {
     expect(show.value).toBe(false);
   });
 
-  it('calls onHide and navigates on modal close', async () => {
-  const { RecoveryDataComponent } = await importComponent();
+  it('prevents closing modal until file is saved and confirmed', async () => {
+    const { RecoveryDataComponent } = await importComponent();
 
     const show = signal(true);
 
     render(<RecoveryDataComponent email={'a@b.c'} secret={new Uint8Array()} show={show} />);
 
-  const closeButtons = screen.getAllByTestId('modal-close');
-  const bottomClose = closeButtons[closeButtons.length - 1];
-  fireEvent.click(bottomClose);
+    // Try to close the modal without saving/confirming - should not close
+    const closeButton = screen.getByRole('button', { name: 'close' });
+    fireEvent.click(closeButton);
 
+    // Modal should still be open
+    expect(show.value).toBe(true);
+
+    // Save the file first
+    const saveButton = screen.getByRole('button', { name: 'save' });
+    fireEvent.click(saveButton);
+
+    // Check the confirmation checkbox
     await waitFor(() => {
-      expect(show.value).toBe(false);
-      expect(window.location.replace).toHaveBeenCalledWith('/');
+      const confirmationCheckbox = screen.getByLabelText('save_recovery_data_confirmation');
+      fireEvent.click(confirmationCheckbox);
     });
+
+    // Now try to close - should work
+    await waitFor(() => {
+      expect(closeButton).not.toBeDisabled();
+    });
+    
+    fireEvent.click(closeButton);
+    expect(show.value).toBe(false);
   });
 });
 
