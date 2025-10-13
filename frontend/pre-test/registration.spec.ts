@@ -15,7 +15,15 @@ test('register', async ({ page }) => {
     await page.getByText('I have read, understood and I am accepting the privacy notice.').click();
     await page.getByText('I have read, understood and I am accepting the terms and conditions.').click();
     await page.getByRole('button', { name: 'Register' }).click();
-    await page.getByText('Close').click();
+
+    // Wait for the recovery modal to appear and complete the recovery data flow
+    await page.locator('.modal').getByRole('button', { name: 'Save' }).click();
+    await page.locator('.modal').getByRole('checkbox', { name: 'I have downloaded and safely stored the recovery file' }).check();
+    await page.locator('.modal-footer').getByRole('button', { name: 'Close' }).click();
+
+    if (!mailiskClient) {
+        throw new Error('Mailisk client is not configured');
+    }
     const inbox = await mailiskClient.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser1, from_timestamp: (Date.now() / 1000) - 5 });
 
     if (!inbox.data || inbox.data.length === 0) {
