@@ -1,5 +1,5 @@
 import { Base64 } from "js-base64";
-import { Button, Card, Form } from "react-bootstrap";
+import { Button, Card, Form, Modal } from "react-bootstrap";
 import { AppState, PASSWORD_PATTERN, concat_salts, fetchClient, generate_hash, generate_random_bytes, get_salt, loggedIn } from "../utils";
 import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
 import { showAlert } from "../components/Alert";
@@ -36,42 +36,47 @@ export function Recovery() {
     }, [])
 
     const [state, setState] = useState({
-        recovery_key: query.token,
-        email: query.email,
+        recovery_key: query.token as string,
+        email: query.email as string,
         new_password: "",
+        confirm_password: "",
         passwordValid: true,
+        confirmPasswordValid: true,
         fileValid: true,
         validated: false,
     });
+
     const secret = useSignal<Uint8Array>(new Uint8Array());
     const showModal = useSignal(false);
+    const showNoFileWarning = useSignal(false);
+    const acknowledgeNoFile = useSignal(false);
 
     const validateForm = () => {
         let ret = true;
         let passworValid = true;
+        let confirmValid = true;
 
         if (!PASSWORD_PATTERN.test(state.new_password)) {
             passworValid = false;
             ret = false;
         }
 
+        if (state.confirm_password !== state.new_password) {
+            confirmValid = false;
+            ret = false;
+        }
+
+        // If user touched file input and it became invalid, block submit.
         if (!state.fileValid) {
             ret = false;
         }
 
-        setState({...state, validated: true, passwordValid: passworValid});
+        setState({...state, validated: true, passwordValid: passworValid, confirmPasswordValid: confirmValid});
 
         return ret;
     }
 
-    const onSubmit = async (e: SubmitEvent) => {
-        e.preventDefault();
-
-        if (!validateForm()) {
-            e.stopPropagation();
-            return;
-        }
-
+    const executeRecovery = async () => {
         const salt1 = await get_salt();
         const secret_salt = concat_salts(salt1);
         const secret_key = await generate_hash(state.new_password, secret_salt, crypto_secretbox_KEYBYTES);
@@ -84,7 +89,7 @@ export function Recovery() {
 
         let secret_reuse: boolean;
         let encrypted_secret: Uint8Array;
-        if (secret.value.length == 0) {
+        if (secret.value.length === 0) {
             const key_pair = crypto_box_keypair();
             const new_secret = key_pair.privateKey;
             secret.value = new Uint8Array(new_secret);
@@ -114,8 +119,52 @@ export function Recovery() {
         }
     }
 
+    const onSubmit = async (e: SubmitEvent) => {
+        e.preventDefault();
+
+        if (!validateForm()) {
+            e.stopPropagation();
+            return;
+        }
+
+        // If no recovery file was provided, ask for explicit confirmation first.
+        if (secret.value.length === 0) {
+            showNoFileWarning.value = true;
+            return;
+        }
+
+        await executeRecovery();
+    }
+
     return <>
-    <RecoveryDataComponent email={state.email} secret={secret.value as Uint8Array} show={showModal} />
+        {/* Strong confirmation if no recovery file is provided */}
+        <Modal show={showNoFileWarning.value} onHide={() => { showNoFileWarning.value = false; }} centered>
+            <Modal.Header closeButton>
+                <Modal.Title>
+                    {t("recovery.no_file_warning_heading")}
+                </Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                <p>{t("recovery.no_file_warning_body")}</p>
+                <Form.Check
+                    type="checkbox"
+                    id="no-file-ack"
+                    label={t("recovery.no_file_warning_ack")}
+                    checked={acknowledgeNoFile.value}
+                    onChange={(e: any) => { acknowledgeNoFile.value = e.target.checked; }}
+                />
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="outline-secondary" onClick={() => { showNoFileWarning.value = false; }}>
+                    {t("recovery.no_file_warning_cancel")}
+                </Button>
+                <Button variant="danger" disabled={!acknowledgeNoFile.value} onClick={async () => { showNoFileWarning.value = false; acknowledgeNoFile.value = false; await executeRecovery(); }}>
+                    {t("recovery.no_file_warning_proceed")}
+                </Button>
+            </Modal.Footer>
+        </Modal>
+
+        <RecoveryDataComponent email={state.email} secret={secret.value as Uint8Array} show={showModal} />
 
         <Card className="p-0 col-10 col-lg-5 col-xl-3">
             <Form onSubmit={(e: SubmitEvent) => onSubmit(e)} noValidate>
@@ -131,6 +180,14 @@ export function Recovery() {
                         </Form.Label>
                         <PasswordComponent isInvalid={!state.passwordValid}  onChange={(e) => {
                             setState({...state, new_password: e});
+                        }} />
+                    </Form.Group>
+                    <Form.Group className="mb-3" controlId="confirmPassword">
+                        <Form.Label>
+                            {t("recovery.confirm_password")}
+                        </Form.Label>
+                        <PasswordComponent isInvalid={!state.confirmPasswordValid} invalidMessage={t("recovery.confirm_password_error_message")} onChange={(e) => {
+                            setState({...state, confirm_password: e});
                         }} />
                     </Form.Group>
                     <Form.Group className="mb-3" controlId="recoveryFile">

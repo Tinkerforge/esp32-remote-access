@@ -47,10 +47,17 @@ export const en = {
     "recovery": {
         "recovery": "Password recovery",
         "new_password": "New password",
+        "confirm_password": "Confirm password",
+        "confirm_password_error_message": "Passwords do not match",
         "recovery_file": "Recovery File",
         "submit": "Submit",
         "invalid_file": "File is invalid",
-        "token_expired": "The token has expired. Please start the process again."
+        "token_expired": "The token has expired. Please start the process again.",
+        "no_file_warning_heading": "Are you sure?",
+        "no_file_warning_body": "You did not provide a recovery file. If you continue, we will generate a new device secret. This will cause you to lose access to all devices that are currently linked to your account and you will have to re-add them manually. If you still have access to your recovery file, we strongly recommend using it instead.",
+        "no_file_warning_cancel": "Cancel",
+        "no_file_warning_proceed": "Continue without file",
+        "no_file_warning_ack": "I understand that continuing without a recovery file will disconnect my devices and require re-adding them."
     },
     "chargers": {
         "charger_name": "Name",

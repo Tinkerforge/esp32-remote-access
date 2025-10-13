@@ -47,10 +47,17 @@ export const de ={
     "recovery": {
         "recovery": "Passwort zurücksetzen",
         "new_password": "Neues Passwort",
+        "confirm_password": "Passwort bestätigen",
+        "confirm_password_error_message": "Passwörter stimmen nicht überein",
         "recovery_file": "Wiederhestellungsdatei",
         "submit": "Abschicken",
         "invalid_file": "Datei ist beschädigt oder falsch",
-        "token_expired": "Das Token ist abgelaufen. Bitte starte den Vorgang erneut."
+        "token_expired": "Das Token ist abgelaufen. Bitte starte den Vorgang erneut.",
+        "no_file_warning_heading": "Bist du sicher?",
+        "no_file_warning_body": "Du hast keine Wiederherstellungsdatei angegeben. Wenn du fortfährst, wird ein neues Geräte-Secret erzeugt. Dadurch verlierst du den Zugriff auf alle deine Geräte und musst sie manuell erneut hinzufügen. Wenn du noch Zugriff auf deine Wiederherstellungsdatei hast, empfehlen wir dringend, diese zu verwenden.",
+        "no_file_warning_cancel": "Abbrechen",
+        "no_file_warning_proceed": "Ohne Datei fortfahren",
+        "no_file_warning_ack": "Ich verstehe, dass das Fortfahren ohne Wiederherstellungsdatei meine Geräte trennt und ich sie erneut hinzufügen muss."
     },
     "chargers": {
         "charger_name": "Name",
