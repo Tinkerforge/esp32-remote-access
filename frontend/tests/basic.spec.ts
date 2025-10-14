@@ -113,6 +113,7 @@ test('password change dialog validation', async ({ page }) => {
 
 test('charger lifecycle', async ({ page }) => {
   test.slow();
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
 
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
@@ -151,6 +152,7 @@ test('charger lifecycle', async ({ page }) => {
 
 test('add charger with auth token', async ({page}) => {
   test.slow();
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
   await page.waitForTimeout(20_000);
 
   await login(page, testUser1Email, testPassword1);
@@ -181,6 +183,7 @@ test('add charger with auth token', async ({page}) => {
 
 test('change accountname', async ({page}) => {
   test.slow();
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
 
   await login(page, testUser1Email, testPassword1);
 
@@ -219,6 +222,7 @@ test('change accountname', async ({page}) => {
 });
 
 test('change password', async ({page}) => {
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
   await login(page, testUser2Email, testPassword1);
 
   await page.getByRole('link', { name: 'Account' }).click();
@@ -234,6 +238,7 @@ test('change password', async ({page}) => {
 });
 
 test('connect to charger with new password', async ({page}) => {
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
   await login(page, testUser2Email, testPassword2);
 
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
@@ -244,6 +249,7 @@ test('connect to charger with new password', async ({page}) => {
 });
 
 test('remove charger', async ({page}) => {
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
   await page.goto(testWallboxDomain + '/#status');
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();

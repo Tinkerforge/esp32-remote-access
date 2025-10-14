@@ -8,6 +8,7 @@ import i18n from "./i18n";
 import { showAlert } from "./components/Alert";
 import { Base64 } from "js-base64";
 import { Message, MessageType } from "./types";
+import Median from "median-js-bridge";
 
 export async function get_salt() {
     const {data, response} = await fetchClient.GET("/auth/generate_salt");
@@ -163,17 +164,22 @@ export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
             console.error("No service worker controller found after retries.");
             resolve(null);
             return;
+        } else if (retries >= 3) {
+            console.error("Max retries reached without service worker controller.");
+            resolve(null);
+            return;
         }
-        retries = 0;
         gettingSecretInProgress = true;
 
-        const timeout = setTimeout(() => {
-            console.error("Service Worker: Failed to get secretKey within timeout");
-            if (!appSleeps) {
+        const timeout = setTimeout(async () => {
+            console.error("Service Worker: Failed to get secretKey within timeout. Retrying...");
+            if (!appSleeps || !Median.isNativeApp()) {
                 gettingSecretInProgress = false;
-                resolve(null);
+                retries++;
+                resolve(await getSecretKeyFromServiceWorker());
             }
         }, 5000);
+        retries = 0;
 
         const handleMessage = (event: MessageEvent) => {
             const msg = event.data as Message;
