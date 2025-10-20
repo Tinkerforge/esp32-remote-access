@@ -159,6 +159,12 @@ impl WebClient {
         use db_connector::schema::wg_keys::dsl::*;
 
         log::debug!("Closed connection to charger '{}'", self.charger_id);
+
+        {
+            let mut keys_in_use = self.app_state.keys_in_use.lock().await;
+            keys_in_use.remove(&self.key_id);
+        }
+
         let mut conn = match self.app_state.pool.get() {
             Ok(conn) => conn,
             Err(_err) => {
@@ -289,22 +295,24 @@ async fn start_ws(
 ) -> Result<HttpResponse, actix_web::Error> {
     use db_connector::schema::wg_keys::dsl as wg_keys;
 
+    let key_uuid = uuid::Uuid::from_str(&key_id.key_id)
+        .map_err(|_| Error::WgKeysDoNotExist)?;
+
+    let mut keys_in_use = state.keys_in_use.lock().await;
+    if keys_in_use.contains(&key_uuid) {
+        return Err(Error::WgKeyAlreadyInUse.into());
+    }
+
     let mut conn = get_connection(&state)?;
     let keys: WgKey = web_block_unpacked(move || {
-        let key_id = uuid::Uuid::from_str(&key_id.key_id).unwrap();
-
         let keys: WgKey = match wg_keys::wg_keys
-            .filter(wg_keys::id.eq(&key_id))
+            .filter(wg_keys::id.eq(&key_uuid))
             .select(WgKey::as_select())
             .get_result(&mut conn)
         {
             Ok(keys) => keys,
             Err(_err) => return Err(Error::WgKeysDoNotExist),
         };
-
-        if keys.in_use {
-            return Err(Error::WgKeyAlreadyInUse);
-        }
 
         Ok(keys)
     })
@@ -338,6 +346,8 @@ async fn start_ws(
         .max_continuation_size(2_usize.pow(20));
 
     if resp.status() == 101 {
+        keys_in_use.insert(keys.id);
+
         let mut conn = get_connection(&state)?;
         use db_connector::schema::wg_keys::dsl::*;
         web_block_unpacked(move || {
@@ -352,6 +362,7 @@ async fn start_ws(
         })
         .await?;
     }
+    drop(keys_in_use);
 
     rt::spawn(async move {
         let mut client = WebClient::new(

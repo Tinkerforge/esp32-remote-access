@@ -77,24 +77,29 @@ pub async fn get_key(
     let cid = parse_uuid(&web_query.cid)?;
 
     let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
-        let conns_in_use: Vec<WgKey> = match wg_keys
-            .filter(charger_id.eq(&cid))
-            .filter(in_use.eq(true))
-            .select(WgKey::as_select())
-            .load(&mut conn)
-        {
-            Ok(used) => used,
-            Err(NotFound) => return Ok(()),
-            Err(_err) => return Err(Error::InternalError),
-        };
-        if conns_in_use.len() >= 5 {
-            Err(Error::AllKeysInUse)
-        } else {
-            Ok(())
-        }
-    })
-    .await?;
+    let keys_in_use_count = {
+        let keys_in_use_cache = state.keys_in_use.lock().await;
+
+        let charger_key_ids: Vec<uuid::Uuid> = web_block_unpacked(move || {
+            match wg_keys
+                .filter(charger_id.eq(&cid))
+                .select(WgKey::as_select())
+                .load(&mut conn)
+            {
+                Ok(keys) => Ok(keys.into_iter().map(|k| k.id).collect()),
+                Err(NotFound) => Ok(Vec::new()),
+                Err(_err) => Err(Error::InternalError),
+            }
+        })
+        .await?;
+
+        // Count how many are in use
+        charger_key_ids.iter().filter(|key_id| keys_in_use_cache.contains(*key_id)).count()
+    };
+
+    if keys_in_use_count >= 5 {
+        return Err(Error::AllKeysInUse.into());
+    }
 
     let mut conn = get_connection(&state)?;
     let key: Option<WgKey> = web_block_unpacked(move || {

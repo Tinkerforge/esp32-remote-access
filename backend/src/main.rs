@@ -19,7 +19,7 @@
 
 mod monitoring;
 
-use std::{collections::HashMap, net::UdpSocket, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{collections::{HashMap, HashSet}, net::UdpSocket, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use actix::Arbiter;
 pub use backend::*;
@@ -156,6 +156,7 @@ async fn main() -> std::io::Result<()> {
         frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
         sender_email,
         sender_name,
+        keys_in_use: Mutex::new(HashSet::new()),
     });
 
     monitoring::start_monitoring(state.clone());

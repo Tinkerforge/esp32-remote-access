@@ -90,6 +90,7 @@ pub struct AppState {
     pub frontend_url: String,
     pub sender_email: String,
     pub sender_name: String,
+    pub keys_in_use: Mutex<HashSet<uuid::Uuid>>,
 }
 
 pub fn clean_recovery_tokens(
@@ -301,6 +302,7 @@ pub(crate) mod tests {
             frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
             sender_email: String::new(),
             sender_name: String::new(),
+            keys_in_use: Mutex::new(HashSet::new()),
         };
 
         web::Data::new(state)
