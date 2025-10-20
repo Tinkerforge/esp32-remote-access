@@ -308,6 +308,27 @@ pub(crate) mod tests {
         web::Data::new(state)
     }
 
+    pub async fn mark_keys_as_in_use(state: &web::Data<AppState>, key_ids: Vec<uuid::Uuid>) {
+        let mut keys_in_use = state.keys_in_use.lock().await;
+        for key_id in key_ids {
+            keys_in_use.insert(key_id);
+        }
+    }
+
+    pub async fn get_charger_key_ids(
+        state: &web::Data<AppState>,
+        charger_uuid: uuid::Uuid,
+    ) -> Vec<uuid::Uuid> {
+        use db_connector::schema::wg_keys::dsl::*;
+
+        let mut conn = state.pool.get().unwrap();
+        wg_keys
+            .filter(charger_id.eq(charger_uuid))
+            .select(id)
+            .load::<uuid::Uuid>(&mut conn)
+            .unwrap_or_default()
+    }
+
     pub fn configure(cfg: &mut ServiceConfig) {
         let pool = db_connector::test_connection_pool();
 

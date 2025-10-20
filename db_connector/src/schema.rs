@@ -90,7 +90,6 @@ diesel::table! {
     wg_keys (id) {
         id -> Uuid,
         user_id -> Uuid,
-        in_use -> Bool,
         charger_pub -> Varchar,
         web_private -> Bytea,
         psk -> Bytea,

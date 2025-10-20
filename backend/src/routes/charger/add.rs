@@ -396,7 +396,6 @@ async fn add_wg_key(
         id: uuid::Uuid::new_v4(),
         user_id: uid,
         charger_id: cid,
-        in_use: false,
         charger_pub: keys.charger_public,
         web_private: keys.web_private,
         psk: keys.psk,

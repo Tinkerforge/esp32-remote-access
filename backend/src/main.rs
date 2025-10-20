@@ -19,15 +19,20 @@
 
 mod monitoring;
 
-use std::{collections::{HashMap, HashSet}, net::UdpSocket, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    net::UdpSocket,
+    num::NonZeroUsize,
+    sync::Arc,
+    time::Duration,
+};
 
 use actix::Arbiter;
 pub use backend::*;
 use backend::{rate_limit::IPRateLimiter, utils::get_connection};
 
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use db_connector::{get_connection_pool, run_migrations, Pool};
-use diesel::prelude::*;
+use db_connector::{get_connection_pool, run_migrations};
 use futures_util::lock::Mutex;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use lru::LruCache;
@@ -39,16 +44,6 @@ use udp_server::packet::{
     ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
     ManagementPacketHeader,
 };
-
-fn reset_wg_keys(pool: &Pool) {
-    use db_connector::schema::wg_keys::dsl::*;
-
-    let mut conn = pool.get().unwrap();
-    diesel::update(wg_keys)
-        .set(in_use.eq(false))
-        .execute(&mut conn)
-        .unwrap();
-}
 
 fn cleanup_thread(state: web::Data<AppState>) {
     loop {
@@ -128,8 +123,6 @@ async fn main() -> std::io::Result<()> {
     let pool = get_connection_pool();
     let mut conn = pool.get().expect("Failed to get connection from pool");
     run_migrations(&mut conn).expect("Failed to run migrations");
-
-    reset_wg_keys(&pool);
 
     let mailer = {
         let email = std::env::var("EMAIL_USER").expect("EMAIL_USER must be set");

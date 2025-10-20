@@ -79,7 +79,6 @@ async fn add_keys(
                 id: uuid::Uuid::new_v4(),
                 user_id: uid,
                 charger_id: cid,
-                in_use: false,
                 charger_pub: key.charger_public,
                 web_private: key.web_private,
                 psk: key.psk,

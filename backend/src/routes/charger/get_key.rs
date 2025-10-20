@@ -93,11 +93,13 @@ pub async fn get_key(
         })
         .await?;
 
-        // Count how many are in use
-        charger_key_ids.iter().filter(|key_id| keys_in_use_cache.contains(*key_id)).count()
+        charger_key_ids
+            .into_iter()
+            .filter(|key_id| keys_in_use_cache.contains(key_id))
+            .collect::<Vec<_>>()
     };
 
-    if keys_in_use_count >= 5 {
+    if keys_in_use_count.len() >= 5 {
         return Err(Error::AllKeysInUse.into());
     }
 
@@ -105,7 +107,7 @@ pub async fn get_key(
     let key: Option<WgKey> = web_block_unpacked(move || {
         match WgKey::belonging_to(&user)
             .filter(charger_id.eq(&cid))
-            .filter(in_use.eq(false))
+            .filter(id.ne_all(keys_in_use_count))
             .select(WgKey::as_select())
             .get_result(&mut conn)
         {
@@ -134,15 +136,16 @@ pub async fn get_key(
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
-    use db_connector::test_connection_pool;
     use rand::TryRngCore;
     use rand_core::OsRng;
 
-    use crate::{middleware::jwt::JwtMiddleware, routes::user::tests::TestUser, tests::configure};
+    use crate::{
+        middleware::jwt::JwtMiddleware,
+        routes::user::tests::TestUser,
+        tests::{configure, get_charger_key_ids, mark_keys_as_in_use},
+    };
 
     #[actix_web::test]
     async fn test_get_key() {
@@ -168,8 +171,8 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_get_key_none_left() {
-        use db_connector::schema::wg_keys::dsl::*;
+    async fn test_get_key_all_keys_in_use() {
+        use std::str::FromStr;
 
         let (mut user, _) = TestUser::random().await;
         user.login().await;
@@ -177,17 +180,14 @@ mod tests {
         let charger_uid = OsRng.try_next_u32().unwrap() as i32;
         let charger = user.add_charger(charger_uid).await;
 
-        let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let state = crate::tests::create_test_state(None);
+        let charger_uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+        let key_ids = get_charger_key_ids(&state, charger_uuid).await;
 
-        diesel::update(wg_keys)
-            .filter(charger_id.eq(uuid::Uuid::from_str(&charger.uuid).unwrap()))
-            .set(in_use.eq(true))
-            .execute(&mut conn)
-            .unwrap();
+        mark_keys_as_in_use(&state, key_ids).await;
 
         let app = App::new()
-            .configure(configure)
+            .app_data(state)
             .wrap(JwtMiddleware)
             .service(get_key);
         let app = test::init_service(app).await;
@@ -197,6 +197,7 @@ mod tests {
             .cookie(Cookie::new("access_token", user.get_access_token()))
             .to_request();
 
+        // Should fail with 404 since all keys are in use
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_client_error());
         assert_eq!(resp.status().as_u16(), 404);

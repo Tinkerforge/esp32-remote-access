@@ -156,26 +156,12 @@ impl WebClient {
     }
 
     pub async fn stop(self) {
-        use db_connector::schema::wg_keys::dsl::*;
-
         log::debug!("Closed connection to charger '{}'", self.charger_id);
 
         {
             let mut keys_in_use = self.app_state.keys_in_use.lock().await;
             keys_in_use.remove(&self.key_id);
         }
-
-        let mut conn = match self.app_state.pool.get() {
-            Ok(conn) => conn,
-            Err(_err) => {
-                log::error!(
-                    "Failed to release connection '{}' for charger '{}'",
-                    self.key_id,
-                    self.charger_id
-                );
-                return;
-            }
-        };
 
         let meta = RemoteConnMeta {
             charger_id: self.charger_id,
@@ -223,21 +209,6 @@ impl WebClient {
             if let Some(sock) = map.get(&self.charger_id) {
                 let mut sock = sock.lock().await;
                 sock.send_packet(ManagementPacket::CommandPacket(packet));
-            }
-        }
-
-        match diesel::update(wg_keys)
-            .filter(id.eq(self.key_id))
-            .set(in_use.eq(false))
-            .execute(&mut conn)
-        {
-            Ok(_) => (),
-            Err(_err) => {
-                log::error!(
-                    "Failed to release connection '{}' for charger '{}'",
-                    self.key_id,
-                    self.charger_id
-                );
             }
         }
 
@@ -295,8 +266,7 @@ async fn start_ws(
 ) -> Result<HttpResponse, actix_web::Error> {
     use db_connector::schema::wg_keys::dsl as wg_keys;
 
-    let key_uuid = uuid::Uuid::from_str(&key_id.key_id)
-        .map_err(|_| Error::WgKeysDoNotExist)?;
+    let key_uuid = uuid::Uuid::from_str(&key_id.key_id).map_err(|_| Error::WgKeysDoNotExist)?;
 
     let mut keys_in_use = state.keys_in_use.lock().await;
     if keys_in_use.contains(&key_uuid) {
@@ -347,20 +317,6 @@ async fn start_ws(
 
     if resp.status() == 101 {
         keys_in_use.insert(keys.id);
-
-        let mut conn = get_connection(&state)?;
-        use db_connector::schema::wg_keys::dsl::*;
-        web_block_unpacked(move || {
-            if let Err(_err) = diesel::update(wg_keys)
-                .filter(id.eq(&keys.id))
-                .set(in_use.eq(true))
-                .execute(&mut conn)
-            {
-                return Err(Error::InternalError);
-            }
-            Ok(())
-        })
-        .await?;
     }
     drop(keys_in_use);
 
@@ -408,8 +364,18 @@ async fn start_ws(
 
 #[cfg(test)]
 mod tests {
-    // #[actix_web::test]
-    // async fn test_connecting_ws() {
+    use super::*;
+    use uuid::Uuid;
 
-    // }
+    #[test]
+    fn test_validate_key_id_valid() {
+        let valid_uuid = Uuid::new_v4().to_string();
+        assert!(validate_key_id(&valid_uuid).is_ok());
+    }
+
+    #[test]
+    fn test_validate_key_id_invalid() {
+        let invalid_uuid = "not-a-uuid";
+        assert!(validate_key_id(invalid_uuid).is_err());
+    }
 }

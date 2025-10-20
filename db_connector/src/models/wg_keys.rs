@@ -19,7 +19,6 @@ pub struct WgKey {
     pub id: uuid::Uuid,
     pub user_id: uuid::Uuid,
     pub charger_id: uuid::Uuid,
-    pub in_use: bool,
     pub charger_pub: String,
     pub web_private: Vec<u8>,
     pub psk: Vec<u8>,
