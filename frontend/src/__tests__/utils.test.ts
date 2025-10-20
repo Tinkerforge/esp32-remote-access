@@ -28,11 +28,18 @@ function withServiceWorker(controller: Partial<ServiceWorker> & { postMessage: (
     swListener = undefined;
   });
 
+  // Mock getRegistration to return an active service worker
+  // The active property should have the postMessage method
+  const getRegistration = vi.fn(async () => ({
+    active: controller as ServiceWorker,
+  }));
+
   Object.defineProperty(navigator, 'serviceWorker', {
     value: {
       controller,
       addEventListener,
       removeEventListener,
+      getRegistration,
     },
     configurable: true,
   });
@@ -97,13 +104,28 @@ describe('utils', () => {
     });
 
     it('does nothing when no service worker controller (store)', async () => {
-      Object.defineProperty(navigator, 'serviceWorker', { value: { controller: null }, configurable: true });
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          controller: null,
+          getRegistration: vi.fn(async () => null),
+        },
+        configurable: true
+      });
       await utils.storeSecretKeyInServiceWorker('abc');
       // no error thrown
     });
 
     it('requests secret and resolves with response (getSecretKeyFromServiceWorker)', async () => {
-      const postMessage = vi.fn();
+      const postMessage = vi.fn((msg: any) => {
+        // When the service worker receives a RequestSecret message,
+        // simulate it responding with the secret
+        if (msg.type === MessageType.RequestSecret) {
+          // Use queueMicrotask to ensure the message handler is set up first
+          queueMicrotask(() => {
+            triggerSWMessage({ type: MessageType.StoreSecret, data: 'encoded' });
+          });
+        }
+      });
       withServiceWorker({ postMessage } as any);
 
       const promise = utils.getSecretKeyFromServiceWorker();
@@ -115,14 +137,18 @@ describe('utils', () => {
     });
 
     it('returns null when no service worker controller available', async () => {
-      // Setup no controller scenario which should return null immediately
+      // Setup no controller scenario - will retry 3 times with 500ms delays each = 1500ms total
       Object.defineProperty(navigator, 'serviceWorker', {
-        value: { controller: null },
+        value: {
+          controller: null,
+          getRegistration: vi.fn(async () => null),
+        },
         configurable: true,
       });
+
       const result = await utils.getSecretKeyFromServiceWorker();
       expect(result).toBeNull();
-    });
+    }, 10000); // Generous timeout to allow for multiple retries
 
     it('clears secret key via service worker', async () => {
       const postMessage = vi.fn();
@@ -160,6 +186,7 @@ describe('utils', () => {
       Object.defineProperty(navigator, 'serviceWorker', {
         value: {
           controller: { postMessage },
+          getRegistration: vi.fn(async () => ({ active: { postMessage } })),
         },
         configurable: true,
       });
@@ -249,6 +276,7 @@ describe('utils', () => {
         }
         return { error: null, response: { status: 200 } };
       });
+
       await utils.refresh_access_token();
       expect(utils.loggedIn.value).toBe(utils.AppState.LoggedIn);
     });
@@ -262,14 +290,21 @@ describe('utils', () => {
         }
         return { error: null, response: { status: 200 } };
       });
+
       await utils.refresh_access_token();
       expect(utils.loggedIn.value).toBe(utils.AppState.LoggedIn);
     });
 
     it('catch block resets secret if tokens missing', async () => {
       (window.localStorage.getItem as any).mockImplementation(() => null);
-      // Ensure no service worker controller so helper returns fast null
-      Object.defineProperty(navigator, 'serviceWorker', { value: { controller: null }, configurable: true });
+      // Ensure no service worker controller - will retry 3 times with 500ms delays each
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          controller: null,
+          getRegistration: vi.fn(async () => null),
+        },
+        configurable: true
+      });
       // Start from LoggedOut so we can ensure it does not become LoggedIn
       utils.loggedIn.value = utils.AppState.LoggedOut;
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
@@ -278,6 +313,7 @@ describe('utils', () => {
         }
         return { error: null, response: { status: 200 } };
       });
+
       await utils.refresh_access_token();
       // Should not have transitioned to LoggedIn
       expect(utils.loggedIn.value).not.toBe(utils.AppState.LoggedIn);

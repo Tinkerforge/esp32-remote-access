@@ -155,8 +155,6 @@ export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
     }
 
     secretKeyPromise = new Promise(async (resolve) => {
-        gettingSecretInProgress = true;
-
         // We dont use navigator.serviceWorker.controller here since it can be, for whatever reason,
         //  null for an entire browser session
         const controller = await navigator.serviceWorker.getRegistration(location.origin);
@@ -174,6 +172,7 @@ export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
             console.error("Max retries reached for getting secretKey from service worker");
             return resolve(null);
         }
+        gettingSecretInProgress = true;
 
         const timeout = setTimeout(async () => {
             console.error("Service Worker: Failed to get secretKey within timeout. Retrying...");
