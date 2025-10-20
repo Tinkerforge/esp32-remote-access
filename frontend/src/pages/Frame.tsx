@@ -78,6 +78,10 @@ class VirtualNetworkInterface {
     }
 
     private handleErrorMessage(msg: Message) {
+        if (msg.type !== MessageType.Error) {
+            console.error("handleErrorMessage called with non-error message", msg);
+            return;
+        }
         const data = msg.data as { translation: string, format?: Record<string, unknown> };
         showAlert(i18n.t(data.translation, data.format) as string, "danger");
         this.route("/devices");
