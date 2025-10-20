@@ -21,6 +21,14 @@ import { Message, MessageType, FetchMessage, ResponseMessage } from "./types";
 
 declare const self: ServiceWorkerGlobalScope;
 
+self.addEventListener("activate", (event) => {
+    event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("install", (event) => {
+    event.waitUntil(self.skipWaiting());
+});
+
 function handleWGRequest(event: FetchEvent) {
     let url = event.request.url.replace(self.location.origin, "");
     const headers1: [string, string][] = [];
@@ -127,11 +135,6 @@ self.addEventListener("fetch", (event: FetchEvent) => {
         lastAccessTokenRefresh = 0;
         responseCache = null;
     }
-});
-
-
-self.addEventListener("activate", () => {
-    self.clients.claim();
 });
 
 const SECRET_CACHE_NAME = 'secret-cache-v1';

@@ -155,21 +155,25 @@ export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
     }
 
     secretKeyPromise = new Promise(async (resolve) => {
-        if (!navigator.serviceWorker.controller && retries < 3) {
-            console.error("No service worker controller found. Retrying...");
-            retries++;
-            resolve(await getSecretKeyFromServiceWorker());
-            return;
-        } else if (!navigator.serviceWorker.controller) {
-            console.error("No service worker controller found after retries.");
-            resolve(null);
-            return;
-        } else if (retries >= 3) {
-            console.error("Max retries reached without service worker controller.");
-            resolve(null);
-            return;
-        }
         gettingSecretInProgress = true;
+
+        // We dont use navigator.serviceWorker.controller here since it can be, for whatever reason,
+        //  null for an entire browser session
+        const controller = await navigator.serviceWorker.getRegistration(location.origin);
+        if (!controller?.active && retries < 3) {
+            console.error("ServiceWorker controller not active, retrying...");
+            retries++;
+            setTimeout(async () => {
+                resolve(await getSecretKeyFromServiceWorker());
+            }, 500);
+            return;
+        } else if (!controller?.active) {
+            console.error("service worker controller not active");
+            return resolve(null);
+        } else if (retries >= 3) {
+            console.error("Max retries reached for getting secretKey from service worker");
+            return resolve(null);
+        }
 
         const timeout = setTimeout(async () => {
             console.error("Service Worker: Failed to get secretKey within timeout. Retrying...");
@@ -197,7 +201,7 @@ export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
             type: MessageType.RequestSecret,
             data: null
         };
-        navigator.serviceWorker.controller.postMessage(requestMsg);
+        controller.active?.postMessage(requestMsg);
     });
 
     return secretKeyPromise;

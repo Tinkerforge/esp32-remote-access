@@ -8,14 +8,7 @@
 		<title>Remote Access</title>
 		<script type="text/javascript">
 			if ('serviceWorker' in navigator) {
-				navigator.serviceWorker.register("/sw.js", {type: "module"}).then((reg) => {
-					// The serviceworker wont update when it is currently awaiting a response
-					// this way it will be defenitely updated on the next refresh
-					window.addEventListener("beforeunload", ()=> {
-						reg.unregister();
-					})
-					reg.update();
-				})
+				navigator.serviceWorker.register("/sw.js", {type: "module"});
 			}
 			function median_app_resumed() {
 				if (sessionStorage.getItem("currentConnection")) {
