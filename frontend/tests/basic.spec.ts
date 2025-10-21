@@ -100,7 +100,7 @@ test('password change dialog validation', async ({ page }) => {
   await page.getByLabel('Current password').fill(testPassword1);
   await page.getByRole('textbox', { name: 'New password', exact: true }).fill('weak');
   await page.getByRole('dialog').getByRole('button', { name: 'Change password' }).click();
-  await expect(page.getByText('Must be at least 8 characters long and contain at least one lowercase and uppercase letter, and one special character.')).toBeVisible();
+  await expect(page.getByText('Must be at least 8 characters long.')).toBeVisible();
 
   await page.getByLabel('Current password').clear();
   await page.getByLabel('Current password').fill('wrong_password');
