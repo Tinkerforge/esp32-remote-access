@@ -436,4 +436,93 @@ describe('Register Component', () => {
       expect(confirmPasswordInput).not.toHaveClass('invalid');
     });
   });
+
+  it('dynamically removes errors when correct values are entered in all fields', async () => {
+    render(<Register />);
+
+    // First, submit the form with all empty fields to trigger all validation errors
+    const submitButton = screen.getByTestId('submit-button');
+    fireEvent.click(submitButton);
+
+    // Wait for all validation errors to appear
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'name' })).toHaveClass('invalid');
+      expect(screen.getByRole('textbox', { name: 'email' })).toHaveClass('invalid');
+      expect(screen.getByRole('textbox', { name: 'password' })).toHaveClass('invalid');
+      expect(screen.getAllByRole('checkbox')[0]).toHaveClass('invalid');
+      expect(screen.getAllByRole('checkbox')[1]).toHaveClass('invalid');
+    });
+
+    // Get form inputs
+    const nameInput = screen.getByRole('textbox', { name: 'name' });
+    const emailInput = screen.getByRole('textbox', { name: 'email' });
+    const passwordInput = screen.getByRole('textbox', { name: 'password' });
+    const confirmPasswordInput = screen.getByRole('textbox', { name: 'confirm_password' });
+    const checkboxes = screen.getAllByRole('checkbox');
+
+    // Test 1: Enter invalid password (too short) - should still show error
+    fireEvent.change(passwordInput, { target: { value: 'short' } });
+    fireEvent.change(confirmPasswordInput, { target: { value: 'short' } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(passwordInput).toHaveClass('invalid');
+    });
+
+    // Test 2: Enter valid password and confirm - errors should be removed
+    fireEvent.change(passwordInput, { target: { value: 'ValidPass123!' } });
+
+    await waitFor(() => {
+      expect(passwordInput).not.toHaveClass('invalid');
+    });
+
+    // Test 3: Enter mismatched confirm password - should show error
+    fireEvent.change(confirmPasswordInput, { target: { value: 'Different123!' } });
+
+    await waitFor(() => {
+      expect(confirmPasswordInput).toHaveClass('invalid');
+    });
+
+    // Test 4: Match confirm password - error should be removed
+    fireEvent.change(confirmPasswordInput, { target: { value: 'ValidPass123!' } });
+
+    await waitFor(() => {
+      expect(confirmPasswordInput).not.toHaveClass('invalid');
+    });
+
+    // Test 5: Enter valid name - error should be removed
+    fireEvent.change(nameInput, { target: { value: 'John Doe' } });
+
+    await waitFor(() => {
+      expect(nameInput).not.toHaveClass('invalid');
+    });
+
+    // Test 6: Enter valid email - error should be removed
+    fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
+
+    await waitFor(() => {
+      expect(emailInput).not.toHaveClass('invalid');
+    });
+
+    // Test 7: Check privacy policy - error should be removed
+    fireEvent.click(checkboxes[0]);
+
+    await waitFor(() => {
+      expect(checkboxes[0]).not.toHaveClass('invalid');
+    });
+
+    // Test 8: Check terms and conditions - error should be removed
+    fireEvent.click(checkboxes[1]);
+
+    await waitFor(() => {
+      expect(checkboxes[1]).not.toHaveClass('invalid');
+    });
+
+    // Final validation: All fields should now be valid and form should submit
+    fireEvent.click(submitButton);
+    
+    await waitFor(() => {
+      expect(mockUtils.fetchClient.POST).toHaveBeenCalled();
+    });
+  });
 });

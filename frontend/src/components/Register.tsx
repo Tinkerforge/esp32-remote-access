@@ -24,6 +24,7 @@ interface RegisterSchema {
 interface RegisterState {
     accepted: boolean,
     password: string,
+    passwordValid: boolean,
     confirmPassword: string,
     confirmPasswordValid: boolean,
     name: string,
@@ -46,6 +47,7 @@ export class Register extends Component<{}, RegisterState> {
         this.state = {
             accepted: false,
             password: "",
+            passwordValid: true,
             confirmPassword: "",
             confirmPasswordValid: true,
             name: "",
@@ -71,6 +73,13 @@ export class Register extends Component<{}, RegisterState> {
         let res = true;
 
         const state = this.state as RegisterState;
+
+        if (this.state.password.length < 8) {
+            state.passwordValid = false;
+            res = false;
+        } else {
+            state.passwordValid = true;
+        }
 
         const passwordsMatch = this.state.password === this.state.confirmPassword;
         if (!passwordsMatch) {
@@ -211,7 +220,11 @@ export class Register extends Component<{}, RegisterState> {
                 <Form.Group className="mb-3" controlId="registerName">
                     <Form.Label>{t("name")}</Form.Label>
                     <Form.Control name="Name" type="text" placeholder="John Doe" value={this.state.name} isInvalid={!this.state.nameValid} onChange={(e) => {
-                        this.setState({name: (e.target as HTMLInputElement).value})
+                        const newName = (e.target as HTMLInputElement).value;
+                        this.setState({
+                            name: newName,
+                            nameValid: newName.length > 0
+                        });
                     }} />
                     <Form.Control.Feedback type="invalid">
                         {t("name_error_message")}
@@ -220,7 +233,11 @@ export class Register extends Component<{}, RegisterState> {
                 <Form.Group className="mb-3" controlId="registerEmail">
                     <Form.Label>{t("email")}</Form.Label>
                     <Form.Control type="email" placeholder={t("email")} value={this.state.email} isInvalid={!this.state.emailValid} onChange={(e) => {
-                        this.setState({email: (e.target as HTMLInputElement).value})
+                        const newEmail = (e.target as HTMLInputElement).value;
+                        this.setState({
+                            email: newEmail,
+                            emailValid: newEmail.length > 0
+                        });
                     }} />
                     <Form.Control.Feedback type="invalid">
                         {t("email_error_message")}
@@ -233,12 +250,12 @@ export class Register extends Component<{}, RegisterState> {
                         showStrength={true}
                         onChange={(e) => {
                             this.setState({password: e}, async () => {
-                                if (!this.state.confirmPasswordValid) {
+                                if (!this.state.confirmPasswordValid || !this.state.passwordValid) {
                                     await this.checkPassword();
                                 }
                             });
                         }}
-                        isInvalid={this.state.password.length < 8}
+                        isInvalid={!this.state.passwordValid}
                         invalidMessage={t("password_error_message")} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerConfirmPassword">
@@ -252,10 +269,22 @@ export class Register extends Component<{}, RegisterState> {
                     }}
                     invalidMessage={t("confirm_password_error_message")} />
                 </Form.Group>
-                <Form.Group className="mb-3" onClick={() => this.setState({acceptPrivacyChecked: !this.state.acceptPrivacyChecked})}>
+                <Form.Group className="mb-3" onClick={() => {
+                    const newChecked = !this.state.acceptPrivacyChecked;
+                    this.setState({
+                        acceptPrivacyChecked: newChecked,
+                        acceptPrivacyValid: newChecked
+                    });
+                }}>
                     <Form.Check checked={this.state.acceptPrivacyChecked} type="checkbox" label={<Trans i18nKey="register.accept_privacy_notice" ><a target="__blank" href={privacy_notice}>link</a></Trans>} isInvalid={!this.state.acceptPrivacyValid} />
                 </Form.Group>
-                <Form.Group className="mb-3" onClick={() => this.setState({termsAndConditionsChecked: !this.state.termsAndConditionsChecked})}>
+                <Form.Group className="mb-3" onClick={() => {
+                    const newChecked = !this.state.termsAndConditionsChecked;
+                    this.setState({
+                        termsAndConditionsChecked: newChecked,
+                        termsAndConditionsValid: newChecked
+                    });
+                }}>
                     <Form.Check checked={this.state.termsAndConditionsChecked} type="checkbox" label={<Trans i18nKey="register.accept_terms_and_conditions" ><a target="__blank" href={terms_of_use}>link</a></Trans>} isInvalid={!this.state.termsAndConditionsValid} />
                 </Form.Group>
                 <Button variant="primary" type="submit">
