@@ -35,7 +35,7 @@
     "wg-webclient": "file:../wg-webclient/pkg"
   },
   "devDependencies": {
-    "@playwright/test": "^1.44.1",
+    "@playwright/test": "^1.56.1",
     "@preact/preset-vite": "^2.5.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/preact": "^3.2.4",
