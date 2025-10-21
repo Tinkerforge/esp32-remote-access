@@ -9,6 +9,7 @@ declare module 'zxcvbn' {
     j: number;
     guesses: number;
     guesses_log10: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: any;
   }
 
