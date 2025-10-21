@@ -1,71 +1,7 @@
 import { render, fireEvent, waitFor, screen } from '@testing-library/preact';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { h } from 'preact';
-
-// Mock utils before importing component to avoid side effects
-vi.mock('../../utils', () => ({
-  fetchClient: { POST: vi.fn(), GET: vi.fn() },
-  get_salt_for_user: vi.fn(),
-  generate_hash: vi.fn(),
-  storeSecretKeyInServiceWorker: vi.fn(),
-  AppState: { Loading: 0, LoggedIn: 1, LoggedOut: 2, Recovery: 3 },
-  loggedIn: { value: 0 },
-  bc: { postMessage: vi.fn() },
-}));
-
-// Subpath mock for Form used as default import replicating global test-setup structure
-vi.mock('react-bootstrap/Form', () => {
-  const Form = ({ children, onSubmit }: { children?: any; onSubmit?: (e: Event) => void }) =>
-    h('form', { onSubmit }, children as any);
-  Form.Group = ({ children, controlId }: { children?: any; controlId?: string }) => {
-    if (children && Array.isArray(children)) {
-      children = children.map((child) => {
-        if (typeof child !== 'object') return child;
-        child.props = { ...child.props, controlId };
-        return child;
-      });
-    }
-    return h('div', {}, children as any);
-  };
-  Form.Label = ({ children, controlId }: { children?: any; controlId?: string }) =>
-    h('label', { htmlFor: controlId }, children as any);
-  Form.Control = ({
-    type,
-    value,
-    onChange,
-    isInvalid,
-    controlId,
-  }: {
-    type: string;
-    value?: string;
-    onChange?: (e: Event) => void;
-    isInvalid?: boolean;
-    controlId?: string;
-  }) =>
-    h('input', {
-      id: controlId,
-      type,
-      value,
-      onChange,
-      'data-testid': `${type}-input`,
-      className: isInvalid ? 'invalid' : '',
-    } as any);
-  return { default: Form };
-});
 
 import { Login } from '../Login';
-
-// Mock Alert directly to capture calls (in addition to global test-setup mock)
-vi.mock('../Alert', () => ({
-  showAlert: vi.fn(),
-}));
-
-// i18n mock
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
 
 
 describe('Login Component', () => {

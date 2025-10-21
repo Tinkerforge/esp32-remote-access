@@ -32,7 +32,8 @@
     "react-bootstrap": "^2.10.10",
     "react-feather": "^2.0.10",
     "react-i18next": "^15.4.1",
-    "wg-webclient": "file:../wg-webclient/pkg"
+    "wg-webclient": "file:../wg-webclient/pkg",
+    "zxcvbn": "^4.4.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

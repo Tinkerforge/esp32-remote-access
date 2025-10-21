@@ -286,6 +286,46 @@ vi.mock('react-bootstrap/Button', () => {
   };
 });
 
+// Direct import path mock for Form (used as default import in some tests)
+vi.mock('react-bootstrap/Form', () => {
+  const Form = ({ children, onSubmit }: { children?: ComponentChildren; onSubmit?: (e: Event) => void }) =>
+    h('form', { onSubmit }, children);
+  Form.Group = ({ children, controlId }: { children?: ComponentChildren; controlId?: string }) => {
+    if (children && Array.isArray(children)) {
+      children = children.map((child) => {
+        if (typeof child !== 'object') return child;
+        child.props = { ...child.props, controlId };
+        return child;
+      });
+    }
+    return h('div', {}, children);
+  };
+  Form.Label = ({ children, controlId }: { children?: ComponentChildren; controlId?: string }) =>
+    h('label', { htmlFor: controlId }, children);
+  Form.Control = ({
+    type,
+    value,
+    onChange,
+    isInvalid,
+    controlId,
+  }: {
+    type: string;
+    value?: string;
+    onChange?: (e: Event) => void;
+    isInvalid?: boolean;
+    controlId?: string;
+  }) =>
+    h('input', {
+      id: controlId,
+      type,
+      value,
+      onChange,
+      'data-testid': `${type}-input`,
+      className: isInvalid ? 'invalid' : '',
+    });
+  return { default: Form };
+});
+
 // Direct import path mocks for Nav and Navbar
 vi.mock('react-bootstrap/Nav', () => {
   const Nav = ({ children, className }: MockComponentProps) => h('div', { className }, children);
@@ -382,7 +422,6 @@ vi.mock('./utils', () => ({
   get_decrypted_secret: vi.fn(),
   pub_key: new Uint8Array(),
   secret: new Uint8Array(),
-  PASSWORD_PATTERN: /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/,
   generate_hash: vi.fn(),
   generate_random_bytes: vi.fn(),
   get_salt: vi.fn(),
@@ -412,7 +451,6 @@ vi.mock('./utils.js', () => ({
   get_decrypted_secret: vi.fn(),
   pub_key: new Uint8Array(),
   secret: new Uint8Array(),
-  PASSWORD_PATTERN: /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/,
   generate_hash: vi.fn(),
   generate_random_bytes: vi.fn(),
   get_salt: vi.fn(),

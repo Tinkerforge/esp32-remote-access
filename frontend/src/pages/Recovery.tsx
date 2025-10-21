@@ -1,6 +1,6 @@
 import { Base64 } from "js-base64";
 import { Button, Card, Form, Modal } from "react-bootstrap";
-import { AppState, PASSWORD_PATTERN, concat_salts, fetchClient, generate_hash, generate_random_bytes, get_salt, loggedIn } from "../utils";
+import { AppState, concat_salts, fetchClient, generate_hash, generate_random_bytes, get_salt, loggedIn } from "../utils";
 import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
 import { showAlert } from "../components/Alert";
 import { useTranslation } from "react-i18next";
@@ -40,7 +40,6 @@ export function Recovery() {
         email: query.email as string,
         new_password: "",
         confirm_password: "",
-        passwordValid: true,
         confirmPasswordValid: true,
         fileValid: true,
         validated: false,
@@ -53,13 +52,7 @@ export function Recovery() {
 
     const validateForm = () => {
         let ret = true;
-        let passworValid = true;
         let confirmValid = true;
-
-        if (!PASSWORD_PATTERN.test(state.new_password)) {
-            passworValid = false;
-            ret = false;
-        }
 
         if (state.confirm_password !== state.new_password) {
             confirmValid = false;
@@ -71,7 +64,7 @@ export function Recovery() {
             ret = false;
         }
 
-        setState({...state, validated: true, passwordValid: passworValid, confirmPasswordValid: confirmValid});
+        setState({...state, validated: true, confirmPasswordValid: confirmValid});
 
         return ret;
     }
@@ -178,15 +171,18 @@ export function Recovery() {
                         <Form.Label>
                             {t("recovery.new_password")}
                         </Form.Label>
-                        <PasswordComponent isInvalid={!state.passwordValid}  onChange={(e) => {
-                            setState({...state, new_password: e});
-                        }} />
+                        <PasswordComponent
+                            value={state.new_password}
+                            showStrength={true}
+                            onChange={(e) => {
+                                setState({...state, new_password: e});
+                            }} />
                     </Form.Group>
                     <Form.Group className="mb-3" controlId="confirmPassword">
                         <Form.Label>
                             {t("recovery.confirm_password")}
                         </Form.Label>
-                        <PasswordComponent isInvalid={!state.confirmPasswordValid} invalidMessage={t("recovery.confirm_password_error_message")} onChange={(e) => {
+                        <PasswordComponent value={state.confirm_password} isInvalid={!state.confirmPasswordValid} invalidMessage={t("recovery.confirm_password_error_message")} onChange={(e) => {
                             setState({...state, confirm_password: e});
                         }} />
                     </Form.Group>

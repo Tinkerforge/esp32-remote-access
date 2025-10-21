@@ -20,7 +20,7 @@
 import { Component } from "preact";
 import { Form, Button, Modal, Card, Container, Collapse, Row, Col } from "react-bootstrap";
 import { useState } from "preact/hooks";
-import { fetchClient, isDebugMode, PASSWORD_PATTERN, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
+import { fetchClient, isDebugMode, concat_salts, generate_hash, generate_random_bytes, get_salt, get_salt_for_user } from "../utils";
 import sodium from "libsodium-wrappers";
 import { logout } from "../components/Navbar";
 import { useTranslation } from "react-i18next";
@@ -165,7 +165,7 @@ export function User() {
 
     const checkPasswords = (newPassword: string, confirmNewPassword: string) => {
         let ret = true;
-        if (!PASSWORD_PATTERN.test(newPassword)) {
+        if (newPassword.length < 8) {
             setNewPasswordIsValid(false);
             ret = false;
         } else {
@@ -351,7 +351,7 @@ export function User() {
                 <Modal.Body>
                     <Form.Group className="pb-3" controlId="deleteUserPassword">
                         <Form.Label>{t("password")}</Form.Label>
-                        <PasswordComponent onChange={(e) => setDeleteUser({...deleteUser, password: e})} isInvalid={!deleteUser.password_valid} invalidMessage={t("password_invalid")} />
+                        <PasswordComponent value={deleteUser.password} onChange={(e) => setDeleteUser({...deleteUser, password: e})} isInvalid={!deleteUser.password_valid} invalidMessage={t("password_invalid")} />
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
@@ -378,22 +378,27 @@ export function User() {
                 <Modal.Body>
                     <Form.Group className="pb-3" controlId="oldPassword">
                         <Form.Label>{t("current_password")}</Form.Label>
-                        <PasswordComponent isInvalid={!currentPasswordIsValid} onChange={(e) => {
+                        <PasswordComponent value={currentPassword} isInvalid={!currentPasswordIsValid} onChange={(e) => {
                             setCurrentPassword(e);
                         }} />
                     </Form.Group>
                     <Form.Group className="pb-3" controlId="newPassword">
                         <Form.Label>{t("new_password")}</Form.Label>
-                        <PasswordComponent onChange={(e) => {
-                            setNewPassword(e);
-                            if (!confirmNewPasswordIsValid || !newPasswordIsValid) {
-                                checkPasswords(e, confirmNewPassword);
-                            }
-                        }} isInvalid={!newPasswordIsValid} invalidMessage={t("new_password_error_message")} />
+                        <PasswordComponent
+                            onChange={(e) => {
+                                setNewPassword(e);
+                                if (!confirmNewPasswordIsValid || !newPasswordIsValid) {
+                                    checkPasswords(e, confirmNewPassword);
+                                }
+                            }}
+                            value={newPassword}
+                            showStrength={true}
+                            isInvalid={!newPasswordIsValid}
+                            invalidMessage={t("new_password_error_message")} />
                     </Form.Group>
                     <Form.Group className="pb-3" controlId="confirmNewPassword">
                         <Form.Label>{t("confirm_new_password")}</Form.Label>
-                        <PasswordComponent onChange={(e) => {
+                        <PasswordComponent value={confirmNewPassword} onChange={(e) => {
                             setConfirmNewPassword(e);
                             if (!confirmNewPasswordIsValid) {
                                 checkPasswords(newPassword, e);

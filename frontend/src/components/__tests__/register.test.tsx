@@ -9,7 +9,6 @@ vi.mock('../Alert', () => ({
 }));
 
 vi.mock('../../utils', () => ({
-  PASSWORD_PATTERN: /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}/,
   fetchClient: {
   POST: vi.fn(),
 },

@@ -26,7 +26,7 @@ export const en = {
         "current_password": "Current password",
         "current_password_error_message": "Must not be empty.",
         "new_password": "New password",
-        "new_password_error_message": "Must be at least 8 characters long and contain at least one lowercase and uppercase letter, and one special character.",
+        "new_password_error_message": "Must be at least 8 characters long.",
         "confirm_new_password": "Confirm new password",
         "confirm_new_password_error_message": "Passwords do not match",
         "close": "Close",
@@ -150,6 +150,16 @@ export const en = {
         "error_alert_text": "Failed to start recovery with status {{status}}: {{text}}",
         "verify_before_login": "Please verify your email address before logging in",
         "verify_before_login_heading": "Email not verified"
+    },
+    "password_strength": {
+        "strength": "Strength",
+        "entropy": "Entropy",
+        "bits": "bits",
+        "very_weak": "Very Weak",
+        "weak": "Weak",
+        "fair": "Fair",
+        "strong": "Strong",
+        "very_strong": "Very Strong"
     },
     "footer": {
         "imprint": "Imprint",

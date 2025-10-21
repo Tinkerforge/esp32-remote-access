@@ -325,6 +325,27 @@ describe('User Component', () => {
       });
     });
 
+    it('renders change password modal correctly', async () => {
+      render(<User />);
+
+      const changePasswordButton = screen.getByText('change_password');
+      fireEvent.click(changePasswordButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('modal')).toBeTruthy();
+        expect(screen.getByRole('textbox', { name: 'current_password' })).toBeTruthy();
+        expect(screen.getByRole('textbox', { name: 'new_password' })).toBeTruthy();
+        expect(screen.getByRole('textbox', { name: 'confirm_new_password' })).toBeTruthy();
+      });
+
+      const newPasswordInput = screen.getByRole('textbox', { name: 'new_password' });
+      const confirmPasswordInput = screen.getByRole('textbox', { name: 'confirm_new_password' });
+
+      expect(confirmPasswordInput).not.toHaveClass('invalid');
+      expect(newPasswordInput).not.toHaveClass('invalid');
+
+    });
+
     it('validates password fields correctly', async () => {
       render(<User />);
 
@@ -617,8 +638,10 @@ describe('User Component', () => {
       fireEvent.change(newPasswordInput, { target: { value: 'ValidPass123!' } });
       fireEvent.change(confirmPasswordInput, { target: { value: 'ValidPass123!' } });
 
-      expect(confirmPasswordInput).not.toHaveClass('invalid');
-      expect(newPasswordInput).not.toHaveClass('invalid');
+      await waitFor(() => {
+        expect(confirmPasswordInput).not.toHaveClass('invalid');
+        expect(newPasswordInput).not.toHaveClass('invalid');
+      });
     });
   });
 });

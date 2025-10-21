@@ -1,7 +1,7 @@
 import { Component } from "preact";
 import { Button, Form } from "react-bootstrap"
 import { showAlert } from "./Alert";
-import { PASSWORD_PATTERN, fetchClient, generate_hash, generate_random_bytes, get_salt } from "../utils";
+import { fetchClient, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import sodium from "libsodium-wrappers";
 import { Trans, useTranslation } from "react-i18next";
 import i18n from "../i18n";
@@ -24,7 +24,6 @@ interface RegisterSchema {
 interface RegisterState {
     accepted: boolean,
     password: string,
-    passwordValid: boolean,
     confirmPassword: string,
     confirmPasswordValid: boolean,
     name: string,
@@ -47,7 +46,6 @@ export class Register extends Component<{}, RegisterState> {
         this.state = {
             accepted: false,
             password: "",
-            passwordValid: true,
             confirmPassword: "",
             confirmPasswordValid: true,
             name: "",
@@ -73,13 +71,6 @@ export class Register extends Component<{}, RegisterState> {
         let res = true;
 
         const state = this.state as RegisterState;
-        const passwordPatternValid = PASSWORD_PATTERN.test(this.state.password);
-        if (!passwordPatternValid) {
-            state.passwordValid = false;
-            res = false;
-        } else {
-            state.passwordValid = true;
-        }
 
         const passwordsMatch = this.state.password === this.state.confirmPassword;
         if (!passwordsMatch) {
@@ -237,20 +228,24 @@ export class Register extends Component<{}, RegisterState> {
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerPassword">
                     <Form.Label>{t("password")}</Form.Label>
-                    <PasswordComponent isInvalid={!this.state.passwordValid} onChange={(e) => {
-                        this.setState({password: e}, async () => {
-                            if (!this.state.confirmPasswordValid || !this.state.passwordValid) {
-                                await this.checkPassword();
-                            }
-                        });
-                    }}
-                    invalidMessage={t("password_error_message")} />
+                    <PasswordComponent
+                        value={this.state.password}
+                        showStrength={true}
+                        onChange={(e) => {
+                            this.setState({password: e}, async () => {
+                                if (!this.state.confirmPasswordValid) {
+                                    await this.checkPassword();
+                                }
+                            });
+                        }}
+                        isInvalid={this.state.password.length < 8}
+                        invalidMessage={t("password_error_message")} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerConfirmPassword">
                     <Form.Label>{t("confirm_password")}</Form.Label>
-                    <PasswordComponent isInvalid={!this.state.confirmPasswordValid} onChange={(e) => {
+                    <PasswordComponent value={this.state.confirmPassword} isInvalid={!this.state.confirmPasswordValid} onChange={(e) => {
                         this.setState({confirmPassword: e}, () => {
-                            if (!this.state.confirmPasswordValid || !this.state.passwordValid) {
+                            if (!this.state.confirmPasswordValid) {
                                 this.checkPassword();
                             }
                         });
