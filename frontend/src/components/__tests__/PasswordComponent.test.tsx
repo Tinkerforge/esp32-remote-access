@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/preact';
+import { render, screen, fireEvent, waitFor } from '@testing-library/preact';
 import userEvent from '@testing-library/user-event';
 
 let PasswordComponent: any;
@@ -40,12 +40,14 @@ describe('PasswordComponent', () => {
     expect(handleChange).toHaveBeenLastCalledWith('Secret123!');
   });
 
-  it('shows invalid state and feedback when provided', () => {
+  it('shows invalid state and feedback when provided', async () => {
     const handleChange = vi.fn();
     render(<PasswordComponent onChange={handleChange} isInvalid invalidMessage="Invalid password" />);
 
     const input = screen.getByTestId('password-input');
-    expect(input).toHaveClass('invalid');
+    await waitFor(() => {
+      expect(input).toHaveClass('invalid');
+    })
 
     const feedback = screen.getByTestId('invalid-feedback');
     expect(feedback).toHaveTextContent('Invalid password');

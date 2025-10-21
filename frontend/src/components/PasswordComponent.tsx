@@ -28,7 +28,9 @@ export function PasswordComponent(props: PasswordComponentProps) {
                 type={showPassword ? "text" : "password"}
                 onChange={handleChange}
                 value={props.value}
-                isInvalid={props.isInvalid} />
+                isInvalid={props.isInvalid}
+                required
+                minLength={8} />
             <Button
                 variant="outline-primary"
                 onClick={(e: Event) => {
