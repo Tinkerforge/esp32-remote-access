@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Form, InputGroup } from "react-bootstrap";
 import { Search, X } from "react-feather";
+import Median from "median-js-bridge";
 
 interface SearchInputProps {
     searchTerm: string;
@@ -16,7 +17,7 @@ export function SearchInput({ searchTerm, onSearchChange, placeholder }: SearchI
     };
 
     return (
-        <InputGroup className="mb-1">
+        <InputGroup className={`mb-3 ${Median.isNativeApp() ? "mt-2" : ""}`}>
             <InputGroup.Text>
                 <Search size={16} />
             </InputGroup.Text>
