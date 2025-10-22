@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, vi, expect, afterEach } from 'vitest';
-import { forceReload, forceCheckForUpdates, startVersionChecking, stopVersionChecking } from './versionChecker';
+import { forceCheckForUpdates, startVersionChecking, stopVersionChecking } from './versionChecker';
 
 // Helper to mock fetch responses sequence
 function mockFetchSequence(responses: Array<Response | Promise<Response>>) {
@@ -79,44 +79,6 @@ describe('versionChecker', () => {
     await forceCheckForUpdates();
 
     expect(window.alert).toHaveBeenCalled();
-  });
-
-  it('forceReload clears caches (when available), removes localStorage except allowlist, and updates href', async () => {
-    const cachesDelete = vi.fn();
-    const cachesKeys = vi.fn().mockResolvedValue(['a', 'b']);
-    const cachesMock = { keys: cachesKeys, delete: cachesDelete };
-    // @ts-expect-error assign
-    globalThis.caches = cachesMock;
-    // @ts-expect-error assign
-    window.caches = cachesMock;
-
-    localStorage.setItem('debugMode', '1');
-    localStorage.setItem('currentConnection', 'X');
-    localStorage.setItem('loginSalt', 'Y');
-    localStorage.setItem('removeMe', 'Z');
-
-    const swPost = vi.fn();
-    // @ts-expect-error augment
-    navigator.serviceWorker = { controller: { postMessage: swPost } } as unknown as ServiceWorkerContainer;
-
-    const originalHref = window.location.href;
-
-    forceReload();
-    // wait a microtask for caches.keys().then(...) to run
-    await Promise.resolve();
-
-    expect(cachesKeys).toHaveBeenCalled();
-    expect(cachesDelete).toHaveBeenCalledTimes(2);
-    expect(swPost).toHaveBeenCalledWith({ type: 'CLEAR_CACHE' });
-
-    expect(localStorage.getItem('debugMode')).toBe('1');
-    expect(localStorage.getItem('loginSalt')).toBe('Y');
-    expect(localStorage.getItem('currentConnection')).toBe('X');
-
-    expect(localStorage.getItem('removeMe')).toBeNull();
-
-    expect(window.location.href).not.toBe(originalHref);
-    expect(window.location.href).toContain('_t=');
   });
 
   it('startVersionChecking stops interval when user declines reload', async () => {

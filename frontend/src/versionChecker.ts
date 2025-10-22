@@ -122,33 +122,3 @@ export async function forceCheckForUpdates(): Promise<void> {
         alert(i18n.t('version_checker.already_latest'));
     }
 }
-
-export function forceReload(): void {
-    if ('caches' in window) {
-        caches.keys().then(names => {
-            names.forEach(name => {
-                caches.delete(name);
-            });
-        });
-    }
-
-    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-            type: 'CLEAR_CACHE'
-        });
-    }
-
-    const keysToKeep = ['debugMode', 'currentConnection', 'loginSalt'];
-    const keysToRemove: string[] = [];
-
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && !keysToKeep.includes(key)) {
-            keysToRemove.push(key);
-        }
-    }
-
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-
-    window.location.href = `${window.location.href + (window.location.href.includes('?') ? '&' : '?')  }_t=${  Date.now()}`;
-}
