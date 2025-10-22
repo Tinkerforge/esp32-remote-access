@@ -8,7 +8,10 @@
 		<title>Remote Access</title>
 		<script type="text/javascript">
 			if ('serviceWorker' in navigator) {
-				navigator.serviceWorker.register("/sw.js", {type: "module"});
+				navigator.serviceWorker.register("/sw.js", {type: "module", updateViaCache: "none"}).then((s) => {
+					// When force reloading the page the service worker is not updated, so we manually check for updates here
+					s.update();
+				});
 			}
 			function median_app_resumed() {
 				if (sessionStorage.getItem("currentConnection")) {

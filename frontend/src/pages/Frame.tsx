@@ -153,7 +153,7 @@ class VirtualNetworkInterface {
     }
 
     // This handles the Message coming from the Charger once the setup is done
-    private handleWorkerMessage(e: MessageEvent) {
+    private async handleWorkerMessage(e: MessageEvent) {
         if (typeof e.data === "string") {
             switch (e.data) {
                 case "ready":
@@ -215,10 +215,8 @@ class VirtualNetworkInterface {
                     break;
 
                 case MessageType.FetchResponse:
-                    if (!navigator.serviceWorker.controller) {
-                        throw new Error("ServiceWorker controller is not available");
-                    }
-                    navigator.serviceWorker.controller.postMessage(msg);
+                    const controller = await navigator.serviceWorker.ready;
+                    controller.active?.postMessage(msg);
                     break;
 
                 case MessageType.Error:

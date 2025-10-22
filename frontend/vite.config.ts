@@ -18,6 +18,9 @@ const swBuildPlugin: Plugin = {
 			entryPoints: [join(process.cwd(), "src", "sw.ts")],
 			outfile: join(process.cwd(), "dist", "sw.js"),
 			format: "esm",
+			define: {
+				__BUILD_TIMESTAMP__: `"${new Date().toISOString()}"`,
+			}
 		})
 	}
 }

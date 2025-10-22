@@ -151,6 +151,7 @@ export function App() {
         refresh_access_token();
         startVersionChecking(10);
     }, []);
+
     useEffect(() => {
         if (loggedIn.value === AppState.LoggedIn) {
             refreshInterval = setInterval(async () => {
@@ -160,20 +161,7 @@ export function App() {
         } else {
             clearInterval(refreshInterval);
         }
-    }, [loggedIn.value])
-
-    // Migrate secret from localStorage to service worker
-    useEffect(() => {
-        const secretFromLocalStorage = localStorage.getItem("secretKey");
-        if (secretFromLocalStorage) {
-            localStorage.removeItem("secretKey");
-            const msg: Message = {
-                type: MessageType.StoreSecret,
-                data: secretFromLocalStorage
-            };
-            navigator.serviceWorker.controller?.postMessage(msg);
-        }
-    }, []);
+    }, [loggedIn.value]);
 
     // Prepare persistence explanation modal to render alongside any app state
     const persistModal = (

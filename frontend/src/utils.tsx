@@ -131,64 +131,77 @@ export async function refresh_access_token() {
 export let secret: Uint8Array | null = null;
 export let pub_key: Uint8Array | null = null;
 
-// Service Worker communication functions
+let storeSecretKeyPromise: Promise<void> | null = null;
 export async function storeSecretKeyInServiceWorker(secretKey: string): Promise<void> {
-    if (!navigator.serviceWorker.controller) {
-        return;
+    if (storeSecretKeyPromise) {
+        return storeSecretKeyPromise;
     }
 
-    const msg: Message = {
-        type: MessageType.StoreSecret,
-        data: secretKey
-    };
-    navigator.serviceWorker.controller.postMessage(msg);
+    storeSecretKeyPromise = new Promise(async (resolve, reject) => {
+        // We dont use navigator.serviceWorker.controller here since it can be, for whatever reason,
+        //  null for an entire browser session
+        const controller = await navigator.serviceWorker.ready;
+
+        const timeout = setTimeout(() => {
+            console.error("Service Worker: Failed to store secretKey within timeout. Retrying...");
+            storeSecretKeyPromise = null;
+            reject("Timeout waiting for storing secretKey in Service Worker");
+        }, 5000);
+
+        const handleMessage = (event: MessageEvent) => {
+            const msg = event.data as Message;
+            if (msg.type === MessageType.StoreSecret) {
+                if (msg.data !== "stored") {
+                    clearTimeout(timeout);
+                    navigator.serviceWorker.removeEventListener('message', handleMessage);
+                    storeSecretKeyPromise = null;
+                    reject("Failed to store secretKey in Service Worker: " + msg.data);
+                    return;
+                }
+                clearTimeout(timeout);
+                navigator.serviceWorker.removeEventListener('message', handleMessage);
+                storeSecretKeyPromise = null;
+                resolve();
+            }
+        };
+
+        navigator.serviceWorker.addEventListener('message', handleMessage);
+
+        const msg: Message = {
+            type: MessageType.StoreSecret,
+            data: secretKey
+        };
+        controller.active?.postMessage(msg);
+    });
+
+    return storeSecretKeyPromise;
 }
 
-let gettingSecretInProgress = false;
-let secretKeyPromise: Promise<string | null> | null = null;
-let retries = 0;
-
-export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
-    if (gettingSecretInProgress) {
+let secretKeyPromise: Promise<string> | null = null;
+export async function getSecretKeyFromServiceWorker(): Promise<string> {
+    if (secretKeyPromise) {
         return secretKeyPromise;
     }
 
-    secretKeyPromise = new Promise(async (resolve) => {
+    secretKeyPromise = new Promise(async (resolve, reject) => {
         // We dont use navigator.serviceWorker.controller here since it can be, for whatever reason,
         //  null for an entire browser session
-        const controller = await navigator.serviceWorker.getRegistration(location.origin);
-        if (!controller?.active && retries < 3) {
-            console.error("ServiceWorker controller not active, retrying...");
-            retries++;
-            setTimeout(async () => {
-                resolve(await getSecretKeyFromServiceWorker());
-            }, 500);
-            return;
-        } else if (!controller?.active) {
-            console.error("service worker controller not active");
-            return resolve(null);
-        } else if (retries >= 3) {
-            console.error("Max retries reached for getting secretKey from service worker");
-            return resolve(null);
-        }
-        gettingSecretInProgress = true;
+        const controller = await navigator.serviceWorker.ready;
 
         const timeout = setTimeout(async () => {
             console.error("Service Worker: Failed to get secretKey within timeout. Retrying...");
             if (!appSleeps || !Median.isNativeApp()) {
-                gettingSecretInProgress = false;
-                retries++;
-                resolve(await getSecretKeyFromServiceWorker());
+                reject("Timeout waiting for secretKey from Service Worker");
             }
+            secretKeyPromise = null;
         }, 5000);
-        retries = 0;
 
         const handleMessage = (event: MessageEvent) => {
             const msg = event.data as Message;
             if (msg.type === MessageType.StoreSecret) {
                 clearTimeout(timeout);
                 navigator.serviceWorker.removeEventListener('message', handleMessage);
-                gettingSecretInProgress = false;
+                secretKeyPromise = null;
                 resolve(msg.data as string);
             }
         };
@@ -206,15 +219,12 @@ export async function getSecretKeyFromServiceWorker(): Promise<string | null> {
 }
 
 export async function clearSecretKeyFromServiceWorker(): Promise<void> {
-    if (!navigator.serviceWorker.controller) {
-        return;
-    }
-
+    const controller = await navigator.serviceWorker.ready;
     const msg: Message = {
         type: MessageType.ClearSecret,
         data: null
     };
-    navigator.serviceWorker.controller.postMessage(msg);
+    controller.active?.postMessage(msg);
 }
 
 export async function get_decrypted_secret() {

@@ -20,6 +20,7 @@
 import { Message, MessageType, FetchMessage, ResponseMessage } from "./types";
 
 declare const self: ServiceWorkerGlobalScope;
+declare const __BUILD_TIMESTAMP__: string;
 
 self.addEventListener("activate", (event) => {
     event.waitUntil(self.clients.claim());
@@ -182,6 +183,10 @@ self.addEventListener("message", async (e: ExtendableMessageEvent) => {
         return;
     }
 
+    if (typeof e.data === "string" && e.data === "version") {
+        e.source?.postMessage(__BUILD_TIMESTAMP__);
+    }
+
     const msg = e.data as Message;
 
     switch (msg.type) {
@@ -201,7 +206,20 @@ self.addEventListener("message", async (e: ExtendableMessageEvent) => {
             break;
 
         case MessageType.StoreSecret:
-            await storeSecretKeyInCache(msg.data as string);
+            try {
+                await storeSecretKeyInCache(msg.data as string);
+                const responseMsg: Message = {
+                    type: MessageType.StoreSecret,
+                    data: "stored"
+                };
+                e.source?.postMessage(responseMsg);
+            } catch (error) {
+                const responseMsg: Message = {
+                    type: MessageType.StoreSecret,
+                    data: `error: ${(error as Error).message}`
+                };
+                e.source?.postMessage(responseMsg);
+            }
             break;
 
         case MessageType.RequestSecret:
