@@ -231,9 +231,6 @@ export function Tokens() {
                                 value={tokenName}
                                 onChange={(e) => setTokenName((e.target as HTMLInputElement).value)}
                             />
-                            <Form.Text className="text-muted small">
-                                {t("tokens.name_auto_generate")}
-                            </Form.Text>
                         </Form.Group>
                         <div className="d-flex align-items-center justify-content-between">
                             <Form.Check

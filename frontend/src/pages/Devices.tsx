@@ -360,7 +360,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                         className="mt-3"
                         onClick={() => route("/tokens")}
                     >
-                        {i18n.t("tokens.create_token")}
+                        {i18n.t("tokens.add_device")}
                     </Button>
                 </Container>
             );
