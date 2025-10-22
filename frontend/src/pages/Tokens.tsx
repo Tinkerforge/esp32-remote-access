@@ -200,9 +200,6 @@ export function Tokens() {
                 <h5 className="mb-1">{t("tokens.info_heading")}</h5>
                 <p className="mb-0">{t("tokens.info_body")}</p>
             </Alert>
-            <Alert variant="danger" className="mt-3">
-                {t("tokens.layout_changed")}
-            </Alert>
             <Card className="my-4">
                 <Card.Header className="pb-2">
                     <h5 className="mb-0">{t("tokens.create_token")}</h5>
@@ -284,6 +281,9 @@ export function Tokens() {
                                         style={isUsed ? { fontFamily: 'monospace' } : {}}
                                     />
                                 </InputGroup>
+                                <Alert variant="info" className="mb-2 py-2">
+                                    <small>{t("tokens.firmware_needed")}</small>
+                                </Alert>
                                 <div className="d-flex flex-wrap gap-2">
                                     <Button
                                         variant="secondary"

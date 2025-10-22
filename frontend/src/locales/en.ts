@@ -1,4 +1,4 @@
-import { description } from "translations-en";
+import { description, firmware_needed } from "translations-en";
 
 export const en = {
     "app_name": "Remote Access",
@@ -195,7 +195,7 @@ export const en = {
         "delete": "Delete",
         "single_use_description": "This token can only be used once and will automatically expire after first use",
         "multi_use_description": "This token can be used multiple times until manually deleted",
-        "layout_changed": "The format of the token has changed. Please ensure that your device runs the latest firmware."
+        firmware_needed
     },
     "wg_client": {
         "not_initialized": "The WireGuard client is not initialized. Please reload the page."
