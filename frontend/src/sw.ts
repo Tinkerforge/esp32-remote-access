@@ -98,6 +98,15 @@ function handleWGRequest(event: FetchEvent) {
                 const event = e as CustomEvent;
                 resolve(event.detail);
             }, {once: true});
+
+            // Claim all clients again. This is needed in case a window is forced to refresh
+            // since they drop out of the service workers clients afterwards.
+            try {
+                await self.clients.claim();
+            } catch (e) {
+                console.error("Service Worker failed to claim clients:", e);
+            }
+
             const clients = await self.clients.matchAll();
             for (const client of clients) {
                 client.postMessage(msg);
