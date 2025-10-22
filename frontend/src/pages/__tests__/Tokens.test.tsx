@@ -30,10 +30,6 @@ describe('Tokens Component', () => {
   });
 
   it('renders loading spinner initially', () => {
-    (fetchClient.GET as unknown as Mock).mockImplementation(() =>
-      new Promise(() => {}) // Never resolves
-    );
-
     render(<Tokens />);
     expect(screen.getByText('Loading...')).toBeTruthy();
   });

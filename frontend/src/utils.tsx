@@ -156,7 +156,7 @@ export async function storeSecretKeyInServiceWorker(secretKey: string): Promise<
                     clearTimeout(timeout);
                     navigator.serviceWorker.removeEventListener('message', handleMessage);
                     storeSecretKeyPromise = null;
-                    reject("Failed to store secretKey in Service Worker: " + msg.data);
+                    reject(`Failed to store secretKey in Service Worker: ${msg.data}`);
                     return;
                 }
                 clearTimeout(timeout);
