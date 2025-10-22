@@ -226,7 +226,7 @@ self.addEventListener("message", async (e: ExtendableMessageEvent) => {
             const secretKey = await getSecretKeyFromCache();
             if (secretKey) {
                 const responseMsg: Message = {
-                    type: MessageType.StoreSecret,
+                    type: MessageType.RequestSecret,
                     data: secretKey
                 };
                 e.source?.postMessage(responseMsg);

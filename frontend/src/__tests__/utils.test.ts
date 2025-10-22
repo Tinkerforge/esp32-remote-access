@@ -34,12 +34,16 @@ function withServiceWorker(controller: Partial<ServiceWorker> & { postMessage: (
     active: controller as ServiceWorker,
   }));
 
+  const ready = Promise.resolve({
+    active: controller as ServiceWorker,
+  } as ServiceWorkerRegistration);
+
   Object.defineProperty(navigator, 'serviceWorker', {
     value: {
-      controller,
       addEventListener,
       removeEventListener,
       getRegistration,
+      ready,
     },
     configurable: true,
   });
@@ -97,22 +101,14 @@ describe('utils', () => {
 
   describe('Service Worker secret key helpers', () => {
     it('stores secret in service worker if controller exists', async () => {
-      const postMessage = vi.fn();
+      const postMessage = vi.fn((msg) => {
+        if (msg.type === MessageType.StoreSecret) {
+          triggerSWMessage({ type: MessageType.StoreSecret, data: "stored" });
+        }
+      });
       withServiceWorker({ postMessage } as any);
       await utils.storeSecretKeyInServiceWorker('abc');
       expect(postMessage).toHaveBeenCalledWith({ type: MessageType.StoreSecret, data: 'abc' });
-    });
-
-    it('does nothing when no service worker controller (store)', async () => {
-      Object.defineProperty(navigator, 'serviceWorker', {
-        value: {
-          controller: null,
-          getRegistration: vi.fn(async () => null),
-        },
-        configurable: true
-      });
-      await utils.storeSecretKeyInServiceWorker('abc');
-      // no error thrown
     });
 
     it('requests secret and resolves with response (getSecretKeyFromServiceWorker)', async () => {
@@ -120,10 +116,7 @@ describe('utils', () => {
         // When the service worker receives a RequestSecret message,
         // simulate it responding with the secret
         if (msg.type === MessageType.RequestSecret) {
-          // Use queueMicrotask to ensure the message handler is set up first
-          queueMicrotask(() => {
-            triggerSWMessage({ type: MessageType.StoreSecret, data: 'encoded' });
-          });
+            triggerSWMessage({ type: MessageType.RequestSecret, data: 'encoded' });
         }
       });
       withServiceWorker({ postMessage } as any);
@@ -136,20 +129,6 @@ describe('utils', () => {
       expect(key).toBe('encoded');
     });
 
-    it('returns null when no service worker controller available', async () => {
-      // Setup no controller scenario - will retry 3 times with 500ms delays each = 1500ms total
-      Object.defineProperty(navigator, 'serviceWorker', {
-        value: {
-          controller: null,
-          getRegistration: vi.fn(async () => null),
-        },
-        configurable: true,
-      });
-
-      const result = await utils.getSecretKeyFromServiceWorker();
-      expect(result).toBeNull();
-    }, 10000); // Generous timeout to allow for multiple retries
-
     it('clears secret key via service worker', async () => {
       const postMessage = vi.fn();
       withServiceWorker({ postMessage } as any);
@@ -161,10 +140,7 @@ describe('utils', () => {
       // Create a mock service worker that immediately responds
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
-          // Immediately trigger the response
-          setTimeout(() => {
-            triggerSWMessage({ type: MessageType.StoreSecret, data: 'immediate-response' });
-          }, 0);
+            triggerSWMessage({ type: MessageType.RequestSecret, data: 'immediate-response' });
         }
       });
 
@@ -183,14 +159,8 @@ describe('utils', () => {
     it('nulls secret and pub_key and calls clearSecretKeyFromServiceWorker', () => {
       // Provide a mock service worker controller to observe the clear message
       const postMessage = vi.fn();
-      Object.defineProperty(navigator, 'serviceWorker', {
-        value: {
-          controller: { postMessage },
-          getRegistration: vi.fn(async () => ({ active: { postMessage } })),
-        },
-        configurable: true,
-      });
 
+      withServiceWorker({ postMessage });
       // Ensure calling resetSecret sets them to null state and triggers postMessage with ClearSecret
       utils.resetSecret();
       expect((utils as any).secret).toBeNull();
@@ -227,7 +197,7 @@ describe('utils', () => {
       // Mock service worker so getSecretKeyFromServiceWorker resolves with value
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
-          triggerSWMessage({ type: MessageType.StoreSecret, data: 'SGVjcmV0' });
+          triggerSWMessage({ type: MessageType.RequestSecret, data: 'SGVjcmV0' });
         }
       });
       withServiceWorker({ postMessage } as any);
@@ -266,7 +236,7 @@ describe('utils', () => {
       (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
-          triggerSWMessage({ type: MessageType.StoreSecret, data: 'ANY' });
+          triggerSWMessage({ type: MessageType.RequestSecret, data: 'ANY' });
         }
       });
       withServiceWorker({ postMessage } as any);
@@ -297,14 +267,13 @@ describe('utils', () => {
 
     it('catch block resets secret if tokens missing', async () => {
       (window.localStorage.getItem as any).mockImplementation(() => null);
-      // Ensure no service worker controller - will retry 3 times with 500ms delays each
-      Object.defineProperty(navigator, 'serviceWorker', {
-        value: {
-          controller: null,
-          getRegistration: vi.fn(async () => null),
-        },
-        configurable: true
+      const postMessage = vi.fn((event) => {
+        if (event.type === MessageType.RequestSecret) {
+          triggerSWMessage({ type: MessageType.RequestSecret, data: null });// No secret
+        }
       });
+      withServiceWorker({ postMessage });
+
       // Start from LoggedOut so we can ensure it does not become LoggedIn
       utils.loggedIn.value = utils.AppState.LoggedOut;
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {

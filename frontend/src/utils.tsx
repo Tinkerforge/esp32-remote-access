@@ -117,6 +117,7 @@ export async function refresh_access_token() {
         }
     } catch (e) {
         //This means we are logged in but the refresh failed
+        console.log("Failed to refresh access token:", e);
         const hasLoginSalt = localStorage.getItem("loginSalt");
         const hasSecret = await getSecretKeyFromServiceWorker();
         if (hasLoginSalt && hasSecret) {
@@ -198,7 +199,7 @@ export async function getSecretKeyFromServiceWorker(): Promise<string> {
 
         const handleMessage = (event: MessageEvent) => {
             const msg = event.data as Message;
-            if (msg.type === MessageType.StoreSecret) {
+            if (msg.type === MessageType.RequestSecret) {
                 clearTimeout(timeout);
                 navigator.serviceWorker.removeEventListener('message', handleMessage);
                 secretKeyPromise = null;

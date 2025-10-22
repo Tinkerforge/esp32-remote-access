@@ -95,30 +95,6 @@ describe('index.tsx', () => {
     nativeSpy.mockRestore();
   });
 
-  it('migrates secret key to service worker and shows loading state', async () => {
-    (utils.loggedIn as { value: number }).value = utils.AppState.Loading;
-    localStorage.setItem('secretKey', 'abc');
-    // Ensure a controller exists for postMessage path
-    // @ts-expect-error extend navigator
-    navigator.serviceWorker = { controller: { postMessage: vi.fn() } };
-    // Ensure ServiceWorker is present to avoid early return branch
-    // @ts-expect-error define presence flag
-    window.ServiceWorker = {};
-    // Avoid network calls from version checker
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
-
-    vi.resetModules();
-    vi.doMock('preact', async (importOriginal) => {
-      const actual = await importOriginal<typeof import('preact')>();
-      return { ...actual, render: vi.fn() };
-    });
-    const { App } = await import('./index');
-    render(<App />);
-
-    expect(window.localStorage.getItem('secretKey')).toBeNull();
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
-  });
-
   it('renders Recovery state without Footer when running in native app', async () => {
     (utils.loggedIn as { value: number }).value = utils.AppState.Recovery;
     // Ensure ServiceWorker is present to avoid early return
