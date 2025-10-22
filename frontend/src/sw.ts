@@ -46,9 +46,8 @@ function handleWGRequest(event: FetchEvent) {
             url = url.replace(receiverId, "");
             const parsedUrl = new URL(url, self.location.origin);
             chargerId = parsedUrl.searchParams.get("charger");
-            if (parsedUrl.pathname !== "/") {
-                url = parsedUrl.pathname;
-            }
+            parsedUrl.searchParams.delete("charger");
+            url = parsedUrl.pathname;
         } else {
             receiverId = event.request.headers.get("X-Connection-Id") as string;
         }
