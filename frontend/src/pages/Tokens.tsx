@@ -133,7 +133,24 @@ export function Tokens() {
         e.preventDefault();
         try {
             await sodium.ready;
-            const encryptedTokenName = sodium.crypto_box_seal(tokenName, pub_key as Uint8Array);
+            // Generate automatic name if empty
+            let finalTokenName = tokenName.trim();
+            if (finalTokenName === "") {
+                // Find the highest existing "Token-N" number
+                let maxTokenNumber = 0;
+                const tokenPattern = /^Token-(\d+)$/;
+                for (const token of tokens) {
+                    const match = token.name.match(tokenPattern);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (num > maxTokenNumber) {
+                            maxTokenNumber = num;
+                        }
+                    }
+                }
+                finalTokenName = `Token-${maxTokenNumber + 1}`;
+            }
+            const encryptedTokenName = sodium.crypto_box_seal(finalTokenName, pub_key as Uint8Array);
             const { data, response, error } = await fetchClient.POST('/user/create_authorization_token', {
                 body: { use_once: useOnce, name: Base64.fromUint8Array(encryptedTokenName) },
                 credentials: 'same-origin'
@@ -146,7 +163,7 @@ export function Tokens() {
                 token: await buildToken(user, data),
                 use_once: data.use_once,
                 id: data.id,
-                name: tokenName,
+                name: finalTokenName,
                 createdAt: new Date(data.created_at * 1000),
                 lastUsedAt: data.last_used_at ? new Date(data.last_used_at * 1000) : null,
             };
@@ -212,9 +229,11 @@ export function Tokens() {
                                 type="text"
                                 placeholder={t("tokens.name_placeholder")}
                                 value={tokenName}
-                                required
                                 onChange={(e) => setTokenName((e.target as HTMLInputElement).value)}
                             />
+                            <Form.Text className="text-muted small">
+                                {t("tokens.name_auto_generate")}
+                            </Form.Text>
                         </Form.Group>
                         <div className="d-flex align-items-center justify-content-between">
                             <Form.Check
