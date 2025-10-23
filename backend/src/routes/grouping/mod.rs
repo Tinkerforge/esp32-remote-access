@@ -17,38 +17,26 @@
  * Boston, MA 02111-1307, USA.
  */
 
-pub mod auth;
-pub mod charger;
-pub mod check_expiration;
-pub mod grouping;
-pub mod management;
-pub mod selfdestruct;
-pub mod send_chargelog_to_user;
-pub mod state;
-pub mod user;
-pub mod webinterface;
+pub mod create_grouping;
+pub mod delete_grouping;
+pub mod add_device_to_grouping;
+pub mod remove_device_from_grouping;
+pub mod get_groupings;
 
-use actix_web::web::{self, scope};
+#[cfg(test)]
+pub(crate) mod test_helpers;
 
-use crate::{middleware::jwt::JwtMiddleware, ws_udp_bridge};
+use crate::middleware::jwt::JwtMiddleware;
+use actix_web::web;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.configure(user::configure);
-    cfg.configure(auth::configure);
-    cfg.configure(charger::configure);
-    cfg.configure(grouping::configure);
-
-    cfg.service(management::management);
-    cfg.service(send_chargelog_to_user::send_chargelog);
-    cfg.service(selfdestruct::selfdestruct);
-    cfg.service(check_expiration::check_expiration);
-
-    #[cfg(debug_assertions)]
-    cfg.service(state::state);
-
-    let scope = scope("")
+    let scope = web::scope("/grouping")
         .wrap(JwtMiddleware)
-        .service(ws_udp_bridge::start_ws)
-        .service(webinterface::get_webinterface);
+        .service(create_grouping::create_grouping)
+        .service(delete_grouping::delete_grouping)
+        .service(add_device_to_grouping::add_device_to_grouping)
+        .service(remove_device_from_grouping::remove_device_from_grouping)
+        .service(get_groupings::get_groupings);
     cfg.service(scope);
 }
+
