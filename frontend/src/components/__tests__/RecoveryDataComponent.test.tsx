@@ -1,13 +1,30 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/preact';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { signal } from '@preact/signals';
 
 // Use dynamic import so we can spy on named exports from the module
 const importComponent = () => import('../RecoveryDataComponent');
 
 describe('RecoveryDataComponent', () => {
+  const originalOrigin = globalThis.origin;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock the origin global variable
+    Object.defineProperty(globalThis, 'origin', {
+      value: 'https://my.warp-charger.com',
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    // Restore original origin
+    Object.defineProperty(globalThis, 'origin', {
+      value: originalOrigin,
+      writable: true,
+      configurable: true,
+    });
   });
 
   it('renders modal content when shown and triggers save with confirmation', async () => {
@@ -106,14 +123,31 @@ describe('RecoveryDataComponent', () => {
 });
 
 describe('saveRecoveryData', () => {
+  const originalOrigin = globalThis.origin;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock the origin global variable
+    Object.defineProperty(globalThis, 'origin', {
+      value: 'https://my.warp-charger.com',
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    // Restore original origin
+    Object.defineProperty(globalThis, 'origin', {
+      value: originalOrigin,
+      writable: true,
+      configurable: true,
+    });
   });
 
   it('creates a downloadable backup file and revokes URL', async () => {
     const { saveRecoveryData } = await importComponent();
 
-  const email = 'john.doe@example.com';
+    const email = 'john.doe@example.com';
     const secret = new Uint8Array([9, 8, 7, 6]);
 
     const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test-url');
@@ -122,7 +156,7 @@ describe('saveRecoveryData', () => {
     const clickSpy = vi
       .spyOn(HTMLAnchorElement.prototype as unknown as { click: () => void }, 'click')
       .mockImplementation(function (this: HTMLAnchorElement) {
-        expect(this.download).toBe('john_doe_at_example_com_my_warp_charger_com_recovery_data');
+        expect(this.download).toBe('john_doe_at_example_com_my_warp-charger.com_recovery_data');
       });
 
     const hashBytes = new Uint8Array([1, 2, 3, 4]).buffer;
