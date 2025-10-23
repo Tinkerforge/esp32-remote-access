@@ -26,7 +26,7 @@ export async function saveRecoveryData(secret: Uint8Array, email: string) {
     const url = URL.createObjectURL(file);
     a.href = url;
     a.target = "_blank";
-    a.download = `${email.replaceAll(".", "_").replaceAll("@", "_at_")}_my_warp_charger_com_recovery_data`;
+    a.download = `${email.replaceAll(".", "_").replaceAll("@", "_at_")}_${origin.replace("https://", "").replace(".", "_")}_recovery_data`;
     document.body.appendChild(a);
     a.click()
     URL.revokeObjectURL(url);
@@ -52,8 +52,8 @@ export function RecoveryDataComponent(props: RecoveryDataProps) {
             <Modal.Body>
                 <p className="mb-3">{t("save_recovery_data_text")}</p>
                 <div className="mb-3">
-                    <Button 
-                        variant="primary" 
+                    <Button
+                        variant="primary"
                         size="lg"
                         className="w-100"
                         onClick={() => {
@@ -76,8 +76,8 @@ export function RecoveryDataComponent(props: RecoveryDataProps) {
             </Modal.Body>
 
             <Modal.Footer>
-                <Button 
-                    variant={saved.value && confirmed.value ? "primary" : "secondary"} 
+                <Button
+                    variant={saved.value && confirmed.value ? "primary" : "secondary"}
                     disabled={!saved.value || !confirmed.value}
                     onClick={() => {
                         if (saved.value && confirmed.value) {
