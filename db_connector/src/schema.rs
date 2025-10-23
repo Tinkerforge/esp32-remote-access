@@ -43,6 +43,14 @@ diesel::table! {
 }
 
 diesel::table! {
+    device_groupings (id) {
+        id -> Uuid,
+        name -> Varchar,
+        user_id -> Uuid,
+    }
+}
+
+diesel::table! {
     recovery_tokens (id) {
         id -> Uuid,
         user_id -> Uuid,
@@ -103,6 +111,7 @@ diesel::table! {
 diesel::joinable!(allowed_users -> chargers (charger_id));
 diesel::joinable!(allowed_users -> users (user_id));
 diesel::joinable!(authorization_tokens -> users (user_id));
+diesel::joinable!(device_groupings -> users (user_id));
 diesel::joinable!(recovery_tokens -> users (user_id));
 diesel::joinable!(refresh_tokens -> users (user_id));
 diesel::joinable!(verification -> users (user));
@@ -113,6 +122,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     allowed_users,
     authorization_tokens,
     chargers,
+    device_groupings,
     recovery_tokens,
     refresh_tokens,
     users,
