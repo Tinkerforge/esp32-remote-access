@@ -76,7 +76,7 @@ fn render_chargelog_email(
                         format!("Dein Ladelog von {}", display_name)
                     };
                     (b, subject)
-                },
+                }
                 Err(e) => {
                     log::error!(
                         "Failed to render German chargelog email template for user '{}': {}",
@@ -103,7 +103,7 @@ fn render_chargelog_email(
                         format!("Your Charge Log from {}", display_name)
                     };
                     (b, subject)
-                },
+                }
                 Err(e) => {
                     log::error!(
                         "Failed to render English chargelog email template for user '{}': {}",
