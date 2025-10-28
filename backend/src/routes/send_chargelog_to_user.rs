@@ -20,6 +20,7 @@ pub struct SendChargelogMetadata {
     pub user_uuid: String,
     pub filename: String,
     pub display_name: String,
+    pub monthly_send: bool,
 }
 
 #[derive(ToSchema, MultipartForm)]
@@ -37,6 +38,7 @@ struct ChargelogDETemplate<'a> {
     month: &'a str,
     filename: &'a str,
     display_name: &'a str,
+    monthly_send: bool,
 }
 
 #[derive(Template)]
@@ -46,6 +48,7 @@ struct ChargelogENTemplate<'a> {
     month: &'a str,
     filename: &'a str,
     display_name: &'a str,
+    monthly_send: bool,
 }
 
 fn render_chargelog_email(
@@ -54,6 +57,7 @@ fn render_chargelog_email(
     filename: &str,
     display_name: &str,
     lang: &str,
+    monthly_send: bool,
 ) -> actix_web::Result<(String, String)> {
     let (body, subject) = match lang {
         "de" | "de-DE" => {
@@ -62,12 +66,17 @@ fn render_chargelog_email(
                 month,
                 filename,
                 display_name,
+                monthly_send,
             };
             match template.render() {
-                Ok(b) => (
-                    b,
-                    format!("Dein Ladelog für {} von {}", month, display_name),
-                ),
+                Ok(b) => {
+                    let subject = if monthly_send {
+                        format!("Dein Ladelog für {} von {}", month, display_name)
+                    } else {
+                        format!("Dein Ladelog von {}", display_name)
+                    };
+                    (b, subject)
+                },
                 Err(e) => {
                     log::error!(
                         "Failed to render German chargelog email template for user '{}': {}",
@@ -84,12 +93,17 @@ fn render_chargelog_email(
                 month,
                 filename,
                 display_name,
+                monthly_send,
             };
             match template.render() {
-                Ok(b) => (
-                    b,
-                    format!("Your Charge Log for {} from {}", month, display_name),
-                ),
+                Ok(b) => {
+                    let subject = if monthly_send {
+                        format!("Your Charge Log for {} from {}", month, display_name)
+                    } else {
+                        format!("Your Charge Log from {}", display_name)
+                    };
+                    (b, subject)
+                },
                 Err(e) => {
                     log::error!(
                         "Failed to render English chargelog email template for user '{}': {}",
@@ -158,6 +172,7 @@ pub async fn send_chargelog(
         &metadata.filename,
         &metadata.display_name,
         &lang_str,
+        metadata.monthly_send,
     )?;
 
     let mut chargelog_file = chargelog.file.reopen().map_err(|err| {
@@ -238,7 +253,8 @@ mod tests {
                 .unwrap()
                 .to_string(),
             "display_name": "Test Device",
-            "filename": "chargelog.pdf"
+            "filename": "chargelog.pdf",
+            "monthly_send": true
         });
 
         let boundary = "----testboundary";
@@ -273,7 +289,8 @@ mod tests {
                 .unwrap()
                 .to_string(),
             "display_name": "Test Device",
-            "filename": "chargelog.pdf"
+            "filename": "chargelog.pdf",
+            "monthly_send": false
         });
 
         let boundary = "----testboundary2";

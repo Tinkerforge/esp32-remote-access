@@ -4,7 +4,11 @@
     </head>
     <body>
         <h3>Hallo {{name}},</h3>
+        {% if monthly_send %}
         <p>Anbei findest du das Ladelog von deinem Gerät "{{display_name}}" für den Monat {{month}}.</p>
+        {% else %}
+        <p>Anbei findest du das Ladelog von deinem Gerät "{{display_name}}".</p>
+        {% endif %}
         <p>Die Datei ist als Anhang dieser E-Mail beigefügt: {{filename}}</p>
     </body>
 </html>
