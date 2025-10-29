@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Col, Row, Table } from "react-bootstrap";
 import { ChevronDown, ChevronUp } from "react-feather";
-import { StateDevice, SortColumn } from "./types";
+import { StateDevice, SortColumn, Grouping } from "./types";
 import { DeviceTableRow } from "./DeviceTableRow";
 
 interface DeviceTableProps {
@@ -14,6 +14,7 @@ interface DeviceTableProps {
     onEditNote: (device: StateDevice, index: number) => void;
     connectionPossible: (device: StateDevice) => boolean;
     formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
+    groupings: Grouping[];
 }
 
 export function DeviceTable({
@@ -25,7 +26,8 @@ export function DeviceTable({
     onDelete,
     onEditNote,
     connectionPossible,
-    formatLastStateChange
+    formatLastStateChange,
+    groupings
 }: DeviceTableProps) {
     const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
 
@@ -116,6 +118,7 @@ export function DeviceTable({
                             onEditNote={onEditNote}
                             connectionPossible={connectionPossible}
                             formatLastStateChange={formatLastStateChange}
+                            groupings={groupings}
                         />
                     ))}
                 </tbody>

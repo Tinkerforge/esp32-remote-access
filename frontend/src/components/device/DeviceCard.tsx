@@ -1,10 +1,10 @@
 import { useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
-import { Button, Card, Col, Collapse, Row } from "react-bootstrap";
+import { Badge, Button, Card, Col, Collapse, Row } from "react-bootstrap";
 import { Edit, Monitor, Trash2 } from "react-feather";
 import * as Base58 from "base58";
 import { Circle } from "../Circle";
-import { StateDevice } from "./types";
+import { StateDevice, Grouping } from "./types";
 
 interface DeviceCardProps {
     device: StateDevice;
@@ -14,6 +14,7 @@ interface DeviceCardProps {
     onEditNote: (device: StateDevice, index: number) => void;
     connectionPossible: (device: StateDevice) => boolean;
     formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
+    groupings: Grouping[];
 }
 
 export function DeviceCard({
@@ -23,13 +24,17 @@ export function DeviceCard({
     onDelete,
     onEditNote,
     connectionPossible,
-    formatLastStateChange
+    formatLastStateChange,
+    groupings
 }: DeviceCardProps) {
     const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
     const [expand, setExpand] = useState(false);
 
     const trimmed_note = device.note.trim();
     const split = trimmed_note.split("\n");
+
+    // Find which groupings this device belongs to
+    const deviceGroupings = groupings.filter(g => g.device_ids.includes(device.id));
 
     return (
         <Card className="my-2">
@@ -47,6 +52,15 @@ export function DeviceCard({
                 </Col>
                 <Col className="mx-3">
                     <h5 class="text-break" style="margin-bottom: 0;">{device.name}</h5>
+                    {deviceGroupings.length > 0 && (
+                        <div className="mt-1">
+                            {deviceGroupings.map(g => (
+                                <Badge key={g.id} bg="secondary" className="me-1" style={{ fontSize: "0.7rem" }}>
+                                    {g.name}
+                                </Badge>
+                            ))}
+                        </div>
+                    )}
                 </Col>
                 <Col className="d-flex justify-content-end">
                     <Button

@@ -24,14 +24,23 @@ export interface StateDevice {
 
 export type SortColumn = "name" | "uid" | "status" | "none" | "note" | "last_state_change" | "firmware_version";
 
+export interface Grouping {
+    id: string,
+    name: string,
+    device_ids: string[],
+}
+
 export interface DeviceListState {
     devices: StateDevice[],
     showDeleteModal: boolean,
     showEditNoteModal: boolean,
+    showGroupingModal: boolean,
     editNote: string,
     editChargerIdx: number,
     sortColumn: SortColumn,
     sortSequence: "asc" | "desc",
     searchTerm: string,
-    filteredDevices: StateDevice[]
+    filteredDevices: StateDevice[],
+    groupings: Grouping[],
+    selectedGroupingId: string | null,
 }

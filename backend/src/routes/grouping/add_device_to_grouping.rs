@@ -36,14 +36,14 @@ use crate::{
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct AddDeviceToGroupingSchema {
     pub grouping_id: String,
-    pub charger_id: String,
+    pub device_id: String,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct AddDeviceToGroupingResponse {
     pub id: String,
     pub grouping_id: String,
-    pub charger_id: String,
+    pub device_id: String,
 }
 
 /// Add a device to a grouping
@@ -71,7 +71,7 @@ pub async fn add_device_to_grouping(
     use db_connector::schema::device_groupings::dsl as groupings;
 
     let grouping_uuid = parse_uuid(&payload.grouping_id)?;
-    let charger_uuid = parse_uuid(&payload.charger_id)?;
+    let charger_uuid = parse_uuid(&payload.device_id)?;
     let user_uuid: uuid::Uuid = user_id.clone().into();
 
     // Verify user owns the grouping
@@ -131,7 +131,7 @@ pub async fn add_device_to_grouping(
     Ok(HttpResponse::Ok().json(AddDeviceToGroupingResponse {
         id: member.id.to_string(),
         grouping_id: member.grouping_id.to_string(),
-        charger_id: member.charger_id.to_string(),
+        device_id: member.charger_id.to_string(),
     }))
 }
 
@@ -171,7 +171,7 @@ mod tests {
 
         let body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            charger_id: charger.uuid.clone(),
+            device_id: charger.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token);
@@ -186,7 +186,7 @@ mod tests {
 
         let response: AddDeviceToGroupingResponse = test::read_body_json(resp).await;
         assert_eq!(response.grouping_id, grouping.id);
-        assert_eq!(response.charger_id, charger.uuid);
+        assert_eq!(response.device_id, charger.uuid);
 
         // Verify member exists in database
         let member_count = count_grouping_members(&grouping.id);
@@ -212,7 +212,7 @@ mod tests {
 
         let body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            charger_id: charger.uuid.clone(),
+            device_id: charger.uuid.clone(),
         };
 
         // Add device first time
@@ -260,7 +260,7 @@ mod tests {
         // User 2 tries to add User 1's charger to their grouping
         let body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            charger_id: charger.uuid.clone(),
+            device_id: charger.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token2);
@@ -298,10 +298,10 @@ mod tests {
 
         // Add both devices to grouping
         let cookie = Cookie::new("access_token", token);
-        
+
         let body1 = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            charger_id: charger1.uuid.clone(),
+            device_id: charger1.uuid.clone(),
         };
         let req = test::TestRequest::post()
             .uri("/grouping/add_device")
@@ -312,7 +312,7 @@ mod tests {
 
         let body2 = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            charger_id: charger2.uuid.clone(),
+            device_id: charger2.uuid.clone(),
         };
         let req = test::TestRequest::post()
             .uri("/grouping/add_device")
@@ -356,7 +356,7 @@ mod tests {
         // Add device to grouping
         let add_body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            charger_id: charger.uuid.clone(),
+            device_id: charger.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token);

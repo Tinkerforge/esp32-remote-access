@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { ButtonGroup, Col, Container, Dropdown, DropdownButton } from "react-bootstrap";
 import Median from "median-js-bridge";
 import i18n from "../../i18n";
-import { StateDevice, SortColumn } from "./types";
+import { StateDevice, SortColumn, Grouping } from "./types";
 import { DeviceCard } from "./DeviceCard";
 
 interface DeviceMobileViewProps {
@@ -16,6 +16,7 @@ interface DeviceMobileViewProps {
     onEditNote: (device: StateDevice, index: number) => void;
     connectionPossible: (device: StateDevice) => boolean;
     formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
+    groupings: Grouping[];
 }
 
 export function DeviceMobileView({
@@ -28,7 +29,8 @@ export function DeviceMobileView({
     onDelete,
     onEditNote,
     connectionPossible,
-    formatLastStateChange
+    formatLastStateChange,
+    groupings
 }: DeviceMobileViewProps) {
     const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
 
@@ -79,6 +81,7 @@ export function DeviceMobileView({
                     onEditNote={onEditNote}
                     connectionPossible={connectionPossible}
                     formatLastStateChange={formatLastStateChange}
+                    groupings={groupings}
                 />
             ))}
         </Container>

@@ -8,12 +8,13 @@ import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
 import { Button, Container } from "react-bootstrap";
 import i18n from "../i18n";
 import { useLocation } from "preact-iso";
-import { Device, StateDevice, SortColumn, DeviceListState } from "../components/device/types";
+import { Device, StateDevice, SortColumn, DeviceListState, Grouping } from "../components/device/types";
 import { DeviceTable } from "../components/device/DeviceTable";
 import { DeviceMobileView } from "../components/device/DeviceMobileView";
 import { DeleteDeviceModal } from "../components/device/DeleteDeviceModal";
 import { EditNoteModal } from "../components/device/EditNoteModal";
 import { SearchInput } from "../components/device/SearchInput";
+import { GroupingModal } from "../components/device/GroupingModal";
 
 export class DeviceList extends Component<{}, DeviceListState> {
     removalDevice: StateDevice;
@@ -37,15 +38,19 @@ export class DeviceList extends Component<{}, DeviceListState> {
             devices: [],
             showDeleteModal: false,
             showEditNoteModal: false,
+            showGroupingModal: false,
             editNote: "",
             editChargerIdx: 0,
             sortColumn: "none",
             sortSequence: "asc",
             searchTerm: "",
             filteredDevices: [],
+            groupings: [],
+            selectedGroupingId: null,
         };
 
         this.updateChargers();
+        this.loadGroupings();
         this.updatingInterval = setInterval(() => this.updateChargers(), 5000);
     }
 
@@ -153,6 +158,47 @@ export class DeviceList extends Component<{}, DeviceListState> {
         } else {
             showAlert(t("remove_error_text", { charger_id: Base58.int_to_base58(device.uid), status: response.status, text: error }), "danger");
         }
+    }
+
+    async loadGroupings() {
+        try {
+            const { data, error, response } = await fetchClient.GET("/grouping/list", {
+                credentials: "same-origin"
+            });
+
+            if (error || !data) {
+                console.error("Failed to load groupings:", error);
+                return;
+            }
+
+            this.setState({ groupings: (data as any).groupings });
+        } catch (error) {
+            console.error("Failed to load groupings:", error);
+        }
+    }
+
+    handleGroupingsUpdated = (groupings: Grouping[]) => {
+        this.setState({ groupings });
+    }
+
+    handleGroupingFilterChange = (groupingId: string | null) => {
+        this.setState({ selectedGroupingId: groupingId }, () => {
+            this.applyFilters();
+        });
+    }
+
+    applyFilters() {
+        let filtered = this.filterDevices(this.state.devices, this.state.searchTerm);
+
+        // Apply grouping filter
+        if (this.state.selectedGroupingId) {
+            const grouping = this.state.groupings.find(g => g.id === this.state.selectedGroupingId);
+            if (grouping) {
+                filtered = filtered.filter(device => grouping.device_ids.includes(device.id));
+            }
+        }
+
+        this.setState({ filteredDevices: filtered });
     }
 
     formatLastStateChange(t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null): string {
@@ -278,8 +324,9 @@ export class DeviceList extends Component<{}, DeviceListState> {
 
         });
 
-        const filteredDevices = this.filterDevices(devices, this.state.searchTerm);
-        this.setState({ devices, filteredDevices });
+        this.setState({ devices }, () => {
+            this.applyFilters();
+        });
     }
 
     handleDelete = (device: StateDevice) => {
@@ -335,14 +382,19 @@ export class DeviceList extends Component<{}, DeviceListState> {
     }
 
     handleSearchChange = (searchTerm: string) => {
-        const filteredDevices = this.filterDevices(this.state.devices, searchTerm);
-        this.setState({ searchTerm, filteredDevices });
+        this.setState({ searchTerm }, () => {
+            this.applyFilters();
+        });
     }
 
     render() {
         const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
         const { route } = useLocation();
-        const devices = this.state.filteredDevices.length > 0 || this.state.searchTerm ? this.state.filteredDevices : this.state.devices;
+
+        // Apply filtering: if search term or grouping filter is active, show filtered devices
+        const devices = (this.state.filteredDevices.length > 0 || this.state.searchTerm || this.state.selectedGroupingId)
+            ? this.state.filteredDevices
+            : this.state.devices;
 
         const handleConnect = async (device: StateDevice) => {
             await this.connect_to_charger(device, route);
@@ -383,14 +435,49 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     onCancel={this.handleEditNoteCancel}
                 />
 
+                <GroupingModal
+                    show={this.state.showGroupingModal}
+                    devices={this.state.devices}
+                    groupings={this.state.groupings}
+                    onClose={() => this.setState({ showGroupingModal: false })}
+                    onGroupingsUpdated={this.handleGroupingsUpdated}
+                />
+
                 <Container fluid>
-                    <SearchInput
-                        searchTerm={this.state.searchTerm}
-                        onSearchChange={this.handleSearchChange}
-                    />
+                    <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div className="flex-grow-1">
+                            <SearchInput
+                                searchTerm={this.state.searchTerm}
+                                onSearchChange={this.handleSearchChange}
+                            />
+                        </div>
+                        <div className="d-flex gap-2">
+                            {this.state.groupings.length > 0 && (
+                                <select
+                                    className="form-select"
+                                    style={{ width: "auto" }}
+                                    value={this.state.selectedGroupingId || ""}
+                                    onChange={(e) => this.handleGroupingFilterChange((e.target as HTMLSelectElement).value || null)}
+                                >
+                                    <option value="">{t("all_devices")}</option>
+                                    {this.state.groupings.map(grouping => (
+                                        <option key={grouping.id} value={grouping.id}>
+                                            {grouping.name} ({grouping.device_ids.length})
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                            <Button
+                                variant="primary"
+                                onClick={() => this.setState({ showGroupingModal: true })}
+                            >
+                                {t("manage_groupings")}
+                            </Button>
+                        </div>
+                    </div>
                 </Container>
 
-                {devices.length === 0 && this.state.searchTerm ? (
+                {devices.length === 0 && (this.state.searchTerm || this.state.selectedGroupingId) ? (
                     <Container fluid className="text-center mt-5">
                         <div className="text-muted">
                             <h5>{t("no_devices_found")}</h5>
@@ -408,6 +495,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                             onEditNote={this.handleEditNote}
                             connectionPossible={(device) => this.connection_possible(device)}
                             formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
+                            groupings={this.state.groupings}
                         />
 
                         <DeviceMobileView
@@ -424,6 +512,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                             onEditNote={this.handleEditNote}
                             connectionPossible={(device) => this.connection_possible(device)}
                             formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
+                            groupings={this.state.groupings}
                         />
                     </>
                 )}

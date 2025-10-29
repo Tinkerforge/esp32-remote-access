@@ -320,6 +320,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/grouping/add_device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a device to a grouping */
+        post: operations["add_device_to_grouping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/grouping/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a new device grouping */
+        post: operations["create_grouping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/grouping/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a device grouping */
+        delete: operations["delete_grouping"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/grouping/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get all device groupings for the current user */
+        get: operations["get_groupings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/grouping/remove_device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a device from a grouping */
+        delete: operations["remove_device_from_grouping"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management": {
         parameters: {
             query?: never;
@@ -541,6 +626,15 @@ export interface components {
             token: string;
             user_id: string;
         };
+        AddDeviceToGroupingResponse: {
+            device_id: string;
+            grouping_id: string;
+            id: string;
+        };
+        AddDeviceToGroupingSchema: {
+            device_id: string;
+            grouping_id: string;
+        };
         AllowUserSchema: {
             charger_id: string;
             charger_name: number[];
@@ -584,11 +678,21 @@ export interface components {
             name: string;
             use_once: boolean;
         };
+        CreateGroupingResponse: {
+            id: string;
+            name: string;
+        };
+        CreateGroupingSchema: {
+            name: string;
+        };
         DeleteAuthorizationTokenSchema: {
             id: string;
         };
         DeleteChargerSchema: {
             charger: string;
+        };
+        DeleteGroupingSchema: {
+            grouping_id: string;
         };
         DeleteUserSchema: {
             login_key: number[];
@@ -610,6 +714,9 @@ export interface components {
             uid: number;
             valid: boolean;
         };
+        GetGroupingsResponse: {
+            groupings: components["schemas"]["GroupingInfo"][];
+        };
         GetSecretResponse: {
             secret: number[];
             secret_nonce: number[];
@@ -623,6 +730,11 @@ export interface components {
             psk: number[];
             web_address: string;
             web_private: number[];
+        };
+        GroupingInfo: {
+            device_ids: string[];
+            id: string;
+            name: string;
         };
         Keys: {
             charger_address: string;
@@ -696,6 +808,10 @@ export interface components {
             secret_nonce: number[];
             secret_salt: number[];
         };
+        RemoveDeviceFromGroupingSchema: {
+            charger_id: string;
+            grouping_id: string;
+        };
         ResendSchema: {
             email: string;
         };
@@ -715,12 +831,17 @@ export interface components {
             password: string;
             uuid?: string | null;
         };
-        SendChargelogSchema: {
-            chargelog: number[];
+        SendChargelogMetadata: {
             charger_uuid: string;
+            display_name: string;
             filename: string;
+            monthly_send: boolean;
             password: string;
             user_uuid: string;
+        };
+        SendChargelogSchema: {
+            chargelog: number[];
+            json: components["schemas"]["SendChargelogMetadata"];
         };
         /** @enum {string} */
         TokenType: "Recovery" | "Verification";
@@ -1305,6 +1426,230 @@ export interface operations {
             };
             /** @description Rate limit exceeded */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    add_device_to_grouping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddDeviceToGroupingSchema"];
+            };
+        };
+        responses: {
+            /** @description Device added to grouping successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddDeviceToGroupingResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized - user does not own grouping or is not allowed to access charger */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Grouping or charger not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Device already in grouping */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_grouping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGroupingSchema"];
+            };
+        };
+        responses: {
+            /** @description Grouping created successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateGroupingResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_grouping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteGroupingSchema"];
+            };
+        };
+        responses: {
+            /** @description Grouping deleted successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid grouping ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized - user does not own this grouping */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Grouping not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_groupings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of groupings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetGroupingsResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    remove_device_from_grouping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoveDeviceFromGroupingSchema"];
+            };
+        };
+        responses: {
+            /** @description Device removed from grouping successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized - user does not own this grouping */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Grouping or device not found in grouping */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
