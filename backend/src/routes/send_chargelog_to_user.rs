@@ -308,4 +308,114 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 401);
     }
+
+    #[actix_web::test]
+    async fn test_send_chargelog_rate_limit() {
+        let (mut user, _mail) = TestUser::random().await;
+        user.login().await;
+        let charger = user.add_random_charger().await;
+
+        let app = App::new().configure(configure).service(send_chargelog);
+        let app = test::init_service(app).await;
+
+        let user_uuid = crate::routes::user::tests::get_test_uuid(&user.mail)
+            .unwrap()
+            .to_string();
+
+        let metadata = json!({
+            "charger_uuid": charger.uuid,
+            "password": charger.password,
+            "user_uuid": user_uuid,
+            "display_name": "Test Device",
+            "filename": "chargelog.pdf",
+            "monthly_send": true
+        });
+
+        let boundary = "----testboundary3";
+        let ip = "123.123.123.100";
+
+        // Send requests up to the burst limit (5 in test mode)
+        for i in 0..5 {
+            let body = build_multipart_body(boundary, &metadata, &[1, 2, 3, 4, 5]);
+            let req = test::TestRequest::post()
+                .uri("/send_chargelog_to_user")
+                .append_header(("X-Forwarded-For", ip))
+                .append_header((
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                ))
+                .set_payload(body)
+                .to_request();
+            let resp = test::call_service(&app, req).await;
+            assert_eq!(
+                resp.status(),
+                200,
+                "Request {} should succeed (within burst limit)",
+                i + 1
+            );
+        }
+
+        // The 6th request should be rate limited
+        let body = build_multipart_body(boundary, &metadata, &[1, 2, 3, 4, 5]);
+        let req = test::TestRequest::post()
+            .uri("/send_chargelog_to_user")
+            .append_header(("X-Forwarded-For", ip))
+            .append_header((
+                "Content-Type",
+                format!("multipart/form-data; boundary={boundary}"),
+            ))
+            .set_payload(body)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(
+            resp.status(),
+            429,
+            "Request 6 should be rate limited (429 Too Many Requests)"
+        );
+
+        // Verify that a different IP can still make requests
+        let body = build_multipart_body(boundary, &metadata, &[1, 2, 3, 4, 5]);
+        let req = test::TestRequest::post()
+            .uri("/send_chargelog_to_user")
+            .append_header(("X-Forwarded-For", "123.123.123.101"))
+            .append_header((
+                "Content-Type",
+                format!("multipart/form-data; boundary={boundary}"),
+            ))
+            .set_payload(body)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(
+            resp.status(),
+            200,
+            "Request from different IP should succeed"
+        );
+
+        // Verify that a different charger from the same IP can make requests
+        let charger2 = user.add_random_charger().await;
+        let metadata2 = json!({
+            "charger_uuid": charger2.uuid,
+            "password": charger2.password,
+            "user_uuid": user_uuid,
+            "display_name": "Test Device 2",
+            "filename": "chargelog2.pdf",
+            "monthly_send": false
+        });
+        let body = build_multipart_body(boundary, &metadata2, &[1, 2, 3, 4, 5]);
+        let req = test::TestRequest::post()
+            .uri("/send_chargelog_to_user")
+            .append_header(("X-Forwarded-For", ip))
+            .append_header((
+                "Content-Type",
+                format!("multipart/form-data; boundary={boundary}"),
+            ))
+            .set_payload(body)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(
+            resp.status(),
+            200,
+            "Request from different charger (same IP) should succeed"
+        );
+    }
 }

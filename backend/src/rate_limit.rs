@@ -119,7 +119,7 @@ impl Default for ChargerRateLimiter {
 impl ChargerRateLimiter {
     pub fn new() -> Self {
         Self(RateLimiter::keyed(
-            Quota::per_second(NonZeroU32::new(REQUESTS_PER_SECOND).unwrap())
+            Quota::per_minute(NonZeroU32::new(REQUESTS_PER_SECOND).unwrap())
                 .allow_burst(NonZeroU32::new(REQUESTS_BURST).unwrap()),
         ))
     }
