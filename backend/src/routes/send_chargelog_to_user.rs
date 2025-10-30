@@ -36,7 +36,6 @@ pub struct SendChargelogSchema {
 struct ChargelogDETemplate<'a> {
     name: &'a str,
     month: &'a str,
-    filename: &'a str,
     display_name: &'a str,
     monthly_send: bool,
 }
@@ -46,7 +45,6 @@ struct ChargelogDETemplate<'a> {
 struct ChargelogENTemplate<'a> {
     name: &'a str,
     month: &'a str,
-    filename: &'a str,
     display_name: &'a str,
     monthly_send: bool,
 }
@@ -54,7 +52,6 @@ struct ChargelogENTemplate<'a> {
 fn render_chargelog_email(
     user_name: &str,
     month: &str,
-    filename: &str,
     display_name: &str,
     lang: &str,
     monthly_send: bool,
@@ -64,7 +61,6 @@ fn render_chargelog_email(
             let template = ChargelogDETemplate {
                 name: user_name,
                 month,
-                filename,
                 display_name,
                 monthly_send,
             };
@@ -91,7 +87,6 @@ fn render_chargelog_email(
             let template = ChargelogENTemplate {
                 name: user_name,
                 month,
-                filename,
                 display_name,
                 monthly_send,
             };
@@ -169,7 +164,6 @@ pub async fn send_chargelog(
     let (body, subject) = render_chargelog_email(
         &user.name,
         &month,
-        &metadata.filename,
         &metadata.display_name,
         &lang_str,
         metadata.monthly_send,
