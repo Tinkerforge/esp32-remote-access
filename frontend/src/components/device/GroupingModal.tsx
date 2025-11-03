@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
-import { Button, Col, Form, ListGroup, Modal, Row } from "react-bootstrap";
-import { Trash2, Plus, Edit2 } from "react-feather";
+import { Button, Col, Form, InputGroup, ListGroup, Modal, Row } from "react-bootstrap";
+import { Trash2, Plus, Edit2, Search } from "react-feather";
 import { showAlert } from "../Alert";
 import { fetchClient } from "../../utils";
 import { Grouping, StateDevice } from "./types";
@@ -27,6 +27,7 @@ export function GroupingModal({
     const [groupingName, setGroupingName] = useState("");
     const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set());
     const [isCreating, setIsCreating] = useState(false);
+    const [deviceSearchQuery, setDeviceSearchQuery] = useState("");
 
     useEffect(() => {
         if (!show) {
@@ -34,6 +35,7 @@ export function GroupingModal({
             setGroupingName("");
             setSelectedDevices(new Set());
             setIsCreating(false);
+            setDeviceSearchQuery("");
         }
     }, [show]);
 
@@ -42,6 +44,7 @@ export function GroupingModal({
         setEditingGrouping(null);
         setGroupingName("");
         setSelectedDevices(new Set());
+        setDeviceSearchQuery("");
     };
 
     const handleEdit = (grouping: Grouping) => {
@@ -49,6 +52,7 @@ export function GroupingModal({
         setGroupingName(grouping.name);
         setSelectedDevices(new Set(grouping.device_ids));
         setIsCreating(false);
+        setDeviceSearchQuery("");
     };
 
     const handleCancel = () => {
@@ -56,6 +60,7 @@ export function GroupingModal({
         setGroupingName("");
         setSelectedDevices(new Set());
         setIsCreating(false);
+        setDeviceSearchQuery("");
     };
 
     const handleDeviceToggle = (deviceId: string) => {
@@ -180,14 +185,17 @@ export function GroupingModal({
         }
     };
 
-    const getDeviceName = (deviceId: string): string => {
-        const device = devices.find(d => d.id === deviceId);
-        return device ? device.name : deviceId;
-    };
+    const filterDevices = (devices: StateDevice[]): StateDevice[] => {
+        if (!deviceSearchQuery.trim()) {
+            return devices;
+        }
 
-    const getDeviceUid = (deviceId: string): string => {
-        const device = devices.find(d => d.id === deviceId);
-        return device ? Base58.int_to_base58(device.uid) : "";
+        const query = deviceSearchQuery.toLowerCase();
+        return devices.filter(device => {
+            const name = device.name.toLowerCase();
+            const uid = Base58.int_to_base58(device.uid).toLowerCase();
+            return name.includes(query) || uid.includes(query);
+        });
     };
 
     const renderGroupingList = () => (
@@ -270,36 +278,48 @@ export function GroupingModal({
 
                         <Form.Group>
                             <Form.Label>{t("select_devices")}</Form.Label>
-                            <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-                                <ListGroup>
-                                    {devices.map(device => (
-                                        <ListGroup.Item
-                                            key={device.id}
-                                            action
-                                            active={selectedDevices.has(device.id)}
-                                            onClick={(e: Event) => {
-                                                e.preventDefault();
-                                                handleDeviceToggle(device.id)
-                                            }}
-                                            style={{ cursor: "pointer" }}
-                                        >
-                                            <Form.Check
-                                                type="checkbox"
-                                                checked={selectedDevices.has(device.id)}
-                                                onChange={() => {}} // Handled by ListGroup.Item onClick
-                                                label={
-                                                    <div>
-                                                        <strong>{device.name}</strong>
-                                                        <span className="text-muted ms-2">
-                                                            ({Base58.int_to_base58(device.uid)})
-                                                        </span>
-                                                    </div>
-                                                }
-                                            />
-                                        </ListGroup.Item>
-                                    ))}
-                                </ListGroup>
-                            </div>
+                            <ListGroup>
+                                <ListGroup.Item className="p-0 border-0">
+                                    <InputGroup>
+                                        <InputGroup.Text style={{borderBottomLeftRadius: 0}}>
+                                            <Search size={16} />
+                                        </InputGroup.Text>
+                                        <Form.Control
+                                            type="search"
+                                            placeholder={t("search_devices")}
+                                            value={deviceSearchQuery}
+                                            style={{borderBottomRightRadius: 0}}
+                                            onChange={(e) => setDeviceSearchQuery((e.target as HTMLInputElement).value)}
+                                        />
+                                    </InputGroup>
+                                </ListGroup.Item>
+                                {filterDevices(devices).map(device => (
+                                    <ListGroup.Item
+                                        key={device.id}
+                                        action
+                                        active={selectedDevices.has(device.id)}
+                                        onClick={(e: Event) => {
+                                            e.preventDefault();
+                                            handleDeviceToggle(device.id)
+                                        }}
+                                        style={{ cursor: "pointer" }}
+                                    >
+                                        <Form.Check
+                                            type="checkbox"
+                                            checked={selectedDevices.has(device.id)}
+                                            onChange={() => {}} // Handled by ListGroup.Item onClick
+                                            label={
+                                                <div>
+                                                    <strong>{device.name}</strong>
+                                                    <span className="text-muted ms-2">
+                                                        ({Base58.int_to_base58(device.uid)})
+                                                    </span>
+                                                </div>
+                                            }
+                                        />
+                                    </ListGroup.Item>
+                                ))}
+                            </ListGroup>
                         </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
