@@ -6,11 +6,7 @@ use std::io::Read;
 use utoipa::ToSchema;
 
 use crate::{
-    error::Error,
-    rate_limit::ChargerRateLimiter,
-    routes::{charger::add::password_matches, user::get_user},
-    utils::{get_charger_from_db, parse_uuid, send_email_with_attachment},
-    AppState,
+    AppState, branding, error::Error, rate_limit::ChargerRateLimiter, routes::{charger::add::password_matches, user::get_user}, utils::{get_charger_from_db, parse_uuid, send_email_with_attachment}
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -38,6 +34,7 @@ struct ChargelogDETemplate<'a> {
     month: &'a str,
     display_name: &'a str,
     monthly_send: bool,
+    brand: branding::Brand,
 }
 
 #[derive(Template)]
@@ -47,6 +44,7 @@ struct ChargelogENTemplate<'a> {
     month: &'a str,
     display_name: &'a str,
     monthly_send: bool,
+    brand: branding::Brand,
 }
 
 fn render_chargelog_email(
@@ -55,6 +53,7 @@ fn render_chargelog_email(
     display_name: &str,
     lang: &str,
     monthly_send: bool,
+    brand: branding::Brand,
 ) -> actix_web::Result<(String, String)> {
     let (body, subject) = match lang {
         "de" | "de-DE" => {
@@ -63,6 +62,7 @@ fn render_chargelog_email(
                 month,
                 display_name,
                 monthly_send,
+                brand,
             };
             match template.render() {
                 Ok(b) => {
@@ -89,6 +89,7 @@ fn render_chargelog_email(
                 month,
                 display_name,
                 monthly_send,
+                brand,
             };
             match template.render() {
                 Ok(b) => {
@@ -167,6 +168,7 @@ pub async fn send_chargelog(
         &metadata.display_name,
         &lang_str,
         metadata.monthly_send,
+        state.brand,
     )?;
 
     let mut chargelog_file = chargelog.file.reopen().map_err(|err| {

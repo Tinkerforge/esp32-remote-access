@@ -6,10 +6,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    error::Error,
-    routes::auth::VERIFICATION_EXPIRATION_DAYS,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
+    AppState, branding, error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{get_connection, web_block_unpacked}
 };
 
 use db_connector::models::{users::User, verification::Verification};
@@ -19,6 +16,7 @@ use db_connector::models::{users::User, verification::Verification};
 pub struct VerifyEmailENTemplate<'a> {
     pub name: &'a str,
     pub link: &'a str,
+    pub brand: branding::Brand,
 }
 
 #[derive(Template)]
@@ -26,6 +24,7 @@ pub struct VerifyEmailENTemplate<'a> {
 pub struct VerifyEmailDETemplate<'a> {
     pub name: &'a str,
     pub link: &'a str,
+    pub brand: branding::Brand,
 }
 
 #[derive(Deserialize, ToSchema, Serialize)]
@@ -48,6 +47,7 @@ fn send_verification_mail(
             let template = VerifyEmailDETemplate {
                 name: &name,
                 link: &link,
+                brand: state.brand,
             };
             match template.render() {
                 Ok(body) => (body, "Email verifizieren"),
@@ -61,6 +61,7 @@ fn send_verification_mail(
             let template = VerifyEmailENTemplate {
                 name: &name,
                 link: &link,
+                brand: state.brand,
             };
             match template.render() {
                 Ok(body) => (body, "Verify email"),

@@ -20,7 +20,7 @@
 use std::net::Ipv4Addr;
 
 use actix_web::{middleware::Logger, App, HttpServer};
-pub use backend::*;
+use backend::*;
 use log::LevelFilter;
 use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
 use utoipa::{

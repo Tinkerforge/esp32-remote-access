@@ -32,10 +32,7 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
-    error::Error,
-    routes::auth::VERIFICATION_EXPIRATION_DAYS,
-    utils::{self, get_connection},
-    AppState,
+    AppState, branding, error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{self, get_connection}
 };
 
 #[derive(Template)]
@@ -43,6 +40,7 @@ use crate::{
 pub struct VerifyEmailENTemplate<'a> {
     pub name: &'a str,
     pub link: &'a str,
+    pub brand: branding::Brand,
 }
 
 #[derive(Template)]
@@ -50,6 +48,7 @@ pub struct VerifyEmailENTemplate<'a> {
 pub struct VerifyEmailDETemplate<'a> {
     pub name: &'a str,
     pub link: &'a str,
+    pub brand: branding::Brand,
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate, Clone, ToSchema)]
@@ -96,6 +95,7 @@ fn send_verification_mail(
             let template = VerifyEmailDETemplate {
                 name: &name,
                 link: &link,
+                brand: state.brand,
             };
             match template.render() {
                 Ok(body) => (body, "Email verifizieren"),
@@ -111,6 +111,7 @@ fn send_verification_mail(
             let template = VerifyEmailENTemplate {
                 name: &name,
                 link: &link,
+                brand: state.brand,
             };
             match template.render() {
                 Ok(body) => (body, "Verify email"),

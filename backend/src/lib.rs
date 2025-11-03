@@ -42,6 +42,7 @@ use udp_server::{
     management::RemoteConnMeta, packet::ManagementResponseV2, socket::ManagementSocket,
 };
 
+pub mod branding;
 pub mod error;
 pub mod middleware;
 pub mod models;
@@ -90,6 +91,7 @@ pub struct AppState {
     pub frontend_url: String,
     pub sender_email: String,
     pub sender_name: String,
+    pub brand: crate::branding::Brand,
     pub keys_in_use: Mutex<HashSet<uuid::Uuid>>,
 }
 
@@ -302,6 +304,7 @@ pub(crate) mod tests {
             frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
             sender_email: String::new(),
             sender_name: String::new(),
+            brand: crate::branding::Brand::default(),
             keys_in_use: Mutex::new(HashSet::new()),
         };
 

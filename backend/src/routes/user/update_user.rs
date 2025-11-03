@@ -18,10 +18,7 @@
  */
 
 use crate::{
-    error::Error,
-    routes::auth::VERIFICATION_EXPIRATION_DAYS,
-    utils::{get_connection, send_email, web_block_unpacked},
-    AppState,
+    AppState, branding, error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{get_connection, send_email, web_block_unpacked}
 };
 use actix_web::{error::ErrorConflict, put, web, HttpResponse, Responder};
 use askama::Template;
@@ -37,6 +34,7 @@ use validator::Validate;
 struct EmailChangeNotificationEn {
     name: String,
     sender_email: String,
+    brand: branding::Brand,
 }
 
 #[allow(unused)]
@@ -45,6 +43,7 @@ struct EmailChangeNotificationEn {
 struct EmailChangeNotificationDe {
     name: String,
     sender_email: String,
+    brand: branding::Brand,
 }
 
 #[allow(unused)]
@@ -60,6 +59,7 @@ fn send_email_change_notification(
                 let template = EmailChangeNotificationDe {
                     name: name.to_string(),
                     sender_email: state.sender_email.clone(),
+                    brand: state.brand,
                 };
                 match template.render() {
                     Ok(body) => (body, "E-Mail-Adresse geändert"),
@@ -73,6 +73,7 @@ fn send_email_change_notification(
                 let template = EmailChangeNotificationEn {
                     name: name.to_string(),
                     sender_email: state.sender_email.clone(),
+                    brand: state.brand,
                 };
                 match template.render() {
                     Ok(body) => (body, "Email address changed"),
@@ -106,6 +107,7 @@ fn send_verification_mail(
                         "{}/api/auth/verify?id={}",
                         state.frontend_url, verification_id
                     ),
+                    brand: state.brand,
                 };
                 match template.render() {
                     Ok(body) => (body, "E-Mail-Adresse bestätigen"),
@@ -124,6 +126,7 @@ fn send_verification_mail(
                         "{}/api/auth/verify?id={}",
                         state.frontend_url, verification_id
                     ),
+                    brand: state.brand,
                 };
                 match template.render() {
                     Ok(body) => (body, "Verify email address"),

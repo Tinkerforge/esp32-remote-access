@@ -7,10 +7,7 @@ use utoipa::IntoParams;
 use uuid::Uuid;
 
 use crate::{
-    error::Error,
-    routes::user::{get_user, get_user_id},
-    utils::{self, get_connection, web_block_unpacked},
-    AppState,
+    AppState, branding, error::Error, routes::user::{get_user, get_user_id}, utils::{self, get_connection, web_block_unpacked}
 };
 
 #[derive(Deserialize, IntoParams)]
@@ -23,6 +20,7 @@ struct StartRecoveryQuery {
 struct StartRecoveryDETemplate<'a> {
     name: &'a str,
     link: &'a str,
+    brand: branding::Brand,
 }
 
 #[derive(Template)]
@@ -30,6 +28,7 @@ struct StartRecoveryDETemplate<'a> {
 struct StartRecoveryENTemplate<'a> {
     name: &'a str,
     link: &'a str,
+    brand: branding::Brand,
 }
 
 #[allow(unused)]
@@ -50,6 +49,7 @@ fn send_email(
             let template = StartRecoveryDETemplate {
                 name: &name,
                 link: &link,
+                brand: state.brand,
             };
             match template.render() {
                 Ok(b) => (b, "Passwort Wiederherstellung"),
@@ -63,6 +63,7 @@ fn send_email(
             let template = StartRecoveryENTemplate {
                 name: &name,
                 link: &link,
+                brand: state.brand,
             };
             match template.render() {
                 Ok(b) => (b, "Password Recovery"),

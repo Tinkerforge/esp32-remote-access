@@ -141,6 +141,7 @@ async fn main() -> std::io::Result<()> {
 
     let sender_email = std::env::var("SENDER_EMAIL").expect("SENDER_EMAIL must be set");
     let sender_name = std::env::var("SENDER_NAME").expect("SENDER_NAME must be set");
+    let brand = backend::branding::Brand::from_env();
 
     let state = web::Data::new(AppState {
         pool: pool.clone(),
@@ -149,6 +150,7 @@ async fn main() -> std::io::Result<()> {
         frontend_url: std::env::var("FRONTEND_URL").expect("FRONTEND_URL must be set!"),
         sender_email,
         sender_name,
+        brand,
         keys_in_use: Mutex::new(HashSet::new()),
     });
 
