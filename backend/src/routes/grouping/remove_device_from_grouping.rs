@@ -33,7 +33,7 @@ use crate::{
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct RemoveDeviceFromGroupingSchema {
     pub grouping_id: String,
-    pub charger_id: String,
+    pub device_id: String,
 }
 
 /// Remove a device from a grouping
@@ -61,7 +61,7 @@ pub async fn remove_device_from_grouping(
     use db_connector::schema::device_groupings::dsl as groupings;
 
     let grouping_uuid = parse_uuid(&payload.grouping_id)?;
-    let charger_uuid = parse_uuid(&payload.charger_id)?;
+    let device_uuid = parse_uuid(&payload.device_id)?;
     let user_uuid: uuid::Uuid = user_id.into();
     let mut conn = get_connection(&state)?;
 
@@ -86,7 +86,7 @@ pub async fn remove_device_from_grouping(
         let deleted = match diesel::delete(
             members::device_grouping_members
                 .filter(members::grouping_id.eq(grouping_uuid))
-                .filter(members::charger_id.eq(charger_uuid)),
+                .filter(members::charger_id.eq(device_uuid)),
         )
         .execute(&mut conn)
         {
@@ -141,7 +141,7 @@ mod tests {
         // Add device to grouping
         let add_body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            charger_id: charger.uuid.clone(),
+            device_id: charger.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token);
@@ -156,7 +156,7 @@ mod tests {
         // Remove device from grouping
         let remove_body = RemoveDeviceFromGroupingSchema {
             grouping_id: grouping.id.clone(),
-            charger_id: charger.uuid.clone(),
+            device_id: charger.uuid.clone(),
         };
 
         let req = test::TestRequest::delete()
@@ -192,7 +192,7 @@ mod tests {
         // Try to remove device that was never added
         let body = RemoveDeviceFromGroupingSchema {
             grouping_id: grouping.id.clone(),
-            charger_id: charger.uuid.clone(),
+            device_id: charger.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token);
