@@ -18,7 +18,11 @@
  */
 
 use crate::{
-    AppState, branding, error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{get_connection, send_email, web_block_unpacked}
+    branding,
+    error::Error,
+    routes::auth::VERIFICATION_EXPIRATION_DAYS,
+    utils::{get_connection, send_email, web_block_unpacked},
+    AppState,
 };
 use actix_web::{error::ErrorConflict, put, web, HttpResponse, Responder};
 use askama::Template;

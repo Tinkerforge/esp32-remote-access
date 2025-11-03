@@ -6,7 +6,11 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    AppState, branding, error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{get_connection, web_block_unpacked}
+    branding,
+    error::Error,
+    routes::auth::VERIFICATION_EXPIRATION_DAYS,
+    utils::{get_connection, web_block_unpacked},
+    AppState,
 };
 
 use db_connector::models::{users::User, verification::Verification};

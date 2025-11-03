@@ -7,7 +7,11 @@ use utoipa::IntoParams;
 use uuid::Uuid;
 
 use crate::{
-    AppState, branding, error::Error, routes::user::{get_user, get_user_id}, utils::{self, get_connection, web_block_unpacked}
+    branding,
+    error::Error,
+    routes::user::{get_user, get_user_id},
+    utils::{self, get_connection, web_block_unpacked},
+    AppState,
 };
 
 #[derive(Deserialize, IntoParams)]

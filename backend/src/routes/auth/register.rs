@@ -32,7 +32,11 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
-    AppState, branding, error::Error, routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::{self, get_connection}
+    branding,
+    error::Error,
+    routes::auth::VERIFICATION_EXPIRATION_DAYS,
+    utils::{self, get_connection},
+    AppState,
 };
 
 #[derive(Template)]
