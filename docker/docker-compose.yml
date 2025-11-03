@@ -60,6 +60,7 @@ services:
       - MONITORING_EMAIL=${MONITORING_EMAIL}
       - SENDER_EMAIL=${SENDER_EMAIL}
       - SENDER_NAME=${SENDER_NAME}
+      - BRAND=${BRAND}
     healthcheck:
       test: ["CMD", "curl", "backend:8081"]
       interval: 20s
@@ -95,7 +96,7 @@ services:
     working_dir: /build
     user: "${UID:-1000}:${GID:-1000}"
     environment:
-      - IS_SEB=${IS_SEB}
+      - BRAND=${BRAND}
     volumes:
       - ../frontend:/build
       - ../wg-webclient:/wg-webclient

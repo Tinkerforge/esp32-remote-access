@@ -30,7 +30,7 @@ export default defineConfig({
 	css: {
 		preprocessorOptions: {
 			scss: {
-				additionalData: process.env.IS_SEB === "true" ? `@import "./_seb.scss";` : `@import "./_warp.scss";`,
+				additionalData: process.env.BRAND === "seb" ? `@import "./_seb.scss";` : `@import "./_warp.scss";`,
 				quietDeps: true,
 				silenceDeprecations: [
 					"mixed-decls",
