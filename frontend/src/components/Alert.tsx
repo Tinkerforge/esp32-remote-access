@@ -33,7 +33,7 @@ export async function showAlert(text: string, variant: "danger" | "success" | "w
         id,
         text,
         variant,
-        heading: heading || i18n.t("alert_default_text"),
+        heading: heading || (variant === "success" ? i18n.t("alert_default_success") : i18n.t("alert_default_text")),
     };
 
     alerts.value = alerts.value.filter(a => {
