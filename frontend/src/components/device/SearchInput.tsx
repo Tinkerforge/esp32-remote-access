@@ -17,7 +17,7 @@ export function SearchInput({ searchTerm, onSearchChange, placeholder }: SearchI
     };
 
     return (
-        <InputGroup className={`mb-3 ${Median.isNativeApp() ? "mt-2" : ""}`}>
+        <InputGroup>
             <InputGroup.Text>
                 <Search size={16} />
             </InputGroup.Text>

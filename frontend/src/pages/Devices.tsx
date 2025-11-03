@@ -444,8 +444,8 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 />
 
                 <Container fluid>
-                    <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <div className="flex-grow-1">
+                    <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 mt-3">
+                        <div className="flex-grow-1 gap-2">
                             <SearchInput
                                 searchTerm={this.state.searchTerm}
                                 onSearchChange={this.handleSearchChange}
