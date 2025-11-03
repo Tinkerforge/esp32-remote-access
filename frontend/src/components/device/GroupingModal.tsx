@@ -68,11 +68,8 @@ export function GroupingModal({
         setSelectedDevices(newSelected);
     };
 
-    const handleSave = async () => {
-        if (!groupingName.trim()) {
-            showAlert(t("grouping_name_placeholder"), "warning");
-            return;
-        }
+    const handleSave = async (e: Event) => {
+        e.preventDefault();
 
         try {
             if (editingGrouping) {
@@ -258,61 +255,62 @@ export function GroupingModal({
                     {editingGrouping ? t("edit_grouping") : t("create_grouping")}
                 </Modal.Title>
             </Modal.Header>
-            <Modal.Body>
-                <Form>
-                    <Form.Group className="mb-3">
-                        <Form.Label>{t("grouping_name")}</Form.Label>
-                        <Form.Control
-                            type="text"
-                            placeholder={t("grouping_name_placeholder")}
-                            value={groupingName}
-                            onChange={(e) => setGroupingName((e.target as HTMLInputElement).value)}
-                        />
-                    </Form.Group>
+            <Form onSubmit={handleSave}>
+                <Modal.Body>
+                        <Form.Group className="mb-3">
+                            <Form.Label>{t("grouping_name")}</Form.Label>
+                            <Form.Control
+                                type="text"
+                                placeholder={t("grouping_name_placeholder")}
+                                value={groupingName}
+                                onChange={(e) => setGroupingName((e.target as HTMLInputElement).value)}
+                                required
+                            />
+                        </Form.Group>
 
-                    <Form.Group>
-                        <Form.Label>{t("select_devices")}</Form.Label>
-                        <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-                            <ListGroup>
-                                {devices.map(device => (
-                                    <ListGroup.Item
-                                        key={device.id}
-                                        action
-                                        active={selectedDevices.has(device.id)}
-                                        onClick={(e: Event) => {
-                                            e.preventDefault();
-                                            handleDeviceToggle(device.id)
-                                        }}
-                                        style={{ cursor: "pointer" }}
-                                    >
-                                        <Form.Check
-                                            type="checkbox"
-                                            checked={selectedDevices.has(device.id)}
-                                            onChange={() => {}} // Handled by ListGroup.Item onClick
-                                            label={
-                                                <div>
-                                                    <strong>{device.name}</strong>
-                                                    <span className="text-muted ms-2">
-                                                        ({Base58.int_to_base58(device.uid)})
-                                                    </span>
-                                                </div>
-                                            }
-                                        />
-                                    </ListGroup.Item>
-                                ))}
-                            </ListGroup>
-                        </div>
-                    </Form.Group>
-                </Form>
-            </Modal.Body>
-            <Modal.Footer>
-                <Button variant="secondary" onClick={handleCancel}>
-                    {t("cancel")}
-                </Button>
-                <Button variant="primary" onClick={handleSave}>
-                    {t("save")}
-                </Button>
-            </Modal.Footer>
+                        <Form.Group>
+                            <Form.Label>{t("select_devices")}</Form.Label>
+                            <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                                <ListGroup>
+                                    {devices.map(device => (
+                                        <ListGroup.Item
+                                            key={device.id}
+                                            action
+                                            active={selectedDevices.has(device.id)}
+                                            onClick={(e: Event) => {
+                                                e.preventDefault();
+                                                handleDeviceToggle(device.id)
+                                            }}
+                                            style={{ cursor: "pointer" }}
+                                        >
+                                            <Form.Check
+                                                type="checkbox"
+                                                checked={selectedDevices.has(device.id)}
+                                                onChange={() => {}} // Handled by ListGroup.Item onClick
+                                                label={
+                                                    <div>
+                                                        <strong>{device.name}</strong>
+                                                        <span className="text-muted ms-2">
+                                                            ({Base58.int_to_base58(device.uid)})
+                                                        </span>
+                                                    </div>
+                                                }
+                                            />
+                                        </ListGroup.Item>
+                                    ))}
+                                </ListGroup>
+                            </div>
+                        </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={handleCancel}>
+                        {t("cancel")}
+                    </Button>
+                    <Button variant="primary" type="submit">
+                        {t("save")}
+                    </Button>
+                </Modal.Footer>
+            </Form>
         </>
     );
 
