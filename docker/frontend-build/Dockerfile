@@ -1,2 +1,2 @@
 FROM node:22
-ENV IS_SEB=${IS_SEB}
+ENV BRAND=${BRAND}

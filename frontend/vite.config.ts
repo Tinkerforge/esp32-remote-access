@@ -45,11 +45,11 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js",
-			"logo": process.env.IS_SEB === "true" ? "src/assets/seb_logo.png" : "src/assets/warp_logo.png",
-			"favicon": process.env.IS_SEB === "true" ? "src/assets/seb_favicon.png" : "src/assets/warp_favicon.png",
-			"links": process.env.IS_SEB === "true" ? "src/links/seb.ts" : "src/links/warp.ts",
-			"translations-de": process.env.IS_SEB === "true" ? "src/locales/branding/seb_de.ts" : "src/locales/branding/warp_de.ts",
-			"translations-en": process.env.IS_SEB === "true" ? "src/locales/branding/seb_en.ts" : "src/locales/branding/warp_en.ts",
+			"logo": process.env.BRAND === "seb" ? "src/assets/seb_logo.png" : "src/assets/warp_logo.png",
+			"favicon": process.env.BRAND === "seb" ? "src/assets/seb_favicon.png" : "src/assets/warp_favicon.png",
+			"links": process.env.BRAND === "seb" ? "src/links/seb.ts" : "src/links/warp.ts",
+			"translations-de": process.env.BRAND === "seb" ? "src/locales/branding/seb_de.ts" : "src/locales/branding/warp_de.ts",
+			"translations-en": process.env.BRAND === "seb" ? "src/locales/branding/seb_en.ts" : "src/locales/branding/warp_en.ts",
 		}
 	},
 	// build: {
