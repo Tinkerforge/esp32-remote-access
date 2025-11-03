@@ -103,7 +103,7 @@ export function GroupingModal({
             });
 
             if (response.status === 200) {
-                showAlert(t("delete_grouping_success"), "success");
+                showAlert(t("delete_grouping_success"), "success", undefined, undefined, 3000);
                 await loadGroupings();
             } else {
                 showAlert(t("delete_grouping_failed", { error: error || response.status }), "danger");
@@ -114,17 +114,16 @@ export function GroupingModal({
     };
 
     const createGrouping = async (name: string, deviceIds: Set<string>) => {
-        const { response, error } = await fetchClient.POST("/grouping/create", {
+        const { data, response, error } = await fetchClient.POST("/grouping/create", {
             body: { name } as any,
             credentials: "same-origin"
         });
 
-        if (response.status !== 200 || error) {
+        if (response.status !== 200 || error || !data) {
             showAlert(t("create_grouping_failed", { error: error || response.status }), "danger");
             throw new Error("Failed to create grouping");
         }
 
-        const data: any = await response.json();
         const groupingId = data.id;
 
         // Add devices to the grouping
@@ -135,7 +134,7 @@ export function GroupingModal({
             });
         }
 
-        showAlert(t("create_grouping_success"), "success");
+        showAlert(t("create_grouping_success"), "success", undefined, undefined, 3000);
     };
 
     const updateGrouping = async (groupingId: string, name: string, deviceIds: Set<string>) => {
@@ -163,7 +162,7 @@ export function GroupingModal({
             });
         }
 
-        showAlert(t("update_grouping_success"), "success");
+        showAlert(t("update_grouping_success"), "success", undefined, undefined, 3000);
     };
 
     const loadGroupings = async () => {
