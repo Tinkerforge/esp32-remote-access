@@ -809,7 +809,7 @@ export interface components {
             secret_salt: number[];
         };
         RemoveDeviceFromGroupingSchema: {
-            charger_id: string;
+            device_id: string;
             grouping_id: string;
         };
         ResendSchema: {
