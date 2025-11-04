@@ -223,8 +223,18 @@ vi.mock('react-bootstrap', () => {
   const Spinner = ({ ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'spinner' }, 'Loading...');
 
+  const Badge = ({ children, bg, ...props }: MockComponentProps & { bg?: string }) =>
+    h('span', { ...props, className: `badge bg-${bg || 'primary'}` }, children);
+
+  const ListGroup = ({ children, ...props }: MockComponentProps) =>
+    h('div', { ...props, className: 'list-group' }, children);
+
+  ListGroup.Item = ({ children, active, action, onClick, ...props }: MockComponentProps & { active?: boolean; action?: boolean; onClick?: (e: Event) => void }) =>
+    h('div', { ...props, className: `list-group-item${active ? ' active' : ''}${action ? ' action' : ''}`, onClick }, children);
+
   return {
     Alert,
+    Badge,
     Button: ({ children, type, variant, disabled, onClick, ...props }: ButtonProps) => h('button', {
       ...props,
       type,
@@ -242,6 +252,7 @@ vi.mock('react-bootstrap', () => {
     DropdownButton: ({ title, ...props }: DropdownButtonProps) => h('button', { ...props }, title),
     Form,
     InputGroup,
+    ListGroup,
     Modal,
     Nav,
     Navbar,
@@ -353,9 +364,11 @@ vi.mock('react-feather', () => ({
   ChevronDown: () => h('span', { 'data-testid': 'chevron-down' }),
   ChevronUp: () => h('span', { 'data-testid': 'chevron-up' }),
   Edit: () => h('span', { 'data-testid': 'edit-icon' }),
+  Edit2: () => h('span', { 'data-testid': 'edit2-icon' }),
   Eye: () => h('span', { 'data-testid': 'eye-icon' }),
   EyeOff: () => h('span', { 'data-testid': 'eye-off-icon' }),
   Monitor: () => h('span', { 'data-testid': 'monitor-icon' }),
+  Plus: () => h('span', { 'data-testid': 'plus-icon' }),
   Trash2: () => h('span', { 'data-testid': 'trash-icon', className: 'feather-trash-2' }),
   Key: () => h('span', { 'data-testid': 'key-icon' }),
   LogOut: () => h('span', { 'data-testid': 'logout-icon' }),

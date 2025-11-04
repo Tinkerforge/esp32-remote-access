@@ -1,7 +1,7 @@
-import { render } from '@testing-library/preact';
+import { render, screen, fireEvent } from '@testing-library/preact';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DeviceCard } from '../DeviceCard';
-import { StateDevice } from '../types';
+import { StateDevice, Grouping } from '../types';
 
 const mockDevice: StateDevice = {
   id: '1',
@@ -15,6 +15,14 @@ const mockDevice: StateDevice = {
   firmware_version: '1.0.0',
 };
 
+const mockGroupings: Grouping[] = [
+  {
+    id: 'group1',
+    name: 'Test Group',
+    device_ids: ['1'],
+  },
+];
+
 const defaultProps = {
   device: mockDevice,
   index: 0,
@@ -23,6 +31,7 @@ const defaultProps = {
   onEditNote: vi.fn(),
   connectionPossible: vi.fn(() => true),
   formatLastStateChange: vi.fn(() => 'formatted date'),
+  groupings: mockGroupings,
 };
 
 describe('DeviceCard', () => {
@@ -30,119 +39,150 @@ describe('DeviceCard', () => {
     vi.clearAllMocks();
   });
 
-  it('renders device card', () => {
-    const { container } = render(<DeviceCard {...defaultProps} />);
-    expect(container.firstChild).toBeTruthy();
+  it('renders device card with device name', () => {
+    render(<DeviceCard {...defaultProps} />);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
   });
 
-  it('handles connected device', () => {
+  it('displays connect and delete buttons', () => {
+    render(<DeviceCard {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('displays formatted last state change', () => {
+    render(<DeviceCard {...defaultProps} />);
+    expect(screen.getByText('formatted date')).toBeInTheDocument();
+    expect(defaultProps.formatLastStateChange).toHaveBeenCalled();
+  });
+
+  it('displays firmware version', () => {
+    render(<DeviceCard {...defaultProps} />);
+    expect(screen.getByText('1.0.0')).toBeInTheDocument();
+  });
+
+  it('shows grouping badge when device belongs to a group', () => {
+    render(<DeviceCard {...defaultProps} />);
+    expect(screen.getByText('Test Group')).toBeInTheDocument();
+  });
+
+  it('handles connected device with success indicator', () => {
     const connectedDevice = { ...mockDevice, status: 'Connected' };
-    const { container } = render(<DeviceCard {...defaultProps} device={connectedDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<DeviceCard {...defaultProps} device={connectedDevice} />);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
   });
 
   it('handles disconnected device', () => {
     const disconnectedDevice = { ...mockDevice, status: 'Disconnected' };
-    const { container } = render(<DeviceCard {...defaultProps} device={disconnectedDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<DeviceCard {...defaultProps} device={disconnectedDevice} />);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
   });
 
-  it('handles invalid device', () => {
+  it('displays warning message for invalid device', () => {
     const invalidDevice = { ...mockDevice, valid: false };
-    const { container } = render(<DeviceCard {...defaultProps} device={invalidDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<DeviceCard {...defaultProps} device={invalidDevice} />);
+    expect(screen.getByText('no_keys')).toBeInTheDocument();
   });
 
-  it('handles device with short note', () => {
+  it('does not display warning for valid device', () => {
+    render(<DeviceCard {...defaultProps} />);
+    expect(screen.queryByText('no_keys')).not.toBeVisible();
+  });
+
+  it('displays short note correctly', () => {
     const shortNoteDevice = { ...mockDevice, note: 'Short note' };
-    const { container } = render(<DeviceCard {...defaultProps} device={shortNoteDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<DeviceCard {...defaultProps} device={shortNoteDevice} />);
+    expect(screen.getByText('Short note')).toBeInTheDocument();
   });
 
-  it('handles device with long note', () => {
+  it('displays empty note without errors', () => {
+    const emptyNoteDevice = { ...mockDevice, note: '' };
+    render(<DeviceCard {...defaultProps} device={emptyNoteDevice} />);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
+  });
+
+  it('shows expand/collapse link for long notes', () => {
     const longNoteDevice = {
       ...mockDevice,
-      note: 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8'
+      note: 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5'
     };
-    const { container } = render(<DeviceCard {...defaultProps} device={longNoteDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<DeviceCard {...defaultProps} device={longNoteDevice} />);
+    expect(screen.getByText('show_more')).toBeInTheDocument();
   });
 
-  it('handles device with empty note', () => {
-    const emptyNoteDevice = { ...mockDevice, note: '' };
-    const { container } = render(<DeviceCard {...defaultProps} device={emptyNoteDevice} />);
-    expect(container.firstChild).toBeTruthy();
-  });
-
-  it('handles device with no last state change', () => {
-    const noStateChangeDevice = { ...mockDevice, last_state_change: null };
-    const { container } = render(<DeviceCard {...defaultProps} device={noStateChangeDevice} />);
-    expect(container.firstChild).toBeTruthy();
-  });
-
-  it('receives all required callback props', () => {
-    const callbacks = {
-      onConnect: vi.fn(),
-      onDelete: vi.fn(),
-      onEditNote: vi.fn(),
-      connectionPossible: vi.fn(() => false),
-      formatLastStateChange: vi.fn(() => 'never'),
+  it('expands note when clicking show more', () => {
+    const longNoteDevice = {
+      ...mockDevice,
+      note: 'Line 1\nLine 2\nLine 3\nLine 4'
     };
+    render(<DeviceCard {...defaultProps} device={longNoteDevice} />);
 
-    const { container } = render(
-      <DeviceCard {...defaultProps} {...callbacks} />
-    );
+    const showMoreLink = screen.getByText('show_more');
+    fireEvent.click(showMoreLink);
 
-    expect(container.firstChild).toBeTruthy();
-    // Callbacks should not be called during render
-    expect(callbacks.onConnect).not.toHaveBeenCalled();
-    expect(callbacks.onDelete).not.toHaveBeenCalled();
-    expect(callbacks.onEditNote).not.toHaveBeenCalled();
+    expect(screen.getByText('show_less')).toBeInTheDocument();
   });
 
-  it('handles connection not possible', () => {
+  it('displays edit note button', () => {
+    render(<DeviceCard {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    // Edit button should be present (icon button)
+    expect(buttons.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('calls onEditNote when edit button is clicked', () => {
+    render(<DeviceCard {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    // Find and click edit button (should be the third button)
+    fireEvent.click(buttons[2]);
+    expect(defaultProps.onEditNote).toHaveBeenCalledWith(mockDevice, 0);
+  });
+
+  it('calls onDelete when delete button is clicked', () => {
+    render(<DeviceCard {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    // Delete button should be the second button in header
+    fireEvent.click(buttons[1]);
+    expect(defaultProps.onDelete).toHaveBeenCalledWith(mockDevice);
+  });
+
+  it('disables connect button when connection not possible', () => {
     const connectionPossible = vi.fn(() => false);
-    const { container } = render(
-      <DeviceCard {...defaultProps} connectionPossible={connectionPossible} />
-    );
-
-    expect(container.firstChild).toBeTruthy();
-    // connectionPossible might be called during render to determine UI state
+    render(<DeviceCard {...defaultProps} connectionPossible={connectionPossible} />);
+    const buttons = screen.getAllByRole('button');
+    // First button should be disabled
+    expect(buttons[0]).toBeDisabled();
   });
 
-  it('uses formatLastStateChange function', () => {
-    const formatFn = vi.fn(() => 'custom format');
-    const { container } = render(
-      <DeviceCard {...defaultProps} formatLastStateChange={formatFn} />
-    );
-
-    expect(container.firstChild).toBeTruthy();
-    // formatLastStateChange should be called during render
-    expect(formatFn).toHaveBeenCalled();
+  it('enables connect button when connection is possible', () => {
+    render(<DeviceCard {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    // First button should be enabled
+    expect(buttons[0]).not.toBeDisabled();
   });
 
-  it('handles different device indices', () => {
-    const { container: container1 } = render(<DeviceCard {...defaultProps} index={0} />);
-    expect(container1.firstChild).toBeTruthy();
-
-    const { container: container2 } = render(<DeviceCard {...defaultProps} index={5} />);
-    expect(container2.firstChild).toBeTruthy();
+  it('renders without groupings', () => {
+    render(<DeviceCard {...defaultProps} groupings={[]} />);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
+    expect(screen.queryByText('Test Group')).not.toBeInTheDocument();
   });
 
-  it('handles minimal device configuration', () => {
-    const minimalDevice: StateDevice = {
-      id: '1',
-      uid: 1,
-      name: 'Device',
-      status: 'Connected',
-      note: '',
-      port: 80,
-      valid: true,
-      last_state_change: null,
-      firmware_version: '1.0.0',
-    };
+  it('does not display badges when device is not in any grouping', () => {
+    const deviceNotInGroup: StateDevice = { ...mockDevice, id: '999' };
+    render(<DeviceCard {...defaultProps} device={deviceNotInGroup} />);
+    expect(screen.queryByText('Test Group')).not.toBeInTheDocument();
+  });
 
-    const { container } = render(<DeviceCard {...defaultProps} device={minimalDevice} />);
-    expect(container.firstChild).toBeTruthy();
+  it('renders multiple grouping badges', () => {
+    const manyGroupings: Grouping[] = [
+      { id: 'g1', name: 'Group 1', device_ids: ['1'] },
+      { id: 'g2', name: 'Group 2', device_ids: ['1'] },
+      { id: 'g3', name: 'Group 3', device_ids: ['1'] },
+    ];
+
+    render(<DeviceCard {...defaultProps} groupings={manyGroupings} />);
+    expect(screen.getByText('Group 1')).toBeInTheDocument();
+    expect(screen.getByText('Group 2')).toBeInTheDocument();
+    expect(screen.getByText('Group 3')).toBeInTheDocument();
   });
 });

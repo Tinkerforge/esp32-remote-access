@@ -171,7 +171,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 return;
             }
 
-            this.setState({ groupings: (data as any).groupings });
+            this.setState({ groupings: data.groupings });
         } catch (error) {
             console.error("Failed to load groupings:", error);
         }

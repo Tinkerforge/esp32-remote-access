@@ -1,7 +1,7 @@
-import { render } from '@testing-library/preact';
+import { render, screen, fireEvent } from '@testing-library/preact';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DeviceTableRow } from '../DeviceTableRow';
-import { StateDevice } from '../types';
+import { StateDevice, Grouping } from '../types';
 
 const mockDevice: StateDevice = {
   id: '1',
@@ -15,6 +15,19 @@ const mockDevice: StateDevice = {
   firmware_version: '1.0.0',
 };
 
+const mockGroupings: Grouping[] = [
+  {
+    id: 'group1',
+    name: 'Test Group',
+    device_ids: ['1'],
+  },
+  {
+    id: 'group2',
+    name: 'Another Group',
+    device_ids: ['1', '2'],
+  },
+];
+
 const defaultProps = {
   device: mockDevice,
   index: 0,
@@ -23,6 +36,7 @@ const defaultProps = {
   onEditNote: vi.fn(),
   connectionPossible: vi.fn(() => true),
   formatLastStateChange: vi.fn(() => 'formatted date'),
+  groupings: mockGroupings,
 };
 
 describe('DeviceTableRow', () => {
@@ -30,85 +44,149 @@ describe('DeviceTableRow', () => {
     vi.clearAllMocks();
   });
 
-  it('renders device row', () => {
-    const { container } = render(<DeviceTableRow {...defaultProps} />);
-    expect(container.firstChild).toBeTruthy();
+  it('renders device name in table row', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
+  });
+
+  it('displays connect and remove buttons', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    expect(screen.getByText('connect')).toBeInTheDocument();
+    expect(screen.getByText('remove')).toBeInTheDocument();
+  });
+
+  it('displays formatted last state change', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    expect(screen.getByText('formatted date')).toBeInTheDocument();
+    expect(defaultProps.formatLastStateChange).toHaveBeenCalled();
+  });
+
+  it('displays firmware version', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    expect(screen.getByText('1.0.0')).toBeInTheDocument();
+  });
+
+  it('shows grouping badges when device belongs to groups', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    expect(screen.getByText('Test Group')).toBeInTheDocument();
+    expect(screen.getByText('Another Group')).toBeInTheDocument();
   });
 
   it('handles connected device', () => {
     const connectedDevice = { ...mockDevice, status: 'Connected' };
-    const { container } = render(<DeviceTableRow {...defaultProps} device={connectedDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<table><tbody><DeviceTableRow {...defaultProps} device={connectedDevice} /></tbody></table>);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
   });
 
   it('handles disconnected device', () => {
     const disconnectedDevice = { ...mockDevice, status: 'Disconnected' };
-    const { container } = render(<DeviceTableRow {...defaultProps} device={disconnectedDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<table><tbody><DeviceTableRow {...defaultProps} device={disconnectedDevice} /></tbody></table>);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
   });
 
-  it('handles invalid device', () => {
+  it('displays warning message for invalid device', () => {
     const invalidDevice = { ...mockDevice, valid: false };
-    const { container } = render(<DeviceTableRow {...defaultProps} device={invalidDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<table><tbody><DeviceTableRow {...defaultProps} device={invalidDevice} /></tbody></table>);
+    expect(screen.getByText('no_keys')).toBeInTheDocument();
   });
 
-  it('handles device with short note', () => {
+  it('does not display warning for valid device', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    expect(screen.queryByText('no_keys')).not.toBeVisible();
+  });
+
+  it('displays short note correctly', () => {
     const shortNoteDevice = { ...mockDevice, note: 'Short note' };
-    const { container } = render(<DeviceTableRow {...defaultProps} device={shortNoteDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<table><tbody><DeviceTableRow {...defaultProps} device={shortNoteDevice} /></tbody></table>);
+    expect(screen.getByText('Short note')).toBeInTheDocument();
   });
 
-  it('handles device with empty note', () => {
+  it('handles empty note without errors', () => {
     const emptyNoteDevice = { ...mockDevice, note: '' };
-    const { container } = render(<DeviceTableRow {...defaultProps} device={emptyNoteDevice} />);
-    expect(container.firstChild).toBeTruthy();
+    render(<table><tbody><DeviceTableRow {...defaultProps} device={emptyNoteDevice} /></tbody></table>);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
   });
 
-  it('handles device with no last state change', () => {
-    const noStateChangeDevice = { ...mockDevice, last_state_change: null };
-    const { container } = render(<DeviceTableRow {...defaultProps} device={noStateChangeDevice} />);
-    expect(container.firstChild).toBeTruthy();
-  });
-
-  it('receives all required callback props', () => {
-    const callbacks = {
-      onConnect: vi.fn(),
-      onDelete: vi.fn(),
-      onEditNote: vi.fn(),
-      connectionPossible: vi.fn(() => false),
-      formatLastStateChange: vi.fn(() => 'never'),
+  it('shows expand/collapse link for long notes', () => {
+    const longNoteDevice = {
+      ...mockDevice,
+      note: 'Line 1\nLine 2\nLine 3\nLine 4'
     };
-
-    const { container } = render(
-      <DeviceTableRow {...defaultProps} {...callbacks} />
-    );
-
-    expect(container.firstChild).toBeTruthy();
-    // Callbacks should not be called during render
-    expect(callbacks.onConnect).not.toHaveBeenCalled();
-    expect(callbacks.onDelete).not.toHaveBeenCalled();
-    expect(callbacks.onEditNote).not.toHaveBeenCalled();
+    render(<table><tbody><DeviceTableRow {...defaultProps} device={longNoteDevice} /></tbody></table>);
+    expect(screen.getByText('show_more')).toBeInTheDocument();
   });
 
-  it('uses connectionPossible function', () => {
+  it('expands note when clicking show more', () => {
+    const longNoteDevice = {
+      ...mockDevice,
+      note: 'Line 1\nLine 2\nLine 3'
+    };
+    render(<table><tbody><DeviceTableRow {...defaultProps} device={longNoteDevice} /></tbody></table>);
+
+    const showMoreLink = screen.getByText('show_more');
+    fireEvent.click(showMoreLink);
+
+    expect(screen.getByText('show_less')).toBeInTheDocument();
+  });
+
+  it('calls onConnect when connect button is clicked', async () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    const connectButton = screen.getByText('connect');
+    fireEvent.click(connectButton);
+    expect(defaultProps.onConnect).toHaveBeenCalledWith(mockDevice);
+  });
+
+  it('calls onDelete when remove button is clicked', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    const removeButton = screen.getByText('remove');
+    fireEvent.click(removeButton);
+    expect(defaultProps.onDelete).toHaveBeenCalledWith(mockDevice);
+  });
+
+  it('calls onEditNote when edit button is clicked', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    const buttons = screen.getAllByRole('button');
+    // Edit button is the last button (icon button)
+    fireEvent.click(buttons[buttons.length - 1]);
+    expect(defaultProps.onEditNote).toHaveBeenCalledWith(mockDevice, 0);
+  });
+
+  it('disables connect button when connection not possible', () => {
     const connectionPossible = vi.fn(() => false);
-    const { container } = render(
-      <DeviceTableRow {...defaultProps} connectionPossible={connectionPossible} />
-    );
-
-    expect(container.firstChild).toBeTruthy();
-    // connectionPossible might be called during render to determine button state
+    render(<table><tbody><DeviceTableRow {...defaultProps} connectionPossible={connectionPossible} /></tbody></table>);
+    const connectButton = screen.getByText('connect');
+    expect(connectButton).toBeDisabled();
   });
 
-  it('uses formatLastStateChange function', () => {
-    const formatFn = vi.fn(() => 'custom format');
-    const { container } = render(
-      <DeviceTableRow {...defaultProps} formatLastStateChange={formatFn} />
-    );
+  it('enables connect button when connection is possible', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+    const connectButton = screen.getByText('connect');
+    expect(connectButton).not.toBeDisabled();
+  });
 
-    expect(container.firstChild).toBeTruthy();
-    // formatLastStateChange should be called during render
-    expect(formatFn).toHaveBeenCalled();
+  it('renders without groupings', () => {
+    render(<table><tbody><DeviceTableRow {...defaultProps} groupings={[]} /></tbody></table>);
+    expect(screen.getByText('Test Device')).toBeInTheDocument();
+    expect(screen.queryByText('Test Group')).not.toBeInTheDocument();
+  });
+
+  it('does not display badges when device is not in any grouping', () => {
+    const deviceNotInGroup: StateDevice = { ...mockDevice, id: '999' };
+    render(<table><tbody><DeviceTableRow {...defaultProps} device={deviceNotInGroup} /></tbody></table>);
+    expect(screen.queryByText('Test Group')).not.toBeInTheDocument();
+    expect(screen.queryByText('Another Group')).not.toBeInTheDocument();
+  });
+
+  it('renders multiple grouping badges', () => {
+    const manyGroupings: Grouping[] = [
+      { id: 'g1', name: 'Group 1', device_ids: ['1'] },
+      { id: 'g2', name: 'Group 2', device_ids: ['1'] },
+      { id: 'g3', name: 'Group 3', device_ids: ['1'] },
+    ];
+
+    render(<table><tbody><DeviceTableRow {...defaultProps} groupings={manyGroupings} /></tbody></table>);
+    expect(screen.getByText('Group 1')).toBeInTheDocument();
+    expect(screen.getByText('Group 2')).toBeInTheDocument();
+    expect(screen.getByText('Group 3')).toBeInTheDocument();
   });
 });
