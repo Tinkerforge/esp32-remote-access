@@ -125,9 +125,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         let cookie = Cookie::new("access_token", token);
@@ -152,9 +150,7 @@ mod tests {
         let grouping1 = create_test_grouping(token, "Grouping 1").await;
         let grouping2 = create_test_grouping(token, "Grouping 2").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         let cookie = Cookie::new("access_token", token);

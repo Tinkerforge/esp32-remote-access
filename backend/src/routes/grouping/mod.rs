@@ -17,11 +17,11 @@
  * Boston, MA 02111-1307, USA.
  */
 
+pub mod add_device_to_grouping;
 pub mod create_grouping;
 pub mod delete_grouping;
-pub mod add_device_to_grouping;
-pub mod remove_device_from_grouping;
 pub mod get_groupings;
+pub mod remove_device_from_grouping;
 
 #[cfg(test)]
 pub(crate) mod test_helpers;
@@ -39,4 +39,3 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(get_groupings::get_groupings);
     cfg.service(scope);
 }
-

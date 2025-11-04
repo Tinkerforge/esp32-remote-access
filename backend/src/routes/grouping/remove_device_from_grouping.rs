@@ -116,8 +116,7 @@ mod tests {
     use crate::{
         routes::{
             grouping::{
-                add_device_to_grouping::AddDeviceToGroupingSchema,
-                configure, test_helpers::*,
+                add_device_to_grouping::AddDeviceToGroupingSchema, configure, test_helpers::*,
             },
             user::tests::TestUser,
         },
@@ -133,9 +132,7 @@ mod tests {
         let charger = user.add_charger(charger_id).await;
         let grouping = create_test_grouping(&token, "Test Group").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         // Add device to grouping
@@ -184,9 +181,7 @@ mod tests {
         let charger = user.add_charger(charger_id).await;
         let grouping = create_test_grouping(&token, "Test Group").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         // Try to remove device that was never added

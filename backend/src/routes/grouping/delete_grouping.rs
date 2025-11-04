@@ -110,9 +110,7 @@ mod tests {
 
         let grouping = create_test_grouping(token, "To Delete").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         let body = DeleteGroupingSchema {
@@ -144,9 +142,7 @@ mod tests {
         // User 1 creates a grouping
         let grouping = create_test_grouping(token1, "User1 Grouping").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         // User 2 tries to delete it

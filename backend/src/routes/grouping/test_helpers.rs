@@ -26,13 +26,8 @@ use crate::tests::configure as test_configure;
 use create_grouping::{CreateGroupingResponse, CreateGroupingSchema};
 
 /// Helper function to create a test grouping
-pub async fn create_test_grouping(
-    access_token: &str,
-    name: &str,
-) -> CreateGroupingResponse {
-    let app = App::new()
-        .configure(test_configure)
-        .configure(configure);
+pub async fn create_test_grouping(access_token: &str, name: &str) -> CreateGroupingResponse {
+    let app = App::new().configure(test_configure).configure(configure);
     let app = test::init_service(app).await;
 
     let body = CreateGroupingSchema {
@@ -94,4 +89,3 @@ pub fn count_grouping_members(grouping_id_str: &str) -> i64 {
         .get_result(&mut conn)
         .unwrap_or(0)
 }
-

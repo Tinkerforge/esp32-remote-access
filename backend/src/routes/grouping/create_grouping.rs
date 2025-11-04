@@ -90,10 +90,7 @@ pub async fn create_grouping(
 
 #[cfg(test)]
 mod tests {
-    use crate::routes::{
-        grouping::test_helpers::*,
-        user::tests::TestUser,
-    };
+    use crate::routes::{grouping::test_helpers::*, user::tests::TestUser};
 
     #[actix_web::test]
     async fn test_create_grouping() {

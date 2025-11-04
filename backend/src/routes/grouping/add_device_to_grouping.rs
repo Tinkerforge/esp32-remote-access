@@ -144,9 +144,7 @@ mod tests {
 
     use crate::{
         routes::{
-            grouping::{
-                configure, get_groupings::GetGroupingsResponse, test_helpers::*,
-            },
+            grouping::{configure, get_groupings::GetGroupingsResponse, test_helpers::*},
             user::tests::TestUser,
         },
         tests::configure as test_configure,
@@ -164,9 +162,7 @@ mod tests {
         // Create a grouping
         let grouping = create_test_grouping(&token, "Test Group").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         let body = AddDeviceToGroupingSchema {
@@ -205,9 +201,7 @@ mod tests {
         let charger = user.add_charger(charger_id).await;
         let grouping = create_test_grouping(&token, "Test Group").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         let body = AddDeviceToGroupingSchema {
@@ -252,9 +246,7 @@ mod tests {
         // User 2 creates a grouping
         let grouping = create_test_grouping(&token2, "User2 Group").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         // User 2 tries to add User 1's charger to their grouping
@@ -291,9 +283,7 @@ mod tests {
         // Create grouping
         let grouping = create_test_grouping(&token, "Multi-Device Group").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         // Add both devices to grouping
@@ -348,9 +338,7 @@ mod tests {
         let charger = user.add_charger(charger_id).await;
         let grouping = create_test_grouping(&token, "Cascade Test").await;
 
-        let app = App::new()
-            .configure(test_configure)
-            .configure(configure);
+        let app = App::new().configure(test_configure).configure(configure);
         let app = test::init_service(app).await;
 
         // Add device to grouping
