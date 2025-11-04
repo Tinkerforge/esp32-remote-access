@@ -43,4 +43,5 @@ export interface DeviceListState {
     filteredDevices: StateDevice[],
     groupings: Grouping[],
     selectedGroupingId: string | null,
+    groupingSearchTerm: string,
 }

@@ -5,7 +5,7 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
-import { Button, Container } from "react-bootstrap";
+import { Button, Container, Dropdown, DropdownButton, Form } from "react-bootstrap";
 import i18n from "../i18n";
 import { useLocation } from "preact-iso";
 import { Device, StateDevice, SortColumn, DeviceListState, Grouping } from "../components/device/types";
@@ -47,6 +47,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
             filteredDevices: [],
             groupings: [],
             selectedGroupingId: null,
+            groupingSearchTerm: "",
         };
 
         this.updateChargers();
@@ -453,19 +454,22 @@ export class DeviceList extends Component<{}, DeviceListState> {
                         </div>
                         <div className="d-flex gap-2">
                             {this.state.groupings.length > 0 && (
-                                <select
-                                    className="form-select"
-                                    style={{ width: "auto" }}
-                                    value={this.state.selectedGroupingId || ""}
-                                    onChange={(e) => this.handleGroupingFilterChange((e.target as HTMLSelectElement).value || null)}
+                                <DropdownButton variant="outline-secondary" title={t("groupings")} className="w-auto"
                                 >
-                                    <option value="">{t("all_devices")}</option>
-                                    {this.state.groupings.map(grouping => (
-                                        <option key={grouping.id} value={grouping.id}>
+                                    <div class="px-1">
+                                        <Form.Control placeholder={t("search_groupings")}
+                                            value={this.state.groupingSearchTerm}
+                                            onChange={(e) => this.setState({ groupingSearchTerm: (e.target as HTMLInputElement).value })} />
+                                    </div>
+                                    <Dropdown.Item onClick={() => this.handleGroupingFilterChange(null)}>
+                                        {t("all_devices")}
+                                    </Dropdown.Item>
+                                    {this.state.groupings.filter(grouping => grouping.name.toLowerCase().includes(this.state.groupingSearchTerm.toLowerCase())).map(grouping => (
+                                        <Dropdown.Item disabled={grouping.id === this.state.selectedGroupingId} onClick={() => this.handleGroupingFilterChange(grouping.id)}>
                                             {grouping.name} ({grouping.device_ids.length})
-                                        </option>
+                                        </Dropdown.Item>
                                     ))}
-                                </select>
+                                </DropdownButton>
                             )}
                             <Button
                                 variant="primary"

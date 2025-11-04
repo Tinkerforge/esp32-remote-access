@@ -129,6 +129,7 @@ export const de ={
         "filter_by_grouping": "Nach Gruppe filtern",
         "grouping_empty": "Diese Gruppe enthält keine Geräte",
         "select_devices": "Geräte zum Hinzufügen auswählen",
+        "search_groupings": "Suchen",
         "save": "Speichern",
         "cancel": "Abbrechen"
     },
