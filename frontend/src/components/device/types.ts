@@ -44,4 +44,5 @@ export interface DeviceListState {
     groupings: Grouping[],
     selectedGroupingId: string | null,
     groupingSearchTerm: string,
+    isLoading: boolean,
 }

@@ -5,7 +5,7 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
-import { Button, Container, Dropdown, DropdownButton, Form } from "react-bootstrap";
+import { Button, Container, Dropdown, DropdownButton, Form, Spinner } from "react-bootstrap";
 import i18n from "../i18n";
 import { useLocation } from "preact-iso";
 import { Device, StateDevice, SortColumn, DeviceListState, Grouping } from "../components/device/types";
@@ -48,6 +48,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
             groupings: [],
             selectedGroupingId: null,
             groupingSearchTerm: "",
+            isLoading: true,
         };
 
         this.updateChargers();
@@ -99,6 +100,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
 
             if (error || !data) {
                 showAlert(i18n.t("chargers.loading_devices_failed", {status: response.status, response: error}), "danger");
+                this.setState({ isLoading: false });
                 return;
             }
 
@@ -126,6 +128,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 stateDevices.push(state_charger);
             }
             this.setSortedDevices(stateDevices);
+            this.setState({ isLoading: false });
         } catch (e) {
             const error = `${e}`;
             if (error.indexOf("Network") !== -1) {
@@ -134,9 +137,10 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     charger.status = "Disconnected";
                     updateDevices.push(charger);
                 }
-                this.setState({ devices: updateDevices });
+                this.setState({ devices: updateDevices, isLoading: false });
             } else {
                 showAlert(error, "danger", "get_chargers");
+                this.setState({ isLoading: false });
             }
         }
     }
@@ -392,6 +396,17 @@ export class DeviceList extends Component<{}, DeviceListState> {
         const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
         const { route } = useLocation();
 
+        // Show spinner while loading
+        if (this.state.isLoading) {
+            return (
+                <Container fluid className="text-center mt-5">
+                    <Spinner animation="border" role="status">
+                        <span className="visually-hidden">{t("loading")}</span>
+                    </Spinner>
+                </Container>
+            );
+        }
+
         // Apply filtering: if search term or grouping filter is active, show filtered devices
         const devices = (this.state.filteredDevices.length > 0 || this.state.searchTerm || this.state.selectedGroupingId)
             ? this.state.filteredDevices
@@ -465,7 +480,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
                                         {t("all_devices")}
                                     </Dropdown.Item>
                                     {this.state.groupings.filter(grouping => grouping.name.toLowerCase().includes(this.state.groupingSearchTerm.toLowerCase())).map(grouping => (
-                                        <Dropdown.Item disabled={grouping.id === this.state.selectedGroupingId} onClick={() => this.handleGroupingFilterChange(grouping.id)}>
+                                        <Dropdown.Item key={grouping.id} disabled={grouping.id === this.state.selectedGroupingId} onClick={() => this.handleGroupingFilterChange(grouping.id)}>
                                             {grouping.name} ({grouping.device_ids.length})
                                         </Dropdown.Item>
                                     ))}

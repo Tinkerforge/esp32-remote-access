@@ -60,6 +60,7 @@ export const en = {
         "no_file_warning_ack": "I understand that continuing without a recovery file will disconnect my devices and require re-adding them."
     },
     "chargers": {
+        "loading": "Loading...",
         "charger_name": "Name",
         "charger_id": "Device-ID",
         "mobile_charger_id": "ID",

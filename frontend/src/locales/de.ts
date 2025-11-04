@@ -60,6 +60,7 @@ export const de ={
         "no_file_warning_ack": "Ich verstehe, dass das Fortfahren ohne Wiederherstellungsdatei meine Geräte trennt und ich sie erneut hinzufügen muss."
     },
     "chargers": {
+        "loading": "Lädt...",
         "charger_name": "Name",
         "charger_id": "Geräte-ID",
         "mobile_charger_id": "ID",
