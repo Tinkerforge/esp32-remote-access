@@ -100,7 +100,7 @@ export function GroupingModal({
 
         try {
             const { response, error } = await fetchClient.DELETE("/grouping/delete", {
-                body: { grouping_id: groupingId } as any,
+                body: { grouping_id: groupingId },
                 credentials: "same-origin"
             });
 
@@ -117,7 +117,7 @@ export function GroupingModal({
 
     const createGrouping = async (name: string, deviceIds: Set<string>) => {
         const { data, response, error } = await fetchClient.POST("/grouping/create", {
-            body: { name } as any,
+            body: { name },
             credentials: "same-origin"
         });
 
@@ -131,7 +131,7 @@ export function GroupingModal({
         // Add devices to the grouping
         for (const deviceId of deviceIds) {
             await fetchClient.POST("/grouping/add_device", {
-                body: { grouping_id: groupingId, device_id: deviceId } as any,
+                body: { grouping_id: groupingId, device_id: deviceId },
                 credentials: "same-origin"
             });
         }
@@ -151,7 +151,7 @@ export function GroupingModal({
         // Add devices
         for (const deviceId of devicesToAdd) {
             await fetchClient.POST("/grouping/add_device", {
-                body: { grouping_id: groupingId, device_id: deviceId } as any,
+                body: { grouping_id: groupingId, device_id: deviceId },
                 credentials: "same-origin"
             });
         }
@@ -159,7 +159,7 @@ export function GroupingModal({
         // Remove devices
         for (const deviceId of devicesToRemove) {
             await fetchClient.DELETE("/grouping/remove_device", {
-                body: { grouping_id: groupingId, device_id: deviceId } as any,
+                body: { grouping_id: groupingId, device_id: deviceId },
                 credentials: "same-origin"
             });
         }
@@ -174,12 +174,12 @@ export function GroupingModal({
             });
 
             if (error || !data) {
-                const errorMsg = error ? String(error) : (response as any)?.status || "Unknown error";
+                const errorMsg = error ? String(error) : response.status || "Unknown error";
                 showAlert(t("load_groupings_failed", { error: errorMsg }), "danger");
                 return;
             }
 
-            onGroupingsUpdated((data as any).groupings);
+            onGroupingsUpdated(data.groupings);
         } catch (error) {
             showAlert(t("load_groupings_failed", { error: String(error) }), "danger");
         }
@@ -307,7 +307,6 @@ export function GroupingModal({
                                         <Form.Check
                                             type="checkbox"
                                             checked={selectedDevices.has(device.id)}
-                                            onChange={() => {}} // Handled by ListGroup.Item onClick
                                             label={
                                                 <div>
                                                     <strong>{device.name}</strong>

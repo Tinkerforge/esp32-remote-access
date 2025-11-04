@@ -47,9 +47,10 @@ describe('EditNoteModal', () => {
 
   it('calls onSubmit when form is submitted', () => {
     render(<EditNoteModal {...defaultProps} />);
-    const form = screen.getByText('accept').closest('form')!;
+    const form = screen.getByText('accept').closest('form');
+    expect(form).not.toBeNull();
 
-    fireEvent.submit(form);
+    fireEvent.submit(form as HTMLFormElement);
 
     expect(defaultProps.onSubmit).toHaveBeenCalled();
   });

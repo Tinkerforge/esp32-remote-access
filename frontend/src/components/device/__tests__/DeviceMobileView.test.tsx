@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/preact';
+import { render, screen } from '@testing-library/preact';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DeviceMobileView } from '../DeviceMobileView';
 import { StateDevice, Grouping } from '../types';

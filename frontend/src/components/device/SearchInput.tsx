@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Form, InputGroup } from "react-bootstrap";
 import { Search, X } from "react-feather";
-import Median from "median-js-bridge";
 
 interface SearchInputProps {
     searchTerm: string;

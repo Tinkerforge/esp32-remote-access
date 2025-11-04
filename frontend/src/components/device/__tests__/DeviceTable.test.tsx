@@ -78,7 +78,10 @@ describe('DeviceTable', () => {
   it('calls onSort when column header is clicked', () => {
     render(<DeviceTable {...defaultProps} />);
     const nameHeader = screen.getByText('charger_name');
-    fireEvent.click(nameHeader.closest('th')!);
+    const nameHeaderCell = nameHeader.closest('th');
+    expect(nameHeaderCell).not.toBeNull();
+
+    fireEvent.click(nameHeaderCell as HTMLElement);
     expect(defaultProps.onSort).toHaveBeenCalledWith('name');
   });
 
@@ -93,28 +96,36 @@ describe('DeviceTable', () => {
   it('calls onSort for uid column when clicked', () => {
     render(<DeviceTable {...defaultProps} />);
     const uidHeader = screen.getByText('charger_id');
-    fireEvent.click(uidHeader.closest('th')!);
+    const thElement = uidHeader.closest('th');
+    expect(thElement).not.toBeNull();
+    fireEvent.click(thElement as HTMLElement);
     expect(defaultProps.onSort).toHaveBeenCalledWith('uid');
   });
 
   it('calls onSort for last_state_change column when clicked', () => {
     render(<DeviceTable {...defaultProps} />);
     const lastStateHeader = screen.getByText('last_state_change');
-    fireEvent.click(lastStateHeader.closest('th')!);
+    const thElement = lastStateHeader.closest('th');
+    expect(thElement).not.toBeNull();
+    fireEvent.click(thElement as HTMLElement);
     expect(defaultProps.onSort).toHaveBeenCalledWith('last_state_change');
   });
 
   it('calls onSort for note column when clicked', () => {
     render(<DeviceTable {...defaultProps} />);
     const noteHeader = screen.getByText('note');
-    fireEvent.click(noteHeader.closest('th')!);
+    const thElement = noteHeader.closest('th');
+    expect(thElement).not.toBeNull();
+    fireEvent.click(thElement as HTMLElement);
     expect(defaultProps.onSort).toHaveBeenCalledWith('note');
   });
 
   it('calls onSort for firmware_version column when clicked', () => {
     render(<DeviceTable {...defaultProps} />);
     const firmwareHeader = screen.getByText('firmware_version');
-    fireEvent.click(firmwareHeader.closest('th')!);
+    const thElement = firmwareHeader.closest('th');
+    expect(thElement).not.toBeNull();
+    fireEvent.click(thElement as HTMLElement);
     expect(defaultProps.onSort).toHaveBeenCalledWith('firmware_version');
   });
 

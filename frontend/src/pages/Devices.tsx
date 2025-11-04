@@ -163,7 +163,7 @@ export class DeviceList extends Component<{}, DeviceListState> {
 
     async loadGroupings() {
         try {
-            const { data, error, response } = await fetchClient.GET("/grouping/list", {
+            const { data, error } = await fetchClient.GET("/grouping/list", {
                 credentials: "same-origin"
             });
 
