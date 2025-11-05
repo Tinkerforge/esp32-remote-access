@@ -105,7 +105,6 @@ export function GroupingModal({
             });
 
             if (response.status === 200) {
-                showAlert(t("delete_grouping_success"), "success", undefined, undefined, 3000);
                 await loadGroupings();
             } else {
                 showAlert(t("delete_grouping_failed", { error: error || response.status }), "danger");
@@ -135,8 +134,6 @@ export function GroupingModal({
                 credentials: "same-origin"
             });
         }
-
-        showAlert(t("create_grouping_success"), "success", undefined, undefined, 3000);
     };
 
     const updateGrouping = async (groupingId: string, name: string, deviceIds: Set<string>) => {
@@ -163,8 +160,6 @@ export function GroupingModal({
                 credentials: "same-origin"
             });
         }
-
-        showAlert(t("update_grouping_success"), "success", undefined, undefined, 3000);
     };
 
     const loadGroupings = async () => {
