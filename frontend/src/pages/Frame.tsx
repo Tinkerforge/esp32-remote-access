@@ -159,9 +159,12 @@ class VirtualNetworkInterface {
                 case "ready":
                     this.setParentState.parentState({connection_state: ConnectionState.LoadingWebinterface});
                     const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                    const urlParams = new URLSearchParams([
-                        ['charger', this.chargerInfo.id],
-                    ]);
+                    const urlParamsArray: [string, string][] = [];
+                    if (!this.path) {
+                        urlParamsArray.push(['charger', this.chargerInfo.id]);
+                    }
+                    const urlParams = new URLSearchParams(urlParamsArray);
+                    console.log("path", this.path);
                     iframe.src = `/wg-${this.id}/${this.path}?${urlParams.toString()}`;
                     iframe.addEventListener("load", () => {
                         clearTimeout(this.timeout);
