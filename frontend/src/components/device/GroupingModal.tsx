@@ -12,7 +12,8 @@ interface GroupingModalProps {
     devices: StateDevice[];
     groupings: Grouping[];
     onClose: () => void;
-    onGroupingsUpdated: (groupings: Grouping[]) => void;
+    encryptGroupingName: (name: string) => Promise<string | undefined>;
+    loadGroupings: () => Promise<void>;
 }
 
 export function GroupingModal({
@@ -20,7 +21,8 @@ export function GroupingModal({
     devices,
     groupings,
     onClose,
-    onGroupingsUpdated
+    encryptGroupingName,
+    loadGroupings: loadGroupingsFromParent
 }: GroupingModalProps) {
     const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
     const [editingGrouping, setEditingGrouping] = useState<Grouping | null>(null);
@@ -86,7 +88,7 @@ export function GroupingModal({
             }
 
             // Reload groupings
-            await loadGroupings();
+            await loadGroupingsFromParent();
             handleCancel();
         } catch (error) {
             console.error("Error saving grouping:", error);
@@ -105,7 +107,7 @@ export function GroupingModal({
             });
 
             if (response.status === 200) {
-                await loadGroupings();
+                await loadGroupingsFromParent();
             } else {
                 showAlert(t("delete_grouping_failed", { error: error || response.status }), "danger");
             }
@@ -115,8 +117,14 @@ export function GroupingModal({
     };
 
     const createGrouping = async (name: string, deviceIds: Set<string>) => {
+        const encryptedName = await encryptGroupingName(name);
+        if (!encryptedName) {
+            showAlert(t("create_grouping_failed", { error: "Failed to encrypt name" }), "danger");
+            throw new Error("Failed to encrypt grouping name");
+        }
+
         const { data, response, error } = await fetchClient.POST("/grouping/create", {
-            body: { name },
+            body: { name: encryptedName },
             credentials: "same-origin"
         });
 
@@ -140,6 +148,25 @@ export function GroupingModal({
         const existingGrouping = groupings.find(g => g.id === groupingId);
         if (!existingGrouping) return;
 
+        // Update name if changed
+        if (name !== existingGrouping.name) {
+            const encryptedName = await encryptGroupingName(name);
+            if (!encryptedName) {
+                showAlert(t("update_grouping_failed", { error: "Failed to encrypt name" }), "danger");
+                throw new Error("Failed to encrypt grouping name");
+            }
+
+            const { response, error } = await fetchClient.PUT("/grouping/edit", {
+                body: { grouping_id: groupingId, name: encryptedName },
+                credentials: "same-origin"
+            });
+
+            if (response.status !== 200 || error) {
+                showAlert(t("update_grouping_failed", { error: error || response.status }), "danger");
+                throw new Error("Failed to update grouping name");
+            }
+        }
+
         // Devices to add
         const devicesToAdd = Array.from(deviceIds).filter(id => !existingGrouping.device_ids.includes(id));
         // Devices to remove
@@ -159,24 +186,6 @@ export function GroupingModal({
                 body: { grouping_id: groupingId, device_id: deviceId },
                 credentials: "same-origin"
             });
-        }
-    };
-
-    const loadGroupings = async () => {
-        try {
-            const { data, error, response } = await fetchClient.GET("/grouping/list", {
-                credentials: "same-origin"
-            });
-
-            if (error || !data) {
-                const errorMsg = error ? String(error) : response.status || "Unknown error";
-                showAlert(t("load_groupings_failed", { error: errorMsg }), "danger");
-                return;
-            }
-
-            onGroupingsUpdated(data.groupings);
-        } catch (error) {
-            showAlert(t("load_groupings_failed", { error: String(error) }), "danger");
         }
     };
 

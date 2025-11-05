@@ -10,6 +10,7 @@ vi.mock('../../../utils', () => ({
     POST: vi.fn(),
     DELETE: vi.fn(),
     GET: vi.fn(),
+    PUT: vi.fn(),
   },
 }));
 
@@ -72,6 +73,8 @@ const defaultProps = {
   groupings: mockGroupings,
   onClose: vi.fn(),
   onGroupingsUpdated: vi.fn(),
+  encryptGroupingName: vi.fn((name: string) => Promise.resolve(`encrypted_${name}`)),
+  loadGroupings: vi.fn(),
 };
 
 describe('GroupingModal', () => {
@@ -178,50 +181,52 @@ describe('GroupingModal', () => {
       error: undefined,
     });
 
-    const mockGet = vi.mocked(fetchClient.GET);
-    mockGet.mockResolvedValue({
-      data: { groupings: [...mockGroupings, { id: 'new-group-id', name: 'New Group', device_ids: ['device1'] }] },
-      response: { status: 200 } as Response,
-      error: undefined,
-    });
+    const mockLoadGroupings = vi.fn();
 
-    render(<GroupingModal {...defaultProps} />);
+    render(<GroupingModal {...defaultProps} loadGroupings={mockLoadGroupings} />);
 
     const createButton = screen.getByRole('button', { name: /create/i });
     fireEvent.click(createButton);
 
-    await waitFor(async () => {
-      const nameInput = screen.getByPlaceholderText('grouping_name_placeholder');
-      fireEvent.change(nameInput, { target: { value: 'New Group' } });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('grouping_name_placeholder')).toBeInTheDocument();
+    });
 
-      const checkboxes = screen.getAllByRole('checkbox');
-      fireEvent.click(checkboxes[0]);
+    const nameInput = screen.getByPlaceholderText('grouping_name_placeholder');
+    fireEvent.change(nameInput, { target: { value: 'New Group' } });
 
-  const saveButton = screen.getByRole('button', { name: 'save' });
-      fireEvent.click(saveButton);
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[0]);
 
-      await waitFor(() => {
-        expect(mockPost).toHaveBeenCalledWith('/grouping/create', expect.any(Object));
-      });
+    const saveButton = screen.getByRole('button', { name: 'save' });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalledWith('/grouping/create', expect.objectContaining({
+        body: expect.objectContaining({ name: 'encrypted_New Group' })
+      }));
+      expect(mockLoadGroupings).toHaveBeenCalled();
     });
   });
 
   it('updates existing grouping when save is clicked after editing', async () => {
     const mockPost = vi.mocked(fetchClient.POST);
     mockPost.mockResolvedValue({
-      data: null,
+      data: undefined,
       response: { status: 200 } as Response,
       error: undefined,
     });
 
-    const mockGet = vi.mocked(fetchClient.GET);
-    mockGet.mockResolvedValue({
-      data: { groupings: mockGroupings },
+    const mockPut = vi.mocked(fetchClient.PUT);
+    mockPut.mockResolvedValue({
+      data: undefined,
       response: { status: 200 } as Response,
       error: undefined,
     });
 
-    render(<GroupingModal {...defaultProps} />);
+    const mockLoadGroupings = vi.fn();
+
+    render(<GroupingModal {...defaultProps} loadGroupings={mockLoadGroupings} />);
 
     // Click edit on first grouping
     const editButtons = screen.getAllByRole('button', { name: '' });
@@ -238,8 +243,11 @@ describe('GroupingModal', () => {
         fireEvent.click(saveButton);
 
         await waitFor(() => {
-          // Should call POST to add/remove devices
-          expect(mockPost).toHaveBeenCalled();
+          // Should call PUT to update name
+          expect(mockPut).toHaveBeenCalledWith('/grouping/edit', expect.objectContaining({
+            body: expect.objectContaining({ name: 'encrypted_Updated Group Name' })
+          }));
+          expect(mockLoadGroupings).toHaveBeenCalled();
         });
       });
     }
@@ -252,19 +260,14 @@ describe('GroupingModal', () => {
 
     const mockDelete = vi.mocked(fetchClient.DELETE);
     mockDelete.mockResolvedValue({
-      data: null,
+      data: undefined,
       response: { status: 200 } as Response,
       error: undefined,
     });
 
-    const mockGet = vi.mocked(fetchClient.GET);
-    mockGet.mockResolvedValue({
-      data: { groupings: [mockGroupings[1]] },
-      response: { status: 200 } as Response,
-      error: undefined,
-    });
+    const mockLoadGroupings = vi.fn();
 
-    render(<GroupingModal {...defaultProps} />);
+    render(<GroupingModal {...defaultProps} loadGroupings={mockLoadGroupings} />);
 
     const deleteButtons = screen.getAllByRole('button', { name: '' });
     // Find delete button (should be the second icon button)
@@ -275,6 +278,7 @@ describe('GroupingModal', () => {
     await waitFor(() => {
       expect(window.confirm).toHaveBeenCalled();
       expect(mockDelete).toHaveBeenCalledWith('/grouping/delete', expect.any(Object));
+      expect(mockLoadGroupings).toHaveBeenCalled();
     });
 
     // Restore original confirm
@@ -394,24 +398,19 @@ describe('GroupingModal', () => {
   });
 
   it('calls onGroupingsUpdated after successful operations', async () => {
-    const mockGet = vi.mocked(fetchClient.GET);
-    mockGet.mockResolvedValue({
-      data: { groupings: mockGroupings },
-      response: { status: 200 } as Response,
-      error: undefined,
-    });
+    const mockLoadGroupings = vi.fn();
 
     const originalConfirm = window.confirm;
     window.confirm = vi.fn(() => true);
 
     const mockDelete = vi.mocked(fetchClient.DELETE);
     mockDelete.mockResolvedValue({
-      data: null,
+      data: undefined,
       response: { status: 200 } as Response,
       error: undefined,
     });
 
-    render(<GroupingModal {...defaultProps} />);
+    render(<GroupingModal {...defaultProps} loadGroupings={mockLoadGroupings} />);
 
     const deleteButtons = screen.getAllByRole('button', { name: '' });
     const deleteButton = deleteButtons[deleteButtons.length - 1];
@@ -419,7 +418,7 @@ describe('GroupingModal', () => {
     fireEvent.click(deleteButton);
 
     await waitFor(() => {
-      expect(defaultProps.onGroupingsUpdated).toHaveBeenCalledWith(mockGroupings);
+      expect(mockLoadGroupings).toHaveBeenCalled();
     });
 
     window.confirm = originalConfirm;

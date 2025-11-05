@@ -91,6 +91,42 @@ export class DeviceList extends Component<{}, DeviceListState> {
         }
     }
 
+    async decryptGroupingName(name: string) {
+        if (!pub_key || !secret) {
+            await get_decrypted_secret();
+        }
+
+        if (!name) {
+            return "";
+        }
+        const nameBytes = Base64.toUint8Array(name);
+        try {
+            // pub_key and secret are null-checked before this function is called
+            const decryptedName = sodium.crypto_box_seal_open(nameBytes, pub_key as Uint8Array, secret as Uint8Array);
+            const decoder = new TextDecoder();
+            return decoder.decode(decryptedName);
+        } catch {
+            return undefined;
+        }
+    }
+
+    async encryptGroupingName(name: string) {
+        if (!pub_key || !secret) {
+            await get_decrypted_secret();
+        }
+
+        if (!name) {
+            return "";
+        }
+        try {
+            // pub_key and secret are null-checked before this function is called
+            const encryptedName = sodium.crypto_box_seal(name, pub_key as Uint8Array);
+            return Base64.fromUint8Array(encryptedName);
+        } catch {
+            return undefined;
+        }
+    }
+
     async updateChargers() {
         if (!secret) {
             await get_decrypted_secret();
@@ -176,7 +212,16 @@ export class DeviceList extends Component<{}, DeviceListState> {
                 return;
             }
 
-            this.setState({ groupings: data.groupings });
+            // Decrypt grouping names
+            const decryptedGroupings = await Promise.all(data.groupings.map(async (grouping) => {
+                const decryptedName = await this.decryptGroupingName(grouping.name);
+                return {
+                    ...grouping,
+                    name: decryptedName !== undefined ? decryptedName : i18n.t("chargers.invalid_key")
+                };
+            }));
+
+            this.setState({ groupings: decryptedGroupings });
         } catch (error) {
             console.error("Failed to load groupings:", error);
         }
@@ -456,7 +501,8 @@ export class DeviceList extends Component<{}, DeviceListState> {
                     devices={this.state.devices}
                     groupings={this.state.groupings}
                     onClose={() => this.setState({ showGroupingModal: false })}
-                    onGroupingsUpdated={this.handleGroupingsUpdated}
+                    encryptGroupingName={async (name: string) => this.encryptGroupingName(name)}
+                    loadGroupings={async () => this.loadGroupings()}
                 />
 
                 <Container fluid>
