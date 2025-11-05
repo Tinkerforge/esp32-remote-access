@@ -371,6 +371,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/grouping/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit the name of a device grouping */
+        put: operations["edit_grouping"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/grouping/list": {
         parameters: {
             query?: never;
@@ -696,6 +713,14 @@ export interface components {
         };
         DeleteUserSchema: {
             login_key: number[];
+        };
+        EditGroupingResponse: {
+            id: string;
+            name: string;
+        };
+        EditGroupingSchema: {
+            grouping_id: string;
+            name: string;
         };
         GetAuthorizationTokensResponseSchema: {
             tokens: components["schemas"]["ResponseAuthorizationToken"][];
@@ -1573,6 +1598,51 @@ export interface operations {
             };
             /** @description Grouping not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    edit_grouping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditGroupingSchema"];
+            };
+        };
+        responses: {
+            /** @description Grouping name updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditGroupingResponse"];
+                };
+            };
+            /** @description Invalid grouping ID or grouping not found */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized - user does not own this grouping */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

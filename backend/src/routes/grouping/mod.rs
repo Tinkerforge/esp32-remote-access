@@ -20,6 +20,7 @@
 pub mod add_device_to_grouping;
 pub mod create_grouping;
 pub mod delete_grouping;
+pub mod edit_grouping;
 pub mod get_groupings;
 pub mod remove_device_from_grouping;
 
@@ -34,6 +35,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .wrap(JwtMiddleware)
         .service(create_grouping::create_grouping)
         .service(delete_grouping::delete_grouping)
+        .service(edit_grouping::edit_grouping)
         .service(add_device_to_grouping::add_device_to_grouping)
         .service(remove_device_from_grouping::remove_device_from_grouping)
         .service(get_groupings::get_groupings);
