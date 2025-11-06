@@ -304,13 +304,16 @@ export function GroupingModal({
                                         active={selectedDevices.has(device.id)}
                                         onClick={(e: Event) => {
                                             e.preventDefault();
-                                            handleDeviceToggle(device.id)
                                         }}
                                         style={{ cursor: "pointer" }}
                                     >
                                         <Form.Check
                                             type="checkbox"
                                             checked={selectedDevices.has(device.id)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeviceToggle(device.id);
+                                            }}
                                             label={
                                                 <div>
                                                     <strong>{device.name}</strong>
