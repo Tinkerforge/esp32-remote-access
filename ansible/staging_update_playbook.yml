@@ -35,7 +35,7 @@
     - name: Checkout remote access git
       ansible.builtin.git:
         repo: https://github.com/Tinkerforge/esp32-remote-access.git
-        dest: /home/freddy/esp32-remote-access
+        dest: "/home/{{ ansible_user_id }}/esp32-remote-access"
         version: main
         update: yes
         clone: yes
@@ -44,7 +44,7 @@
     - name: Verify checked out tag
       ansible.builtin.command: git describe --tags --exact-match
       args:
-        chdir: /home/freddy/esp32-remote-access
+        chdir: "/home/{{ ansible_user_id }}/esp32-remote-access"
       register: git_tag
       changed_when: false
       failed_when: git_tag.rc not in [0, 128]
@@ -52,21 +52,34 @@
     - name: checkout warp-charger git
       ansible.builtin.git:
         repo: https://github.com/Tinkerforge/warp-charger.git
-        dest: /home/freddy/warp-charger
+        dest: "/home/{{ ansible_user_id }}/warp-charger"
         version: master
         update: yes
         clone: yes
 
     - name: Stop Docker containers
       community.docker.docker_compose_v2:
-        project_src: /home/freddy/esp32-remote-access/docker
+        project_src: "/home/{{ ansible_user_id }}/esp32-remote-access/docker"
         state: stopped
 
     - name: Pull and rerun docker images
       community.docker.docker_compose_v2:
         build: always
         pull: always
-        project_src: /home/freddy/esp32-remote-access/docker
+        project_src: "/home/{{ ansible_user_id }}/esp32-remote-access/docker"
+
+    - name: Ensure backup script is executable
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user_id }}/esp32-remote-access/scripts/backup_database.sh"
+        mode: '0755'
+
+    - name: Setup daily database backup cronjob
+      ansible.builtin.cron:
+        name: "Daily database backup"
+        minute: "0"
+        hour: "3"
+        job: "/home/{{ ansible_user_id }}/esp32-remote-access/scripts/backup_database.sh"
+        user: "{{ ansible_user_id }}"
 
     - name: Show current tag
       ansible.builtin.debug:
