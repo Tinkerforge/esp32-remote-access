@@ -301,9 +301,9 @@ export function GroupingModal({
                                     <ListGroup.Item
                                         key={device.id}
                                         action
-                                        active={selectedDevices.has(device.id)}
                                         onClick={(e: Event) => {
                                             e.preventDefault();
+                                            handleDeviceToggle(device.id);
                                         }}
                                         style={{ cursor: "pointer" }}
                                     >
@@ -315,7 +315,7 @@ export function GroupingModal({
                                                 handleDeviceToggle(device.id);
                                             }}
                                             label={
-                                                <div>
+                                                <div style={{ cursor: "pointer" }}>
                                                     <strong>{device.name}</strong>
                                                     <span className="text-muted ms-2">
                                                         ({Base58.int_to_base58(device.uid)})
