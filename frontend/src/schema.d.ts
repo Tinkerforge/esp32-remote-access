@@ -668,6 +668,8 @@ export interface components {
             connected: boolean;
             firmware_version: string;
             id: string;
+            /** Format: int32 */
+            mtu: number;
             name?: string | null;
         };
         ChargerInfoRequest: {
@@ -789,6 +791,8 @@ export interface components {
             configured_users: components["schemas"]["ConfiguredUser"][];
             firmware_version: string;
             id: string;
+            /** Format: int32 */
+            mtu?: number | null;
             password: string;
             /** Format: int32 */
             port: number;

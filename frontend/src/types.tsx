@@ -36,6 +36,7 @@ export interface SetupMessage {
     port: number,
     secret: Uint8Array,
     debugMode: boolean,
+    mtu: number,
 }
 
 export interface ErrorMessage {

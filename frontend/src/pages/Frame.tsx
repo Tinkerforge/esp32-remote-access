@@ -128,6 +128,7 @@ class VirtualNetworkInterface {
                 port: this.chargerInfo.configured_port,
                 secret: secret as Uint8Array,
                 debugMode: this.debugMode,
+                mtu: this.chargerInfo.mtu,
             };
             const message: Message = {
                 type: MessageType.Setup,

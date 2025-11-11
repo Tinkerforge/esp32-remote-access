@@ -202,6 +202,7 @@ pub(crate) mod tests {
             firmware_version: "2.6.6".to_string(), // Old version
             last_state_change: None,
             device_type: None,
+            mtu: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)
@@ -281,6 +282,7 @@ pub(crate) mod tests {
             firmware_version: "2.6.6".to_string(), // Old version
             last_state_change: None,
             device_type: Some("WEM2".to_string()),
+            mtu: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)
@@ -362,6 +364,7 @@ pub(crate) mod tests {
             firmware_version: "2.6.8".to_string(), // Newer version
             last_state_change: None,
             device_type: None,
+            mtu: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)
@@ -440,6 +443,7 @@ pub(crate) mod tests {
             firmware_version: "invalid".to_string(),
             last_state_change: None,
             device_type: None,
+            mtu: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)

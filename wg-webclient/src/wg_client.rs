@@ -67,12 +67,13 @@ impl Client {
         internal_ip: &str,
         internap_peer_ip: &str,
         port: u16,
+        mtu: usize,
         disconnect_cb: js_sys::Function,
         connect_cb: js_sys::Function,
     ) -> Self {
         console_log::init_with_level(log::Level::Debug).ok();
         Self(
-            WgClient::new(secret_str, peer_str, psk, url, internal_ip, internap_peer_ip, port, disconnect_cb, connect_cb),
+            WgClient::new(secret_str, peer_str, psk, url, internal_ip, internap_peer_ip, port, mtu, disconnect_cb, connect_cb),
             Rc::new(RefCell::new(VecDeque::new())),
         )
     }
@@ -194,6 +195,7 @@ impl WgClient {
         internal_ip: &str,
         internal_peer_ip: &str,
         port: u16,
+        mtu: usize,
         disconnet_cb: js_sys::Function,
         connect_cb: js_sys::Function,
     ) -> Self {
@@ -214,7 +216,7 @@ impl WgClient {
         let psk: [u8; 32] = psk.try_into().unwrap();
 
         // same as above
-        let device = WgTunDevice::new(self_key, peer, psk, url, disconnet_cb, connect_cb).unwrap();
+        let device = WgTunDevice::new(self_key, peer, psk, url, mtu, disconnet_cb, connect_cb).unwrap();
 
         let pcap = device.get_pcap();
 
@@ -744,7 +746,7 @@ pub mod test {
     use wasm_bindgen_test::*;
 
     pub(self) fn create_wg_client(secret: &str, peer: &str, psk: &str, url: &str) -> WgClient {
-        WgClient::new(secret, peer, psk, url, "", "", 80, js_sys::Function::new_no_args(""), js_sys::Function::new_no_args(""))
+        WgClient::new(secret, peer, psk, url, "", "", 80, 1392, js_sys::Function::new_no_args(""), js_sys::Function::new_no_args(""))
     }
 
     #[wasm_bindgen_test]

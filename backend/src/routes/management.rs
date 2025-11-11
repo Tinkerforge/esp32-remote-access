@@ -71,6 +71,7 @@ pub struct ManagementDataVersion2 {
     pub port: u16,
     pub firmware_version: String,
     pub configured_users: Vec<ConfiguredUser>,
+    pub mtu: Option<u16>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -379,9 +380,9 @@ pub async fn management(
         lost_conns.insert(charger_id, losing_conns);
     }
 
-    let (fw_version, port) = match &data.data {
-        ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port),
-        ManagementDataVersion::V2(v) => (v.firmware_version.clone(), v.port),
+    let (fw_version, port, mtu) = match &data.data {
+        ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port, None),
+        ManagementDataVersion::V2(v) => (v.firmware_version.clone(), v.port, v.mtu),
     };
 
     let user_agent = req.headers().get("User-Agent");
@@ -401,6 +402,7 @@ pub async fn management(
                 chargers::firmware_version.eq(fw_version),
                 chargers::webinterface_port.eq(port as i32),
                 chargers::device_type.eq(device_type),
+                chargers::mtu.eq(mtu.map(|m| m as i32)),
             ))
             .execute(&mut conn)
         {
@@ -477,6 +479,7 @@ mod tests {
                 user_id: Some(user_id.to_string()),
                 name: Some(String::new()),
             }],
+            mtu: None,
         });
 
         let body = ManagementSchema {
@@ -531,6 +534,7 @@ mod tests {
                 user_id: None,
                 name: Some(String::new()),
             }],
+            mtu: None,
         });
 
         let body = ManagementSchema {
@@ -637,6 +641,7 @@ mod tests {
                 user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
                 name: Some(String::new()),
             }],
+            mtu: None,
         });
         let body = ManagementSchema {
             id: None,
@@ -715,6 +720,7 @@ mod tests {
                 user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
                 name: Some(String::new()),
             }],
+            mtu: None,
         });
 
         let body = ManagementSchema {
@@ -809,6 +815,7 @@ mod tests {
                     name: Some(String::new()),
                 },
             ],
+            mtu: None,
         });
 
         let body = ManagementSchema {
@@ -887,6 +894,7 @@ mod tests {
                     name: Some(String::new()),
                 },
             ],
+            mtu: None,
         });
 
         let body = ManagementSchema {
@@ -1014,6 +1022,7 @@ mod tests {
                         user_id: None,
                     },
                 ],
+                mtu: None,
             }),
         };
 

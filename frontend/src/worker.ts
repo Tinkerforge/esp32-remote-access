@@ -239,6 +239,7 @@ async function start_connection(setup_data: SetupMessage) {
         keys.web_address,
         keys.charger_address,
         setup_data.port,
+        setup_data.mtu,
         disconnect_cb,
         connect_cb,
     );

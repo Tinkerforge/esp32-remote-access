@@ -39,6 +39,7 @@ diesel::table! {
         id -> Uuid,
         last_state_change -> Nullable<Timestamp>,
         device_type -> Nullable<Varchar>,
+        mtu -> Nullable<Int4>,
     }
 }
 

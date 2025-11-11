@@ -17,6 +17,7 @@ pub struct ChargerInfo {
     pub configured_port: i32,
     pub connected: bool,
     pub firmware_version: String,
+    pub mtu: i32,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -59,15 +60,15 @@ pub async fn charger_info(
     .await?;
 
     let mut conn = get_connection(&state)?;
-    let (port, firmware_version) = web_block_unpacked(move || {
+    let (port, firmware_version, mtu): (i32, String, Option<i32>) = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
 
         match chargers
             .filter(id.eq(charger_id))
-            .select((webinterface_port, firmware_version))
+            .select((webinterface_port, firmware_version, mtu))
             .get_result(&mut conn)
         {
-            Ok((port, version)) => Ok((port, version)),
+            Ok((port, version, mtu_val)) => Ok((port, version, mtu_val)),
             Err(_) => Err(Error::InternalError),
         }
     })
@@ -82,6 +83,7 @@ pub async fn charger_info(
         configured_port: port,
         connected,
         firmware_version,
+        mtu: mtu.unwrap_or(1392),
     };
 
     Ok(HttpResponse::Ok().json(info))

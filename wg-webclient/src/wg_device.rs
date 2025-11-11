@@ -57,6 +57,7 @@ pub struct WgTunDevice {
     rx: Rc<RefCell<VecDeque<Vec<u8>>>>,
     socket: Rc<WebSocket>,
     socket_state: Rc<RefCell<WsConnectionState>>,
+    mtu: usize,
     _reset_rate_limiter_interval: Rc<IntervalHandle<JsValue>>,
     _onopen_closure: Rc<Closure<dyn FnMut(JsValue)>>,
     _onclose_closure: Rc<Closure<dyn FnMut(JsValue)>>,
@@ -72,6 +73,7 @@ impl WgTunDevice {
         peer: x25519::PublicKey,
         psk: [u8; 32],
         url: &str,
+        mtu: usize,
         disconnect_cb: js_sys::Function,
         connect_cb: js_sys::Function,
     ) -> Result<Self, JsValue> {
@@ -133,6 +135,7 @@ impl WgTunDevice {
             rx,
             socket,
             socket_state,
+            mtu,
             _reset_rate_limiter_interval,
             _onopen_closure: onopen,
             _onclose_closure: onclose,
@@ -350,7 +353,7 @@ impl phy::Device for WgTunDevice {
 
     fn capabilities(&self) -> DeviceCapabilities {
         let mut caps = DeviceCapabilities::default();
-        caps.max_transmission_unit = 1392;
+        caps.max_transmission_unit = self.mtu;
         caps.medium = Medium::Ip;
         caps
     }
@@ -419,6 +422,7 @@ pub mod test {
             x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng)),
             [0u8; 32],
             "ws://localhost:8082",
+            1392,
             js_sys::Function::new_no_args(""),
             js_sys::Function::new_no_args(""),
         )

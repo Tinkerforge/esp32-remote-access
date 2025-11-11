@@ -666,6 +666,7 @@ pub(crate) mod tests {
             firmware_version: "2.6.6".to_string(),
             last_state_change: None,
             device_type: None,
+            mtu: None,
         };
 
         let pool = test_connection_pool();
