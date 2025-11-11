@@ -396,16 +396,28 @@ pub async fn management(
 
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
-        match diesel::update(chargers::chargers)
-            .filter(chargers::id.eq(charger_id))
-            .set((
-                chargers::firmware_version.eq(fw_version),
-                chargers::webinterface_port.eq(port as i32),
-                chargers::device_type.eq(device_type),
-                chargers::mtu.eq(mtu.map(|m| m as i32)),
-            ))
-            .execute(&mut conn)
-        {
+        let result = if let Some(m) = mtu {
+            diesel::update(chargers::chargers)
+                .filter(chargers::id.eq(charger_id))
+                .set((
+                    chargers::firmware_version.eq(fw_version),
+                    chargers::webinterface_port.eq(port as i32),
+                    chargers::device_type.eq(device_type),
+                    chargers::mtu.eq(m as i32),
+                ))
+                .execute(&mut conn)
+        } else {
+            diesel::update(chargers::chargers)
+                .filter(chargers::id.eq(charger_id))
+                .set((
+                    chargers::firmware_version.eq(fw_version),
+                    chargers::webinterface_port.eq(port as i32),
+                    chargers::device_type.eq(device_type),
+                ))
+                .execute(&mut conn)
+        };
+
+        match result {
             Ok(_) => Ok(()),
             Err(_err) => {
                 log::error!("Error while updating charger: {_err}");
@@ -512,6 +524,66 @@ mod tests {
         assert_eq!(
             db_charger.device_type.as_deref(),
             Some("Tinkerforge-WARP2_Charger/2.8.0+6811d0b1")
+        );
+    }
+
+    #[actix_web::test]
+    async fn test_management_with_mtu() {
+        let (mut user, mail) = TestUser::random().await;
+        user.login().await;
+        let charger = user.add_random_charger().await;
+
+        let app = App::new().configure(configure).service(management);
+        let app = test::init_service(app).await;
+
+        let user_id = get_test_uuid(&mail).unwrap();
+        let charger_uuid_clone = charger.uuid.clone();
+        let data = ManagementDataVersion::V2(ManagementDataVersion2 {
+            id: charger.uuid,
+            password: charger.password,
+            port: 8080,
+            firmware_version: "2.4.0".to_string(),
+            configured_users: vec![ConfiguredUser {
+                email: None,
+                user_id: Some(user_id.to_string()),
+                name: Some(String::new()),
+            }],
+            mtu: Some(1420),
+        });
+
+        let body = ManagementSchema {
+            id: None,
+            password: None,
+            data,
+        };
+        let req = test::TestRequest::put()
+            .uri("/management")
+            .append_header(("X-Forwarded-For", "123.123.123.4"))
+            .append_header(("User-Agent", "Tinkerforge-WARP3_Charger/2.9.0+abc123"))
+            .set_json(body)
+            .to_request();
+        let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
+
+        println!("{resp:?}");
+        assert_eq!([1], *resp.configured_users);
+        assert_eq!(vec![user_id.to_string()], resp.configured_users_uuids);
+
+        // Verify MTU, port, firmware_version, and device_type stored correctly
+        use db_connector::models::chargers::Charger as DbCharger;
+        use db_connector::schema::chargers::dsl::*;
+        let pool = db_connector::test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        let db_charger: DbCharger = chargers
+            .filter(id.eq(uuid::Uuid::from_str(&charger_uuid_clone).unwrap()))
+            .select(DbCharger::as_select())
+            .get_result(&mut conn)
+            .unwrap();
+        assert_eq!(db_charger.mtu, Some(1420));
+        assert_eq!(db_charger.webinterface_port, 8080);
+        assert_eq!(db_charger.firmware_version, "2.4.0");
+        assert_eq!(
+            db_charger.device_type.as_deref(),
+            Some("Tinkerforge-WARP3_Charger/2.9.0+abc123")
         );
     }
 
