@@ -41,7 +41,7 @@ interface RegisterState {
     registrationSuccess: boolean,
 }
 
-export class Register extends Component<{}, RegisterState> {
+export class Register extends Component<Record<string, never>, RegisterState> {
     constructor() {
         super();
         this.state = {

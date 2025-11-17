@@ -1,4 +1,3 @@
-import { Component } from 'preact';
 import { Message, MessageType, SetupMessage } from '../types';
 import Worker from '../worker?worker'
 import { Button, Container, Row, Spinner } from 'react-bootstrap';
@@ -6,7 +5,7 @@ import { connected, setAppNavigation } from '../components/Navbar';
 import {fetchClient, get_decrypted_secret, isDebugMode, pub_key, secret } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
-import { Dispatch, StateUpdater, useEffect } from 'preact/hooks';
+import { Dispatch, StateUpdater, useEffect, useState, useRef } from 'preact/hooks';
 import { showAlert } from '../components/Alert';
 import { useLocation, useRoute } from 'preact-iso';
 import { useTranslation } from 'react-i18next';
@@ -250,21 +249,19 @@ interface FrameState {
     connection_state: ConnectionState,
 }
 
-export class Frame extends Component<{}, FrameState> {
+export function Frame() {
+    const { route } = useLocation();
+    const { params } = useRoute();
+    const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
 
-    interface: VirtualNetworkInterface | undefined;
-    route: (path: string, replace?: boolean) => void;
+    const [state, setState] = useState<FrameState>({
+        show_spinner: true,
+        connection_state: ConnectionState.Connecting,
+    });
 
-    constructor() {
-        super();
+    const interfaceRef = useRef<VirtualNetworkInterface | undefined>(undefined);
 
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        this.route = () => {}; // Placeholder, will be set in render
-        this.state = {
-            show_spinner: true,
-            connection_state: ConnectionState.Connecting,
-        };
-
+    useEffect(() => {
         if (Median.isNativeApp()) {
             const t = i18n.t;
             Median.sidebar.setItems({
@@ -279,13 +276,12 @@ export class Frame extends Component<{}, FrameState> {
             })
         }
 
-        const that = this;
         // this is used by the app to close the remote connection via the native app menu.
         window.close = () => {
-            if (that.interface) {
-                clearTimeout(that.interface.timeout);
+            if (interfaceRef.current) {
+                clearTimeout(interfaceRef.current.timeout);
             }
-            that.route("/devices");
+            route("/devices");
             setAppNavigation();
             sessionStorage.removeItem("currentConnection");
         }
@@ -298,107 +294,94 @@ export class Frame extends Component<{}, FrameState> {
             const frame_window = frame.contentWindow as Window;
             frame_window.location.hash = hash;
         }
-    }
 
-    componentWillUnmount() {
-        if (this.interface && this.interface.cancel) {
-            this.interface.cancel();
-        }
-        document.title = i18n.t("app_name");
-        connected.value = false;
-    }
+        setTimeout(async () => {
+            await sodium.ready;
 
-    render() {
-        const { route } = useLocation();
-        const { params } = useRoute();
-        const {t} = useTranslation("", {useSuspense: false, keyPrefix: "chargers"});
+            if (!secret) {
+                await get_decrypted_secret();
+            }
 
-        useEffect(() => {
-            this.route = route;
-            setTimeout(async () => {
-                await sodium.ready;
-
-                if (!secret) {
-                    await get_decrypted_secret();
-                }
-
-                const info = await fetchClient.POST("/charger/info", {
-                    body: {charger: params.device},
-                });
-
-                if (info.error || !info.data) {
-                    showAlert(t("not_connected"), "danger");
-                    route("/devices", true);
-                    return;
-                }
-
-                this.interface = new VirtualNetworkInterface({
-                    parentState: (s) => this.setState(s),
-                }, info.data, isDebugMode.value, this.route, params.path);
-
-                if (Median.isNativeApp()) {
-                    sessionStorage.setItem("currentConnection", info.data.id);
-                }
-
-                if (info.data.name) {
-                    const nameBytes = Base64.toUint8Array(info.data.name);
-                    const decryptedName = sodium.crypto_box_seal_open(nameBytes, pub_key as Uint8Array, secret as Uint8Array);
-                    const name = sodium.to_string(decryptedName);
-                    document.title = name;
-                }
-
-                const iframe = document.getElementById("interface") as HTMLIFrameElement;
-                iframe.addEventListener("load", (v) => {
-                    const iframeSrc = (v.target as HTMLIFrameElement).contentWindow?.location.href;
-                    if (iframeSrc?.includes("devices")) {
-                        location.reload();
-                    }
-                });
-
-                connected.value = true;
+            const info = await fetchClient.POST("/charger/info", {
+                body: {charger: params.device},
             });
 
-            return () => {
-                document.title = i18n.t("app_name");
-                connected.value = false;
+            if (info.error || !info.data) {
+                showAlert(t("not_connected"), "danger");
+                route("/devices", true);
+                return;
             }
-        }, []);
 
-        const downLoadButton = isDebugMode.value ? <Row className="d-flex m-0">
-                <Button variant='secondary' style={{borderRadius: 0}} class="m-0" onClick={() => {
-                    if (this.interface) {
-                        this.interface.downloadPcapLog();
-                    }
-                }}>Save Pcap log</Button>
-            </Row> : null;
-        return (
-            <Container fluid className="d-flex flex-column h-100 p-0">
-                <Row hidden={!this.state.show_spinner} className="align-content-center justify-content-center m-0 h-100">
-                    <Spinner className="p-3" animation='border' variant='primary' />
-                    <div className="text-center mt-2">
-                      {this.state.connection_state === ConnectionState.Connecting ?
-                        i18n.t("chargers.connecting") :
-                        i18n.t("chargers.loading_webinterface")}
-                    </div>
-                    <Button className="col-lg-1 col-md-2 col-sm-3 col-6 mt-3"
-                        variant="warning"
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            window .close();
-                        }}>{t("abort")}</Button>
-                </Row>
-                <Row className="flex-grow-1 m-0">
-                    <iframe
-                        class="p-0"
-                        hidden={this.state.show_spinner}
-                        width="100%"
-                        height="100%"
-                        id="interface" />
-                </Row>
-                {downLoadButton}
-            </Container>
-        )
-    }
+            interfaceRef.current = new VirtualNetworkInterface({
+                parentState: (s) => setState((prev) => ({...prev, ...s})),
+            }, info.data, isDebugMode.value, route, params.path);
+
+            if (Median.isNativeApp()) {
+                sessionStorage.setItem("currentConnection", info.data.id);
+            }
+
+            if (info.data.name) {
+                const nameBytes = Base64.toUint8Array(info.data.name);
+                const decryptedName = sodium.crypto_box_seal_open(nameBytes, pub_key as Uint8Array, secret as Uint8Array);
+                const name = sodium.to_string(decryptedName);
+                document.title = name;
+            }
+
+            const iframe = document.getElementById("interface") as HTMLIFrameElement;
+            iframe.addEventListener("load", (v) => {
+                const iframeSrc = (v.target as HTMLIFrameElement).contentWindow?.location.href;
+                if (iframeSrc?.includes("devices")) {
+                    location.reload();
+                }
+            });
+
+            connected.value = true;
+        });
+
+        return () => {
+            if (interfaceRef.current && interfaceRef.current.cancel) {
+                interfaceRef.current.cancel();
+            }
+            document.title = i18n.t("app_name");
+            connected.value = false;
+        }
+    }, []);
+
+    const downLoadButton = isDebugMode.value ? <Row className="d-flex m-0">
+            <Button variant='secondary' style={{borderRadius: 0}} class="m-0" onClick={() => {
+                if (interfaceRef.current) {
+                    interfaceRef.current.downloadPcapLog();
+                }
+            }}>Save Pcap log</Button>
+        </Row> : null;
+
+    return (
+        <Container fluid className="d-flex flex-column h-100 p-0">
+            <Row hidden={!state.show_spinner} className="align-content-center justify-content-center m-0 h-100">
+                <Spinner className="p-3" animation='border' variant='primary' />
+                <div className="text-center mt-2">
+                  {state.connection_state === ConnectionState.Connecting ?
+                    i18n.t("chargers.connecting") :
+                    i18n.t("chargers.loading_webinterface")}
+                </div>
+                <Button className="col-lg-1 col-md-2 col-sm-3 col-6 mt-3"
+                    variant="warning"
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        window.close();
+                    }}>{t("abort")}</Button>
+            </Row>
+            <Row className="flex-grow-1 m-0">
+                <iframe
+                    class="p-0"
+                    hidden={state.show_spinner}
+                    width="100%"
+                    height="100%"
+                    id="interface" />
+            </Row>
+            {downLoadButton}
+        </Container>
+    )
 }

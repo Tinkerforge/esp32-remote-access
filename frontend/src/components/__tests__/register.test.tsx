@@ -520,7 +520,7 @@ describe('Register Component', () => {
 
     // Final validation: All fields should now be valid and form should submit
     fireEvent.click(submitButton);
-    
+
     await waitFor(() => {
       expect(mockUtils.fetchClient.POST).toHaveBeenCalled();
     });

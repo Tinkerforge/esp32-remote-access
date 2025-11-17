@@ -47,7 +47,7 @@ interface State {
 
 let email = "";
 
-class UserComponent extends Component<{}, State> {
+class UserComponent extends Component<Record<string, never>, State> {
     constructor() {
         super();
 

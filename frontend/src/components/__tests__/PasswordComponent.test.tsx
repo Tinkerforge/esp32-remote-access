@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/preact';
 import userEvent from '@testing-library/user-event';
 
-let PasswordComponent: any;
+let PasswordComponent: typeof import('../PasswordComponent').PasswordComponent;
 
 beforeAll(async () => {
   // Bypass the global mock defined in test-setup.ts and import the real component
@@ -14,7 +14,7 @@ describe('PasswordComponent', () => {
     const user = userEvent.setup();
     const handleChange = vi.fn();
 
-    render(<PasswordComponent onChange={handleChange} />);
+    render(<PasswordComponent value="" onChange={handleChange} />);
 
     const input = screen.getByPlaceholderText('password');
     expect(input).toBeInTheDocument();
@@ -31,7 +31,7 @@ describe('PasswordComponent', () => {
   it('calls onChange with typed value', async () => {
     const handleChange = vi.fn();
 
-    render(<PasswordComponent onChange={handleChange} />);
+    render(<PasswordComponent value="" onChange={handleChange} />);
 
     const input = screen.getByTestId('password-input') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'Secret123!' } });
@@ -42,7 +42,7 @@ describe('PasswordComponent', () => {
 
   it('shows invalid state and feedback when provided', async () => {
     const handleChange = vi.fn();
-    render(<PasswordComponent onChange={handleChange} isInvalid invalidMessage="Invalid password" />);
+    render(<PasswordComponent value="" onChange={handleChange} isInvalid invalidMessage="Invalid password" />);
 
     const input = screen.getByTestId('password-input');
     await waitFor(() => {

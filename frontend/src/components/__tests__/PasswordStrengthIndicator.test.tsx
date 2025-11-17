@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/preact';
 
-let PasswordStrengthIndicator: any;
+let PasswordStrengthIndicator: typeof import('../PasswordStrengthIndicator').PasswordStrengthIndicator;
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({

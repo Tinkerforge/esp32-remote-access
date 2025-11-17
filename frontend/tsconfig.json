@@ -19,4 +19,5 @@
 		}
 	},
 	"include": ["node_modules/vite/client.d.ts", "**/*"],
+	"exclude": ["node_modules", "dist", "coverage", "playwright-report", "test-results", "post-test", "pre-test"]
 }

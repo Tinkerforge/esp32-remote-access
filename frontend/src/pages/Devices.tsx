@@ -16,7 +16,7 @@ import { EditNoteModal } from "../components/device/EditNoteModal";
 import { SearchInput } from "../components/device/SearchInput";
 import { GroupingModal } from "../components/device/GroupingModal";
 
-export class DeviceList extends Component<{}, DeviceListState> {
+export class DeviceList extends Component<Record<string, never>, DeviceListState> {
     removalDevice: StateDevice;
     updatingInterval: ReturnType<typeof setInterval>;
 

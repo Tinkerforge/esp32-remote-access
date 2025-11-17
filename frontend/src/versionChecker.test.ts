@@ -141,7 +141,7 @@ describe('versionChecker', () => {
   });
 
   it('handles fetch errors gracefully and treats as no update', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation((..._args: unknown[]) => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
       // swallow logs during test
     });
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('network down')) as unknown as typeof fetch;

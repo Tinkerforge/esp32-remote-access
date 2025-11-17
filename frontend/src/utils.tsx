@@ -122,7 +122,7 @@ export async function refresh_access_token() {
         let hasSecret = null;
         try {
             hasSecret = await getSecretKeyFromServiceWorker();
-        } catch (e) {
+        } catch {
             logout(false);
         }
         if (hasLoginSalt && hasSecret) {

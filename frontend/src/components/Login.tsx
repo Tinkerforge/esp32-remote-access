@@ -22,7 +22,7 @@ interface LoginState {
     credentials_wrong: boolean,
 }
 
-export class Login extends Component<{}, LoginState> {
+export class Login extends Component<Record<string, never>, LoginState> {
     constructor() {
         super();
         this.state = {
@@ -132,7 +132,9 @@ export class Login extends Component<{}, LoginState> {
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="loginPassword" >
                     <Form.Label>{t("password")}</Form.Label>
-                    <PasswordComponent onChange={(e) => {
+                    <PasswordComponent
+                    value={this.state.password}
+                    onChange={(e) => {
                         this.setState({password: e});
                     }}
                     invalidMessage={t("wrong_credentials")}

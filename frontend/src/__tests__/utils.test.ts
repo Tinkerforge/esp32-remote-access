@@ -63,19 +63,22 @@ describe('utils', () => {
     // Clear service worker listener between tests
     swListener = undefined;
     // Reset the getSecretKeyFromServiceWorker internal state
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (utils as any).gettingSecretInProgress = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (utils as any).secretKeyPromise = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (utils as any).retries = 0;
   });
 
   describe('generate_random_bytes', () => {
     it('returns Uint8Array of specified length with random values', () => {
       // Mock crypto.getRandomValues deterministically
-      const mockGetRandomValues = vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation((arr: ArrayBufferView) => {
+      const mockGetRandomValues = vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(<T extends ArrayBufferView | null>(arr: T): T => {
         if (arr instanceof Uint8Array) {
           for (let i = 0; i < arr.length; i++) arr[i] = i + 1;
         }
-        return arr as typeof arr;
+        return arr as T;
       });
 
         const bytes = utils.generate_random_bytes(5);
@@ -106,12 +109,14 @@ describe('utils', () => {
           triggerSWMessage({ type: MessageType.StoreSecret, data: "stored" });
         }
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
       await utils.storeSecretKeyInServiceWorker('abc');
       expect(postMessage).toHaveBeenCalledWith({ type: MessageType.StoreSecret, data: 'abc' });
     });
 
     it('requests secret and resolves with response (getSecretKeyFromServiceWorker)', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const postMessage = vi.fn((msg: any) => {
         // When the service worker receives a RequestSecret message,
         // simulate it responding with the secret
@@ -119,6 +124,7 @@ describe('utils', () => {
             triggerSWMessage({ type: MessageType.RequestSecret, data: 'encoded' });
         }
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
 
       const promise = utils.getSecretKeyFromServiceWorker();
@@ -131,6 +137,7 @@ describe('utils', () => {
 
     it('clears secret key via service worker', async () => {
       const postMessage = vi.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
       await utils.clearSecretKeyFromServiceWorker();
       expect(postMessage).toHaveBeenCalledWith({ type: MessageType.ClearSecret, data: null });
@@ -138,6 +145,7 @@ describe('utils', () => {
 
     it('handles getSecretKeyFromServiceWorker with mock that immediately triggers response', async () => {
       // Create a mock service worker that immediately responds
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
             triggerSWMessage({ type: MessageType.RequestSecret, data: 'immediate-response' });
@@ -148,6 +156,7 @@ describe('utils', () => {
       vi.resetModules();
       const freshUtils = await vi.importActual('../utils') as typeof utils;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
 
       const result = await freshUtils.getSecretKeyFromServiceWorker();
@@ -163,7 +172,9 @@ describe('utils', () => {
       withServiceWorker({ postMessage });
       // Ensure calling resetSecret sets them to null state and triggers postMessage with ClearSecret
       utils.resetSecret();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((utils as any).secret).toBeNull();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((utils as any).pub_key).toBeNull();
       return Promise.resolve().then(() => {
         expect(postMessage).toHaveBeenCalledWith({ type: MessageType.ClearSecret, data: null });
@@ -179,6 +190,7 @@ describe('utils', () => {
         configurable: true,
       });
       // Mock navigator.locks
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (navigator as any).locks = {
         request: vi.fn((_name: string, cb: () => Promise<unknown>) => cb()),
       };
@@ -193,15 +205,19 @@ describe('utils', () => {
     it('logs user in on successful refresh when secrets available', async () => {
       Object.assign(window.location, { pathname: '/' });
       // Provide loginSalt & secret
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
       // Mock service worker so getSecretKeyFromServiceWorker resolves with value
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
           triggerSWMessage({ type: MessageType.RequestSecret, data: 'SGVjcmV0' });
         }
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
       // Mock refresh endpoint success
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           return { error: null, response: { status: 200 } };
@@ -215,11 +231,15 @@ describe('utils', () => {
 
     it('sets state to LoggedOut and clears loginSalt on refresh failure', async () => {
       Object.assign(window.location, { pathname: '/' });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const removeItemSpy = window.localStorage.removeItem as any;
       const postMessage = vi.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
       // Fail refresh
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           return { error: 'unauthorized', response: { status: 401 } };
@@ -233,13 +253,17 @@ describe('utils', () => {
     });
 
     it('treats 502 error as success and keeps user logged in', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
           triggerSWMessage({ type: MessageType.RequestSecret, data: 'ANY' });
         }
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           return { error: 'bad_gateway', response: { status: 502 } };
@@ -252,8 +276,10 @@ describe('utils', () => {
     });
 
     it('catch block keeps user logged in if tokens present', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
       vi.spyOn(utils, 'getSecretKeyFromServiceWorker').mockResolvedValue('secret');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           throw new Error('network');
@@ -266,6 +292,7 @@ describe('utils', () => {
     });
 
     it('catch block resets secret if tokens missing', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation(() => null);
       const postMessage = vi.fn((event) => {
         if (event.type === MessageType.RequestSecret) {
@@ -276,6 +303,7 @@ describe('utils', () => {
 
       // Start from LoggedOut so we can ensure it does not become LoggedIn
       utils.loggedIn.value = utils.AppState.LoggedOut;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           throw new Error('network');
@@ -293,20 +321,24 @@ describe('utils', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
 
       // Mock localStorage to return loginSalt
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) =>
         key === 'loginSalt' ? 'test-salt' : null
       );
 
       // Mock service worker to return secret
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
           triggerSWMessage({ type: MessageType.RequestSecret, data: 'test-secret' });
         }
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
 
       // Mock fetchClient to throw an error
       const testError = new Error('Network timeout');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           throw testError;
@@ -335,18 +367,22 @@ describe('utils', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
 
       // Mock localStorage to return no loginSalt
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation(() => null);
 
       // Mock service worker to return secret (but loginSalt is missing)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
           triggerSWMessage({ type: MessageType.RequestSecret, data: 'test-secret' });
         }
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
 
       // Mock fetchClient to throw an error
       const testError = new Error('Network timeout');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           throw testError;
@@ -377,20 +413,24 @@ describe('utils', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
 
       // Mock localStorage to return loginSalt
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) =>
         key === 'loginSalt' ? 'test-salt' : null
       );
 
       // Mock service worker to return empty secret
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
           triggerSWMessage({ type: MessageType.RequestSecret, data: '' });
         }
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
 
       // Mock fetchClient to throw an error
       const testError = new Error('Network timeout');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           throw testError;
@@ -421,20 +461,24 @@ describe('utils', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
 
       // Mock localStorage to return loginSalt
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) =>
         key === 'loginSalt' ? 'test-salt' : null
       );
 
       // Mock service worker to return null secret
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
           triggerSWMessage({ type: MessageType.RequestSecret, data: null });
         }
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
 
       // Mock fetchClient to throw an error
       const testError = new Error('Network timeout');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           throw testError;
@@ -468,16 +512,19 @@ describe('utils', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
 
       // Mock localStorage to return loginSalt
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) =>
         key === 'loginSalt' ? 'test-salt' : null
       );
 
       // Mock service worker that never responds
       const postMessage = vi.fn(); // No response triggered
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       withServiceWorker({ postMessage } as any);
 
       // Mock fetchClient to throw an error (triggers outer catch block)
       const testError = new Error('Network timeout');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/jwt_refresh') {
           throw testError;
@@ -512,6 +559,7 @@ describe('utils', () => {
   describe('get_salt & get_salt_for_user', () => {
     it('retrieves a new salt successfully', async () => {
       const sample = [1,2,3];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/generate_salt') {
           return { data: sample, response: { status: 200, text: () => Promise.resolve('ok') } };
@@ -523,12 +571,14 @@ describe('utils', () => {
     });
 
     it('throws on failed salt retrieval', async () => {
-      (utils.fetchClient as any).GET = vi.fn(async (_: string) => ({ data: null, response: { status: 500, text: () => Promise.resolve('err') } }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (utils.fetchClient as any).GET = vi.fn(async () => ({ data: null, response: { status: 500, text: () => Promise.resolve('err') } }));
       await expect(utils.get_salt()).rejects.toMatch(/Failed to get new salt/);
     });
 
     it('retrieves login salt for user', async () => {
       const sample = [9,8];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
         if (path === '/auth/get_login_salt') {
           return { data: sample, error: null };
@@ -540,6 +590,7 @@ describe('utils', () => {
     });
 
     it('throws if login salt fetch fails', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async () => ({ data: null, error: 'boom' }));
       await expect(utils.get_salt_for_user('x@y.z')).rejects.toMatch(/Failed to get login_salt/);
     });
@@ -554,6 +605,7 @@ describe('utils', () => {
 
   describe('get_decrypted_secret', () => {
     it('returns early with alert when backend error (smoke path)', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (utils.fetchClient as any).GET = vi.fn(async () => ({ data: null, error: 'err', response: { status: 500 } }));
       // We just ensure it does not throw
       await utils.get_decrypted_secret();
@@ -563,6 +615,7 @@ describe('utils', () => {
   describe('BroadcastChannel + appReload listener', () => {
     it('handles logout message by setting LoggedOut state', () => {
       utils.loggedIn.value = utils.AppState.LoggedIn;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (utils.bc as any).onmessage;
       if (handler) {
         handler({ data: 'logout' });
@@ -572,6 +625,7 @@ describe('utils', () => {
 
     it('triggers reload on login message', () => {
   const reloadSpy = vi.spyOn(window.location, 'reload').mockImplementation(() => { /* no-op */ });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handler = (utils.bc as any).onmessage;
   if (handler) {
     handler({ data: 'login' });

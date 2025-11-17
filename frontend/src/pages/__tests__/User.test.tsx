@@ -87,9 +87,9 @@ describe('User Component', () => {
     mockBase64.Base64.toUint8Array.mockReturnValue(new Uint8Array([29, 30, 31, 32]));
 
     vi.spyOn(window.localStorage, 'getItem').mockReturnValue('base64encodedSalt');
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
+
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {});
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
+
     vi.spyOn(window.localStorage, 'removeItem').mockImplementation(() => {});
   });
 

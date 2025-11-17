@@ -202,10 +202,10 @@ vi.mock('react-bootstrap', () => {
   InputGroup.Text = ({ children, ...props }: MockComponentProps) =>
     h('span', { ...props, className: 'input-group-text' }, children);
 
-  const Tabs = ({ children, activeKey: _activeKey, onSelect: _onSelect, ...props }: TabsProps) =>
+  const Tabs = ({ children, ...props }: TabsProps) =>
     h('div', { ...props, className: 'tabs' }, children);
 
-  const Tab = ({ children, eventKey: _eventKey, title: _title, ...props }: TabProps) =>
+  const Tab = ({ children, ...props }: TabProps) =>
     h('div', { ...props, className: 'tab-pane' }, children);
 
   const Alert = ({ children, variant, ...props }: AlertProps) =>
@@ -495,7 +495,7 @@ vi.mock('preact-iso', () => ({
   LocationProvider: ({ children }: { children?: ComponentChildren }) => h('div', {}, children),
   Router: ({ children }: { children?: ComponentChildren }) => h('div', {}, children),
   Route: ({ children }: { children?: ComponentChildren }) => h('div', {}, children),
-  lazy: (_loader: () => Promise<unknown>) => (props: Record<string, unknown>) => h('div', { 'data-testid': 'lazy-component', ...props }),
+  lazy: () => (props: Record<string, unknown>) => h('div', { 'data-testid': 'lazy-component', ...props }),
 }));
 
 // Mock median-js-bridge

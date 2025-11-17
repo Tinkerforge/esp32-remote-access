@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/preact';
 import * as utils from './utils.js';
 import Median from 'median-js-bridge';
+import type { ComponentChildren } from 'preact';
 
 // Default: stub preact.render to avoid module-level mount; tests re-do this before importing index as needed
 vi.mock('preact', async (importOriginal) => {
@@ -138,17 +139,17 @@ describe('index.tsx', () => {
     });
     // Mock Router to immediately invoke onRouteChange once
     vi.doMock('preact-iso', () => ({
-      LocationProvider: ({ children }: { children?: any }) => <div>{children}</div>,
-      Router: ({ children, onRouteChange }: { children?: any; onRouteChange?: () => void }) => {
+      LocationProvider: ({ children }: { children?: ComponentChildren }) => <div>{children}</div>,
+      Router: ({ children, onRouteChange }: { children?: ComponentChildren; onRouteChange?: () => void }) => {
         if (onRouteChange) {
           onRouteChange();
         }
         return <div>{children}</div>;
       },
-      Route: ({ children }: { children?: any }) => <div>{children}</div>,
+      Route: ({ children }: { children?: ComponentChildren }) => <div>{children}</div>,
       useLocation: () => ({ route: vi.fn(), url: '/' }),
       useRoute: () => ({ params: {} }),
-      lazy: (_loader: () => Promise<unknown>) => (_props: Record<string, unknown>) => <div data-testid="lazy-component" />,
+      lazy: () => () => <div data-testid="lazy-component" />,
     }));
 
     const { App } = await import('./index');
