@@ -37,7 +37,7 @@ jobs:
         target: wasm32-unknown-unknown
 
     - name: Install wasm-pack
-      run: curl https://drager.github.io/wasm-pack/installer/init.sh -sSf | sh
+      run: npm install -g wasm-pack
 
     - name: Install dependencies
       working-directory: ./frontend
