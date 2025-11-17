@@ -11,7 +11,8 @@
     "posttest": "npx playwright test --project=chromium -c post-playwright.config.ts",
     "test:unit": "vitest",
     "test:unit:run": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "build:wasm": "cd ../wg-webclient && wasm-pack build --target web",
+    "typecheck": "npm run build:wasm && tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint src --ext .ts,.tsx,.js,.jsx --fix"
   },
