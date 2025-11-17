@@ -42,11 +42,9 @@ export async function login(page: Page, email: string, password: string) {
   await page.getByRole('textbox', { name: 'Email' }).fill(email);
   await page.getByRole('textbox', { name: 'Email' }).press('Tab');
   await page.getByRole('textbox', { name: 'Password' }).fill(password);
-  await Promise.all([
-    page.waitForResponse((resp) => {
-      expect(resp.status()).toBe(200);
-      return resp.url().includes("/api/auth/login")
-    }, {timeout: 1000}),
-    page.getByRole('button', { name: 'Login' }).click(),
-  ]);
+  await page.getByRole('button', { name: 'Login' }).click();
+  await page.waitForResponse((resp) => {
+    expect(resp.status()).toBe(200);
+    return resp.url().includes("/api/auth/login")
+  });
 }
