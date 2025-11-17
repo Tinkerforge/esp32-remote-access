@@ -287,6 +287,134 @@ describe('utils', () => {
       // Should not have transitioned to LoggedIn
       expect(utils.loggedIn.value).not.toBe(utils.AppState.LoggedIn);
     });
+
+    it('catch block logs error and maintains logged in state when tokens exist', async () => {
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { /* no-op */ });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
+
+      // Mock localStorage to return loginSalt
+      (window.localStorage.getItem as any).mockImplementation((key: string) =>
+        key === 'loginSalt' ? 'test-salt' : null
+      );
+
+      // Mock service worker to return secret
+      const postMessage = vi.fn((msg: any) => {
+        if (msg.type === MessageType.RequestSecret) {
+          triggerSWMessage({ type: MessageType.RequestSecret, data: 'test-secret' });
+        }
+      });
+      withServiceWorker({ postMessage } as any);
+
+      // Mock fetchClient to throw an error
+      const testError = new Error('Network timeout');
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          throw testError;
+        }
+        return { error: null, response: { status: 200 } };
+      });
+
+      // Set initial state
+      utils.loggedIn.value = utils.AppState.Loading;
+
+      await utils.refresh_access_token();
+
+      // Verify logging
+      expect(consoleLogSpy).toHaveBeenCalledWith('Failed to refresh access token:', testError);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(testError);
+
+      // Verify state is set to LoggedIn when both tokens exist
+      expect(utils.loggedIn.value).toBe(utils.AppState.LoggedIn);
+
+      consoleLogSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('catch block calls logout when loginSalt is missing', async () => {
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { /* no-op */ });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
+
+      // Mock localStorage to return no loginSalt
+      (window.localStorage.getItem as any).mockImplementation(() => null);
+
+      // Mock service worker to return secret (but loginSalt is missing)
+      const postMessage = vi.fn((msg: any) => {
+        if (msg.type === MessageType.RequestSecret) {
+          triggerSWMessage({ type: MessageType.RequestSecret, data: 'test-secret' });
+        }
+      });
+      withServiceWorker({ postMessage } as any);
+
+      // Mock fetchClient to throw an error
+      const testError = new Error('Network timeout');
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          throw testError;
+        }
+        return { error: null, response: { status: 200 } };
+      });
+
+      // Mock logout function
+      const logoutModule = await import('../components/Navbar');
+      const logoutSpy = vi.spyOn(logoutModule, 'logout').mockImplementation(async () => { /* no-op */ });
+
+      await utils.refresh_access_token();
+
+      // Verify logging
+      expect(consoleLogSpy).toHaveBeenCalledWith('Failed to refresh access token:', testError);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(testError);
+
+      // Verify logout was called
+      expect(logoutSpy).toHaveBeenCalledWith(false);
+
+      consoleLogSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+      logoutSpy.mockRestore();
+    });
+
+    it('catch block calls logout when secret is missing', async () => {
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { /* no-op */ });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
+
+      // Mock localStorage to return loginSalt
+      (window.localStorage.getItem as any).mockImplementation((key: string) =>
+        key === 'loginSalt' ? 'test-salt' : null
+      );
+
+      // Mock service worker to return no secret
+      const postMessage = vi.fn((msg: any) => {
+        if (msg.type === MessageType.RequestSecret) {
+          triggerSWMessage({ type: MessageType.RequestSecret, data: '' });
+        }
+      });
+      withServiceWorker({ postMessage } as any);
+
+      // Mock fetchClient to throw an error
+      const testError = new Error('Network timeout');
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          throw testError;
+        }
+        return { error: null, response: { status: 200 } };
+      });
+
+      // Mock logout function
+      const logoutModule = await import('../components/Navbar');
+      const logoutSpy = vi.spyOn(logoutModule, 'logout').mockImplementation(async () => { /* no-op */ });
+
+      await utils.refresh_access_token();
+
+      // Verify logging
+      expect(consoleLogSpy).toHaveBeenCalledWith('Failed to refresh access token:', testError);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(testError);
+
+      // Verify logout was called
+      expect(logoutSpy).toHaveBeenCalledWith(false);
+
+      consoleLogSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+      logoutSpy.mockRestore();
+    });
   });
 
   describe('get_salt & get_salt_for_user', () => {

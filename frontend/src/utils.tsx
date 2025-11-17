@@ -123,7 +123,7 @@ export async function refresh_access_token() {
         if (hasLoginSalt && hasSecret) {
             loggedIn.value = AppState.LoggedIn;
         } else {
-            resetSecret();
+            logout(false);
         }
         console.error(e);
     }
@@ -190,7 +190,7 @@ export async function getSecretKeyFromServiceWorker(): Promise<string> {
         const controller = await navigator.serviceWorker.ready;
 
         const timeout = setTimeout(async () => {
-            console.error("Service Worker: Failed to get secretKey within timeout. Retrying...");
+            console.error("Service Worker: Failed to get secretKey within timeout.");
             if (!appSleeps || !Median.isNativeApp()) {
                 reject("Timeout waiting for secretKey from Service Worker");
             }
