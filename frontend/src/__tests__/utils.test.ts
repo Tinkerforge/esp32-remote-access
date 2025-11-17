@@ -372,7 +372,7 @@ describe('utils', () => {
       logoutSpy.mockRestore();
     });
 
-    it('catch block calls logout when secret is missing', async () => {
+    it('catch block calls logout when secret is missing (empty string)', async () => {
       const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { /* no-op */ });
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
 
@@ -381,7 +381,7 @@ describe('utils', () => {
         key === 'loginSalt' ? 'test-salt' : null
       );
 
-      // Mock service worker to return no secret
+      // Mock service worker to return empty secret
       const postMessage = vi.fn((msg: any) => {
         if (msg.type === MessageType.RequestSecret) {
           triggerSWMessage({ type: MessageType.RequestSecret, data: '' });
@@ -414,6 +414,98 @@ describe('utils', () => {
       consoleLogSpy.mockRestore();
       consoleErrorSpy.mockRestore();
       logoutSpy.mockRestore();
+    });
+
+    it('catch block calls logout when secret is null', async () => {
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { /* no-op */ });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
+
+      // Mock localStorage to return loginSalt
+      (window.localStorage.getItem as any).mockImplementation((key: string) =>
+        key === 'loginSalt' ? 'test-salt' : null
+      );
+
+      // Mock service worker to return null secret
+      const postMessage = vi.fn((msg: any) => {
+        if (msg.type === MessageType.RequestSecret) {
+          triggerSWMessage({ type: MessageType.RequestSecret, data: null });
+        }
+      });
+      withServiceWorker({ postMessage } as any);
+
+      // Mock fetchClient to throw an error
+      const testError = new Error('Network timeout');
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          throw testError;
+        }
+        return { error: null, response: { status: 200 } };
+      });
+
+      // Mock logout function
+      const logoutModule = await import('../components/Navbar');
+      const logoutSpy = vi.spyOn(logoutModule, 'logout').mockImplementation(async () => { /* no-op */ });
+
+      await utils.refresh_access_token();
+
+      // Verify logging
+      expect(consoleLogSpy).toHaveBeenCalledWith('Failed to refresh access token:', testError);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(testError);
+
+      // Verify logout was called
+      expect(logoutSpy).toHaveBeenCalledWith(false);
+
+      consoleLogSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+      logoutSpy.mockRestore();
+    });
+
+    it('catch block calls logout when getSecretKeyFromServiceWorker times out', async () => {
+      // Use fake timers to test timeout scenario
+      vi.useFakeTimers();
+
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { /* no-op */ });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* no-op */ });
+
+      // Mock localStorage to return loginSalt
+      (window.localStorage.getItem as any).mockImplementation((key: string) =>
+        key === 'loginSalt' ? 'test-salt' : null
+      );
+
+      // Mock service worker that never responds
+      const postMessage = vi.fn(); // No response triggered
+      withServiceWorker({ postMessage } as any);
+
+      // Mock fetchClient to throw an error (triggers outer catch block)
+      const testError = new Error('Network timeout');
+      (utils.fetchClient as any).GET = vi.fn(async (path: string) => {
+        if (path === '/auth/jwt_refresh') {
+          throw testError;
+        }
+        return { error: null, response: { status: 200 } };
+      });
+
+      // Mock logout function
+      const logoutModule = await import('../components/Navbar');
+      const logoutSpy = vi.spyOn(logoutModule, 'logout').mockImplementation(async () => { /* no-op */ });
+
+      // Start refresh_access_token without awaiting
+      const refreshPromise = utils.refresh_access_token();
+
+      // Fast-forward time by 5000ms to trigger timeout in getSecretKeyFromServiceWorker
+      await vi.advanceTimersByTimeAsync(5000);
+
+      // Now await the refresh to complete
+      await refreshPromise;
+
+      // Verify logout was called when getSecretKeyFromServiceWorker timed out
+      expect(logoutSpy).toHaveBeenCalledWith(false);
+
+      consoleLogSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+      logoutSpy.mockRestore();
+
+      vi.useRealTimers();
     });
   });
 

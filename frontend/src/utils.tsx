@@ -119,7 +119,12 @@ export async function refresh_access_token() {
         //This means we are logged in but the refresh failed
         console.log("Failed to refresh access token:", e);
         const hasLoginSalt = localStorage.getItem("loginSalt");
-        const hasSecret = await getSecretKeyFromServiceWorker();
+        let hasSecret = null;
+        try {
+            hasSecret = await getSecretKeyFromServiceWorker();
+        } catch (e) {
+            logout(false);
+        }
         if (hasLoginSalt && hasSecret) {
             loggedIn.value = AppState.LoggedIn;
         } else {
