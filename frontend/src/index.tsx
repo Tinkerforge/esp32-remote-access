@@ -50,6 +50,10 @@ import { useEffect, useState } from "preact/hooks";
 
 if (isDebugMode.value) {
     addEventListener("unhandledrejection", (event) => {
+        if (!event.reason || !event.reason.stack) {
+            console.error("Unhandled rejection without stack trace:", event);
+            return;
+        }
         const stack = event.reason.stack.split("\n");
 
         const evt = {
