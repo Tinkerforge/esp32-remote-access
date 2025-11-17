@@ -164,7 +164,6 @@ class VirtualNetworkInterface {
                         urlParamsArray.push(['charger', this.chargerInfo.id]);
                     }
                     const urlParams = new URLSearchParams(urlParamsArray);
-                    console.log("path", this.path);
                     iframe.src = `/wg-${this.id}/${this.path}?${urlParams.toString()}`;
                     iframe.addEventListener("load", () => {
                         clearTimeout(this.timeout);
