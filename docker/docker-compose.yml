@@ -1,6 +1,7 @@
 services:
   nginx:
-    image: nginx:1.25
+    build:
+      dockerfile: nginx/Dockerfile
     restart: always
     depends_on:
       backend:
@@ -32,10 +33,11 @@ services:
       - ../db_connector:/db_connector
 
   backend:
-    image: rust:1-bookworm
     restart: always
     container_name: backend
-    command: ./backend
+    command: bash -c "ulimit -n 10000 && exec ./backend"
+    build:
+      dockerfile: backend/Dockerfile
     user: "${UID:-1000}:${GID:-1000}"
     depends_on:
       postgres:

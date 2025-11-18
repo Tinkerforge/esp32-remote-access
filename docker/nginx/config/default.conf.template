@@ -2,6 +2,8 @@ upstream host_service {
     server backend:8081;
 }
 
+worker_rlimit_nofile 10000;
+
 map $remote_addr $remote_addr_anon {
     ~(?P<ip>\d+\.\d+\.\d+)\.    $ip.0;
     ~(?P<ip>[^:]+:[^:]+):       $ip::;
