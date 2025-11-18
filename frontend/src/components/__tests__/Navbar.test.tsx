@@ -20,6 +20,7 @@ vi.mock('logo', () => ({ default: 'logo.png' }));
 describe('Navbar', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     // Reset connection state
     connectedSignal.value = false;
     // Reset location

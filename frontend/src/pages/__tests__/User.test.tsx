@@ -53,11 +53,11 @@ describe('User Component', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
-  const { showAlert } = (await import('../../components/Alert')) as unknown as { showAlert: Mock };
+    const { showAlert } = (await import('../../components/Alert')) as unknown as { showAlert: Mock };
     mockShowAlert = showAlert;
 
-  const { logout } = (await import('../../components/Navbar')) as unknown as { logout: Mock };
-    mockLogout = logout;
+    const NavbarModule = await import('../../components/Navbar');
+    mockLogout = vi.spyOn(NavbarModule, 'logout').mockResolvedValue(undefined);
 
     mockUtils = (await import('../../utils')) as unknown as UtilsMock;
     mockUtils.fetchClient.GET.mockResolvedValue({

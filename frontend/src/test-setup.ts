@@ -529,12 +529,12 @@ vi.mock('./components/Circle', () => ({
   Circle: vi.fn(() => null),
 }));
 
-// Mock components/Navbar to stub logout but keep other exports real
+// Mock components/Navbar - keep all exports real for testing
+// Tests will mock specific functions as needed
 vi.mock('./components/Navbar', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./components/Navbar')>();
   return {
     ...actual,
-    logout: vi.fn(),
   };
 });
 

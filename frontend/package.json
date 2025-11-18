@@ -50,7 +50,7 @@
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/node": "^22",
     "@vitest/coverage-v8": "^4.0.10",
-    "@vitest/ui": "^3.2.4",
+    "@vitest/ui": "^4.0.10",
     "dotenv": "^16.4.5",
     "eslint": "^9.39.1",
     "eslint-config-preact": "^2.0.0",
@@ -63,6 +63,6 @@
     "vite": ">=6.3.6",
     "vite-plugin-top-level-await": "^1.5.0",
     "vite-plugin-wasm": "^3.3.0",
-    "vitest": "^3.2.3"
+    "vitest": "^4.0.10"
   }
 }
