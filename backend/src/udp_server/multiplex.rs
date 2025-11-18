@@ -149,14 +149,14 @@ async fn create_tunn(
             ));
         };
 
-        let udp_socket = state.socket.try_clone()?;
+        let udp_socket = Arc::clone(&state.socket);
         let socket = ManagementSocket::new(
             self_ip,
             peer_ip,
             addr,
             tunn,
             rate_limiter,
-            Arc::new(udp_socket),
+            udp_socket,
             charger.id,
         );
         return Ok((charger.id, socket));

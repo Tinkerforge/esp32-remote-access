@@ -81,7 +81,7 @@ pub struct BridgeState {
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<(i32, Session)>>>,
-    pub socket: UdpSocket,
+    pub socket: Arc<UdpSocket>,
 }
 
 pub struct AppState {
@@ -345,7 +345,7 @@ pub(crate) mod tests {
             web_client_map: Mutex::new(HashMap::new()),
             undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
             lost_connections: Mutex::new(HashMap::new()),
-            socket: UdpSocket::bind(("0", 0)).unwrap(),
+            socket: Arc::new(UdpSocket::bind(("0", 0)).unwrap()),
         };
 
         let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> = web::Data::new(
