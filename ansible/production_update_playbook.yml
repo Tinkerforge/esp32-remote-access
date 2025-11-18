@@ -63,6 +63,7 @@
         version: master
         update: yes
         clone: yes
+        depth: 1
 
     - name: Stop Docker containers
       community.docker.docker_compose_v2:
@@ -74,6 +75,10 @@
         build: always
         pull: always
         project_src: "/home/{{ ansible_user_id }}/esp32-remote-access/docker"
+
+    - name: Prune unused Docker containers
+      community.docker.docker_prune:
+        containers: yes
 
     - name: Ensure backup script is executable
       ansible.builtin.file:
