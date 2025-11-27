@@ -79,26 +79,29 @@ async fn create_tunn(
             let IpNetwork::V4(ip) = ip else {
                 return Err(anyhow::Error::msg(Error::UnknownPeer));
             };
-            let ip = Ipv4Network::new(ip.ip(), 24)?;
-            let test = map.iter().filter(|(k, _v)| {
-                let ipv4 = match *k {
-                    IpNetwork::V4(ipv4) => ipv4,
-                    _ => return false,
-                };
-                ip.contains(ipv4.ip())
-            }).collect::<Vec<_>>();
-            if !test.is_empty() {
-                let charger_ids: Vec<uuid::Uuid> = test
+            let subnet = Ipv4Network::new(ip.ip(), 24)?;
+            let matching_entries = map
+                .iter()
+                .filter(|(network, _)| {
+                    let ipv4_network = match *network {
+                        IpNetwork::V4(ipv4) => ipv4,
+                        _ => return false,
+                    };
+                    subnet.contains(ipv4_network.ip())
+                })
+                .collect::<Vec<_>>();
+            if !matching_entries.is_empty() {
+                let device_ids: Vec<uuid::Uuid> = matching_entries
                     .iter()
-                    .flat_map(|(_k, v)| v.iter().map(|c| c.id))
+                    .flat_map(|(_, devices)| devices.iter().map(|d| d.id))
                     .collect();
-                log::info!("Found possible matches for ip '{ip}: {charger_ids:?}'");
+                log::info!("Found possible matches for ip '{subnet}: {device_ids:?}'");
                 chargers::chargers
-                    .filter(chargers::id.eq_any(charger_ids))
+                    .filter(chargers::id.eq_any(device_ids))
                     .select(Charger::as_select())
                     .load(&mut conn)?
             } else {
-                log::info!("Could not find charger for ip '{ip}'");
+                log::info!("Could not find charger for ip '{subnet}'");
                 return Err(anyhow::Error::msg(Error::UnknownPeer));
             }
         }
