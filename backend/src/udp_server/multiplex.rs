@@ -30,7 +30,7 @@ use boringtun::noise::{rate_limiter::RateLimiter, TunnResult};
 use db_connector::models::chargers::Charger;
 use diesel::prelude::*;
 use futures_util::lock::Mutex;
-use ipnetwork::IpNetwork;
+use ipnetwork::{IpNetwork, Ipv4Network};
 use rand::TryRngCore;
 use rand_core::OsRng;
 
@@ -76,7 +76,31 @@ async fn create_tunn(
                 .select(Charger::as_select())
                 .load(&mut conn)?
         } else {
-            return Err(anyhow::Error::msg(Error::UnknownPeer));
+            let IpNetwork::V4(ip) = ip else {
+                return Err(anyhow::Error::msg(Error::UnknownPeer));
+            };
+            let ip = Ipv4Network::new(ip.ip(), 24)?;
+            let test = map.iter().filter(|(k, _v)| {
+                let ipv4 = match *k {
+                    IpNetwork::V4(ipv4) => ipv4,
+                    _ => return false,
+                };
+                ip.contains(ipv4.ip())
+            }).collect::<Vec<_>>();
+            if !test.is_empty() {
+                let charger_ids: Vec<uuid::Uuid> = test
+                    .iter()
+                    .flat_map(|(_k, v)| v.iter().map(|c| c.id))
+                    .collect();
+                log::info!("Found possible matches for ip '{ip}: {charger_ids:?}'");
+                chargers::chargers
+                    .filter(chargers::id.eq_any(charger_ids))
+                    .select(Charger::as_select())
+                    .load(&mut conn)?
+            } else {
+                log::info!("Could not find charger for ip '{ip}'");
+                return Err(anyhow::Error::msg(Error::UnknownPeer));
+            }
         }
     };
 
@@ -251,7 +275,7 @@ pub async fn run_server(
                                 .ok();
                             }
                         }
-                        log::debug!("Adding management connection from {addr}");
+                        log::info!("Adding management connection from {addr}");
                         tunn_data.clone()
                     }
                 }
