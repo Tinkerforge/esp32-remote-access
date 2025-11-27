@@ -108,7 +108,6 @@ test('password change dialog validation', async ({ page }) => {
   await page.getByRole('textbox', { name: 'New password', exact: true }).fill('ValidPassword123!');
   await page.getByRole('dialog').getByRole('button', { name: 'Change password' }).click();
   await expect(page.getByText('Passwords do not match')).toBeVisible();
-  await page.getByRole('button', { name: 'Close' }).click();
 });
 
 test('charger lifecycle', async ({ page }) => {
