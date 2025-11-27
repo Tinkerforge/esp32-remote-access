@@ -39,6 +39,7 @@ import { Recovery } from './pages/Recovery.js';
 import { Trans, useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
+import { Banner } from "./components/Banner";
 import favicon from "favicon";
 import logo from "logo";
 import { Message, MessageType } from './types';
@@ -219,6 +220,7 @@ export function App() {
                 Median.sidebar.setItems({items: [], enabled: false, persist: false});
             }
             return <>
+                <Banner />
                 <nav hidden={Median.isNativeApp()} id="logo-nav" class="navbar navbar-expand-md navbar-dark sticky-top flex-md-nowrap p-0 pb-2 pt-2 ps-2">
                     <a href="/"><img class="pt-2 pb-2 ps-2" src={logo} style="max-width: calc(100vw - 72px);" alt="logo" /></a>
                 </nav>
@@ -248,6 +250,7 @@ export function App() {
         case AppState.LoggedIn:
             return (
                 <>
+                    <Banner />
                     <ErrorAlert />
                     <Col>
                         <LocationProvider>
@@ -274,6 +277,7 @@ export function App() {
         // we need an extra recovery state, otherwise we would show the login/register page.
         case AppState.Recovery:
             return (<>
+                <Banner />
                 <ErrorAlert />
                 <LocationProvider>
                     <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3">

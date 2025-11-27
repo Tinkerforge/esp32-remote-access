@@ -6,6 +6,10 @@ export const de ={
     "alert_default_success": "Erfolg!",
     description,
     "no_service_worker": "Dein Browser benötigt Unterstützung für ServiceWorker um den Fernzugriff nutzen zu können.",
+    "banner": {
+        "title": "Bevorstehende Wartungsarbeiten!",
+        "message": "Wartungsarbeiten sind für Montag, den 01.12.2025 von 10:00 Uhr bis 11:30 Uhr geplant. Währenddessen ist der Fernzugriff nicht erreichbar."
+    },
     "not_now": "Jetzt nicht",
     "allow": "Browserdialog anzeigen",
     "storage_persistence": {

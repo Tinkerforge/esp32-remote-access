@@ -6,6 +6,10 @@ export const en = {
     "alert_default_success": "Success!",
     description,
     "no_service_worker": "Your browser needs support for ServiceWorkers to be able to run the Remote Access.",
+    "banner": {
+        "title": "Upcoming Maintenance!",
+        "message": "Maintenance is scheduled for Monday 01.12.2025 from 10:00 A.M. to 11:30 P.M. During this time, Remote Access will be unavailable."
+    },
     "not_now": "Not now",
     "allow": "Show browser prompt",
     "storage_persistence": {
