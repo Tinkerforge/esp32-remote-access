@@ -132,7 +132,7 @@ async fn main() -> std::io::Result<()> {
             .expect("EMAIL_RELAY_PORT must be set")
             .parse()
             .unwrap();
-        SmtpTransport::starttls_relay(&relay)
+        SmtpTransport::relay(&relay)
             .unwrap()
             .port(port)
             .credentials(Credentials::new(email, pass))
