@@ -100,7 +100,20 @@ async fn create_tunn(
                     .filter(chargers::id.eq_any(device_ids))
                     .select(Charger::as_select())
                     .load(&mut conn)?
-            } else {
+            } else if Ipv4Network::new(std::env::var("FORWARD_HOST")?.parse()?, 32)? == ip {
+                log::info!("Found forwarded management connection");
+                let mut device_ids: Vec<uuid::Uuid> = Vec::new();
+                for (_, devices) in map.iter() {
+                    for device in devices.iter() {
+                        device_ids.push(device.id);
+                    }
+                }
+                chargers::chargers
+                    .filter(chargers::id.eq_any(device_ids))
+                    .select(Charger::as_select())
+                    .load(&mut conn)?
+            }
+             else {
                 log::info!("Could not find charger for ip '{subnet}'");
                 return Err(anyhow::Error::msg(Error::UnknownPeer));
             }
