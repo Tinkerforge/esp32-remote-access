@@ -112,8 +112,7 @@ async fn create_tunn(
                     .filter(chargers::id.eq_any(device_ids))
                     .select(Charger::as_select())
                     .load(&mut conn)?
-            }
-             else {
+            } else {
                 log::info!("Could not find charger for ip '{subnet}'");
                 return Err(anyhow::Error::msg(Error::UnknownPeer));
             }
