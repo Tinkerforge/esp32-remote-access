@@ -63,6 +63,8 @@ services:
       - SENDER_EMAIL=${SENDER_EMAIL}
       - SENDER_NAME=${SENDER_NAME}
       - BRAND=${BRAND}
+    extra_hosts:
+      - "${EXTRA_HOSTS}"
     healthcheck:
       test: ["CMD", "curl", "backend:8081"]
       interval: 20s
