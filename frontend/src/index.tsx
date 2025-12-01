@@ -39,7 +39,6 @@ import { Recovery } from './pages/Recovery.js';
 import { Trans, useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
 import { Footer } from "./components/Footer";
-import { Banner } from "./components/Banner";
 import favicon from "favicon";
 import logo from "logo";
 import { Message, MessageType } from './types';
