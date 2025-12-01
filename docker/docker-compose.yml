@@ -63,6 +63,7 @@ services:
       - SENDER_EMAIL=${SENDER_EMAIL}
       - SENDER_NAME=${SENDER_NAME}
       - BRAND=${BRAND}
+      - FORWARD_HOST=${FORWARD_HOST}
     extra_hosts:
       - "${EXTRA_HOSTS}"
     healthcheck:
