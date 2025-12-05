@@ -76,6 +76,7 @@ export function Tokens() {
     const [user, setUser] = useState<components["schemas"]["UserInfo"] | null>(null);
     const [loading, setLoading] = useState(true);
     const [sortOption, setSortOption] = useState<SortOption>('created-desc');
+    const [searchQuery, setSearchQuery] = useState("");
 
     const sortedTokens = useMemo(() => {
         const copy = [...tokens];
@@ -99,6 +100,18 @@ export function Tokens() {
         });
         return copy;
     }, [tokens, sortOption]);
+
+    const filteredTokens = useMemo(() => {
+        const normalizedQuery = searchQuery.trim().toLowerCase();
+        if (!normalizedQuery) {
+            return sortedTokens;
+        }
+
+        return sortedTokens.filter((token) => {
+            const nameMatch = token.name.toLowerCase().includes(normalizedQuery);
+            return nameMatch;
+        });
+    }, [searchQuery, sortedTokens]);
 
     // Fetch tokens and user data from the server on component mount
     useEffect(() => {
@@ -292,30 +305,42 @@ export function Tokens() {
                     </Form>
                 </Card.Body>
                 <Card.Header className="border-top pb-2">
-                    <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-                        <h5 className="mb-0">{t("tokens.existing_tokens")}</h5>
-                        <Form.Select
-                            aria-label={t("tokens.sort_label")}
-                            className="w-auto"
-                            value={sortOption}
-                            onChange={(e) => setSortOption((e.target as HTMLSelectElement).value as SortOption)}
-                        >
-                            {SORT_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {t(option.labelKey)}
-                                </option>
-                            ))}
-                        </Form.Select>
+                    <div className="d-flex flex-column gap-3">
+                        <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                            <h5 className="mb-0">{t("tokens.existing_tokens")}</h5>
+                            <Form.Select
+                                className="w-auto"
+                                value={sortOption}
+                                onChange={(e) => setSortOption((e.target as HTMLSelectElement).value as SortOption)}
+                            >
+                                {SORT_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {t(option.labelKey)}
+                                    </option>
+                                ))}
+                            </Form.Select>
+                        </div>
+                        <Form.Control
+                            type="search"
+                            className="mb-2"
+                            placeholder={t("tokens.search_placeholder")}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
+                        />
                     </div>
                 </Card.Header>
                 <Card.Body>
-                    {sortedTokens.map((token, index) => {
+                    {filteredTokens.length === 0 ? (
+                        <p className="text-muted fst-italic mb-0">
+                            {searchQuery.trim() ? t("tokens.no_tokens_search") : t("tokens.no_tokens")}
+                        </p>
+                    ) : filteredTokens.map((token, index) => {
                         const isUsed = token.use_once && token.lastUsedAt !== null;
                         const statusVariant = isUsed ? "danger" : (token.use_once ? "success" : "warning");
                         const statusText = isUsed ? t("tokens.used") : (token.use_once ? t("tokens.use_once") : t("tokens.reusable"));
 
                         return (
-                            <div key={token.id} className={`token-item ${index !== sortedTokens.length - 1 ? 'mb-4' : ''}`}>
+                            <div key={token.id} className={`token-item ${index !== filteredTokens.length - 1 ? 'mb-4' : ''}`}>
                                 <div className="d-flex justify-content-between align-items-start mb-2">
                                     <div>
                                         <h6 className={`mb-1 fw-bold ${isUsed ? 'text-muted' : ''}`}>{token.name}</h6>
@@ -373,7 +398,7 @@ export function Tokens() {
                                         {t("tokens.delete")}
                                     </Button>
                                 </div>
-                                {index !== sortedTokens.length - 1 && <hr className="mt-3" />}
+                                {index !== filteredTokens.length - 1 && <hr className="mt-3" />}
                             </div>
                         );
                     })}

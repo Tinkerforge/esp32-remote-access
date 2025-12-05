@@ -233,6 +233,10 @@ export const en = {
         "sort_name_asc": "Name A-Z",
         "sort_name_desc": "Name Z-A",
         "sort_last_used_desc": "Recently used",
+        "search_label": "Search tokens",
+        "search_placeholder": "Search by name",
+        "no_tokens": "No authorization tokens yet. Create one above to get started.",
+        "no_tokens_search": "No tokens match your search.",
         firmware_needed
     },
     "wg_client": {
