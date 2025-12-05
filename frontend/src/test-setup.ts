@@ -26,6 +26,13 @@ interface FormControlProps extends MockComponentProps {
   required?: boolean;
 }
 
+interface FormSelectProps extends MockComponentProps {
+  onChange?: (event: Event) => void;
+  value?: string | number;
+  disabled?: boolean;
+  controlId?: string;
+}
+
 interface FormCheckProps extends MockComponentProps {
   checked?: boolean;
   label?: string;
@@ -120,6 +127,15 @@ vi.mock('react-bootstrap', () => {
       'data-testid': `${type}-input`
     });
   };
+
+  Form.Select = ({ children, onChange, value, disabled, controlId, ...props }: FormSelectProps) =>
+    h('select', {
+      ...props,
+      value,
+      onChange,
+      disabled,
+      id: controlId,
+    }, children);
 
   Form.Check = ({ checked, label, isInvalid, disabled, id, type, ...props }: FormCheckProps) => {
     return h('div', {}, [
@@ -365,6 +381,7 @@ vi.mock('react-feather', () => ({
   ChevronUp: () => h('span', { 'data-testid': 'chevron-up' }),
   Edit: () => h('span', { 'data-testid': 'edit-icon' }),
   Edit2: () => h('span', { 'data-testid': 'edit2-icon' }),
+  Clipboard: () => h('span', { 'data-testid': 'clipboard-icon' }),
   Eye: () => h('span', { 'data-testid': 'eye-icon' }),
   EyeOff: () => h('span', { 'data-testid': 'eye-off-icon' }),
   Monitor: () => h('span', { 'data-testid': 'monitor-icon' }),

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Button, Card, Container, Form, Spinner, InputGroup, Alert } from 'react-bootstrap';
 import { fetchClient, get_decrypted_secret, pub_key, secret } from '../utils';
 import { showAlert } from '../components/Alert';
@@ -9,6 +9,27 @@ import { Clipboard, Trash2 } from 'react-feather';
 import { components } from '../schema';
 import { ArgonType, hash } from 'argon2-browser';
 import sodium from 'libsodium-wrappers';
+
+type TokenRecord = {
+    token: string,
+    use_once: boolean,
+    id: string,
+    name: string,
+    createdAt: Date,
+    lastUsedAt: Date | null,
+};
+
+type SortOption = 'created-desc' | 'created-asc' | 'name-asc' | 'name-desc' | 'last-used-desc';
+
+const SORT_OPTIONS: { value: SortOption, labelKey: string }[] = [
+    { value: 'created-desc', labelKey: 'tokens.sort_created_desc' },
+    { value: 'created-asc', labelKey: 'tokens.sort_created_asc' },
+    { value: 'name-asc', labelKey: 'tokens.sort_name_asc' },
+    { value: 'name-desc', labelKey: 'tokens.sort_name_desc' },
+    { value: 'last-used-desc', labelKey: 'tokens.sort_last_used_desc' },
+];
+
+const nameCollator = new Intl.Collator(undefined, { sensitivity: 'accent', numeric: true });
 
 async function buildToken(userData: components["schemas"]["UserInfo"], tokenData: components["schemas"]["GetAuthorizationTokensResponseSchema"]["tokens"][0]) {
     // Reserve a buffer with documented size
@@ -49,18 +70,35 @@ async function buildToken(userData: components["schemas"]["UserInfo"], tokenData
 let fetchInterval: NodeJS.Timeout | null = null;
 export function Tokens() {
     const { t } = useTranslation();
-    const [tokens, setTokens] = useState<{
-        token: string,
-        use_once: boolean,
-        id: string,
-        name: string,
-        createdAt: Date,
-        lastUsedAt: Date | null,
-    }[]>([]);
+    const [tokens, setTokens] = useState<TokenRecord[]>([]);
     const [useOnce, setUseOnce] = useState(true);
     const [tokenName, setTokenName] = useState("");
     const [user, setUser] = useState<components["schemas"]["UserInfo"] | null>(null);
     const [loading, setLoading] = useState(true);
+    const [sortOption, setSortOption] = useState<SortOption>('created-desc');
+
+    const sortedTokens = useMemo(() => {
+        const copy = [...tokens];
+        copy.sort((a, b) => {
+            switch (sortOption) {
+                case 'created-asc':
+                    return a.createdAt.getTime() - b.createdAt.getTime();
+                case 'name-asc':
+                    return nameCollator.compare(a.name || '', b.name || '');
+                case 'name-desc':
+                    return nameCollator.compare(b.name || '', a.name || '');
+                case 'last-used-desc': {
+                    const lastUsedA = a.lastUsedAt ? a.lastUsedAt.getTime() : 0;
+                    const lastUsedB = b.lastUsedAt ? b.lastUsedAt.getTime() : 0;
+                    return lastUsedB - lastUsedA;
+                }
+                case 'created-desc':
+                default:
+                    return b.createdAt.getTime() - a.createdAt.getTime();
+            }
+        });
+        return copy;
+    }, [tokens, sortOption]);
 
     // Fetch tokens and user data from the server on component mount
     useEffect(() => {
@@ -89,7 +127,7 @@ export function Tokens() {
                 }
 
                 // Process and set tokens
-                const newTokens: typeof tokens = [];
+                const newTokens: TokenRecord[] = [];
                 for (const token of tokensData.tokens) {
                     const newToken = await buildToken(userData, token);
                     let tokenName = "";
@@ -159,7 +197,7 @@ export function Tokens() {
                 showAlert(t("tokens.create_token_failed"), "danger");
                 return;
             }
-            const newToken: typeof tokens[0] = {
+            const newToken: TokenRecord = {
                 token: await buildToken(user, data),
                 use_once: data.use_once,
                 id: data.id,
@@ -168,7 +206,7 @@ export function Tokens() {
                 lastUsedAt: data.last_used_at ? new Date(data.last_used_at * 1000) : null,
             };
 
-            setTokens([...tokens, newToken]);
+            setTokens((prev) => [...prev, newToken]);
             setTokenName(""); // Clear the name field after successful creation
         } catch (err) {
             console.error(err);
@@ -187,7 +225,7 @@ export function Tokens() {
                 showAlert(t("tokens.delete_token_failed"), "danger");
                 return;
             }
-            setTokens(tokens.filter(token => token.id !== tokenToDelete));
+            setTokens((prev) => prev.filter(token => token.id !== tokenToDelete));
         } catch (err) {
             console.error(err);
             showAlert(t("tokens.unexpected_error"), "danger");
@@ -254,16 +292,30 @@ export function Tokens() {
                     </Form>
                 </Card.Body>
                 <Card.Header className="border-top pb-2">
-                    <h5 className="mb-0">{t("tokens.existing_tokens")}</h5>
+                    <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                        <h5 className="mb-0">{t("tokens.existing_tokens")}</h5>
+                        <Form.Select
+                            aria-label={t("tokens.sort_label")}
+                            className="w-auto"
+                            value={sortOption}
+                            onChange={(e) => setSortOption((e.target as HTMLSelectElement).value as SortOption)}
+                        >
+                            {SORT_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {t(option.labelKey)}
+                                </option>
+                            ))}
+                        </Form.Select>
+                    </div>
                 </Card.Header>
                 <Card.Body>
-                    {tokens.map((token, index) => {
+                    {sortedTokens.map((token, index) => {
                         const isUsed = token.use_once && token.lastUsedAt !== null;
                         const statusVariant = isUsed ? "danger" : (token.use_once ? "success" : "warning");
                         const statusText = isUsed ? t("tokens.used") : (token.use_once ? t("tokens.use_once") : t("tokens.reusable"));
 
                         return (
-                            <div key={index} className={`token-item ${index !== tokens.length - 1 ? 'mb-4' : ''}`}>
+                            <div key={token.id} className={`token-item ${index !== sortedTokens.length - 1 ? 'mb-4' : ''}`}>
                                 <div className="d-flex justify-content-between align-items-start mb-2">
                                     <div>
                                         <h6 className={`mb-1 fw-bold ${isUsed ? 'text-muted' : ''}`}>{token.name}</h6>
@@ -321,7 +373,7 @@ export function Tokens() {
                                         {t("tokens.delete")}
                                     </Button>
                                 </div>
-                                {index !== tokens.length - 1 && <hr className="mt-3" />}
+                                {index !== sortedTokens.length - 1 && <hr className="mt-3" />}
                             </div>
                         );
                     })}

@@ -1,6 +1,14 @@
-import { render, screen, waitFor } from '@testing-library/preact';
+import { render, screen, waitFor, fireEvent } from '@testing-library/preact';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+
+vi.mock('argon2-browser', () => ({
+  hash: vi.fn(async () => ({ hash: new Uint8Array([1, 2, 3]) })),
+  ArgonType: { Argon2id: 2 },
+}));
+
 import { Tokens } from '../Tokens';
+import { Base64 } from 'js-base64';
+import sodium from 'libsodium-wrappers';
 
 /**
  * Tests for the Tokens component
@@ -93,5 +101,64 @@ describe('Tokens Component', () => {
     await waitFor(() => {
       expect(showAlert).toHaveBeenCalledWith('tokens.fetch_tokens_failed', 'danger');
     }, { timeout: 2000 });
+  });
+
+  it('sorts tokens using the selected option', async () => {
+    const base64 = Base64 as unknown as { toUint8Array: Mock };
+    const encoder = new TextEncoder();
+    base64.toUint8Array.mockImplementation((value: string) => encoder.encode(value));
+
+    const libsodium = sodium as unknown as { crypto_box_seal_open: Mock };
+    libsodium.crypto_box_seal_open.mockImplementation((binary: Uint8Array) => binary);
+
+    (fetchClient.GET as unknown as Mock).mockImplementation((path: string) => {
+      if (path === '/user/me') {
+        return Promise.resolve({
+          data: mockUserData,
+          error: null,
+          response: { status: 200 },
+        });
+      }
+      if (path === '/user/get_authorization_tokens') {
+        return Promise.resolve({
+          data: {
+            tokens: [
+              { token: 'token-alpha', use_once: false, id: '1', name: 'Alpha', created_at: 1_000, last_used_at: null },
+              { token: 'token-bravo', use_once: false, id: '2', name: 'Bravo', created_at: 2_000, last_used_at: 1_900 },
+              { token: 'token-charlie', use_once: false, id: '3', name: 'Charlie', created_at: 1_500, last_used_at: 1_950 },
+            ],
+          },
+          error: null,
+          response: { status: 200 },
+        });
+      }
+      return Promise.resolve({ data: null, error: 'Not found', response: { status: 404 } });
+    });
+
+    render(<Tokens />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('tokens.sort_label')).toBeTruthy();
+    });
+
+    const getTokenNames = () => screen
+      .getAllByRole('heading', { level: 6 })
+      .map((heading) => heading.textContent?.trim())
+      .filter(Boolean);
+
+    expect(getTokenNames()).toEqual(['Bravo', 'Charlie', 'Alpha']);
+
+    const select = screen.getByLabelText('tokens.sort_label');
+    fireEvent.change(select, { target: { value: 'name-asc' } });
+
+    await waitFor(() => {
+      expect(getTokenNames()).toEqual(['Alpha', 'Bravo', 'Charlie']);
+    });
+
+    fireEvent.change(select, { target: { value: 'last-used-desc' } });
+
+    await waitFor(() => {
+      expect(getTokenNames()).toEqual(['Charlie', 'Bravo', 'Alpha']);
+    });
   });
 });

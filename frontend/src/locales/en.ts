@@ -227,6 +227,12 @@ export const en = {
         "delete": "Delete",
         "single_use_description": "This token can only be used once and will automatically expire after first use",
         "multi_use_description": "This token can be used multiple times until manually deleted",
+        "sort_label": "Sort tokens",
+        "sort_created_desc": "Newest first",
+        "sort_created_asc": "Oldest first",
+        "sort_name_asc": "Name A-Z",
+        "sort_name_desc": "Name Z-A",
+        "sort_last_used_desc": "Recently used",
         firmware_needed
     },
     "wg_client": {

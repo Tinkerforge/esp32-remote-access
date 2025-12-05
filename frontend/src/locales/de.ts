@@ -227,6 +227,12 @@ export const de ={
         "delete": "Löschen",
         "single_use_description": "Dieses Token kann nur einmal verwendet werden und läuft nach der ersten Verwendung automatisch ab",
         "multi_use_description": "Dieses Token kann mehrfach verwendet werden, bis es manuell gelöscht wird",
+        "sort_label": "Token sortieren",
+        "sort_created_desc": "Neueste zuerst",
+        "sort_created_asc": "Älteste zuerst",
+        "sort_name_asc": "Name A-Z",
+        "sort_name_desc": "Name Z-A",
+        "sort_last_used_desc": "Kürzlich verwendet",
         firmware_needed
     },
     "wg_client": {
