@@ -33,9 +33,9 @@ describe('Tokens Component', () => {
 
     const originalSetInterval = globalThis.setInterval;
     const originalClearInterval = globalThis.clearInterval;
-    globalThis.setInterval = ((handler: (...args: unknown[]) => void) => {
+    globalThis.setInterval = ((() => {
       return { __fake: 'interval' } as unknown as NodeJS.Timeout;
-    }) as typeof setInterval;
+    }) as unknown) as typeof setInterval;
     globalThis.clearInterval = (() => undefined) as typeof clearInterval;
     restoreIntervalMocks = () => {
       globalThis.setInterval = originalSetInterval;
