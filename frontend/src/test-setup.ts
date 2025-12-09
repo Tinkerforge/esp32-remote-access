@@ -396,21 +396,25 @@ vi.mock('react-feather', () => ({
 }));
 
 // Mock i18next
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => {
-      if (options && typeof options === 'object') {
-        let result = key;
-        Object.keys(options).forEach(optionKey => {
-          result = result.replace(`{{${optionKey}}}`, String(options[optionKey]));
-        });
-        return result;
-      }
-      return key;
-    },
-  }),
-  Trans: ({ children }: { children?: ComponentChildren }) => h('span', {}, children),
-}));
+vi.mock('react-i18next', () => {
+  const t = (key: string, options?: Record<string, unknown>) => {
+    if (options && typeof options === 'object') {
+      let result = key;
+      Object.keys(options).forEach(optionKey => {
+        result = result.replace(`{{${optionKey}}}`, String(options[optionKey]));
+      });
+      return result;
+    }
+    return key;
+  };
+
+  return {
+    useTranslation: () => ({
+      t,
+    }),
+    Trans: ({ children }: { children?: ComponentChildren }) => h('span', {}, children),
+  };
+});
 
 // Mock libsodium-wrappers
 vi.mock('libsodium-wrappers', () => ({

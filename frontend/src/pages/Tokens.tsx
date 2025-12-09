@@ -312,6 +312,7 @@ export function Tokens() {
                                 className="w-auto"
                                 value={sortOption}
                                 onChange={(e) => setSortOption((e.target as HTMLSelectElement).value as SortOption)}
+                                aria-label={t("tokens.sort_label")} // needed for testing
                             >
                                 {SORT_OPTIONS.map((option) => (
                                     <option key={option.value} value={option.value}>
@@ -326,6 +327,7 @@ export function Tokens() {
                             placeholder={t("tokens.search_placeholder")}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
+                            aria-label={t("tokens.search_label")} //needed for testing
                         />
                     </div>
                 </Card.Header>
