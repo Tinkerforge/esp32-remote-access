@@ -414,8 +414,8 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         });
 
         if (error) {
-            const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
-            showAlert(error, "danger", t("edit_note_failed"));
+            showAlert(error, "danger", i18n.t("chargers.edit_note_failed"));
+            return;
         }
 
         const devices = this.state.devices;

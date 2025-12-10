@@ -128,6 +128,8 @@ export const de ={
         "create_grouping_failed": "Gruppe konnte nicht erstellt werden: {{error}}",
         "update_grouping_failed": "Gruppe konnte nicht aktualisiert werden: {{error}}",
         "delete_grouping_failed": "Gruppe konnte nicht gelöscht werden: {{error}}",
+        "add_device_to_grouping_failed": "Gerät konnte nicht zur Gruppe hinzugefügt werden: {{error}}",
+        "remove_device_from_grouping_failed": "Gerät konnte nicht aus der Gruppe entfernt werden: {{error}}",
         "load_groupings_failed": "Gruppen konnten nicht geladen werden: {{error}}",
         "delete_grouping_confirm": "Bist du sicher, dass du die Gruppe \"{{name}}\" löschen möchtest?",
         "all_devices": "Alle Geräte",

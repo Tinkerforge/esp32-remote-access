@@ -137,10 +137,14 @@ export function GroupingModal({
 
         // Add devices to the grouping
         for (const deviceId of deviceIds) {
-            await fetchClient.POST("/grouping/add_device", {
+            const { response, error } = await fetchClient.POST("/grouping/add_device", {
                 body: { grouping_id: groupingId, device_id: deviceId },
                 credentials: "same-origin"
             });
+            if (response.status !== 200 || error) {
+                showAlert(t("add_device_to_grouping_failed", { error: error || response.status }), "danger");
+                throw new Error("Failed to add device to grouping");
+            }
         }
     };
 
@@ -174,18 +178,26 @@ export function GroupingModal({
 
         // Add devices
         for (const deviceId of devicesToAdd) {
-            await fetchClient.POST("/grouping/add_device", {
+            const { response, error } = await fetchClient.POST("/grouping/add_device", {
                 body: { grouping_id: groupingId, device_id: deviceId },
                 credentials: "same-origin"
             });
+            if (response.status !== 200 || error) {
+                showAlert(t("add_device_to_grouping_failed", { error: error || response.status }), "danger");
+                throw new Error("Failed to add device to grouping");
+            }
         }
 
         // Remove devices
         for (const deviceId of devicesToRemove) {
-            await fetchClient.DELETE("/grouping/remove_device", {
+            const { response, error } = await fetchClient.DELETE("/grouping/remove_device", {
                 body: { grouping_id: groupingId, device_id: deviceId },
                 credentials: "same-origin"
             });
+            if (response.status !== 200 || error) {
+                showAlert(t("remove_device_from_grouping_failed", { error: error || response.status }), "danger");
+                throw new Error("Failed to remove device from grouping");
+            }
         }
     };
 

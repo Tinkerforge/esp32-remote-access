@@ -128,6 +128,8 @@ export const en = {
         "create_grouping_failed": "Failed to create group: {{error}}",
         "update_grouping_failed": "Failed to update group: {{error}}",
         "delete_grouping_failed": "Failed to delete group: {{error}}",
+        "add_device_to_grouping_failed": "Failed to add device to group: {{error}}",
+        "remove_device_from_grouping_failed": "Failed to remove device from group: {{error}}",
         "load_groupings_failed": "Failed to load groups: {{error}}",
         "delete_grouping_confirm": "Are you sure you want to delete the group \"{{name}}\"?",
         "all_devices": "All Devices",
