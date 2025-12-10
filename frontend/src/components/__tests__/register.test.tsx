@@ -414,7 +414,7 @@ describe('Register Component', () => {
 
     await waitFor(() => {
       expect(mockShowAlert).toHaveBeenCalledWith(
-        'email_already_exists',
+        'register.email_already_exists',
         'danger'
       );
     });
