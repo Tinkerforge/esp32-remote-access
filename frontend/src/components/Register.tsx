@@ -200,6 +200,9 @@ export class Register extends Component<Record<string, never>, RegisterState> {
             })
         if (response.status === 201) {
             showAlert(i18n.t("register.registration_successful"), "success", "register", i18n.t("alert_default_success"));
+        } else if (response.status === 409) {
+            showAlert(i18n.t("register.email_already_exists"), "danger");
+            return;
         } else {
             const text = `Failed with status ${response.status}: ${error}`;
             showAlert(text, "danger");

@@ -171,7 +171,7 @@ pub async fn register(
     .await
     {
         Ok(Ok(_)) => (),
-        Ok(Err(Error::UserAlreadyExists)) => return Ok(HttpResponse::Created()),
+        Ok(Err(Error::UserAlreadyExists)) => return Err(Error::UserAlreadyExists.into()),
         Ok(Err(_)) => return Err(Error::InternalError.into()),
         Err(_) => return Err(Error::InternalError.into()),
     }
@@ -493,7 +493,7 @@ pub(crate) mod tests {
             .set_json(user)
             .to_request();
         let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_success());
+        assert_eq!(resp.status().as_u16(), 409); // Conflict - user already exists
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();

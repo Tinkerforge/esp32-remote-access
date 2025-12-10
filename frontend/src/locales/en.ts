@@ -165,7 +165,8 @@ export const en = {
         "save_recovery_data_text": "Since the access data for the devices can only be decrypted with the correct password, you need this file to restore access to your devices if you forget your password. Keep this file safe and inaccessible to others, as it is equivalent to your password.",
         "save_recovery_data_confirmation": "I have downloaded and safely stored the recovery file",
         "close": "Close",
-        "registration_successful": "Registration was successful. You should receive an email with a confirmation link within the next few minutes."
+        "registration_successful": "Registration was successful. You should receive an email with a confirmation link within the next few minutes.",
+        "email_already_exists": "An account with this email address already exists."
     ,"resend_verification": "Resend verification email"
     ,"resend_success": "Verification email sent (if the address is not yet verified)."
     ,"resend_error": "Could not resend verification email. Please try again later."

@@ -389,6 +389,37 @@ describe('Register Component', () => {
     });
   });
 
+  it('handles email already exists error (409 conflict)', async () => {
+    mockUtils.fetchClient.POST.mockResolvedValue({
+      response: { status: 409 },
+      error: 'An account with this email already exists',
+    });
+
+    render(<Register />);
+
+    const nameInput = screen.getByTestId('text-input');
+    const emailInput = screen.getByTestId('email-input');
+    const passwordInputs = screen.getAllByTestId('password-input');
+    const checkboxes = screen.getAllByTestId('checkbox');
+
+    fireEvent.change(nameInput, { target: { value: 'John Doe' } });
+    fireEvent.change(emailInput, { target: { value: 'existing@example.com' } });
+    fireEvent.change(passwordInputs[0], { target: { value: 'ValidPass123!' } });
+    fireEvent.change(passwordInputs[1], { target: { value: 'ValidPass123!' } });
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(checkboxes[1]);
+
+    const submitButton = screen.getByTestId('submit-button');
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockShowAlert).toHaveBeenCalledWith(
+        'email_already_exists',
+        'danger'
+      );
+    });
+  });
+
   it('handles salt generation error', async () => {
     mockUtils.get_salt.mockRejectedValue('Salt generation failed');
 
