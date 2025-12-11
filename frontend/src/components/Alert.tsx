@@ -51,7 +51,6 @@ export async function showAlert(text: string, variant: "danger" | "success" | "w
     }
 
     alerts.value = [...alerts.value, alert];
-    window.scrollTo(0, 0);
 }
 
 export function ErrorAlert() {
