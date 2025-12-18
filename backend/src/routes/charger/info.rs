@@ -83,7 +83,7 @@ pub async fn charger_info(
         configured_port: port,
         connected,
         firmware_version,
-        mtu: mtu.unwrap_or(1392),
+        mtu: mtu.unwrap_or(1240),
     };
 
     Ok(HttpResponse::Ok().json(info))
