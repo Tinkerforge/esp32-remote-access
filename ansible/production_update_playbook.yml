@@ -45,7 +45,7 @@
       ansible.builtin.git:
         repo: https://github.com/Tinkerforge/esp32-remote-access.git
         dest: "/home/{{ ansible_user_id }}/esp32-remote-access"
-        version: v1.2.59
+        version: v1.2.60
         update: yes
         clone: yes
       register: git_checkout
