@@ -182,7 +182,9 @@ fn log_pcap_data(pcap: &Rc<RefCell<PcapNgWriter<Vec<u8>>>>, data: &[u8]) {
         options: vec![],
     };
     let now = wasm_timer::SystemTime::now();
-    let timestamp = now.duration_since(wasm_timer::SystemTime::UNIX_EPOCH).unwrap();
+
+    // wasm_timer has a bug that returns time in milliseconds
+    let timestamp = now.duration_since(wasm_timer::SystemTime::UNIX_EPOCH).unwrap() / 1000;
     let packet = pcap_file::pcapng::blocks::enhanced_packet::EnhancedPacketBlock {
         interface_id: 0,
         timestamp,
@@ -230,14 +232,10 @@ fn create_onmessage_closure(
                 return;
             }
 
-            let mut buf = vec![0u8; data.len() + 32];
+            let mut buf: Vec<u8> = vec![0u8; data.len() + 32];
             match tun.decapsulate(None, &data, &mut buf) {
                 TunnResult::Done => (),
                 TunnResult::WriteToNetwork(d) => {
-                    if pcap_logging_enabled() {
-                        let pcap_strong = message_pcap.upgrade().unwrap();
-                        log_pcap_data(&pcap_strong, d);
-                    }
                     let mut connected = connected.borrow_mut();
                     if !*connected {
                         connect_cb.call0(&JsValue::null()).ok();
@@ -257,10 +255,6 @@ fn create_onmessage_closure(
                     while let TunnResult::WriteToNetwork(d) =
                         tun.decapsulate(None, &[0u8; 0], &mut buf)
                     {
-                        if pcap_logging_enabled() {
-                            let pcap_strong = message_pcap.upgrade().unwrap();
-                            log_pcap_data(&pcap_strong, d);
-                        }
                         let _ = message_socket.send_with_u8_array(d);
                     }
                     return;
@@ -296,12 +290,6 @@ fn create_onmessage_closure(
                     return;
                 }
             }
-            if pcap_logging_enabled() {
-                let pcap_strong = message_pcap.upgrade().unwrap();
-                log_pcap_data(&pcap_strong, &buf);
-            }
-            let message_vec = message_vec.upgrade().unwrap();
-            (*message_vec.borrow_mut()).push_back(buf.to_vec());
         });
     })
 }
