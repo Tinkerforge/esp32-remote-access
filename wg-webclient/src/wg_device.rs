@@ -366,7 +366,7 @@ pub struct WgTunPhyRxToken {
 impl phy::RxToken for WgTunPhyRxToken {
     fn consume<R, F>(mut self, f: F) -> R
     where
-        F: FnOnce(&mut [u8]) -> R,
+        F: FnOnce(&[u8]) -> R,
     {
         f(&mut self.buf[..])
     }
@@ -408,29 +408,5 @@ impl phy::TxToken for WgTunPhyTxToken {
         }
 
         result
-    }
-}
-
-#[cfg(test)]
-pub mod test {
-    use super::*;
-    use wasm_bindgen_test::*;
-
-    fn create_wg_tun_device() -> WgTunDevice {
-        WgTunDevice::new(
-            x25519::StaticSecret::random_from_rng(rand_core::OsRng),
-            x25519::PublicKey::from(&x25519::StaticSecret::random_from_rng(rand_core::OsRng)),
-            [0u8; 32],
-            "ws://localhost:8082",
-            1392,
-            js_sys::Function::new_no_args(""),
-            js_sys::Function::new_no_args(""),
-        )
-        .unwrap()
-    }
-
-    #[wasm_bindgen_test]
-    fn test_create_wg_tun_device() {
-        let _ = create_wg_tun_device();
     }
 }

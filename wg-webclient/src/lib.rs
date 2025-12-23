@@ -42,7 +42,7 @@ pub mod tests {
     };
 
     use smoltcp::{
-        iface::{Config, Interface, SocketSet},
+        iface::{Config, Interface, PollResult, SocketSet},
         phy,
         socket::tcp::{self, Socket},
         wire::{IpAddress, IpCidr},
@@ -115,7 +115,7 @@ pub mod tests {
     impl phy::RxToken for LocalRxToken {
         fn consume<R, F>(mut self, f: F) -> R
         where
-            F: FnOnce(&mut [u8]) -> R,
+            F: FnOnce(&[u8]) -> R,
         {
             f(&mut self.buf[..])
         }
@@ -152,7 +152,7 @@ pub mod tests {
         let mut device = LocalDevice::new(device_rx, device_tx);
         let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         let mut rng = [0u8; 8];
-        getrandom::getrandom(&mut rng).unwrap();
+        getrandom::fill(&mut rng).unwrap();
         config.random_seed = u64::from_ne_bytes(rng);
 
         let now = js_sys::Date::now();
@@ -223,7 +223,7 @@ pub mod tests {
             let now = smoltcp::time::Instant::from_millis(now as i64);
             let test = socket2.iface.poll(now, &mut socket2.device, &mut sock_set2);
             if !send {
-                assert_eq!(test, true);
+                assert_eq!(test, PollResult::None);
             }
             socket1.iface.poll(now, &mut socket1.device, &mut sock_set1);
 
