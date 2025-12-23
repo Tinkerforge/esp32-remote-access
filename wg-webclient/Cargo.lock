@@ -86,7 +86,7 @@ dependencies = [
 [[package]]
 name = "boringtun"
 version = "0.6.0"
-source = "git+https://github.com/Tinkerforge/boringtun.git?rev=0c9d751b51f201ed42863a1271fb2f04187211aa#0c9d751b51f201ed42863a1271fb2f04187211aa"
+source = "git+https://github.com/Tinkerforge/boringtun.git?rev=9ad180755a5281041dd6035a4db06b777f69f975#9ad180755a5281041dd6035a4db06b777f69f975"
 dependencies = [
  "aead",
  "base64",
