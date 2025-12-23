@@ -1,26 +1,4 @@
 services:
-  nginx:
-    build:
-      dockerfile: nginx/Dockerfile
-    restart: always
-    depends_on:
-      backend:
-        condition: service_healthy
-      frontend-build:
-        condition: service_completed_successfully
-      certbot:
-        condition: service_completed_successfully
-    container_name: nginx
-    environment:
-      - SERVICEDOMAIN=${SERVICEDOMAIN}
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/config:/etc/nginx/templates
-      - ./nginx/certs:/usr/share/nginx/certs
-      - ../frontend/dist:/usr/share/nginx/html
-
   backend-build:
     image: rust:1-bookworm
     restart: no
@@ -44,12 +22,20 @@ services:
         condition: service_healthy
       backend-build:
         condition: service_completed_successfully
+      frontend-build:
+        condition: service_completed_successfully
+      certbot:
+        condition: service_completed_successfully
     ports:
+      - "80:80"
+      - "443:443"
       - 51820:51820/udp
     working_dir: /app
     volumes:
       - ../backend/target/release:/app
       - ../../warp-charger/firmwares/static_html:/static
+      - ../frontend/dist:/frontend:ro
+      - ./nginx/certs:/certs:ro
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
@@ -64,10 +50,13 @@ services:
       - SENDER_NAME=${SENDER_NAME}
       - BRAND=${BRAND}
       - FORWARD_HOST=${FORWARD_HOST}
+      - STATIC_FILES_DIR=/frontend
+      - TLS_CERT_PATH=/certs/live/${SERVICEDOMAIN}/fullchain.pem
+      - TLS_KEY_PATH=/certs/live/${SERVICEDOMAIN}/privkey.pem
     extra_hosts:
       - "${EXTRA_HOSTS}"
     healthcheck:
-      test: ["CMD", "curl", "backend:8081"]
+      test: ["CMD-SHELL", "curl -k https://localhost:443/api/management || curl http://localhost:8081/management"]
       interval: 20s
       timeout: 30s
       retries: 20

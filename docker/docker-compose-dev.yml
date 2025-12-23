@@ -1,15 +1,4 @@
 services:
-  nginx:
-    image: nginx:1.25
-    container_name: nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/dev-config:/etc/nginx/conf.d
-      - ./nginx/certs:/usr/share/nginx/certs
-      - ../frontend/dist:/usr/share/nginx/html
-
   postgres:
     container_name: postgres
     image: postgres:16

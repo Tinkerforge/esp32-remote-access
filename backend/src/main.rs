@@ -21,6 +21,7 @@ mod monitoring;
 
 use std::{
     collections::{HashMap, HashSet},
+    io::BufReader,
     net::UdpSocket,
     num::NonZeroUsize,
     sync::Arc,
@@ -28,15 +29,21 @@ use std::{
 };
 
 use actix::Arbiter;
+use actix_files::{Files, NamedFile};
+use actix_web::{
+    dev::{fn_service, ServiceRequest, ServiceResponse},
+    middleware::Logger,
+    web, App, HttpServer,
+};
 pub use backend::*;
 use backend::{rate_limit::IPRateLimiter, utils::get_connection};
 
-use actix_web::{middleware::Logger, web, App, HttpServer};
 use db_connector::{get_connection_pool, run_migrations};
 use futures_util::lock::Mutex;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use lru::LruCache;
 use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
+use rustls::ServerConfig;
 use simplelog::{
     ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode,
 };
@@ -91,6 +98,26 @@ async fn resend_thread(bridge_state: web::Data<BridgeState>) {
             }
         }
     }
+}
+
+fn load_rustls_config() -> Option<ServerConfig> {
+    let cert_path = std::env::var("TLS_CERT_PATH").ok()?;
+    let key_path = std::env::var("TLS_KEY_PATH").ok()?;
+
+    let cert_file = &mut BufReader::new(std::fs::File::open(&cert_path).ok()?);
+    let key_file = &mut BufReader::new(std::fs::File::open(&key_path).ok()?);
+
+    let cert_chain: Vec<_> = rustls_pemfile::certs(cert_file)
+        .filter_map(|c| c.ok())
+        .collect();
+    let key = rustls_pemfile::private_key(key_file).ok()??;
+
+    let config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, key)
+        .ok()?;
+
+    Some(config)
 }
 
 #[actix_web::main]
@@ -186,8 +213,11 @@ async fn main() -> std::io::Result<()> {
     let charger_ratelimiter = web::Data::new(ChargerRateLimiter::new());
     let general_ratelimiter = web::Data::new(IPRateLimiter::new());
 
-    HttpServer::new(move || {
+    let static_files_dir = std::env::var("STATIC_FILES_DIR").unwrap();
+
+    let server = HttpServer::new(move || {
         let cors = actix_cors::Cors::permissive();
+        let static_dir = static_files_dir.clone();
         App::new()
             .wrap(cors)
             .wrap(Logger::default())
@@ -197,9 +227,38 @@ async fn main() -> std::io::Result<()> {
             .app_data(charger_ratelimiter.clone())
             .app_data(general_ratelimiter.clone())
             .app_data(bridge_state.clone())
-            .configure(routes::configure)
-    })
-    .bind("0.0.0.0:8081")?
-    .run()
-    .await
+            .service(web::scope("/api").configure(routes::configure))
+            .service(
+                Files::new("/", &static_dir)
+                    .index_file("index.html")
+                    .default_handler(fn_service(move |req: ServiceRequest| {
+                        let static_dir = static_dir.clone();
+                        async move {
+                            let (req, _) = req.into_parts();
+                            let index_path = format!("{}/index.html", static_dir);
+                            let file = NamedFile::open(&index_path)?.set_content_disposition(
+                                actix_web::http::header::ContentDisposition {
+                                    disposition: actix_web::http::header::DispositionType::Inline,
+                                    parameters: vec![],
+                                },
+                            );
+                            let res = file.into_response(&req);
+                            Ok(ServiceResponse::new(req, res))
+                        }
+                    })),
+            )
+    });
+
+    #[cfg(debug_assertions)]
+    let port = "8081";
+    #[cfg(not(debug_assertions))]
+    let port = "443";
+
+    let addr = format!("0.0.0.0:{port}");
+
+    // crash in case of TLS loading error
+    let tls_config = load_rustls_config().unwrap();
+    server.bind_rustls_0_23(&addr, tls_config)?.run().await?;
+
+    Ok(())
 }
