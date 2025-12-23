@@ -119,7 +119,7 @@ export function App() {
                 }
             })();
         }, []);
-    } else {
+    } else if (window.navigator.userAgent.indexOf("Firefox") === -1) {
         useEffect(() => {
             (async () => {
                 const storageManager: StorageManager | undefined = (navigator as unknown as { storage?: StorageManager }).storage;
