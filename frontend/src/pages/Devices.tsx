@@ -195,7 +195,9 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
 
         if (response.status === 200) {
             const devices = this.state.devices.filter((c) => c.id !== device.id);
-            this.setState({ devices });
+            this.setState({ devices }, () => {
+                this.applyFilters();
+            });
         } else {
             showAlert(t("remove_error_text", { charger_id: Base58.int_to_base58(device.uid), status: response.status, text: error }), "danger");
         }

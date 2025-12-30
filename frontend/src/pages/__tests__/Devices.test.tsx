@@ -242,6 +242,110 @@ describe('Devices.tsx - DeviceList', () => {
     expect(getRef(ref).state.devices.map(d => d.id)).toEqual(['y']);
   });
 
+  it('handleDeleteConfirm updates filteredDevices when search filter is active', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const ref = createRef<DeviceList>();
+    // @ts-expect-error - ref is valid but types dont allow it
+    render(<DeviceList ref={ref} />);
+    initSpy.mockRestore();
+    loadGroupingsSpy.mockRestore();
+
+    const devices = [
+      { id: 'test-1', uid: 10, name: 'TestDevice1', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+      { id: 'test-2', uid: 11, name: 'TestDevice2', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+      { id: 'prod-1', uid: 12, name: 'ProductionDevice', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+    ];
+
+    // Set up state with a search filter active - only "Test" devices should be in filteredDevices
+    getRef(ref).setState({
+      devices,
+      sortColumn: 'none',
+      sortSequence: 'asc',
+      showDeleteModal: false,
+      showEditNoteModal: false,
+      editNote: '',
+      editChargerIdx: 0,
+      searchTerm: 'Test',
+      filteredDevices: [devices[0], devices[1]], // Only TestDevice1 and TestDevice2
+      groupings: [],
+      selectedGroupingId: null,
+      groupingSearchTerm: '',
+      isLoading: false
+    });
+
+    await waitFor(() => expect(getRef(ref).state.devices.length).toBe(3));
+    await waitFor(() => expect(getRef(ref).state.filteredDevices.length).toBe(2));
+
+    // Delete TestDevice1
+    getRef(ref).handleDelete(devices[0]);
+    await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(true));
+
+    (fetchClient.DELETE as unknown as Mock).mockResolvedValue({ response: { status: 200 } });
+    await getRef(ref).handleDeleteConfirm();
+
+    // Verify the device is removed from both devices and filteredDevices
+    await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(false));
+    expect(getRef(ref).state.devices.map(d => d.id)).toEqual(['test-2', 'prod-1']);
+    expect(getRef(ref).state.filteredDevices.map(d => d.id)).toEqual(['test-2']);
+  });
+
+  it('handleDeleteConfirm updates filteredDevices when grouping filter is active', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const ref = createRef<DeviceList>();
+    // @ts-expect-error - ref is valid but types dont allow it
+    render(<DeviceList ref={ref} />);
+    initSpy.mockRestore();
+    loadGroupingsSpy.mockRestore();
+
+    const devices = [
+      { id: 'dev-1', uid: 10, name: 'Device1', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+      { id: 'dev-2', uid: 11, name: 'Device2', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+      { id: 'dev-3', uid: 12, name: 'Device3', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+    ];
+
+    const groupings = [
+      { id: 'group-1', name: 'Group1', device_ids: ['dev-1', 'dev-2'] },
+    ];
+
+    // Set up state with a grouping filter active
+    getRef(ref).setState({
+      devices,
+      sortColumn: 'none',
+      sortSequence: 'asc',
+      showDeleteModal: false,
+      showEditNoteModal: false,
+      editNote: '',
+      editChargerIdx: 0,
+      searchTerm: '',
+      filteredDevices: [devices[0], devices[1]], // Only devices in group-1
+      groupings,
+      selectedGroupingId: 'group-1',
+      groupingSearchTerm: '',
+      isLoading: false
+    });
+
+    await waitFor(() => expect(getRef(ref).state.devices.length).toBe(3));
+    await waitFor(() => expect(getRef(ref).state.filteredDevices.length).toBe(2));
+
+    // Delete Device1 from the group
+    getRef(ref).handleDelete(devices[0]);
+    await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(true));
+
+    (fetchClient.DELETE as unknown as Mock).mockResolvedValue({ response: { status: 200 } });
+    await getRef(ref).handleDeleteConfirm();
+
+    // Verify the device is removed from both devices and filteredDevices
+    await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(false));
+    expect(getRef(ref).state.devices.map(d => d.id)).toEqual(['dev-2', 'dev-3']);
+    expect(getRef(ref).state.filteredDevices.map(d => d.id)).toEqual(['dev-2']);
+  });
+
   it('handleEditNote flows: submit updates note and cancel resets', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
