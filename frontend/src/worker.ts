@@ -23,7 +23,7 @@ import sodium from "libsodium-wrappers";
 
 declare const self: DedicatedWorkerGlobalScope;
 
-const tunnel_url = `${import.meta.env.VITE_BACKEND_WS_URL  }/ws?key_id=`
+const tunnel_url = `/api/ws?key_id=`
 let wgClient: Client | undefined;
 let setup_data: SetupMessage;
 
@@ -195,7 +195,7 @@ function connect_cb() {
 
 async function start_connection(setup_data: SetupMessage) {
     let keys: ChargerKeys;
-    const url = `${import.meta.env.VITE_BACKEND_URL  }/charger/get_key?cid=${  setup_data.chargerID}`;
+    const url = `/api/charger/get_key?cid=${  setup_data.chargerID}`;
     try {
         const resp = await fetch(url, {credentials: "same-origin"});
         if (resp.status === 404) {

@@ -67,8 +67,8 @@ export enum AppState {
 
 export const loggedIn = signal(AppState.Loading);
 
-export const BACKEND = import.meta.env.VITE_BACKEND_URL;
-export const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL;
+export const BACKEND = "/api";
+export const FRONTEND_URL = location.origin;
 
 let auth_already_failed = false;
 export const fetchClient = createClient<paths>({baseUrl: BACKEND});
