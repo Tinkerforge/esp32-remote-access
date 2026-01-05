@@ -15,15 +15,15 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    environment: container_build
+
     strategy:
       matrix:
         include:
           - brand: ""
             brand_suffix: ""
-            environment: container_build
           - brand: "seb"
             brand_suffix: "-seb"
-            environment: container_build
 
     steps:
       - name: Checkout code
