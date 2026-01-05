@@ -32,7 +32,7 @@ use actix::Arbiter;
 use actix_files::{Files, NamedFile};
 use actix_web::{
     dev::{fn_service, ServiceRequest, ServiceResponse},
-    middleware::Logger,
+    middleware::{Compress, Logger},
     web, App, HttpServer,
 };
 pub use backend::*;
@@ -220,6 +220,7 @@ async fn main() -> std::io::Result<()> {
         let static_dir = static_files_dir.clone();
         App::new()
             .wrap(cors)
+            .wrap(Compress::default())
             .wrap(Logger::default())
             .app_data(cache.clone())
             .app_data(state.clone())
