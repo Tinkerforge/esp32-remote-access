@@ -12,7 +12,7 @@ services:
       - 51820:51820/udp
     volumes:
       - ./warp-charger/firmwares/static_html:/static
-      - ./nginx/certs:/certs:ro
+      - ./certs:/certs:ro
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
