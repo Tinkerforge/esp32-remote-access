@@ -10,7 +10,7 @@ permissions:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: tinkerforge/esp32-remote-access
 
 jobs:
   build-and-push:
@@ -20,8 +20,10 @@ jobs:
         include:
           - brand: ""
             brand_suffix: ""
+            environment: container_build
           - brand: "seb"
             brand_suffix: "-seb"
+            environment: container_build
 
     steps:
       - name: Checkout code
