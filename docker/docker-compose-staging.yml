@@ -1,0 +1,129 @@
+services:
+  backend-build:
+    image: rust:1-bookworm
+    restart: no
+    container_name: backend-build
+    command: cargo build --release
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    volumes:
+      - ../backend:/app
+      - ../db_connector:/db_connector
+
+  backend:
+    restart: always
+    container_name: backend
+    command: bash -c "ulimit -n 10000 && exec ./backend"
+    build:
+      dockerfile: backend/Dockerfile
+    user: "${UID:-1000}:${GID:-1000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend-build:
+        condition: service_completed_successfully
+      frontend-build:
+        condition: service_completed_successfully
+      certbot:
+        condition: service_completed_successfully
+    ports:
+      - "80:80"
+      - "443:443"
+      - 51820:51820/udp
+    working_dir: /app
+    volumes:
+      - ../backend/target/release:/app
+      - ../../warp-charger/firmwares/static_html:/static
+      - ../frontend/dist:/frontend:ro
+      - ./nginx/certs:/certs:ro
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - EMAIL_RELAY=${EMAIL_RELAY}
+      - EMAIL_RELAY_PORT=${EMAIL_RELAY_PORT}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - SERVER_NAME=${SERVER_NAME}
+      - MONITORING_EMAIL=${MONITORING_EMAIL}
+      - SENDER_EMAIL=${SENDER_EMAIL}
+      - SENDER_NAME=${SENDER_NAME}
+      - BRAND=${BRAND}
+      - FORWARD_HOST=${FORWARD_HOST}
+      - STATIC_FILES_DIR=/frontend
+      - TLS_CERT_PATH=/certs/live/${SERVICEDOMAIN}/fullchain.pem
+      - TLS_KEY_PATH=/certs/live/${SERVICEDOMAIN}/privkey.pem
+    extra_hosts:
+      - "${EXTRA_HOSTS}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k https://localhost:443/api/management || curl http://localhost:8081/management"]
+      interval: 20s
+      timeout: 30s
+      retries: 20
+      start_period: 5s
+
+  wg-webclient-builder:
+    container_name: wg-webclient-builder
+    restart: no
+    build:
+      dockerfile: wg-webclient-builder/Dockerfile
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      - ../wg-webclient:/build
+
+  frontend-build:
+    build:
+      dockerfile: frontend-build/Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+    restart: no
+    command:
+      - /bin/sh
+      - -c
+      - |
+        npm ci
+        npm run build
+    depends_on:
+      wg-webclient-builder:
+        condition: service_completed_successfully
+    working_dir: /build
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - BRAND=${BRAND}
+    volumes:
+      - ../frontend:/build
+      - ../wg-webclient:/wg-webclient
+
+  postgres:
+    container_name: postgres
+    restart: always
+    image: postgres:16
+    environment:
+      - POSTGRES_PASSWORD=${PG_PASS}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}'"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data
+
+  adminer:
+    restart: always
+    image: adminer
+    ports:
+      - "${ADMINER_IP}:8080:8080"
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    ports:
+      - 80:80
+    restart: no
+    volumes:
+      - ./nginx/certs:/etc/letsencrypt
+      - ./certbot-www:/var/www/certbot
+    entrypoint: certbot certonly -n --standalone --agree-tos --email ${EMAIL} -d ${SERVICEDOMAIN}

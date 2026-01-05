@@ -1,40 +1,17 @@
 services:
-  backend-build:
-    image: rust:1-bookworm
-    restart: no
-    container_name: backend-build
-    command: cargo build --release
-    user: "${UID:-1000}:${GID:-1000}"
-    working_dir: /app
-    volumes:
-      - ../backend:/app
-      - ../db_connector:/db_connector
-
   backend:
+    image: tinkerforge/remote_access:latest-seb
     restart: always
     container_name: backend
-    command: bash -c "ulimit -n 10000 && exec ./backend"
-    build:
-      dockerfile: backend/Dockerfile
     user: "${UID:-1000}:${GID:-1000}"
     depends_on:
       postgres:
         condition: service_healthy
-      backend-build:
-        condition: service_completed_successfully
-      frontend-build:
-        condition: service_completed_successfully
-      certbot:
-        condition: service_completed_successfully
     ports:
-      - "80:80"
       - "443:443"
       - 51820:51820/udp
-    working_dir: /app
     volumes:
-      - ../backend/target/release:/app
-      - ../../warp-charger/firmwares/static_html:/static
-      - ../frontend/dist:/frontend:ro
+      - ./warp-charger/firmwares/static_html:/static
       - ./nginx/certs:/certs:ro
     environment:
       - DATABASE_URL=${DATABASE_URL}
@@ -50,9 +27,8 @@ services:
       - SENDER_NAME=${SENDER_NAME}
       - BRAND=${BRAND}
       - FORWARD_HOST=${FORWARD_HOST}
-      - STATIC_FILES_DIR=/frontend
-      - TLS_CERT_PATH=/certs/live/${SERVICEDOMAIN}/fullchain.pem
-      - TLS_KEY_PATH=/certs/live/${SERVICEDOMAIN}/privkey.pem
+      - TLS_CERT_PATH=${TLS_CERT_PATH}
+      - TLS_KEY_PATH=${TLS_KEY_PATH}
     extra_hosts:
       - "${EXTRA_HOSTS}"
     healthcheck:
@@ -62,38 +38,6 @@ services:
       retries: 20
       start_period: 5s
 
-  wg-webclient-builder:
-    container_name: wg-webclient-builder
-    restart: no
-    build:
-      dockerfile: wg-webclient-builder/Dockerfile
-    user: "${UID:-1000}:${GID:-1000}"
-    volumes:
-      - ../wg-webclient:/build
-
-  frontend-build:
-    build:
-      dockerfile: frontend-build/Dockerfile
-      args:
-        USER_ID: ${USER_ID:-1000}
-        GROUP_ID: ${GROUP_ID:-1000}
-    restart: no
-    command:
-      - /bin/sh
-      - -c
-      - |
-        npm ci
-        npm run build
-    depends_on:
-      wg-webclient-builder:
-        condition: service_completed_successfully
-    working_dir: /build
-    user: "${UID:-1000}:${GID:-1000}"
-    environment:
-      - BRAND=${BRAND}
-    volumes:
-      - ../frontend:/build
-      - ../wg-webclient:/wg-webclient
 
   postgres:
     container_name: postgres
@@ -116,14 +60,3 @@ services:
     image: adminer
     ports:
       - "${ADMINER_IP}:8080:8080"
-
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    ports:
-      - 80:80
-    restart: no
-    volumes:
-      - ./nginx/certs:/etc/letsencrypt
-      - ./certbot-www:/var/www/certbot
-    entrypoint: certbot certonly -n --standalone --agree-tos --email ${EMAIL} -d ${SERVICEDOMAIN}
