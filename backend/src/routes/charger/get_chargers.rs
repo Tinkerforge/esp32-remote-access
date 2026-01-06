@@ -113,6 +113,7 @@ pub async fn get_chargers(
 
     log::info!("Mapping chargers to response schema");
     let charger_map = bridge_state.charger_management_map_with_id.lock().await;
+    log::info!("Aqquired charger management map lock");
     let charger = charger
         .into_iter()
         .map(|(c, allowed_user)| {
