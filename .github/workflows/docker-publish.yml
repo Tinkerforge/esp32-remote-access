@@ -53,5 +53,3 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }}${{ matrix.brand_suffix }}
             ${{ env.IMAGE_NAME }}:latest${{ matrix.brand_suffix }}
-          cache-from: type=gha,scope=build-${{ matrix.brand }}
-          cache-to: type=gha,mode=max,scope=build-${{ matrix.brand }}
