@@ -80,7 +80,10 @@ pub async fn get_chargers(
         {
             Ok(d) => d,
             Err(NotFound) => Vec::new(),
-            Err(_err) => return Err(Error::InternalError),
+            Err(err) => {
+                log::error!("Failed to load allowed users: {err}");
+                return Err(Error::InternalError);
+            }
         };
         let charger_ids = AllowedUser::belonging_to(&user).select(allowed_users::charger_id);
         let chargers: Vec<Charger> = match chargers::chargers
@@ -89,7 +92,10 @@ pub async fn get_chargers(
             .load(&mut conn)
         {
             Ok(v) => v,
-            Err(_err) => return Err(Error::InternalError),
+            Err(err) => {
+                log::error!("Failed to load chargers: {err}");
+                return Err(Error::InternalError);
+            }
         };
 
         let chargers_by_users: Vec<(Charger, AllowedUser)> = allowed_users

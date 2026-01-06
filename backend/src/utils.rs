@@ -41,7 +41,10 @@ pub fn get_connection(
 ) -> actix_web::Result<PooledConnection<ConnectionManager<PgConnection>>> {
     match state.pool.get() {
         Ok(conn) => Ok(conn),
-        Err(_err) => Err(Error::InternalError.into()),
+        Err(err) => {
+            log::error!("Failed to get database connection: {err}");
+            Err(Error::InternalError.into())
+        }
     }
 }
 
