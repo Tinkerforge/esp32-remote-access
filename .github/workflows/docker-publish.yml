@@ -20,8 +20,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - brand: ""
-            brand_suffix: ""
+          - brand: "warp"
+            brand_suffix: "-warp"
           - brand: "seb"
             brand_suffix: "-seb"
 
