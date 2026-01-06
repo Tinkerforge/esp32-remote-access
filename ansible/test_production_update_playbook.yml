@@ -1,5 +1,5 @@
 - name: Change production version
-  hosts: production
+  hosts: staging
   vars_prompt:
     - name: target_version
       prompt: "Enter the version/tag to update to"
