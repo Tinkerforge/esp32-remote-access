@@ -70,8 +70,10 @@ pub async fn get_chargers(
     use db_connector::schema::allowed_users::dsl as allowed_users;
     use db_connector::schema::chargers::dsl as chargers;
 
+    log::info!("Getting chargers for user ID {:?}", uid);
     let user = get_user(&state, uid.into()).await?;
 
+    log::info!("Fetching chargers from database");
     let mut conn = get_connection(&state)?;
     let charger: Vec<(Charger, AllowedUser)> = web_block_unpacked(move || {
         let allowed_users: Vec<AllowedUser> = match AllowedUser::belonging_to(&user)
@@ -109,6 +111,7 @@ pub async fn get_chargers(
     })
     .await?;
 
+    log::info!("Mapping chargers to response schema");
     let charger_map = bridge_state.charger_management_map_with_id.lock().await;
     let charger = charger
         .into_iter()
