@@ -1,6 +1,6 @@
 services:
   backend:
-    image: tinkerforge/esp32-remote-access:latest-seb
+    image: tinkerforge/esp32-remote-access:${IMAGE_TAG:-latest}
     restart: always
     container_name: backend
     user: "${UID:-1000}:${GID:-1000}"
