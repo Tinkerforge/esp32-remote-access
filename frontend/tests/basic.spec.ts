@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { login, mailiskClient, mailiskNameSpace, needCustomCert, testDomain, testPassword1, testPassword2, testUser1Email, testUser2, testUser2Email, testUserName1, testUserName2, testWallboxDomain, testWallboxUID } from './common';
+import { login, mailiskClient, mailiskNameSpace, needCustomCert, testDomain, testDomainForCharger, testPassword1, testPassword2, testUser1Email, testUser2, testUser2Email, testUserName1, testUserName2, testWallboxDomain, testWallboxUID } from './common';
 
 test('has title', async ({ page }) => {
   await page.goto(testDomain);
@@ -118,7 +118,7 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
   await page.getByRole('button', { name: 'Show' }).click();
-  await page.getByRole('textbox', { name: 'Relay server hostname or IP' }).fill(testDomain.substring(8));
+  await page.getByRole('textbox', { name: 'Relay server hostname or IP' }).fill(testDomainForCharger);
   if (needCustomCert) {
     await page.getByLabel('TLS certificate', { exact: true }).selectOption('0');
   } else {

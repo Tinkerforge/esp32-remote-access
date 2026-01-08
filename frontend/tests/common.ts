@@ -6,6 +6,8 @@ function getOptionalEnvVar(name: string, defaultValue: string = ""): string {
 }
 
 export const testDomain = getOptionalEnvVar('TEST_DOMAIN', 'http://localhost:3000');
+export const testPort = getOptionalEnvVar('TEST_PORT', '');
+export const testDomainForCharger = testDomain.replace(/^https?:\/\//, '').replace(testPort, '');
 export const testUserName1 = getOptionalEnvVar('TEST_USER_NAME1', getOptionalEnvVar('TEST_USER', 'testuser1'));
 export const testUserName2 = getOptionalEnvVar('TEST_USER_NAME2', 'testuser2');
 export const testPassword1 = getOptionalEnvVar('TEST_PASSWORD1', getOptionalEnvVar('TEST_PASSWORD', 'testpass1'));
