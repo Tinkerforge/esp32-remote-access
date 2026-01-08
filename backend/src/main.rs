@@ -179,6 +179,7 @@ async fn main() -> std::io::Result<()> {
         sender_name,
         brand,
         keys_in_use: Mutex::new(HashSet::new()),
+        hasher: backend::hasher::HasherManager::default(),
     });
 
     monitoring::start_monitoring(state.clone());

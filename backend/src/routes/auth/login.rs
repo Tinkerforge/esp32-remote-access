@@ -19,7 +19,7 @@
 
 use actix_web::{cookie::Cookie, post, web, HttpRequest, HttpResponse, Responder};
 use actix_web_validator::Json;
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use argon2::password_hash::PasswordHashString;
 use chrono::{Days, TimeDelta, Utc};
 use db_connector::models::{refresh_tokens::RefreshToken, users::User};
 use diesel::{
@@ -59,6 +59,7 @@ pub async fn validate_password(
     pass: &[u8],
     identifier: FindBy,
     mut conn: PooledConnection<ConnectionManager<PgConnection>>,
+    hasher: &crate::hasher::HasherManager,
 ) -> Result<uuid::Uuid, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
@@ -88,12 +89,12 @@ pub async fn validate_password(
         return Err(Error::NotVerified.into());
     }
 
-    let password_hash = match PasswordHash::new(&user.login_key) {
+    let password_hash = match PasswordHashString::new(&user.login_key) {
         Ok(hash) => hash,
         Err(_err) => return Err(Error::InternalError.into()),
     };
 
-    match Argon2::default().verify_password(pass, &password_hash) {
+    match hasher.verify_password(password_hash, pass.to_vec()).await {
         Ok(_) => Ok(user.id),
         Err(_err) => Err(Error::WrongCredentials.into()),
     }
@@ -124,7 +125,8 @@ pub async fn login(
     let email = data.email.to_lowercase();
     rate_limiter.check(email.clone(), &req)?;
 
-    let uuid = validate_password(&data.login_key, FindBy::Email(email), conn).await?;
+    let uuid =
+        validate_password(&data.login_key, FindBy::Email(email), conn, &state.hasher).await?;
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
@@ -244,6 +246,7 @@ pub(crate) mod tests {
     };
 
     pub async fn login_user(email: &str, login_key: Vec<u8>) -> (String, String) {
+        println!("Logging in user: {}", email);
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
 

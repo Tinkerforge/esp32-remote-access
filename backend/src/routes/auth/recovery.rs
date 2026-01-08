@@ -118,14 +118,14 @@ pub async fn recovery(
         invalidate_chargers(&state, user_id).await?;
     }
 
+    let new_hash = match hash_key(data.new_login_key.clone(), &state.hasher).await {
+        Ok(hash) => hash,
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
+
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         use db_connector::schema::users::dsl::*;
-
-        let new_hash = match hash_key(&data.new_login_key) {
-            Ok(hash) => hash,
-            Err(_err) => return Err(Error::InternalError),
-        };
 
         match diesel::update(users.find(user_id))
             .set((

@@ -44,6 +44,7 @@ use udp_server::{
 
 pub mod branding;
 pub mod error;
+pub mod hasher;
 pub mod middleware;
 pub mod models;
 pub mod rate_limit;
@@ -93,6 +94,7 @@ pub struct AppState {
     pub sender_name: String,
     pub brand: crate::branding::Brand,
     pub keys_in_use: Mutex<HashSet<uuid::Uuid>>,
+    pub hasher: crate::hasher::HasherManager,
 }
 
 pub fn clean_recovery_tokens(
@@ -306,6 +308,7 @@ pub(crate) mod tests {
             sender_name: String::new(),
             brand: crate::branding::Brand::default(),
             keys_in_use: Mutex::new(HashSet::new()),
+            hasher: crate::hasher::HasherManager::default(),
         };
 
         web::Data::new(state)

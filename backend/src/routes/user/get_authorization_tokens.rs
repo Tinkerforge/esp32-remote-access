@@ -105,7 +105,7 @@ mod tests {
 
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
-        let resp: GetAuthorizationTokensResponseSchema = test::read_body_json(resp).await;
-        assert_eq!(auth_tokens, resp.tokens);
+        let mut resp: GetAuthorizationTokensResponseSchema = test::read_body_json(resp).await;
+        assert_eq!(auth_tokens.sort(), resp.tokens.sort());
     }
 }

@@ -70,9 +70,15 @@ pub async fn update_password(
     use db_connector::schema::users::dsl::*;
 
     let conn = get_connection(&state)?;
-    let _ = validate_password(&data.old_login_key, FindBy::Uuid(uid.clone().into()), conn).await?;
+    let _ = validate_password(
+        &data.old_login_key,
+        FindBy::Uuid(uid.clone().into()),
+        conn,
+        &state.hasher,
+    )
+    .await?;
 
-    let new_hash = match hash_key(&data.new_login_key) {
+    let new_hash = match hash_key(data.new_login_key.clone(), &state.hasher).await {
         Ok(hash) => hash,
         Err(_err) => return Err(Error::InternalError.into()),
     };
@@ -234,8 +240,11 @@ mod tests {
 
         let pool = db_connector::test_connection_pool();
         let conn = pool.get().unwrap();
-        assert!(validate_password(&new_key, FindBy::Email(mail), conn)
-            .await
-            .is_err());
+        let hasher = crate::hasher::HasherManager::default();
+        assert!(
+            validate_password(&new_key, FindBy::Email(mail), conn, &hasher)
+                .await
+                .is_err()
+        );
     }
 }

@@ -313,7 +313,7 @@ pub async fn management(
 
                 charger_id = parse_uuid(&data.id)?;
                 let charger = get_charger_from_db(charger_id, &state).await?;
-                if !password_matches(&data.password, &charger.password)? {
+                if !password_matches(&data.password, &charger.password, &state.hasher).await? {
                     return Err(Error::ChargerCredentialsWrong.into());
                 }
                 charger

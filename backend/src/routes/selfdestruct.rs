@@ -31,7 +31,7 @@ async fn get_charger(
         rate_limiter.check(uuid.clone(), req)?;
         let charger_id = parse_uuid(&uuid)?;
         let charger = get_charger_from_db(charger_id, state).await?;
-        if !password_matches(&schema.password, &charger.password)? {
+        if !password_matches(&schema.password, &charger.password, &state.hasher).await? {
             return Err(Error::ChargerCredentialsWrong.into());
         }
         Ok(charger)

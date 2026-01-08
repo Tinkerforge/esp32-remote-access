@@ -101,18 +101,14 @@ pub async fn get_charger_by_uid(
             .load(&mut conn)
         {
             Ok(c) => Ok(c),
-            Err(NotFound) => {
-                println!("C");
-                Err(Error::ChargerCredentialsWrong)
-            }
+            Err(NotFound) => Err(Error::ChargerCredentialsWrong),
             Err(_err) => Err(Error::InternalError),
         }
     })
     .await?;
 
     for c in chargers.into_iter() {
-        println!("D");
-        if password_matches(&password, &c.password)? {
+        if password_matches(&password, &c.password, &state.hasher).await? {
             return Ok(c);
         }
     }

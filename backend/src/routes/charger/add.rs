@@ -18,7 +18,7 @@
  */
 
 use actix_web::{put, web, HttpResponse, Responder};
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use argon2::password_hash::PasswordHashString;
 use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
 use diesel::prelude::*;
@@ -201,12 +201,18 @@ pub async fn register_charger(
     Ok(resp)
 }
 
-pub fn password_matches(password: &str, password_in_db: &str) -> actix_web::Result<bool> {
-    let password_hash = match PasswordHash::new(password_in_db) {
+pub async fn password_matches(
+    password: &str,
+    password_in_db: &str,
+    hasher: &crate::hasher::HasherManager,
+) -> actix_web::Result<bool> {
+    let password_hash = match PasswordHashString::new(password_in_db) {
         Ok(p) => p,
         Err(_err) => return Err(Error::InternalError.into()),
     };
-    let result = Argon2::default().verify_password(password.as_bytes(), &password_hash);
+    let result = hasher
+        .verify_password(password_hash, password.as_bytes().to_vec())
+        .await;
 
     Ok(result.is_ok())
 }
@@ -233,7 +239,7 @@ async fn update_charger(
     })
     .await?;
 
-    let (password, hash) = generate_password().await?;
+    let (password, hash) = generate_password(&state.hasher).await?;
 
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
@@ -292,19 +298,19 @@ async fn update_charger(
     Ok((pub_key, password))
 }
 
-async fn generate_password() -> actix_web::Result<(String, String)> {
+async fn generate_password(
+    hasher: &crate::hasher::HasherManager,
+) -> actix_web::Result<(String, String)> {
     let password: String = rand::rng()
         .sample_iter(&Alphanumeric)
         .take(32)
         .map(char::from)
         .collect();
 
-    let cpy = password.clone();
-    let hash = web_block_unpacked(move || match hash_key(cpy.as_bytes()) {
-        Ok(h) => Ok(h),
-        Err(_err) => Err(Error::InternalError),
-    })
-    .await?;
+    let hash = match hash_key(password.clone().into(), hasher).await {
+        Ok(h) => h,
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
     Ok((password, hash))
 }
@@ -319,7 +325,7 @@ pub async fn add_charger(
     use db_connector::schema::allowed_users::dsl as allowed_users;
     use db_connector::schema::chargers::dsl as chargers;
 
-    let (password, hash) = generate_password().await?;
+    let (password, hash) = generate_password(&state.hasher).await?;
 
     let mut conn = get_connection(state)?;
     let ret = web_block_unpacked(move || {

@@ -19,10 +19,7 @@
 
 use actix_web::{post, web, HttpResponse, Responder};
 use actix_web_validator::Json;
-use argon2::{
-    password_hash::{rand_core::OsRng, SaltString},
-    Argon2, PasswordHasher,
-};
+use argon2::password_hash::{rand_core::OsRng, SaltString};
 use askama::Template;
 use chrono::Days;
 use db_connector::models::{users::User, verification::Verification};
@@ -73,9 +70,12 @@ pub struct RegisterSchema {
     pub secret_salt: Vec<u8>,
 }
 
-pub fn hash_key(key: &[u8]) -> Result<String, String> {
+pub async fn hash_key(
+    key: Vec<u8>,
+    hasher: &crate::hasher::HasherManager,
+) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
-    let hashed_password = match Argon2::default().hash_password(key, &salt) {
+    let hashed_password = match hasher.hash_password(key, salt).await {
         Ok(hash) => hash.to_string(),
         Err(err) => return Err(err.to_string()),
     };
@@ -176,7 +176,7 @@ pub async fn register(
         Err(_) => return Err(Error::InternalError.into()),
     }
 
-    let key_hash = match hash_key(&data.login_key) {
+    let key_hash = match hash_key(data.login_key.clone(), &state.hasher).await {
         Ok(hash) => hash,
         Err(_) => return Err(Error::InternalError.into()),
     };

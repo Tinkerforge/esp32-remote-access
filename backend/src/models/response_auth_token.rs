@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, Ord, PartialOrd, Eq)]
 pub struct ResponseAuthorizationToken {
     pub id: String,
     pub token: String,

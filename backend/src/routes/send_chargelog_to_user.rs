@@ -142,7 +142,7 @@ pub async fn send_chargelog(
 
     let charger_id = parse_uuid(&metadata.charger_uuid)?;
     let charger = get_charger_from_db(charger_id, &state).await?;
-    if !password_matches(&metadata.password, &charger.password)? {
+    if !password_matches(&metadata.password, &charger.password, &state.hasher).await? {
         return Err(Error::ChargerCredentialsWrong.into());
     }
 

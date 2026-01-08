@@ -78,7 +78,7 @@ pub async fn delete_user(
     let uid = user_id.into();
 
     let conn = get_connection(&state)?;
-    let _ = validate_password(&payload.login_key, FindBy::Uuid(uid), conn).await?;
+    let _ = validate_password(&payload.login_key, FindBy::Uuid(uid), conn, &state.hasher).await?;
 
     let chargers = get_all_chargers_for_user(uid, &state).await?;
     let charger_ids: Vec<uuid::Uuid> = chargers.iter().map(|c| c.id).collect();

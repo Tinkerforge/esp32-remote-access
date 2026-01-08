@@ -113,7 +113,7 @@ async fn authenticate_user(
                 Ok(v) => v,
                 Err(_) => return Err(ErrorBadRequest("login_key is wrong base64")),
             };
-            let _ = validate_password(&key, FindBy::Uuid(uid), conn).await?;
+            let _ = validate_password(&key, FindBy::Uuid(uid), conn, &state.hasher).await?;
         }
         UserAuth::AuthToken(token) => {
             validate_auth_token(token.to_owned(), uid, state).await?;
@@ -143,7 +143,13 @@ pub async fn allow_user(
 
     let charger = get_charger_from_db(cid, &state).await?;
 
-    if !password_matches(&allow_user.charger_password, &charger.password)? {
+    if !password_matches(
+        &allow_user.charger_password,
+        &charger.password,
+        &state.hasher,
+    )
+    .await?
+    {
         return Err(Error::Unauthorized.into());
     }
 
