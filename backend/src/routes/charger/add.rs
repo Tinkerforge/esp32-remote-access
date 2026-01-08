@@ -155,8 +155,8 @@ pub async fn register_charger(
         .unwrap();
     uid_bytes.reverse();
     let mut charger_id = [0u8; 4];
-    for (i, byte) in uid_bytes.into_iter().enumerate() {
-        charger_id[i] = byte;
+    for (uid_byte, charger_byte) in uid_bytes.into_iter().zip(charger_id.iter_mut()) {
+        *charger_byte = uid_byte;
     }
     let charger_uid = i32::from_le_bytes(charger_id);
     let charger_id;
