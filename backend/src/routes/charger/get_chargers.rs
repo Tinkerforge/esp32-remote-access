@@ -102,7 +102,9 @@ pub async fn get_chargers(
             .grouped_by(&chargers)
             .into_iter()
             .zip(chargers)
-            .map(|(allowed_users, charger)| (charger, allowed_users[0].clone()))
+            .filter_map(|(allowed_users, charger)| {
+                allowed_users.first().map(|au| (charger, au.clone()))
+            })
             .collect();
 
         Ok(chargers_by_users)
@@ -148,8 +150,11 @@ pub async fn get_chargers(
 mod tests {
     use actix_web::{cookie::Cookie, test, App};
     use base64::{prelude::BASE64_STANDARD, Engine};
+    use db_connector::test_connection_pool;
+    use diesel::prelude::*;
     use rand::TryRngCore;
     use rand_core::OsRng;
+    use std::str::FromStr;
 
     use super::*;
     use crate::{
@@ -213,5 +218,57 @@ mod tests {
             .to_request();
         let resp: Vec<GetChargerSchema> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(resp.len(), 0);
+    }
+
+    /// Test that the race condition between fetching allowed_users and chargers is handled.
+    ///
+    /// This tests the fix for a race condition where:
+    /// 1. allowed_users are fetched for a user
+    /// 2. chargers are fetched based on those allowed_users
+    /// 3. Between those two queries, an allowed_user entry could be deleted
+    /// 4. This would result in grouped_by returning an empty array for that charger
+    ///
+    /// The fix uses filter_map with .first() instead of directly accessing [0],
+    /// which would panic on an empty array.
+    #[actix_web::test]
+    async fn test_race_condition_allowed_user_deleted_between_queries() {
+        let (mut user1, _) = TestUser::random().await;
+        user1.login().await;
+
+        // Add two chargers - we'll delete the allowed_user entry for one of them
+        let charger1 = user1.add_random_charger().await;
+        let charger2 = user1.add_random_charger().await;
+
+        // Directly delete the allowed_user entry for charger1 from the database
+        // This simulates the race condition where another request deletes the
+        // allowed_user between fetching allowed_users and joining with chargers
+        {
+            use db_connector::schema::allowed_users::dsl::*;
+
+            let charger1_uuid = uuid::Uuid::from_str(&charger1.uuid).unwrap();
+            let pool = test_connection_pool();
+            let mut conn = pool.get().unwrap();
+
+            diesel::delete(allowed_users.filter(charger_id.eq(charger1_uuid)))
+                .execute(&mut conn)
+                .expect("Failed to delete allowed_user entry");
+        }
+
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(get_chargers);
+        let app = test::init_service(app).await;
+
+        // This should not panic even though charger1 has no allowed_users entry
+        let req = test::TestRequest::get()
+            .uri("/get_chargers")
+            .cookie(Cookie::new("access_token", user1.get_access_token()))
+            .to_request();
+        let resp: Vec<GetChargerSchema> = test::call_and_read_body_json(&app, req).await;
+
+        // Only charger2 should be returned since charger1's allowed_user was deleted
+        assert_eq!(resp.len(), 1);
+        assert_eq!(resp[0].id, charger2.uuid);
     }
 }
