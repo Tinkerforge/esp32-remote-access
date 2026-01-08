@@ -17,10 +17,13 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::{PasswordHashString, SaltString}};
+use argon2::{
+    password_hash::{PasswordHashString, SaltString},
+    Argon2, PasswordHasher, PasswordVerifier,
+};
 
 struct HashRequest {
-    password: String,
+    password: Vec<u8>,
     salt: SaltString,
     responder: tokio::sync::oneshot::Sender<argon2::password_hash::Result<PasswordHashString>>,
 }
@@ -40,8 +43,8 @@ pub struct HasherManager {
     tx: tokio::sync::mpsc::Sender<Request>,
 }
 
-impl HasherManager {
-    pub fn new() -> Self {
+impl Default for HasherManager {
+    fn default() -> Self {
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
 
         actix::spawn(async move {
@@ -49,33 +52,37 @@ impl HasherManager {
             while let Some(request) = rx.recv().await {
                 match request {
                     Request::Hash(hash_request) => {
-                        let result = match hasher.hash_password(
-                            hash_request.password.as_bytes(),
-                            &hash_request.salt,
-                        ) {
-                            Ok(hash) => Ok(hash.serialize()),
+                        let result = match hasher
+                            .hash_password(&hash_request.password, &hash_request.salt)
+                        {
+                            Ok(hash) => {
+                                let string = hash.serialize();
+                                Ok(string)
+                            }
                             Err(e) => Err(e),
                         };
                         let _ = hash_request.responder.send(result);
-                    },
+                    }
                     Request::Verify(verify_request) => {
+                        println!("{}", verify_request.hash);
                         let hash = verify_request.hash.password_hash();
-                        let result = hasher.verify_password(
-                            &verify_request.password,
-                            &hash,
-                        );
+                        let result = hasher.verify_password(&verify_request.password, &hash);
                         let _ = verify_request.responder.send(result);
                     }
                 }
             }
         });
 
-        Self {
-            tx
-        }
+        Self { tx }
     }
+}
 
-    pub async fn hash_password(&self, password: String, salt: SaltString) -> argon2::password_hash::Result<PasswordHashString> {
+impl HasherManager {
+    pub async fn hash_password(
+        &self,
+        password: Vec<u8>,
+        salt: SaltString,
+    ) -> argon2::password_hash::Result<PasswordHashString> {
         let (responder_tx, responder_rx) = tokio::sync::oneshot::channel();
         let request = Request::Hash(HashRequest {
             password,
@@ -86,7 +93,11 @@ impl HasherManager {
         responder_rx.await.unwrap()
     }
 
-    pub async fn verify_password(&self, hash: PasswordHashString, password: Vec<u8>) -> argon2::password_hash::Result<()> {
+    pub async fn verify_password(
+        &self,
+        hash: PasswordHashString,
+        password: Vec<u8>,
+    ) -> argon2::password_hash::Result<()> {
         let (responder_tx, responder_rx) = tokio::sync::oneshot::channel();
         let request = Request::Verify(VerifyRequest {
             hash,
