@@ -24,6 +24,7 @@ pub fn get_connection_pool() -> Pool {
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(url);
     Pool::builder()
+        .max_size(90)
         .test_on_check_out(true)
         .build(manager)
         .expect("Could not build connection pool")
