@@ -17,6 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+use std::sync::Arc;
+
 use argon2::{
     password_hash::{PasswordHashString, SaltString},
     Argon2, PasswordHasher, PasswordVerifier,
@@ -48,28 +50,39 @@ impl Default for HasherManager {
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
 
         actix::spawn(async move {
-            let hasher = Argon2::default();
+            let hasher = Arc::new(Argon2::default());
+
+            // Using a pool size of half the physical cores ensures that we have enougth resources
+            // for other tasks while still being able to utilize multiple cores.
+            let pool = threadpool::ThreadPool::new(num_cpus::get_physical() / 2);
             while let Some(request) = rx.recv().await {
-                match request {
-                    Request::Hash(hash_request) => {
-                        let result = match hasher
-                            .hash_password(&hash_request.password, &hash_request.salt)
-                        {
-                            Ok(hash) => {
-                                let string = hash.serialize();
-                                Ok(string)
-                            }
-                            Err(e) => Err(e),
-                        };
-                        let _ = hash_request.responder.send(result);
+                let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+                let hasher = hasher.clone();
+                pool.execute(move || {
+                    let request = rx.blocking_recv().unwrap();
+                    match request {
+                        Request::Hash(hash_request) => {
+                            let result = match hasher
+                                .hash_password(&hash_request.password, &hash_request.salt)
+                            {
+                                Ok(hash) => {
+                                    let string = hash.serialize();
+                                    Ok(string)
+                                }
+                                Err(e) => Err(e),
+                            };
+                            let _ = hash_request.responder.send(result);
+                        }
+                        Request::Verify(verify_request) => {
+                            let hash = verify_request.hash.password_hash();
+                            let result = hasher.verify_password(&verify_request.password, &hash);
+                            let _ = verify_request.responder.send(result);
+                        }
                     }
-                    Request::Verify(verify_request) => {
-                        println!("{}", verify_request.hash);
-                        let hash = verify_request.hash.password_hash();
-                        let result = hasher.verify_password(&verify_request.password, &hash);
-                        let _ = verify_request.responder.send(result);
-                    }
-                }
+                });
+
+                // This is used to ensure we dont run out of memory by queuing too many requests.
+                let _ = tx.send(request).await;
             }
         });
 
