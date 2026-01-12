@@ -31,6 +31,11 @@ services:
       - TLS_KEY_PATH=${TLS_KEY_PATH}
     extra_hosts:
       - "${EXTRA_HOSTS}"
+    ulimits:
+      nofile:
+        soft: "65536"
+        hard: "65536"
+
     healthcheck:
       test: ["CMD-SHELL", "curl -k https://localhost:443/api/management || curl http://localhost:8081/management"]
       interval: 20s
