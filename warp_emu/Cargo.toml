@@ -1,0 +1,16 @@
+[package]
+name = "warp_emu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+base64 = "0.22.1"
+boringtun = "0.6.0"
+bs58 = "0.5.1"
+clap = { version = "4", features = ["derive"] }
+ipnetwork = { version = "0.21.1", features = ["serde"] }
+rand = "0.9.2"
+reqwest = { version = "0.13.1", features = ["json"] }
+serde = { version = "1.0.228", features = ["derive"] }
+tokio = { version = "1.49.0", features = ["full"] }
