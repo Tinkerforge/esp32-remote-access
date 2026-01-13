@@ -90,7 +90,6 @@ async fn main() {
             routes::charger::add::add,
             routes::charger::allow_user::allow_user,
             routes::charger::remove::remove,
-            routes::charger::get_chargers::get_chargers,
             routes::charger::get_key::get_key,
             routes::charger::update_note::update_note,
             routes::charger::add_with_token::add_with_token,

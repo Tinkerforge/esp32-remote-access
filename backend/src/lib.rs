@@ -83,6 +83,7 @@ pub struct BridgeState {
     pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<(i32, Session)>>>,
     pub socket: Arc<UdpSocket>,
+    pub state_update_clients: Mutex<HashMap<uuid::Uuid, Session>>,
 }
 
 pub struct AppState {
@@ -335,6 +336,28 @@ pub(crate) mod tests {
             .unwrap_or_default()
     }
 
+    pub fn create_test_bridge_state(
+        pool: Option<diesel::r2d2::Pool<ConnectionManager<PgConnection>>>,
+    ) -> web::Data<BridgeState> {
+        let pool = pool.unwrap_or_else(db_connector::test_connection_pool);
+
+        let bridge_state = BridgeState {
+            pool: pool.clone(),
+            charger_management_map: Arc::new(Mutex::new(HashMap::new())),
+            charger_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
+            port_discovery: Arc::new(Mutex::new(HashMap::new())),
+            charger_remote_conn_map: Mutex::new(HashMap::new()),
+            undiscovered_clients: Mutex::new(HashMap::new()),
+            web_client_map: Mutex::new(HashMap::new()),
+            undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
+            lost_connections: Mutex::new(HashMap::new()),
+            socket: Arc::new(UdpSocket::bind(("0", 0)).unwrap()),
+            state_update_clients: Mutex::new(HashMap::new()),
+        };
+
+        web::Data::new(bridge_state)
+    }
+
     pub fn configure(cfg: &mut ServiceConfig) {
         let pool = db_connector::test_connection_pool();
 
@@ -349,6 +372,7 @@ pub(crate) mod tests {
             undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
             lost_connections: Mutex::new(HashMap::new()),
             socket: Arc::new(UdpSocket::bind(("0", 0)).unwrap()),
+            state_update_clients: Mutex::new(HashMap::new()),
         };
 
         let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> = web::Data::new(

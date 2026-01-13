@@ -262,7 +262,11 @@ pub async fn run_server(
                                 }
                             };
 
-                        arbiter.spawn(update_charger_state_change(id, app_state.clone()));
+                        arbiter.spawn(update_charger_state_change(
+                            id,
+                            app_state.clone(),
+                            bridge_state.clone(),
+                        ));
 
                         let tunn_data = Arc::new(Mutex::new(tunn_data));
                         let mut map = bridge_state.charger_management_map_with_id.lock().await;

@@ -427,7 +427,7 @@ pub async fn management(
     })
     .await?;
 
-    update_charger_state_change(charger_id, state).await;
+    update_charger_state_change(charger_id, state, bridge_state).await;
 
     let time = match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(time) => time,

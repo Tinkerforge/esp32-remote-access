@@ -195,6 +195,7 @@ async fn main() -> std::io::Result<()> {
         undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
         lost_connections: Mutex::new(HashMap::new()),
         socket: Arc::new(UdpSocket::bind("0.0.0.0:51820").unwrap()),
+        state_update_clients: Mutex::new(HashMap::new()),
     });
 
     let state_cpy = state.clone();

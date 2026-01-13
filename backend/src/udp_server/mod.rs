@@ -50,6 +50,7 @@ async fn start_rate_limiters_reset_thread(
     discovery_map: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState>,
     arbiter: Arc<Arbiter>,
 ) {
     loop {
@@ -82,7 +83,11 @@ async fn start_rate_limiters_reset_thread(
                 if remove {
                     log::info!("Charger {id} has timeouted and will be removed.");
                     map.remove(&id);
-                    arbiter.spawn(update_charger_state_change(id, state.clone()));
+                    arbiter.spawn(update_charger_state_change(
+                        id,
+                        state.clone(),
+                        bridge_state.clone(),
+                    ));
                 }
             }
         }
@@ -141,6 +146,7 @@ pub fn start_server(bridge_state: web::Data<BridgeState>, app_state: web::Data<A
         bridge_state.port_discovery.clone(),
         bridge_state.undiscovered_chargers.clone(),
         app_state.clone(),
+        bridge_state.clone(),
         state_arbiter.clone(),
     ));
 

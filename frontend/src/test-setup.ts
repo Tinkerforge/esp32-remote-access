@@ -630,6 +630,67 @@ beforeAll(() => {
 
   window.scrollTo = vi.fn();
 
+  // Mock WebSocket for tests
+  const mockWebSocketInstances: MockWebSocket[] = [];
+
+  class MockWebSocket {
+    static instances: MockWebSocket[] = mockWebSocketInstances;
+    url: string;
+    onopen: ((ev: Event) => void) | null = null;
+    onmessage: ((ev: MessageEvent) => void) | null = null;
+    onerror: ((ev: Event) => void) | null = null;
+    onclose: ((ev: CloseEvent) => void) | null = null;
+    readyState = 1; // OPEN
+    CONNECTING = 0;
+    OPEN = 1;
+    CLOSING = 2;
+    CLOSED = 3;
+
+    constructor(url: string) {
+      this.url = url;
+      mockWebSocketInstances.push(this);
+      // Simulate connection open asynchronously
+      setTimeout(() => {
+        if (this.onopen) {
+          this.onopen(new Event('open'));
+        }
+      }, 0);
+    }
+
+    send() {
+      // Mock send
+    }
+
+    close() {
+      this.readyState = 3;
+      if (this.onclose) {
+        this.onclose(new CloseEvent('close'));
+      }
+    }
+
+    // Helper to simulate receiving a message in tests
+    simulateMessage(data: unknown) {
+      if (this.onmessage) {
+        this.onmessage(new MessageEvent('message', { data: JSON.stringify(data) }));
+      }
+    }
+
+    // Helper to simulate an error in tests
+    simulateError() {
+      if (this.onerror) {
+        this.onerror(new Event('error'));
+      }
+    }
+  }
+
+  // Clear instances between tests
+  mockWebSocketInstances.length = 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).WebSocket = MockWebSocket;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).MockWebSocket = MockWebSocket;
+
   // Provide minimal Web Crypto mock used by components
   if (!('crypto' in window)) {
     // @ts-expect-error - define minimal crypto

@@ -34,7 +34,7 @@ use lettre::message::header::ContentType;
 use lettre::{Message, Transport};
 use rand::Rng;
 
-use crate::{error::Error, routes::charger::add::password_matches, AppState};
+use crate::{error::Error, routes::charger::add::password_matches, AppState, BridgeState};
 
 pub fn get_connection(
     state: &web::Data<AppState>,
@@ -274,7 +274,11 @@ pub fn send_email_with_attachment(
     }
 }
 
-pub async fn update_charger_state_change(charger_id: uuid::Uuid, state: web::Data<AppState>) {
+pub async fn update_charger_state_change(
+    charger_id: uuid::Uuid,
+    state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState>,
+) {
     let Ok(mut conn) = get_connection(&state) else {
         log::error!("Failed to get database connection for updating charger state change");
         return;
@@ -295,6 +299,58 @@ pub async fn update_charger_state_change(charger_id: uuid::Uuid, state: web::Dat
         }
     })
     .await;
+
+    // Notify connected clients about state change
+    notify_state_change(state, bridge_state).await;
+}
+
+async fn notify_state_change(state: web::Data<AppState>, bridge_state: web::Data<BridgeState>) {
+    use crate::routes::charger::get_chargers::{fetch_chargers, StateUpdateMessage};
+
+    let state_update_clients = bridge_state.state_update_clients.lock().await;
+
+    // Clone sessions to send messages without holding lock during async operations
+    let sessions: Vec<(uuid::Uuid, actix_ws::Session)> = state_update_clients
+        .iter()
+        .map(|(id, session)| (*id, session.clone()))
+        .collect();
+
+    drop(state_update_clients);
+
+    // Send messages and track failures
+    let mut to_remove = Vec::new();
+    for (user_id, mut session) in sessions {
+        // Fetch chargers for this specific user
+        let chargers = match fetch_chargers(&state, user_id, &bridge_state).await {
+            Ok(chargers) => chargers,
+            Err(e) => {
+                log::error!("Failed to fetch chargers for user {}: {:?}", user_id, e);
+                to_remove.push(user_id);
+                continue;
+            }
+        };
+
+        let message = StateUpdateMessage::StateChange { chargers };
+        let json_msg = match serde_json::to_string(&message) {
+            Ok(msg) => msg,
+            Err(e) => {
+                log::error!("Failed to serialize state update message: {:?}", e);
+                continue;
+            }
+        };
+
+        if session.text(json_msg).await.is_err() {
+            to_remove.push(user_id);
+        }
+    }
+
+    // Remove disconnected clients
+    if !to_remove.is_empty() {
+        let mut state_update_clients = bridge_state.state_update_clients.lock().await;
+        for user_id in to_remove {
+            state_update_clients.remove(&user_id);
+        }
+    }
 }
 
 #[cfg(test)]

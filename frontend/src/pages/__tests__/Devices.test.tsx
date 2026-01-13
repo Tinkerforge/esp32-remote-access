@@ -7,6 +7,25 @@ import { Base64 } from 'js-base64';
 import sodium from 'libsodium-wrappers';
 import { showAlert } from '../../components/Alert';
 
+// Helper type for the mock WebSocket
+interface MockWebSocket {
+  url: string;
+  onopen: ((ev: Event) => void) | null;
+  onmessage: ((ev: MessageEvent) => void) | null;
+  onerror: ((ev: Event) => void) | null;
+  onclose: ((ev: CloseEvent) => void) | null;
+  readyState: number;
+  close: () => void;
+  simulateMessage: (data: unknown) => void;
+  simulateError: () => void;
+}
+
+// Access mock WebSocket instances from global
+const getMockWebSocketInstances = (): MockWebSocket[] => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (globalThis as any).MockWebSocket?.instances || [];
+};
+
 describe('Devices.tsx - DeviceList', () => {
   // Helper to safely access the component instance without using non-null assertions
   const getRef = (ref: RefObject<DeviceList>): DeviceList => {
@@ -19,6 +38,8 @@ describe('Devices.tsx - DeviceList', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Clear WebSocket instances
+    getMockWebSocketInstances().length = 0;
   });
 
   afterEach(() => {
@@ -28,13 +49,7 @@ describe('Devices.tsx - DeviceList', () => {
   it('renders empty state when loading devices fails', async () => {
     (get_decrypted_secret as unknown as Mock).mockResolvedValue(undefined);
     (fetchClient.GET as unknown as Mock).mockImplementation((url: string) => {
-      if (url === '/charger/get_chargers') {
-        return Promise.resolve({
-          data: undefined,
-          error: 'failed',
-          response: { status: 500 },
-        });
-      } else if (url === '/grouping/list') {
+      if (url === '/grouping/list') {
         return Promise.resolve({
           data: { groupings: [] },
           error: undefined,
@@ -46,34 +61,26 @@ describe('Devices.tsx - DeviceList', () => {
 
     render(<DeviceList />);
 
+    // Wait for WebSocket to connect and send empty array
+    await waitFor(() => {
+      const wsInstances = getMockWebSocketInstances();
+      expect(wsInstances.length).toBeGreaterThan(0);
+    });
+
+    // Simulate WebSocket sending empty device list
+    const wsInstance = getMockWebSocketInstances()[0];
+    wsInstance.simulateMessage([]);
+
     expect(await screen.findByText('no_devices')).toBeInTheDocument();
-    await waitFor(() => expect((showAlert as unknown as Mock)).toHaveBeenCalled());
   });
 
   it('renders list when devices load and decrypts name/note', async () => {
+    (get_decrypted_secret as unknown as Mock).mockResolvedValue(undefined);
     (Base64.toUint8Array as unknown as Mock).mockReturnValue(new Uint8Array([1, 2, 3]));
     (sodium.crypto_box_seal_open as unknown as Mock).mockImplementation(() => new TextEncoder().encode('decoded'));
 
     (fetchClient.GET as unknown as Mock).mockImplementation((url: string) => {
-      if (url === '/charger/get_chargers') {
-        return Promise.resolve({
-          data: [
-            {
-              id: 'dev-1',
-              uid: 123,
-              name: 'b64name',
-              note: 'b64note',
-              status: 'Connected',
-              port: 1,
-              valid: true,
-              last_state_change: null,
-              firmware_version: '1.0.0',
-            },
-          ],
-          error: undefined,
-          response: { status: 200 },
-        });
-      } else if (url === '/grouping/list') {
+      if (url === '/grouping/list') {
         return Promise.resolve({
           data: { groupings: [] },
           error: undefined,
@@ -85,11 +92,32 @@ describe('Devices.tsx - DeviceList', () => {
 
     const { container, unmount } = render(<DeviceList />);
 
+    // Wait for WebSocket to connect
+    await waitFor(() => {
+      const wsInstances = getMockWebSocketInstances();
+      expect(wsInstances.length).toBeGreaterThan(0);
+    });
+
+    // Simulate WebSocket sending device list
+    const wsInstance = getMockWebSocketInstances()[0];
+    wsInstance.simulateMessage([
+      {
+        id: 'dev-1',
+        uid: 123,
+        name: 'b64name',
+        note: 'b64note',
+        status: 'Connected',
+        port: 1,
+        valid: true,
+        last_state_change: null,
+        firmware_version: '1.0.0',
+      },
+    ]);
+
     await waitFor(() => {
       expect(screen.queryByText('no_devices')).toBeNull();
       expect(container.querySelector('table')).toBeTruthy();
     });
-
 
     unmount();
   });
@@ -164,7 +192,7 @@ describe('Devices.tsx - DeviceList', () => {
   it('setSort toggles sequence and sorts devices', async () => {
     // Prevent constructor-triggered updates from interfering
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
@@ -200,7 +228,7 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('setMobileSort toggles between selected and none', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
@@ -219,7 +247,7 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleDelete and handleDeleteConfirm remove device on success', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
@@ -244,7 +272,7 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleDeleteConfirm updates filteredDevices when search filter is active', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
@@ -294,7 +322,7 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleDeleteConfirm updates filteredDevices when grouping filter is active', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
@@ -348,7 +376,7 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleEditNote flows: submit updates note and cancel resets', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
@@ -383,7 +411,7 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleEditNoteSubmit shows alert on error', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
@@ -406,7 +434,7 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('updateChargers sets devices to Disconnected on network error', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
@@ -427,7 +455,7 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('updateChargers marks device invalid when decryption fails', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
@@ -450,19 +478,26 @@ describe('Devices.tsx - DeviceList', () => {
     expect(typeof getRef(ref).state.devices[0].note).toBe('string');
   });
 
-  it('componentWillUnmount clears the interval', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+  it('componentWillUnmount closes the WebSocket', async () => {
+    // Only mock loadGroupings - let connectStateUpdateWebSocket run to create the WebSocket
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
     const ref = createRef<DeviceList>();
     // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
-    initSpy.mockRestore();
     loadGroupingsSpy.mockRestore();
-    const spy = vi.spyOn(global, 'clearInterval');
+
+    // Wait for WebSocket to be created
+    await waitFor(() => {
+      expect(getRef(ref).stateUpdateWs).not.toBeNull();
+    });
+
+    const ws = getRef(ref).stateUpdateWs;
+    const closeSpy = vi.spyOn(ws!, 'close');
+
     getRef(ref).componentWillUnmount();
-    expect(spy).toHaveBeenCalled();
+    expect(closeSpy).toHaveBeenCalled();
+    expect(getRef(ref).stateUpdateWs).toBeNull();
   });
 
   describe('Search functionality', () => {
@@ -576,7 +611,7 @@ describe('Devices.tsx - DeviceList', () => {
 
     it('handleSearchChange updates search term and filtered devices', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
       const ref = createRef<DeviceList>();
@@ -600,7 +635,7 @@ describe('Devices.tsx - DeviceList', () => {
 
     it('handleSearchChange with empty string shows all devices', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
       const ref = createRef<DeviceList>();
@@ -630,7 +665,7 @@ describe('Devices.tsx - DeviceList', () => {
 
     it('setSortedDevices updates both devices and filteredDevices', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
       const ref = createRef<DeviceList>();
@@ -659,7 +694,7 @@ describe('Devices.tsx - DeviceList', () => {
 
     it('render uses filteredDevices when search term is present', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const initSpy = vi.spyOn(DeviceList.prototype, 'updateChargers').mockResolvedValue(undefined as any);
+      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
       const ref = createRef<DeviceList>();

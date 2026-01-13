@@ -18,7 +18,8 @@ import { GroupingModal } from "../components/device/GroupingModal";
 
 export class DeviceList extends Component<Record<string, never>, DeviceListState> {
     removalDevice: StateDevice;
-    updatingInterval: ReturnType<typeof setInterval>;
+    stateUpdateWs: WebSocket | null;
+    isMounted: boolean;
 
     constructor() {
         super();
@@ -51,13 +52,92 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             isLoading: true,
         };
 
-        this.updateChargers();
+        this.stateUpdateWs = null;
+        this.isMounted = true;
         this.loadGroupings();
-        this.updatingInterval = setInterval(() => this.updateChargers(), 5000);
+        this.connectStateUpdateWebSocket();
     }
 
     componentWillUnmount() {
-        clearInterval(this.updatingInterval);
+        this.isMounted = false;
+        if (this.stateUpdateWs) {
+            this.stateUpdateWs.close();
+            this.stateUpdateWs = null;
+        }
+    }
+
+    async connectStateUpdateWebSocket() {
+        if (!secret) {
+            await get_decrypted_secret();
+        }
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/charger/get_chargers`;
+
+        try {
+            this.stateUpdateWs = new WebSocket(wsUrl);
+
+            this.stateUpdateWs.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    // Handle state_change message with full charger list
+                    if (message.type === 'state_change' && Array.isArray(message.chargers)) {
+                        console.log('Charger state changed, updating list');
+                        this.processChargers(message.chargers as Device[]);
+                    }
+                    // Handle initial charger list (array without type wrapper)
+                    else if (Array.isArray(message)) {
+                        console.log('Received initial charger list');
+                        this.processChargers(message as Device[]);
+                    }
+                } catch (e) {
+                    console.error('Failed to parse state update message:', e);
+                }
+            };
+
+            this.stateUpdateWs.onerror = (error) => {
+                console.error('State update WebSocket error:', error);
+            };
+
+            this.stateUpdateWs.onclose = () => {
+                if (this.isMounted) {
+                    console.log('State update WebSocket closed, reconnecting in 5s...');
+                    setTimeout(() => this.connectStateUpdateWebSocket(), 5000);
+                }
+            };
+        } catch (e) {
+            console.error('Failed to create state update WebSocket:', e);
+            if (this.isMounted) {
+                setTimeout(() => this.connectStateUpdateWebSocket(), 5000);
+            }
+        }
+    }
+
+    processChargers(devices: Device[]) {
+        const stateDevices: StateDevice[] = [];
+        for (const device of devices) {
+            let name = this.decrypt_name(device.name);
+            let note = this.decryptNote(device.note);
+            if (name === undefined || note === undefined) {
+                note = i18n.t("chargers.invalid_key");
+                name = "";
+                device.valid = false;
+            }
+            const state_charger: StateDevice = {
+                id: device.id,
+                uid: device.uid,
+                name,
+                note,
+                status: device.status,
+                port: device.port,
+                valid: device.valid,
+                last_state_change: device.last_state_change,
+                firmware_version: device.firmware_version,
+            };
+            stateDevices.push(state_charger);
+        }
+        this.setSortedDevices(stateDevices);
+        this.setState({ isLoading: false });
     }
 
     decryptNote(note?: string | null) {
