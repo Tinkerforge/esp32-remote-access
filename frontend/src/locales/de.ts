@@ -105,6 +105,7 @@ export const de ={
         "connecting": "Verbindung wird aufgebaut",
         "loading_webinterface": "Webinterface wird geladen",
         "invalid_key": "Die auf dem Gerät gespeicherten Schlüssel scheinen fehlerhaft zu sein. Sollte der Fehler weiterhin bestehen, entferne das Gerät und füge es erneut hinzu.",
+        "websocket_parse_error": "Fehler beim Verarbeiten der Geräteaktualisierung vom Server.",
         "connection_timeout": "Timeout",
         "connection_timeout_text": "Ein Timeout ist während des Aufbaus der Verbindung aufgetreten. Bitte versuche es später erneut oder kontaktiere uns falls das Problem bestehen bleibt.",
         "search_devices": "Geräte suchen",

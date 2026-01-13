@@ -105,6 +105,7 @@ export const en = {
         "connecting": "Connecting",
         "loading_webinterface": "Loading webinterface",
         "invalid_key": "The keys saved on the device seem to be corrupted. If the error persists, remove the device and add it again.",
+        "websocket_parse_error": "Failed to parse device update from server.",
         "connection_timeout": "Timeout",
         "connection_timeout_text": "A timeout occured while establishing the connection. Please try again later or contact us in case the problem persists.",
         "search_devices": "Search devices",

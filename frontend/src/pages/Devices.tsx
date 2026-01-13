@@ -92,6 +92,8 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     }
                 } catch (e) {
                     console.error('Failed to parse state update message:', e);
+                    showAlert(i18n.t("chargers.websocket_parse_error"), "danger");
+                    this.processChargers([]);
                 }
             };
 
