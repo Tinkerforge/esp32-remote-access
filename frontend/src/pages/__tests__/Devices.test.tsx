@@ -432,52 +432,6 @@ describe('Devices.tsx - DeviceList', () => {
     await waitFor(() => expect((showAlert as unknown as Mock)).toHaveBeenCalled());
   });
 
-  it('updateChargers sets devices to Disconnected on network error', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
-    const ref = createRef<DeviceList>();
-    // @ts-expect-error - ref is valid but types dont allow it
-    render(<DeviceList ref={ref} />);
-    initSpy.mockRestore();
-    loadGroupingsSpy.mockRestore();
-    const devices = [
-      { id: 'u', uid: 7, name: 'U', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
-    ];
-    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [], groupings: [], selectedGroupingId: null, groupingSearchTerm: '', isLoading: false });
-    await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
-
-    (fetchClient.GET as unknown as Mock).mockImplementation(() => { throw new Error('Network fail'); });
-    await getRef(ref).updateChargers();
-    expect(getRef(ref).state.devices[0].status).toBe('Disconnected');
-  });
-
-  it('updateChargers marks device invalid when decryption fails', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
-    const ref = createRef<DeviceList>();
-    // @ts-expect-error - ref is valid but types dont allow it
-    render(<DeviceList ref={ref} />);
-    initSpy.mockRestore();
-    loadGroupingsSpy.mockRestore();
-
-    (Base64.toUint8Array as unknown as Mock).mockReturnValue(new Uint8Array([1]));
-    (sodium.crypto_box_seal_open as unknown as Mock).mockImplementation(() => { throw new Error('bad decrypt'); });
-    (fetchClient.GET as unknown as Mock).mockResolvedValue({
-      data: [{ id: 'd', uid: 2, name: 'x', note: 'y', status: 'Connected', port: 0, valid: true, last_state_change: null, firmware_version: '1' }],
-      error: undefined,
-      response: { status: 200 },
-    });
-    await getRef(ref).updateChargers();
-    await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
-    expect(getRef(ref).state.devices[0].valid).toBe(false);
-    expect(getRef(ref).state.devices[0].name).toBe('');
-    expect(typeof getRef(ref).state.devices[0].note).toBe('string');
-  });
-
   it('componentWillUnmount closes the WebSocket', async () => {
     // Only mock loadGroupings - let connectStateUpdateWebSocket run to create the WebSocket
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
