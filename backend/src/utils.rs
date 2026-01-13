@@ -305,7 +305,7 @@ pub async fn update_charger_state_change(
 }
 
 async fn notify_state_change(state: web::Data<AppState>, bridge_state: web::Data<BridgeState>) {
-    use crate::routes::charger::get_chargers::{fetch_chargers, StateUpdateMessage};
+    use crate::routes::charger::get_devices::{fetch_chargers, StateUpdateMessage};
 
     let state_update_clients = bridge_state.state_update_clients.lock().await;
 

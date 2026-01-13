@@ -293,7 +293,7 @@ impl Client {
 
     pub async fn list_devices(&mut self) -> anyhow::Result<()> {
         let resp = self
-            .get("/api/charger/get_chargers")
+            .get("/api/charger/get_devices")
             .await?;
         if resp.status() != reqwest::StatusCode::OK {
             return Err(anyhow::anyhow!(

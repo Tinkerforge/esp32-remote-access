@@ -72,7 +72,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         }
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/api/charger/get_chargers`;
+        const wsUrl = `${protocol}//${window.location.host}/api/charger/get_devices`;
 
         try {
             this.stateUpdateWs = new WebSocket(wsUrl);
@@ -212,7 +212,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             await get_decrypted_secret();
         }
         try {
-            const { data, error, response } = await fetchClient.GET("/charger/get_chargers", { credentials: "same-origin" })
+            const { data, error, response } = await fetchClient.GET("/charger/get_devices", { credentials: "same-origin" })
 
             if (error || !data) {
                 showAlert(i18n.t("chargers.loading_devices_failed", {status: response.status, response: error}), "danger");
@@ -255,7 +255,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                 }
                 this.setState({ devices: updateDevices, isLoading: false });
             } else {
-                showAlert(error, "danger", "get_chargers");
+                showAlert(error, "danger", "get_devices");
                 this.setState({ isLoading: false });
             }
         }

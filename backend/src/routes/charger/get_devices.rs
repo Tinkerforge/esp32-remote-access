@@ -152,9 +152,9 @@ pub async fn fetch_chargers(
     Ok(charger)
 }
 
-/// WebSocket endpoint for get_chargers with live state updates
-#[get("/get_chargers")]
-pub async fn get_chargers(
+/// WebSocket endpoint for get_devices with live state updates
+#[get("/get_devices")]
+pub async fn get_devices(
     req: HttpRequest,
     stream: web::Payload,
     state: web::Data<AppState>,
@@ -211,13 +211,13 @@ async fn handle_websocket(
                     // Ignore other messages
                 }
                 Either::Left((Some(Err(_err)), _)) => {
-                    log::error!("Websocket Error during get_chargers connection: {_err:?}");
+                    log::error!("Websocket Error during get_devices connection: {_err:?}");
                     break;
                 }
                 Either::Left((None, _)) => break,
                 Either::Right(_) => {
                     if Instant::now().duration_since(last_heartbeat) > CLIENT_TIMEOUT {
-                        log::debug!("get_chargers WebSocket client quietly quit.");
+                        log::debug!("get_devices WebSocket client quietly quit.");
                         break;
                     }
                     let _ = session.ping(b"").await;
@@ -274,7 +274,7 @@ mod tests {
 
     /// Test if only the chargers the user has access to will be returned.
     #[actix_web::test]
-    async fn test_get_chargers() {
+    async fn test_get_devices() {
         let (mut user1, _) = TestUser::random().await;
         let (mut user2, _) = TestUser::random().await;
         user1.login().await;

@@ -207,7 +207,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/charger/get_chargers": {
+    "/charger/get_devices": {
         parameters: {
             query?: never;
             header?: never;
@@ -215,7 +215,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get all chargers that the current user has access to. */
-        get: operations["get_chargers"];
+        get: operations["get_devices"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1251,7 +1251,7 @@ export interface operations {
             };
         };
     };
-    get_chargers: {
+    get_devices: {
         parameters: {
             query?: never;
             header?: never;

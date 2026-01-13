@@ -20,7 +20,7 @@
 pub mod add;
 pub mod add_with_token;
 pub mod allow_user;
-pub mod get_chargers;
+pub mod get_devices;
 pub mod get_key;
 pub mod info;
 pub mod remove;
@@ -41,7 +41,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .wrap(JwtMiddleware)
         .service(add::add)
         .service(remove::remove)
-        .service(get_chargers::get_chargers)
+        .service(get_devices::get_devices)
         .service(update_note::update_note)
         .service(info::charger_info)
         // TODO: Remove this when we stop supporting the old API
