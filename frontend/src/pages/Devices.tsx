@@ -207,60 +207,6 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         }
     }
 
-    async updateChargers() {
-        if (!secret) {
-            await get_decrypted_secret();
-        }
-        try {
-            const { data, error, response } = await fetchClient.GET("/charger/get_devices", { credentials: "same-origin" })
-
-            if (error || !data) {
-                showAlert(i18n.t("chargers.loading_devices_failed", {status: response.status, response: error}), "danger");
-                this.setState({ isLoading: false });
-                return;
-            }
-
-            const devices: Device[] = data;
-            const stateDevices = [];
-            for (const device of devices) {
-                let name = this.decrypt_name(device.name);
-                let note = this.decryptNote(device.note);
-                if (name === undefined || note === undefined) {
-                    note = i18n.t("chargers.invalid_key");
-                    name = "";
-                    device.valid = false
-                }
-                const state_charger: StateDevice = {
-                    id: device.id,
-                    uid: device.uid,
-                    name,
-                    note,
-                    status: device.status,
-                    port: device.port,
-                    valid: device.valid,
-                    last_state_change: device.last_state_change,
-                    firmware_version: device.firmware_version,
-                }
-                stateDevices.push(state_charger);
-            }
-            this.setSortedDevices(stateDevices);
-            this.setState({ isLoading: false });
-        } catch (e) {
-            const error = `${e}`;
-            if (error.indexOf("Network") !== -1) {
-                const updateDevices: StateDevice[] = [];
-                for (const charger of this.state.devices) {
-                    charger.status = "Disconnected";
-                    updateDevices.push(charger);
-                }
-                this.setState({ devices: updateDevices, isLoading: false });
-            } else {
-                showAlert(error, "danger", "get_devices");
-                this.setState({ isLoading: false });
-            }
-        }
-    }
-
     async connect_to_charger(device: StateDevice, route: (path: string, replace?: boolean) => void) {
         route(`/devices/${device.id}`);
     }
