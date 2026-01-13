@@ -94,6 +94,7 @@ async fn main() {
             routes::charger::update_note::update_note,
             routes::charger::add_with_token::add_with_token,
             routes::charger::info::charger_info,
+            routes::charger::get_devices::get_devices,
             routes::grouping::create_grouping::create_grouping,
             routes::grouping::delete_grouping::delete_grouping,
             routes::grouping::edit_grouping::edit_grouping,

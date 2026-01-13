@@ -153,6 +153,18 @@ pub async fn fetch_chargers(
 }
 
 /// WebSocket endpoint for get_devices with live state updates
+#[utoipa::path(
+    get,
+    path = "/charger/get_devices",
+    responses(
+        (status = 101, description = "WebSocket connection established. Returns initial charger list and live state updates."),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("jwt" = [])
+    )
+)]
 #[get("/get_devices")]
 pub async fn get_devices(
     req: HttpRequest,

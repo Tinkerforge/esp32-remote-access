@@ -214,7 +214,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get all chargers that the current user has access to. */
+        /** WebSocket endpoint for get_devices with live state updates */
         get: operations["get_devices"];
         put?: never;
         post?: never;
@@ -1260,17 +1260,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Success */
-            200: {
+            /** @description WebSocket connection established. Returns initial charger list and live state updates. */
+            101: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GetChargerSchema"][];
-                };
+                content?: never;
             };
-            /** @description Somehow got a valid jwt but the user does not exist. */
-            400: {
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
