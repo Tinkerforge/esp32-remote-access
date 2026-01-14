@@ -87,9 +87,8 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
         if value.len() < 44 {
             return Err(anyhow::anyhow!("Packet too short"));
         }
-        let header = unsafe {
-            std::ptr::read_unaligned(value.as_ptr() as *const ManagementPacketHeader)
-        };
+        let header =
+            unsafe { std::ptr::read_unaligned(value.as_ptr() as *const ManagementPacketHeader) };
         let header_size = std::mem::size_of::<ManagementPacketHeader>();
         let value = &value[header_size..];
         let charger_uuid = unsafe { std::ptr::read_unaligned(value.as_ptr() as *const u128) };
@@ -191,7 +190,10 @@ mod tests {
 
         let parsed = result.unwrap();
 
-        assert_eq!(parsed.charger_uuid, 0x12345678_9ABCDEF0_12345678_9ABCDEF0u128);
+        assert_eq!(
+            parsed.charger_uuid,
+            0x12345678_9ABCDEF0_12345678_9ABCDEF0u128
+        );
         assert_eq!(parsed.user_uuid, 0xFEDCBA98_76543210_FEDCBA98_76543210u128);
         assert_eq!(parsed.filename_length, filename.len() as u16);
         assert_eq!(parsed.filename, filename);
