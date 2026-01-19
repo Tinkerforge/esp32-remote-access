@@ -375,7 +375,7 @@ pub async fn management(
         losing_conns
     };
 
-    {
+    if !losing_conns.is_empty() {
         let mut lost_conns = bridge_state.lost_connections.lock().await;
         lost_conns.insert(charger_id, losing_conns);
     }
