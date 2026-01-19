@@ -167,8 +167,10 @@ async fn main() -> std::io::Result<()> {
     dotenvy::dotenv().ok();
 
     let pool = get_connection_pool();
-    let mut conn = pool.get().expect("Failed to get connection from pool");
-    run_migrations(&mut conn).expect("Failed to run migrations");
+    {
+        let mut conn = pool.get().expect("Failed to get connection from pool");
+        run_migrations(&mut conn).expect("Failed to run migrations");
+    }
 
     let mailer = {
         let email = std::env::var("EMAIL_USER").expect("EMAIL_USER must be set");
