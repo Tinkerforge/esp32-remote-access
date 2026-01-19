@@ -136,7 +136,11 @@ async fn main() -> std::io::Result<()> {
     let write_logger = WriteLogger::new(
         LevelFilter::Info,
         log_config.clone(),
-        std::fs::File::create(format!("/logs/backend-{}.log", chrono::Local::now().format("%Y-%m-%d-%H"))).unwrap(),
+        std::fs::File::create(format!(
+            "/logs/backend-{}.log",
+            chrono::Local::now().format("%Y-%m-%d-%H")
+        ))
+        .unwrap(),
     );
 
     #[cfg(debug_assertions)]
