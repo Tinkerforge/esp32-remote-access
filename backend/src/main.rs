@@ -47,6 +47,10 @@ use rustls::ServerConfig;
 use simplelog::{
     ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode,
 };
+
+#[cfg(not(debug_assertions))]
+use simplelog::WriteLogger;
+
 use udp_server::packet::{
     ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
     ManagementPacketHeader,
@@ -127,6 +131,14 @@ async fn main() -> std::io::Result<()> {
         .set_time_offset_to_local()
         .unwrap()
         .build();
+
+    #[cfg(not(debug_assertions))]
+    let write_logger = WriteLogger::new(
+        LevelFilter::Info,
+        log_config.clone(),
+        std::fs::File::create(format!("/logs/backend-{}.log", chrono::Local::now().format("%Y-%m-%d-%H"))).unwrap(),
+    );
+
     #[cfg(debug_assertions)]
     CombinedLogger::init(vec![TermLogger::new(
         LevelFilter::Debug,
@@ -137,12 +149,15 @@ async fn main() -> std::io::Result<()> {
     .unwrap();
 
     #[cfg(not(debug_assertions))]
-    CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Info,
-        log_config,
-        TerminalMode::Mixed,
-        ColorChoice::Auto,
-    )])
+    CombinedLogger::init(vec![
+        TermLogger::new(
+            LevelFilter::Info,
+            log_config,
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        ),
+        write_logger,
+    ])
     .unwrap();
 
     dotenvy::dotenv().ok();
