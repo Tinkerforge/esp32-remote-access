@@ -285,6 +285,8 @@ pub async fn management(
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::chargers::dsl as chargers;
 
+    log::error!("Management request started");
+
     let ip = {
         let info = req.connection_info();
         let ip = info.realip_remote_addr();
@@ -343,6 +345,9 @@ pub async fn management(
     {
         let mut map = bridge_state.charger_management_map_with_id.lock().await;
         let sock = map.remove(&charger_id);
+
+        //Drop the map since it is no longer needed to avoid deadlocks
+        drop(map);
         if let Some(socket) = sock {
             let mut map = bridge_state.charger_management_map.lock().await;
             let socket = socket.lock().await;
