@@ -56,6 +56,7 @@ COPY --from=backend-build --chown=appuser:appuser /home/builder/backend/target/r
 COPY --from=frontend-build --chown=appuser:appuser /home/builder/frontend/dist /public
 
 RUN mkdir /certs && chown appuser:appuser /certs
+RUN mkdir /logs && chown appuser:appuser /logs
 
 USER appuser
 
