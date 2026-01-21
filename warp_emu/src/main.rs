@@ -206,7 +206,8 @@ impl EmuCharger {
 
         let schema = generate_random_add_charger_schema(user_id, token, STANDARD.encode(pub_key.as_bytes()), &psk);
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder().tls_sslkeylogfile(true).build()?;
+
         let response = client
             .put(format!("https://{}/api/add_with_token", HOST))
             .json(&schema)
@@ -331,7 +332,7 @@ impl EmuCharger {
             data: ManagementDataVersion::V2(data),
         };
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder().tls_sslkeylogfile(true).build()?;
         let response = client
             .put(format!("https://{}/api/management", HOST))
             .json(&schema)
@@ -359,7 +360,7 @@ impl Drop for EmuCharger {
             uuid: Some(self.uuid.clone()),
             password: self.password.clone(),
         };
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder().tls_sslkeylogfile(true).build().unwrap();
         let barrier = self.barrier.clone();
         task::spawn(async move {
             let mut resp = client

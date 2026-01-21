@@ -16,3 +16,6 @@ reqwest = { version = "0.13.1", features = ["json"] }
 serde = { version = "1.0.228", features = ["derive"] }
 simplelog = "0.12.2"
 tokio = { version = "1.49.0", features = ["full"] }
+
+[patch.crates-io]
+reqwest = { git = "https://github.com/passcod/reqwest.git", rev = "c67a8c5a779d4315c1d6e71eebe8eb185acdbd5a"  }
