@@ -71,7 +71,7 @@ async fn get_all_chargers_for_user(
 #[delete("/delete")]
 pub async fn delete_user(
     state: web::Data<AppState>,
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     user_id: crate::models::uuid::Uuid,
     payload: web::Json<DeleteUserSchema>,
 ) -> actix_web::Result<impl Responder> {

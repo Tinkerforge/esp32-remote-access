@@ -25,7 +25,7 @@ pub struct ServerState {
 }
 
 #[get("/state")]
-pub async fn state(brige_state: web::Data<BridgeState>) -> actix_web::Result<impl Responder> {
+pub async fn state(brige_state: web::Data<BridgeState<'_>>) -> actix_web::Result<impl Responder> {
     let clients: Vec<SocketAddr> = {
         let web_client_map = brige_state.web_client_map.lock().await;
         web_client_map

@@ -27,15 +27,17 @@ use tokio::net::UdpSocket;
 use boringtun::noise::{rate_limiter::RateLimiter, Tunn, TunnResult};
 use smoltcp::{
     iface::{self, Config, Interface, SocketHandle, SocketSet},
-    socket::udp,
+    socket::{tcp, udp},
 };
+
+use crate::udp_server::packet::ChargeLogSendMetadata;
 
 use super::{device::ManagementDevice, packet::ManagementPacket};
 
-pub struct ManagementSocket {
+pub struct ManagementSocket<'a> {
     charger_id: uuid::Uuid,
     sock_handle: SocketHandle,
-    sockets: SocketSet<'static>,
+    sockets: SocketSet<'a>,
     iface: iface::Interface,
     device: ManagementDevice,
     tunn: Arc<Mutex<Tunn>>,
@@ -45,9 +47,11 @@ pub struct ManagementSocket {
     udp_socket: Arc<UdpSocket>,
     last_seen: Instant,
     out_sequence: u16,
+    send_metadata: Option<ChargeLogSendMetadata>,
+    tcp_socket: Option<SocketHandle>,
 }
 
-impl std::fmt::Debug for ManagementSocket {
+impl std::fmt::Debug for ManagementSocket<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ManagementSocket")
             .field("charger_id", &self.charger_id)
@@ -55,7 +59,7 @@ impl std::fmt::Debug for ManagementSocket {
     }
 }
 
-impl ManagementSocket {
+impl<'a> ManagementSocket<'a> {
     pub fn new(
         self_ip: Ipv4Addr,
         peer_ip: Ipv4Addr,
@@ -104,6 +108,8 @@ impl ManagementSocket {
             udp_socket,
             last_seen: Instant::now(),
             out_sequence: 1,
+            send_metadata: None,
+            tcp_socket: None,
         }
     }
 
@@ -217,5 +223,35 @@ impl ManagementSocket {
 
     pub fn get_remote_address(&self) -> SocketAddr {
         self.remote_addr
+    }
+
+    pub fn set_send_metadata(&mut self, metadata: ChargeLogSendMetadata) {
+        self.send_metadata = Some(metadata);
+    }
+
+    pub fn take_send_metadata(&mut self) -> Option<ChargeLogSendMetadata> {
+        self.send_metadata.take()
+    }
+
+    pub fn get_tcp_socket(&mut self) -> Option<&mut tcp::Socket<'a>> {
+        if let Some(handle) = self.tcp_socket {
+            return Some(self.sockets.get_mut(handle));
+        }
+
+        None
+    }
+
+    pub fn init_tcp_socket(&mut self) -> () {
+        let rx_buf = tcp::SocketBuffer::new(vec![0; 65535]);
+        let tx_buf = tcp::SocketBuffer::new(vec![0; 65535]);
+        let socket = tcp::Socket::new(rx_buf, tx_buf);
+        let handle = self.sockets.add(socket);
+        self.tcp_socket = Some(handle);
+    }
+
+    pub fn remove_tcp_socket(&mut self) {
+        if let Some(handle) = self.tcp_socket.take() {
+            self.sockets.remove(handle);
+        }
     }
 }
