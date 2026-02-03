@@ -18,12 +18,10 @@
  */
 
 use std::{
-    collections::hash_map::Entry,
-    net::{IpAddr, SocketAddr, UdpSocket},
-    sync::Arc,
+    collections::hash_map::Entry, net::{IpAddr, SocketAddr}, sync::Arc, time::Duration
 };
+use tokio::net::UdpSocket;
 
-use actix::Arbiter;
 use actix_web::web::{self, Bytes};
 use base64::prelude::*;
 use boringtun::noise::{rate_limiter::RateLimiter, TunnResult};
@@ -205,7 +203,7 @@ async fn create_tunn(
 }
 
 pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
-    match socket.send_to(data, addr) {
+    match socket.try_send_to(data, addr) {
         Ok(s) => {
             if s < data.len() {
                 log::error!("Sent incomplete datagram to charger with ip '{addr}'");
@@ -224,7 +222,7 @@ pub async fn run_server(
 ) {
     let mut buf = vec![0u8; 65535];
     loop {
-        if let Ok((s, addr)) = bridge_state.socket.recv_from(&mut buf) {
+        if let Ok((s, addr)) = bridge_state.socket.recv_from(&mut buf).await {
             let bridge_state = bridge_state.clone();
             let buf = buf.clone();
 
@@ -251,6 +249,7 @@ pub async fn run_server(
                 // Maybe we could release the lock when adding a new management connection and get it back later
                 // in case it turns out that holding it causes major connection issues.
                 let mut charger_map = bridge_state.charger_management_map.lock().await;
+
                 match charger_map.entry(addr) {
                     Entry::Occupied(tunn) => tunn.into_mut().clone(),
                     Entry::Vacant(v) => {
@@ -262,39 +261,39 @@ pub async fn run_server(
                                 }
                             };
 
-                        arbiter.spawn(update_charger_state_change(
+                        let tunn_data = Arc::new(Mutex::new(tunn_data));
+                        {
+                            let mut map = bridge_state.charger_management_map_with_id.lock().await;
+                            map.insert(id, tunn_data.clone());
+                            v.insert(tunn_data.clone());
+                            let tunn = tunn_data.clone();
+                            let mut lost_map = bridge_state.lost_connections.lock().await;
+                            let mut undiscovered_clients =
+                                bridge_state.undiscovered_clients.lock().await;
+                            if let Some(conns) = lost_map.remove(&id) {
+                                for (conn_no, recipient) in conns.into_iter() {
+                                    let meta = RemoteConnMeta {
+                                        charger_id: id,
+                                        conn_no,
+                                    };
+                                    undiscovered_clients.insert(meta, recipient);
+
+                                    open_connection(
+                                        conn_no,
+                                        id,
+                                        tunn.clone(),
+                                        bridge_state.port_discovery.clone(),
+                                    )
+                                    .await
+                                    .ok();
+                                }
+                            }
+                        }
+                        update_charger_state_change(
                             id,
                             app_state.clone(),
                             bridge_state.clone(),
-                        ));
-
-                        let tunn_data = Arc::new(Mutex::new(tunn_data));
-                        let mut map = bridge_state.charger_management_map_with_id.lock().await;
-                        map.insert(id, tunn_data.clone());
-                        v.insert(tunn_data.clone());
-                        let tunn = tunn_data.clone();
-                        let mut lost_map = bridge_state.lost_connections.lock().await;
-                        let mut undiscovered_clients =
-                            bridge_state.undiscovered_clients.lock().await;
-                        if let Some(conns) = lost_map.remove(&id) {
-                            for (conn_no, recipient) in conns.into_iter() {
-                                let meta = RemoteConnMeta {
-                                    charger_id: id,
-                                    conn_no,
-                                };
-                                undiscovered_clients.insert(meta, recipient);
-
-                                open_connection(
-                                    conn_no,
-                                    id,
-                                    tunn.clone(),
-                                    bridge_state.port_discovery.clone(),
-                                )
-                                .await
-                                .ok();
-                            }
-                        }
-                        log::info!("Adding management connection from {addr}");
+                        ).await;
                         tunn_data.clone()
                     }
                 }

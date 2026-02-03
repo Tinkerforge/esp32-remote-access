@@ -304,18 +304,16 @@ pub async fn update_charger_state_change(
     notify_state_change(state, bridge_state).await;
 }
 
-async fn notify_state_change(state: web::Data<AppState>, bridge_state: web::Data<BridgeState>) {
+async fn notify_state_change(state: web::Data<AppState>, bridge_state: web::Data<BridgeState<'_>>) {
     use crate::routes::charger::get_devices::{fetch_chargers, StateUpdateMessage};
 
-    let state_update_clients = bridge_state.state_update_clients.lock().await;
-
-    // Clone sessions to send messages without holding lock during async operations
-    let sessions: Vec<(uuid::Uuid, actix_ws::Session)> = state_update_clients
-        .iter()
-        .map(|(id, session)| (*id, session.clone()))
-        .collect();
-
-    drop(state_update_clients);
+    let sessions: Vec<(uuid::Uuid, actix_ws::Session)> = {
+        let state_update_clients = bridge_state.state_update_clients.lock().await;
+        state_update_clients
+            .iter()
+            .map(|(id, session)| (*id, session.clone()))
+            .collect()
+    };
 
     // Send messages and track failures
     let mut to_remove = Vec::new();

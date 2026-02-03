@@ -19,10 +19,11 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    net::{SocketAddr, UdpSocket},
+    net::SocketAddr,
     sync::Arc,
     time::Instant,
 };
+use tokio::net::UdpSocket;
 
 use actix_ws::Session;
 pub use boringtun::*;
@@ -361,6 +362,8 @@ pub(crate) mod tests {
     pub fn configure(cfg: &mut ServiceConfig) {
         let pool = db_connector::test_connection_pool();
 
+        let std_socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
+        std_socket.set_nonblocking(true).unwrap();
         let bridge_state = BridgeState {
             pool: pool.clone(),
             charger_management_map: Arc::new(Mutex::new(HashMap::new())),
@@ -371,7 +374,7 @@ pub(crate) mod tests {
             web_client_map: Mutex::new(HashMap::new()),
             undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
             lost_connections: Mutex::new(HashMap::new()),
-            socket: Arc::new(UdpSocket::bind(("0", 0)).unwrap()),
+            socket: Arc::new(UdpSocket::from_std(std_socket).unwrap()),
             state_update_clients: Mutex::new(HashMap::new()),
         };
 

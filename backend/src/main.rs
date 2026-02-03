@@ -22,13 +22,12 @@ mod monitoring;
 use std::{
     collections::{HashMap, HashSet},
     io::BufReader,
-    net::UdpSocket,
     num::NonZeroUsize,
     sync::Arc,
     time::Duration,
 };
+use tokio::net::UdpSocket;
 
-use actix::Arbiter;
 use actix_files::{Files, NamedFile};
 use actix_web::{
     dev::{fn_service, ServiceRequest, ServiceResponse},
@@ -76,7 +75,7 @@ fn cleanup_thread(state: web::Data<AppState>) {
 
 async fn resend_thread(bridge_state: web::Data<BridgeState>) {
     loop {
-        std::thread::sleep(Duration::from_secs(1));
+        tokio::time::sleep(Duration::from_secs(1)).await;
         let undiscovered_ports = bridge_state.port_discovery.lock().await;
         for (port, _) in undiscovered_ports.iter() {
             let command = ManagementCommand {
@@ -205,6 +204,7 @@ async fn main() -> std::io::Result<()> {
 
     monitoring::start_monitoring(state.clone());
 
+    let udp_socket = UdpSocket::bind("0.0.0.0:51820").await.expect("Failed to bind UDP socket");
     let bridge_state = web::Data::new(BridgeState {
         pool,
         web_client_map: Mutex::new(HashMap::new()),
@@ -215,15 +215,14 @@ async fn main() -> std::io::Result<()> {
         charger_remote_conn_map: Mutex::new(HashMap::new()),
         undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
         lost_connections: Mutex::new(HashMap::new()),
-        socket: Arc::new(UdpSocket::bind("0.0.0.0:51820").unwrap()),
+        socket: Arc::new(udp_socket),
         state_update_clients: Mutex::new(HashMap::new()),
     });
 
     let state_cpy = state.clone();
     std::thread::spawn(move || cleanup_thread(state_cpy));
     let bridge_state_cpy = bridge_state.clone();
-    let arbiter = Arbiter::new();
-    arbiter.spawn(async move { resend_thread(bridge_state_cpy).await });
+    actix::spawn(resend_thread(bridge_state_cpy));
 
     udp_server::start_server(bridge_state.clone(), state.clone());
 

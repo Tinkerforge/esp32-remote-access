@@ -343,13 +343,10 @@ pub async fn management(
     }
 
     {
-        let mut map = bridge_state.charger_management_map_with_id.lock().await;
-        let sock = map.remove(&charger_id);
-
-        //Drop the map since it is no longer needed to avoid deadlocks
-        drop(map);
+        let mut map = bridge_state.charger_management_map.lock().await;
+        let mut id_map = bridge_state.charger_management_map_with_id.lock().await;
+        let sock = id_map.remove(&charger_id);
         if let Some(socket) = sock {
-            let mut map = bridge_state.charger_management_map.lock().await;
             let socket = socket.lock().await;
             let _ = map.remove(&socket.get_remote_address());
         }
