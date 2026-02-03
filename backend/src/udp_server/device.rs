@@ -21,9 +21,10 @@ use boringtun::noise::{Tunn, TunnResult};
 use smoltcp::phy::{self, DeviceCapabilities, Medium};
 use std::{
     collections::VecDeque,
-    net::{SocketAddr, UdpSocket},
+    net::SocketAddr,
     sync::{Arc, Mutex},
 };
+use tokio::net::UdpSocket;
 
 use super::multiplex::send_data;
 

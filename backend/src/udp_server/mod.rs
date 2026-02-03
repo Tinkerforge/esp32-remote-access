@@ -23,7 +23,6 @@ mod multiplex;
 pub mod packet;
 pub mod socket;
 
-use actix::Arbiter;
 use futures_util::lock::Mutex;
 use std::{
     collections::{HashMap, HashSet},
@@ -50,8 +49,7 @@ async fn start_rate_limiters_reset_thread(
     discovery_map: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     state: web::Data<AppState>,
-    bridge_state: web::Data<BridgeState>,
-    arbiter: Arc<Arbiter>,
+    bridge_state: web::Data<BridgeState<'static>>,
 ) {
     loop {
         {

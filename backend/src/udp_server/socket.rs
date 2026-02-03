@@ -18,10 +18,11 @@
  */
 
 use std::{
-    net::{Ipv4Addr, SocketAddr, UdpSocket},
+    net::{Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
+use tokio::net::UdpSocket;
 
 use boringtun::noise::{rate_limiter::RateLimiter, Tunn, TunnResult};
 use smoltcp::{
@@ -154,7 +155,7 @@ impl ManagementSocket {
     }
 
     fn send_slice(&self, data: &[u8]) -> Result<(), String> {
-        match self.udp_socket.send_to(data, self.remote_addr) {
+        match self.udp_socket.try_send_to(data, self.remote_addr) {
             Ok(sent) => {
                 if sent != data.len() {
                     Err("Sent was incomplete".to_string())
