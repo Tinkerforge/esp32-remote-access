@@ -35,7 +35,7 @@ pub struct ChargerInfoRequest {
 #[post("/info")]
 pub async fn charger_info(
     state: web::Data<AppState>,
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     charger: web::Json<ChargerInfoRequest>,
     user: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {

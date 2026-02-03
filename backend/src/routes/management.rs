@@ -280,7 +280,7 @@ pub async fn management(
     req: HttpRequest,
     state: web::Data<AppState>,
     data: web::Json<ManagementSchema>,
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     rate_limiter: web::Data<ChargerRateLimiter>,
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::chargers::dsl as chargers;

@@ -46,7 +46,7 @@ impl Serialize for RemoteConnMeta {
 }
 
 async fn process_old_packet(
-    state: &web::Data<BridgeState>,
+    state: &web::Data<BridgeState<'_>>,
     data: &[u8],
 ) -> anyhow::Result<ManagementResponseV2> {
     let packet: OldManagementResponse = unsafe { std::ptr::read(data.as_ptr() as *const _) };
@@ -64,7 +64,7 @@ async fn process_old_packet(
 }
 
 async fn unpack_packet(
-    state: &web::Data<BridgeState>,
+    state: &web::Data<BridgeState<'_>>,
     data: &[u8],
 ) -> anyhow::Result<ManagementResponseV2> {
     if data.len() == ::core::mem::size_of::<OldManagementResponse>() {
@@ -82,7 +82,7 @@ async fn unpack_packet(
 }
 
 pub async fn try_port_discovery(
-    state: &web::Data<BridgeState>,
+    state: &web::Data<BridgeState<'_>>,
     data: &[u8],
     addr: SocketAddr,
 ) -> anyhow::Result<()> {

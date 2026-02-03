@@ -33,10 +33,7 @@ use rand::TryRngCore;
 use rand_core::OsRng;
 
 use crate::{
-    udp_server::{management::RemoteConnMeta, packet::ManagementCommand},
-    utils::update_charger_state_change,
-    ws_udp_bridge::open_connection,
-    AppState, BridgeState,
+    AppState, BridgeState, udp_server::{management::RemoteConnMeta, packet::ChargeLogSendMetadataPacket}, utils::update_charger_state_change, ws_udp_bridge::open_connection
 };
 
 use super::{management::try_port_discovery, socket::ManagementSocket};
@@ -54,11 +51,11 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-async fn create_tunn(
-    state: &web::Data<BridgeState>,
+async fn create_tunn<'a>(
+    state: &web::Data<BridgeState<'_>>,
     addr: SocketAddr,
     data: &[u8],
-) -> anyhow::Result<(uuid::Uuid, ManagementSocket)> {
+) -> anyhow::Result<(uuid::Uuid, ManagementSocket<'a>)> {
     use db_connector::schema::chargers::dsl as chargers;
 
     let mut conn = state.pool.get()?;
@@ -216,9 +213,8 @@ pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
 }
 
 pub async fn run_server(
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'static>>,
     app_state: web::Data<AppState>,
-    arbiter: Arc<Arbiter>,
 ) {
     let mut buf = vec![0u8; 65535];
     loop {
@@ -301,6 +297,9 @@ pub async fn run_server(
 
             let data = {
                 let mut tun_sock = tunn_sock.lock().await;
+
+                // Decrypts wireguard packet, returning udp payload directly and pushing tcp payloads
+                // into the tcp socket inside the tunn object.
                 match tun_sock.decrypt(&buf[..s]) {
                     Ok(data) => data,
                     Err(_) => {
@@ -309,7 +308,40 @@ pub async fn run_server(
                 }
             };
 
-            if data.len() == std::mem::size_of::<ManagementCommand>() {}
+            if let Ok(packet) = ChargeLogSendMetadataPacket::try_from(data.as_slice()) {
+                let mut tun_sock_guard = tunn_sock.lock().await;
+                tun_sock_guard.set_send_metadata(packet.data);
+                tun_sock_guard.init_tcp_socket();
+                let tcp_sock = tun_sock_guard.get_tcp_socket().unwrap();
+                tcp_sock.listen(8080).unwrap();
+                let tunn_sock = tunn_sock.clone();
+                actix::spawn(async move {
+                    loop {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        let mut tunn_sock_lock = tunn_sock.lock().await;
+                        if let Some(tcp_sock) = tunn_sock_lock.get_tcp_socket() {
+                            if !tcp_sock.is_open() && !tcp_sock.can_recv() {
+                                log::error!("TCP socket is closed.");
+                                continue;
+                            }
+                            let buf = match tcp_sock.recv(|buf| (buf.len(), buf.to_vec())) {
+                                Ok(buf) => buf,
+                                Err(smoltcp::socket::tcp::RecvError::Finished) => {
+                                    tcp_sock.close();
+                                    tunn_sock_lock.poll();
+                                    tunn_sock_lock.remove_tcp_socket();
+                                    log::error!("TCP socket finished.");
+                                    break;
+                                },
+                                Err(smoltcp::socket::tcp::RecvError::InvalidState) => continue,
+                            };
+                            log::error!("Received TCP data: {buf:02x?} bytes");
+                        } else {
+                            break;
+                        }
+                    }
+                });
+            }
         }
     }
 }
