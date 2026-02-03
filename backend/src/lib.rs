@@ -72,13 +72,13 @@ impl Serialize for DiscoveryCharger {
     }
 }
 
-pub struct BridgeState {
+pub struct BridgeState<'a> {
     pub pool: Pool,
     pub web_client_map: Mutex<HashMap<SocketAddr, Session>>,
     pub undiscovered_clients: Mutex<HashMap<RemoteConnMeta, Session>>,
-    pub charger_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
+    pub charger_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket<'a>>>>>>,
     pub charger_management_map_with_id:
-        Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket>>>>>,
+        Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'a>>>>>>,
     pub port_discovery: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
     pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
@@ -339,9 +339,11 @@ pub(crate) mod tests {
 
     pub fn create_test_bridge_state(
         pool: Option<diesel::r2d2::Pool<ConnectionManager<PgConnection>>>,
-    ) -> web::Data<BridgeState> {
+    ) -> web::Data<BridgeState<'static>> {
         let pool = pool.unwrap_or_else(db_connector::test_connection_pool);
 
+        let std_socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
+        std_socket.set_nonblocking(true).unwrap();
         let bridge_state = BridgeState {
             pool: pool.clone(),
             charger_management_map: Arc::new(Mutex::new(HashMap::new())),
@@ -352,7 +354,7 @@ pub(crate) mod tests {
             web_client_map: Mutex::new(HashMap::new()),
             undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
             lost_connections: Mutex::new(HashMap::new()),
-            socket: Arc::new(UdpSocket::bind(("0", 0)).unwrap()),
+            socket: Arc::new(UdpSocket::from_std(std_socket).unwrap()),
             state_update_clients: Mutex::new(HashMap::new()),
         };
 

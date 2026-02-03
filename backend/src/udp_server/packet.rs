@@ -65,17 +65,21 @@ pub struct ManagementResponsePacket {
     pub data: ManagementResponseV2,
 }
 
-/// Parsed charge log metadata packet - not packed since it contains String fields
 #[derive(Debug)]
-pub struct ChargeLogSendMetadataPacket {
-    pub header: ManagementPacketHeader,
-
+pub struct ChargeLogSendMetadata {
     pub charger_uuid: u128,
     pub user_uuid: u128,
     pub filename_length: u16,
     pub display_name_length: u16,
     pub filename: String,
     pub display_name: String,
+}
+
+/// Parsed charge log metadata packet - not packed since it contains String fields
+#[derive(Debug)]
+pub struct ChargeLogSendMetadataPacket {
+    pub header: ManagementPacketHeader,
+    pub data: ChargeLogSendMetadata,
 }
 
 impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
@@ -111,14 +115,18 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
         let display_name_bytes = &value[..display_name_length as usize];
         let display_name = String::from_utf8_lossy(display_name_bytes).to_string();
 
-        Ok(Self {
-            header,
+        let data = ChargeLogSendMetadata {
             charger_uuid,
             user_uuid,
             filename_length,
             display_name_length,
             filename,
             display_name,
+        };
+
+        Ok(Self {
+            header,
+            data,
         })
     }
 }
@@ -191,14 +199,14 @@ mod tests {
         let parsed = result.unwrap();
 
         assert_eq!(
-            parsed.charger_uuid,
+            parsed.data.charger_uuid,
             0x12345678_9ABCDEF0_12345678_9ABCDEF0u128
         );
-        assert_eq!(parsed.user_uuid, 0xFEDCBA98_76543210_FEDCBA98_76543210u128);
-        assert_eq!(parsed.filename_length, filename.len() as u16);
-        assert_eq!(parsed.filename, filename);
-        assert_eq!(parsed.display_name_length, display_name.len() as u16);
-        assert_eq!(parsed.display_name, display_name);
+        assert_eq!(parsed.data.user_uuid, 0xFEDCBA98_76543210_FEDCBA98_76543210u128);
+        assert_eq!(parsed.data.filename_length, filename.len() as u16);
+        assert_eq!(parsed.data.filename, filename);
+        assert_eq!(parsed.data.display_name_length, display_name.len() as u16);
+        assert_eq!(parsed.data.display_name, display_name);
     }
 
     #[test]
@@ -210,10 +218,10 @@ mod tests {
 
         let parsed = result.unwrap();
 
-        assert_eq!(parsed.filename_length, 0);
-        assert_eq!(parsed.filename, "");
-        assert_eq!(parsed.display_name_length, 0);
-        assert_eq!(parsed.display_name, "");
+        assert_eq!(parsed.data.filename_length, 0);
+        assert_eq!(parsed.data.filename, "");
+        assert_eq!(parsed.data.display_name_length, 0);
+        assert_eq!(parsed.data.display_name, "");
     }
 
     #[test]
@@ -345,8 +353,8 @@ mod tests {
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
-        assert_eq!(parsed.filename, filename);
-        assert_eq!(parsed.display_name, display_name);
+        assert_eq!(parsed.data.filename, filename);
+        assert_eq!(parsed.data.display_name, display_name);
     }
 
     #[test]
@@ -447,10 +455,10 @@ mod tests {
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
-        assert_eq!(parsed.filename_length, 5);
-        assert_eq!(parsed.filename, "hello");
-        assert_eq!(parsed.display_name_length, 3);
-        assert_eq!(parsed.display_name, "abc");
+        assert_eq!(parsed.data.filename_length, 5);
+        assert_eq!(parsed.data.filename, "hello");
+        assert_eq!(parsed.data.display_name_length, 3);
+        assert_eq!(parsed.data.display_name, "abc");
     }
 
     #[test]
@@ -486,9 +494,9 @@ mod tests {
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
-        assert_eq!(parsed.filename, "test");
-        assert_eq!(parsed.display_name_length, 3);
-        assert_eq!(parsed.display_name, "abc"); // Only first 3 bytes
+        assert_eq!(parsed.data.filename, "test");
+        assert_eq!(parsed.data.display_name_length, 3);
+        assert_eq!(parsed.data.display_name, "abc"); // Only first 3 bytes
     }
 
     #[test]
@@ -524,9 +532,9 @@ mod tests {
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
-        assert_eq!(parsed.filename_length, 5);
-        assert_eq!(parsed.filename, "hello");
-        assert_eq!(parsed.display_name, "test");
+        assert_eq!(parsed.data.filename_length, 5);
+        assert_eq!(parsed.data.filename, "hello");
+        assert_eq!(parsed.data.display_name, "test");
     }
 
     #[test]
@@ -562,8 +570,8 @@ mod tests {
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
-        assert_eq!(parsed.filename, "file.csv");
-        assert_eq!(parsed.display_name_length, 4);
-        assert_eq!(parsed.display_name, "User"); // Only first 4 bytes
+        assert_eq!(parsed.data.filename, "file.csv");
+        assert_eq!(parsed.data.display_name_length, 4);
+        assert_eq!(parsed.data.display_name, "User"); // Only first 4 bytes
     }
 }

@@ -87,7 +87,7 @@ pub async fn delete_charger(
     Ok(())
 }
 
-pub async fn remove_charger_from_state(charger: uuid::Uuid, state: &web::Data<BridgeState>) {
+pub async fn remove_charger_from_state(charger: uuid::Uuid, state: &web::Data<BridgeState<'_>>) {
     let socket = {
         let mut map = state.charger_management_map_with_id.lock().await;
         map.remove(&charger)
@@ -180,7 +180,7 @@ pub async fn remove(
     state: web::Data<AppState>,
     user_id: crate::models::uuid::Uuid,
     data: web::Json<DeleteChargerSchema>,
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'_>>,
 ) -> Result<impl Responder, actix_web::Error> {
     let charger_id = parse_uuid(&data.charger)?;
     if !user_is_allowed(&state, user_id.clone().into(), charger_id).await? {

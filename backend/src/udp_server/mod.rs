@@ -44,8 +44,8 @@ use packet::ManagementResponseV2;
 /// We can do this with a very low frequency since the management connection
 /// is always one to one and the esps keepalive is two minutes.
 async fn start_rate_limiters_reset_thread(
-    charger_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket>>>>>,
-    charger_map_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket>>>>>,
+    charger_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket<'static>>>>>>,
+    charger_map_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
     discovery_map: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     state: web::Data<AppState>,
@@ -81,11 +81,12 @@ async fn start_rate_limiters_reset_thread(
                 if remove {
                     log::info!("Charger {id} has timeouted and will be removed.");
                     map.remove(&id);
-                    arbiter.spawn(update_charger_state_change(
+                    drop(map);
+                    update_charger_state_change(
                         id,
                         state.clone(),
                         bridge_state.clone(),
-                    ));
+                    ).await;
                 }
             }
         }
@@ -130,24 +131,22 @@ async fn start_rate_limiters_reset_thread(
                 map.remove(&ip);
             }
         }
-        std::thread::sleep(Duration::from_secs(10));
+        tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }
 
-pub fn start_server(bridge_state: web::Data<BridgeState>, app_state: web::Data<AppState>) {
+pub fn start_server(bridge_state: web::Data<BridgeState<'static>>, app_state: web::Data<AppState>) {
     log::info!("Starting Wireguard server.");
-    let state_arbiter = Arc::new(Arbiter::new());
-    let cleanup_arbiter = Arbiter::new();
-    cleanup_arbiter.spawn(start_rate_limiters_reset_thread(
+    actix::spawn(
+        start_rate_limiters_reset_thread(
         bridge_state.charger_management_map.clone(),
         bridge_state.charger_management_map_with_id.clone(),
         bridge_state.port_discovery.clone(),
-        bridge_state.undiscovered_chargers.clone(),
-        app_state.clone(),
-        bridge_state.clone(),
-        state_arbiter.clone(),
-    ));
+            bridge_state.undiscovered_chargers.clone(),
+            app_state.clone(),
+            bridge_state.clone(),
+        ));
 
-    let arbiter = Arbiter::new();
-    arbiter.spawn(run_server(bridge_state, app_state, state_arbiter));
+
+    actix::spawn(run_server(bridge_state, app_state));
 }

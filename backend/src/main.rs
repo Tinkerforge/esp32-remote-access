@@ -73,7 +73,7 @@ fn cleanup_thread(state: web::Data<AppState>) {
     }
 }
 
-async fn resend_thread(bridge_state: web::Data<BridgeState>) {
+async fn resend_thread(bridge_state: web::Data<BridgeState<'_>>) {
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
         let undiscovered_ports = bridge_state.port_discovery.lock().await;
