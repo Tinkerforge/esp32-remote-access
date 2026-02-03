@@ -301,16 +301,48 @@ pub async fn update_charger_state_change(
     .await;
 
     // Notify connected clients about state change
-    notify_state_change(state, bridge_state).await;
+    notify_state_change(charger_id, state, bridge_state).await;
 }
 
-async fn notify_state_change(state: web::Data<AppState>, bridge_state: web::Data<BridgeState<'_>>) {
+async fn notify_state_change(
+    charger_id: uuid::Uuid,
+    state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
+) {
     use crate::routes::charger::get_devices::{fetch_chargers, StateUpdateMessage};
+    use db_connector::models::allowed_users::AllowedUser;
+    use db_connector::schema::allowed_users::dsl as allowed_users;
+
+    // Get users who have access to this charger
+    let Ok(mut conn) = get_connection(&state) else {
+        log::error!("Failed to get database connection for fetching allowed users");
+        return;
+    };
+
+    let affected_user_ids: Vec<uuid::Uuid> = match web::block(move || {
+        allowed_users::allowed_users
+            .filter(allowed_users::charger_id.eq(charger_id))
+            .select(AllowedUser::as_select())
+            .load(&mut conn)
+    })
+    .await
+    {
+        Ok(Ok(users)) => users.into_iter().map(|u| u.user_id).collect(),
+        Ok(Err(e)) => {
+            log::error!("Failed to fetch allowed users for charger {}: {:?}", charger_id, e);
+            return;
+        }
+        Err(e) => {
+            log::error!("Blocking error while fetching allowed users: {:?}", e);
+            return;
+        }
+    };
 
     let sessions: Vec<(uuid::Uuid, actix_ws::Session)> = {
         let state_update_clients = bridge_state.state_update_clients.lock().await;
         state_update_clients
             .iter()
+            .filter(|(user_id, _)| affected_user_ids.contains(user_id))
             .map(|(id, session)| (*id, session.clone()))
             .collect()
     };
