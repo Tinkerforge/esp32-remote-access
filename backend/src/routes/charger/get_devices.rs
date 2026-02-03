@@ -68,7 +68,7 @@ pub enum StateUpdateMessage {
 pub async fn fetch_chargers(
     state: &web::Data<AppState>,
     uid: uuid::Uuid,
-    bridge_state: &web::Data<BridgeState>,
+    bridge_state: &web::Data<BridgeState<'_>>,
 ) -> Result<Vec<GetChargerSchema>, actix_web::Error> {
     use db_connector::schema::allowed_users::dsl as allowed_users;
     use db_connector::schema::chargers::dsl as chargers;
@@ -171,7 +171,7 @@ pub async fn get_devices(
     stream: web::Payload,
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'static>>,
 ) -> Result<impl Responder, actix_web::Error> {
     handle_websocket(req, state, uid, bridge_state, stream).await
 }
@@ -180,7 +180,7 @@ async fn handle_websocket(
     req: HttpRequest,
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'static>>,
     stream: web::Payload,
 ) -> Result<HttpResponse, actix_web::Error> {
     let (resp, mut session, ws_stream) = actix_ws::handle(&req, stream)?;
@@ -203,7 +203,21 @@ async fn handle_websocket(
         if let Ok(chargers) = fetch_chargers(&state, user_id, &bridge_state).await {
             if let Ok(json) = serde_json::to_string(&chargers) {
                 let _ = session.text(json).await;
+            } else {
+                log::error!(
+                    "Failed to serialize chargers for user {} during get_devices WebSocket connection.",
+                    user_id
+                );
+                let _ = session.close(None).await;
+                return;
             }
+        } else {
+            log::error!(
+                "Failed to fetch chargers for user {} during get_devices WebSocket connection.",
+                user_id
+            );
+            let _ = session.close(None).await;
+            return;
         }
 
         loop {
@@ -262,7 +276,7 @@ mod tests {
     };
 
     /// Helper function to get AppState and BridgeState for testing fetch_chargers directly
-    fn get_test_state() -> (web::Data<AppState>, web::Data<BridgeState>) {
+    fn get_test_state() -> (web::Data<AppState>, web::Data<BridgeState<'static>>) {
         let pool = test_connection_pool();
         let state = create_test_state(Some(pool.clone()));
         let bridge_state = create_test_bridge_state(Some(pool));

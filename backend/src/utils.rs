@@ -277,7 +277,7 @@ pub fn send_email_with_attachment(
 pub async fn update_charger_state_change(
     charger_id: uuid::Uuid,
     state: web::Data<AppState>,
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'_>>,
 ) {
     let Ok(mut conn) = get_connection(&state) else {
         log::error!("Failed to get database connection for updating charger state change");

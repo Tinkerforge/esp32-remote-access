@@ -64,21 +64,21 @@ fn validate_key_id(key_id: &str) -> Result<(), ValidationError> {
     }
 }
 
-pub struct WebClient {
+pub struct WebClient<'a> {
     key_id: uuid::Uuid,
     charger_id: uuid::Uuid,
     app_state: web::Data<AppState>,
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'a>>,
     conn_no: i32,
     session: Session,
 }
 
-impl WebClient {
+impl<'a> WebClient<'a> {
     pub async fn new(
         key_id: uuid::Uuid,
         charger_id: uuid::Uuid,
         app_state: web::Data<AppState>,
-        bridge_state: web::Data<BridgeState>,
+        bridge_state: web::Data<BridgeState<'a>>,
         conn_no: i32,
         session: Session,
     ) -> Self {
@@ -136,7 +136,7 @@ impl WebClient {
                     }
                 };
 
-                match self.bridge_state.socket.send_to(&msg, peer_sock_addr) {
+                match self.bridge_state.socket.send_to(&msg, peer_sock_addr).await {
                     Ok(s) => {
                         if s < msg.len() {
                             log::error!("Sent incomplete message to charger '{}'", self.charger_id);
@@ -223,7 +223,7 @@ pub struct Message(pub Bytes);
 pub async fn open_connection(
     conn_no: i32,
     charger_id: uuid::Uuid,
-    management_sock: Arc<Mutex<ManagementSocket>>,
+    management_sock: Arc<Mutex<ManagementSocket<'_>>>,
     port_discovery: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
 ) -> Result<(), Error> {
     let conn_uuid = uuid::Uuid::new_v4();
@@ -262,7 +262,7 @@ async fn start_ws(
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
     key_id: Query<WsQuery>,
-    bridge_state: web::Data<BridgeState>,
+    bridge_state: web::Data<BridgeState<'static>>,
 ) -> Result<HttpResponse, actix_web::Error> {
     use db_connector::schema::wg_keys::dsl as wg_keys;
 
