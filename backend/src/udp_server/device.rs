@@ -1,5 +1,5 @@
 /* esp32-remote-access
- * Copyright (C) 2024 Frederic Henrichs <frederic@tinkerforge.com>
+ * Copyright (C) 2026 Frederic Henrichs <frederic@tinkerforge.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,22 +27,25 @@ use std::{
 use tokio::net::UdpSocket;
 
 use super::multiplex::send_data;
+use super::pcap_logger::PcapLogger;
 
 pub struct ManagementDevice {
     rx_buf: VecDeque<Vec<u8>>,
     socket: Arc<UdpSocket>,
     tunn: Arc<Mutex<Tunn>>,
     remote_addr: SocketAddr,
+    pcap_logger: PcapLogger,
 }
 
 impl ManagementDevice {
-    pub fn new(socket: Arc<UdpSocket>, tunn: Arc<Mutex<Tunn>>, remote_addr: SocketAddr) -> Self {
+    pub fn new(socket: Arc<UdpSocket>, tunn: Arc<Mutex<Tunn>>, remote_addr: SocketAddr, pcap_logger: PcapLogger) -> Self {
         let rx_buf = VecDeque::new();
         Self {
             rx_buf,
             socket,
             tunn,
             remote_addr,
+            pcap_logger,
         }
     }
 
@@ -68,11 +71,15 @@ impl phy::Device for ManagementDevice {
         _timestamp: smoltcp::time::Instant,
     ) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
         if let Some(buf) = self.rx_buf.pop_front() {
-            let rx = ManagementRxToken { buf };
+            let rx = ManagementRxToken {
+                buf,
+                pcap_logger: self.pcap_logger.clone(),
+            };
             let tx = ManagementTxToken {
                 socket: &self.socket,
                 tunn: self.tunn.clone(),
                 remote_addr: self.remote_addr,
+                pcap_logger: self.pcap_logger.clone(),
             };
             Some((rx, tx))
         } else {
@@ -85,12 +92,14 @@ impl phy::Device for ManagementDevice {
             socket: &self.socket,
             tunn: self.tunn.clone(),
             remote_addr: self.remote_addr,
+            pcap_logger: self.pcap_logger.clone(),
         })
     }
 }
 
 pub struct ManagementRxToken {
     buf: Vec<u8>,
+    pcap_logger: PcapLogger,
 }
 
 impl phy::RxToken for ManagementRxToken {
@@ -98,6 +107,7 @@ impl phy::RxToken for ManagementRxToken {
     where
         F: FnOnce(&[u8]) -> R,
     {
+        self.pcap_logger.log_packet(&self.buf);
         f(&self.buf)
     }
 }
@@ -106,6 +116,7 @@ pub struct ManagementTxToken<'a> {
     socket: &'a UdpSocket,
     tunn: Arc<Mutex<Tunn>>,
     remote_addr: SocketAddr,
+    pcap_logger: PcapLogger,
 }
 
 impl<'a> phy::TxToken for ManagementTxToken<'a> {
@@ -115,6 +126,8 @@ impl<'a> phy::TxToken for ManagementTxToken<'a> {
     {
         let mut buf = vec![0u8; len];
         let r = f(&mut buf);
+
+        self.pcap_logger.log_packet(&buf);
 
         let mut tunn = self.tunn.lock().unwrap();
         let mut dst_buf = vec![0u8; len + 148];

@@ -18,9 +18,7 @@
  */
 
 use std::{
-    net::{Ipv4Addr, SocketAddr},
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    net::{Ipv4Addr, SocketAddr}, sync::{Arc, Mutex}, time::{Duration, Instant}
 };
 use tokio::net::UdpSocket;
 
@@ -32,7 +30,7 @@ use smoltcp::{
 
 use crate::udp_server::packet::ChargeLogSendMetadata;
 
-use super::{device::ManagementDevice, packet::ManagementPacket};
+use super::{device::ManagementDevice, packet::ManagementPacket, pcap_logger::PcapLogger};
 
 pub struct ManagementSocket<'a> {
     charger_id: uuid::Uuid,
@@ -49,6 +47,7 @@ pub struct ManagementSocket<'a> {
     out_sequence: u16,
     send_metadata: Option<ChargeLogSendMetadata>,
     tcp_socket: Option<SocketHandle>,
+    pcap_logger: PcapLogger,
 }
 
 impl std::fmt::Debug for ManagementSocket<'_> {
@@ -71,7 +70,8 @@ impl<'a> ManagementSocket<'a> {
     ) -> Self {
         let tunn = Arc::new(Mutex::new(tunn));
 
-        let mut device = ManagementDevice::new(udp_socket.clone(), tunn.clone(), remote_addr);
+        let pcap_logger = PcapLogger::new();
+        let mut device = ManagementDevice::new(udp_socket.clone(), tunn.clone(), remote_addr, pcap_logger.clone());
 
         let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         config.random_seed = rand::random();
@@ -110,6 +110,7 @@ impl<'a> ManagementSocket<'a> {
             out_sequence: 1,
             send_metadata: None,
             tcp_socket: None,
+            pcap_logger,
         }
     }
 
@@ -253,5 +254,25 @@ impl<'a> ManagementSocket<'a> {
         if let Some(handle) = self.tcp_socket.take() {
             self.sockets.remove(handle);
         }
+    }
+
+    /// Enables pcap logging for this socket and writes to the specified file path.
+    pub fn enable_pcap_logging(&self, path: std::path::PathBuf) -> Result<(), String> {
+        self.pcap_logger.enable(path)
+    }
+
+    /// Disables pcap logging for this socket.
+    pub fn disable_pcap_logging(&self) {
+        self.pcap_logger.disable();
+    }
+
+    /// Returns whether pcap logging is enabled for this socket.
+    pub fn is_pcap_logging_enabled(&self) -> bool {
+        self.pcap_logger.is_enabled()
+    }
+
+    /// Returns the current pcap file path if logging is enabled.
+    pub fn get_pcap_file_path(&self) -> Option<std::path::PathBuf> {
+        self.pcap_logger.get_file_path()
     }
 }

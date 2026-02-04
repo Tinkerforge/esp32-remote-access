@@ -193,6 +193,17 @@ async fn create_tunn<'a>(
             udp_socket,
             charger.id,
         );
+
+        #[cfg(feature = "pcap-logging")]
+        {
+            let pcap_path = std::path::PathBuf::from(format!("pcap/charger_{}.pcapng", charger.id));
+            if let Err(e) = socket.enable_pcap_logging(pcap_path.clone()) {
+                log::error!("Failed to enable pcap logging for charger {}: {}", charger.id, e);
+            } else {
+                log::error!("Enabled pcap logging for charger {} at {:?}", charger.id, pcap_path);
+            }
+        }
+
         return Ok((charger.id, socket));
     }
 
