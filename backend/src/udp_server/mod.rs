@@ -21,6 +21,7 @@ pub mod device;
 pub mod management;
 mod multiplex;
 pub mod packet;
+pub mod pcap_logger;
 pub mod socket;
 
 use futures_util::lock::Mutex;
