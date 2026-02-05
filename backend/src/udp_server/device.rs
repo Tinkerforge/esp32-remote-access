@@ -22,7 +22,7 @@ use smoltcp::phy::{self, DeviceCapabilities, Medium};
 use std::{
     collections::VecDeque,
     net::SocketAddr,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 use tokio::net::UdpSocket;
 
@@ -32,13 +32,13 @@ use super::pcap_logger::PcapLogger;
 pub struct ManagementDevice {
     rx_buf: VecDeque<Vec<u8>>,
     socket: Arc<UdpSocket>,
-    tunn: Arc<Mutex<Tunn>>,
+    tunn: Tunn,
     remote_addr: SocketAddr,
     pcap_logger: PcapLogger,
 }
 
 impl ManagementDevice {
-    pub fn new(socket: Arc<UdpSocket>, tunn: Arc<Mutex<Tunn>>, remote_addr: SocketAddr, pcap_logger: PcapLogger) -> Self {
+    pub fn new(socket: Arc<UdpSocket>, tunn: Tunn, remote_addr: SocketAddr, pcap_logger: PcapLogger) -> Self {
         let rx_buf = VecDeque::new();
         Self {
             rx_buf,
@@ -49,14 +49,26 @@ impl ManagementDevice {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.tunn.clear_sessions();
+    }
+
     pub fn push_packet(&mut self, data: Vec<u8>) {
         self.rx_buf.push_back(data)
+    }
+
+    pub fn decapsulate<'a>(&mut self, src: &'a [u8], dst: &'a mut [u8]) -> TunnResult<'a> {
+        self.tunn.decapsulate(None, src, dst)
     }
 }
 
 impl phy::Device for ManagementDevice {
-    type RxToken<'a> = ManagementRxToken;
-    type TxToken<'a> = ManagementTxToken<'a>;
+    type RxToken<'b> = ManagementRxToken
+    where
+        Self: 'b;
+    type TxToken<'b> = ManagementTxToken<'b>
+    where
+        Self: 'b;
 
     fn capabilities(&self) -> phy::DeviceCapabilities {
         let mut caps = DeviceCapabilities::default();
@@ -77,7 +89,7 @@ impl phy::Device for ManagementDevice {
             };
             let tx = ManagementTxToken {
                 socket: &self.socket,
-                tunn: self.tunn.clone(),
+                tunn: &mut self.tunn,
                 remote_addr: self.remote_addr,
                 pcap_logger: self.pcap_logger.clone(),
             };
@@ -90,7 +102,7 @@ impl phy::Device for ManagementDevice {
     fn transmit(&mut self, _timestamp: smoltcp::time::Instant) -> Option<Self::TxToken<'_>> {
         Some(ManagementTxToken {
             socket: &self.socket,
-            tunn: self.tunn.clone(),
+            tunn: &mut self.tunn,
             remote_addr: self.remote_addr,
             pcap_logger: self.pcap_logger.clone(),
         })
@@ -114,7 +126,7 @@ impl phy::RxToken for ManagementRxToken {
 
 pub struct ManagementTxToken<'a> {
     socket: &'a UdpSocket,
-    tunn: Arc<Mutex<Tunn>>,
+    tunn: &'a mut Tunn,
     remote_addr: SocketAddr,
     pcap_logger: PcapLogger,
 }
@@ -129,9 +141,8 @@ impl<'a> phy::TxToken for ManagementTxToken<'a> {
 
         self.pcap_logger.log_packet(&buf);
 
-        let mut tunn = self.tunn.lock().unwrap();
         let mut dst_buf = vec![0u8; len + 148];
-        let res = tunn.encapsulate(&buf, &mut dst_buf);
+        let res = self.tunn.encapsulate(&buf, &mut dst_buf);
         if let TunnResult::WriteToNetwork(data) = res {
             send_data(self.socket, self.remote_addr, data);
         }
