@@ -65,12 +65,21 @@ pub struct ManagementResponsePacket {
     pub data: ManagementResponseV2,
 }
 
+/// Metadata for a charge log being sent from a charger
+///
+/// # Fields
+///
+/// * `charger_uuid` - Unique identifier for the charger (16 bytes)
+/// * `user_uuid` - Unique identifier for the user (16 bytes)
+/// * `filename_length` - Length of the filename string in bytes
+/// * `display_name_length` - Length of the display name string in bytes
+/// * `lang` - Language code for the charge log, two bytes (e.g., "en", "de")
+/// * `filename` - The actual filename of the charge log
+/// * `display_name` - Human-readable display name for the charge log
 #[derive(Debug)]
 pub struct ChargeLogSendMetadata {
-    pub charger_uuid: u128,
     pub user_uuid: u128,
-    pub filename_length: u16,
-    pub display_name_length: u16,
+    pub lang: String,
     pub filename: String,
     pub display_name: String,
 }
@@ -86,23 +95,25 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
     type Error = anyhow::Error;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        // The packet must be at least 46 bytes to be able to contain all fixed-size fields
-        // (header (8) + charger_uuid (16) + user_uuid (16) + filename_length (2) + display_name_length (2))
-        if value.len() < 44 {
+        // The packet must be at least 30 bytes to be able to contain all fixed-size fields
+        // (header (8) + user_uuid (16) + filename_length (2) + display_name_length (2) + lang (2))
+        if value.len() < 30 {
             return Err(anyhow::anyhow!("Packet too short"));
         }
         let header =
-            unsafe { std::ptr::read_unaligned(value.as_ptr() as *const ManagementPacketHeader) };
+            unsafe { std::ptr::read(value.as_ptr() as *const ManagementPacketHeader) };
         let header_size = std::mem::size_of::<ManagementPacketHeader>();
         let value = &value[header_size..];
-        let charger_uuid = unsafe { std::ptr::read_unaligned(value.as_ptr() as *const u128) };
+        let user_uuid = unsafe { std::ptr::read(value.as_ptr() as *const u128) };
+        let user_uuid = u128::from_be(user_uuid);
         let value = &value[std::mem::size_of::<u128>()..];
-        let user_uuid = unsafe { std::ptr::read_unaligned(value.as_ptr() as *const u128) };
-        let value = &value[std::mem::size_of::<u128>()..];
-        let filename_length = unsafe { std::ptr::read_unaligned(value.as_ptr() as *const u16) };
+        let filename_length = unsafe { std::ptr::read(value.as_ptr() as *const u16) };
         let value = &value[std::mem::size_of::<u16>()..];
-        let display_name_length = unsafe { std::ptr::read_unaligned(value.as_ptr() as *const u16) };
+        let display_name_length = unsafe { std::ptr::read(value.as_ptr() as *const u16) };
         let value = &value[std::mem::size_of::<u16>()..];
+        let lang_bytes = &value[..2];
+        let lang = String::from_utf8_lossy(lang_bytes).to_string();
+        let value = &value[2..];
 
         // Check if there are enougth bytes for the filename and display name
         if value.len() < (filename_length + display_name_length) as usize {
@@ -116,10 +127,8 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
         let display_name = String::from_utf8_lossy(display_name_bytes).to_string();
 
         let data = ChargeLogSendMetadata {
-            charger_uuid,
             user_uuid,
-            filename_length,
-            display_name_length,
+            lang,
             filename,
             display_name,
         };
@@ -156,7 +165,7 @@ impl ManagementPacket {
 mod tests {
     use super::*;
 
-    fn create_valid_packet(filename: &str, display_name: &str) -> Vec<u8> {
+    fn create_valid_packet(filename: &str, display_name: &str, lang: &str) -> Vec<u8> {
         let mut packet = Vec::new();
 
         // Header (8 bytes)
@@ -178,6 +187,9 @@ mod tests {
         // display_name_length (2 bytes)
         packet.extend_from_slice(&(display_name.len() as u16).to_ne_bytes());
 
+        // lang (2 bytes)
+        packet.extend_from_slice(&lang.as_bytes()[..2]);
+
         // filename
         packet.extend_from_slice(filename.as_bytes());
 
@@ -191,43 +203,38 @@ mod tests {
     fn test_parse_valid_packet() {
         let filename = "test_file.csv";
         let display_name = "Test Display Name";
-        let packet = create_valid_packet(filename, display_name);
+        let lang = "en";
+        let packet = create_valid_packet(filename, display_name, lang);
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
 
-        assert_eq!(
-            parsed.data.charger_uuid,
-            0x12345678_9ABCDEF0_12345678_9ABCDEF0u128
-        );
         assert_eq!(parsed.data.user_uuid, 0xFEDCBA98_76543210_FEDCBA98_76543210u128);
-        assert_eq!(parsed.data.filename_length, filename.len() as u16);
         assert_eq!(parsed.data.filename, filename);
-        assert_eq!(parsed.data.display_name_length, display_name.len() as u16);
         assert_eq!(parsed.data.display_name, display_name);
+        assert_eq!(parsed.data.lang, lang);
     }
 
     #[test]
     fn test_parse_empty_strings() {
-        let packet = create_valid_packet("", "");
+        let packet = create_valid_packet("", "", "en");
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
 
-        assert_eq!(parsed.data.filename_length, 0);
         assert_eq!(parsed.data.filename, "");
-        assert_eq!(parsed.data.display_name_length, 0);
         assert_eq!(parsed.data.display_name, "");
+        assert_eq!(parsed.data.lang, "en");
     }
 
     #[test]
     fn test_packet_too_short_minimum() {
-        // Packet with only 43 bytes (minimum is 44)
-        let packet = vec![0u8; 43];
+        // Packet with only 45 bytes (minimum is 46)
+        let packet = vec![0u8; 45];
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_err());
@@ -252,6 +259,9 @@ mod tests {
 
         // display_name_length = 0 (2 bytes)
         packet.extend_from_slice(&0u16.to_ne_bytes());
+
+        // lang (2 bytes)
+        packet.extend_from_slice(b"en");
 
         // Only 5 bytes for filename (not enough)
         packet.extend_from_slice(&[b'a'; 5]);
@@ -280,6 +290,9 @@ mod tests {
         // display_name_length = 10 (2 bytes)
         packet.extend_from_slice(&10u16.to_ne_bytes());
 
+        // lang (2 bytes)
+        packet.extend_from_slice(b"de");
+
         // filename (4 bytes)
         packet.extend_from_slice(b"test");
 
@@ -293,9 +306,9 @@ mod tests {
 
     #[test]
     fn test_packet_exactly_minimum_size() {
-        // The implementation requires at least 44 bytes for fixed fields.
-        let packet = create_valid_packet("", "");
-        assert!(packet.len() >= 44);
+        // The implementation requires at least 46 bytes for fixed fields.
+        let packet = create_valid_packet("", "", "en");
+        assert!(packet.len() >= 46);
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
@@ -324,6 +337,9 @@ mod tests {
         // display_name_length = 0 (2 bytes)
         packet.extend_from_slice(&0u16.to_ne_bytes());
 
+        // lang (2 bytes)
+        packet.extend_from_slice(b"en");
+
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
 
@@ -347,7 +363,7 @@ mod tests {
     fn test_unicode_in_strings() {
         let filename = "tëst_fïlé.csv";
         let display_name = "Tëst Dïsplây Nàmé 日本語";
-        let packet = create_valid_packet(filename, display_name);
+        let packet = create_valid_packet(filename, display_name, "de");
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
@@ -380,6 +396,9 @@ mod tests {
         // display_name_length = 0
         packet.extend_from_slice(&0u16.to_ne_bytes());
 
+        // lang (2 bytes)
+        packet.extend_from_slice(b"en");
+
         // Only 5 bytes of filename data
         packet.extend_from_slice(b"hello");
 
@@ -410,6 +429,9 @@ mod tests {
 
         // display_name_length = 50 (but we only provide 5 bytes)
         packet.extend_from_slice(&50u16.to_ne_bytes());
+
+        // lang (2 bytes)
+        packet.extend_from_slice(b"de");
 
         // filename (4 bytes)
         packet.extend_from_slice(b"test");
@@ -445,6 +467,9 @@ mod tests {
         // display_name_length = 3
         packet.extend_from_slice(&3u16.to_ne_bytes());
 
+        // lang (2 bytes)
+        packet.extend_from_slice(b"en");
+
         // filename (5 bytes)
         packet.extend_from_slice(b"hello");
 
@@ -455,9 +480,7 @@ mod tests {
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
-        assert_eq!(parsed.data.filename_length, 5);
         assert_eq!(parsed.data.filename, "hello");
-        assert_eq!(parsed.data.display_name_length, 3);
         assert_eq!(parsed.data.display_name, "abc");
     }
 
@@ -484,6 +507,9 @@ mod tests {
         // display_name_length = 3
         packet.extend_from_slice(&3u16.to_ne_bytes());
 
+        // lang (2 bytes)
+        packet.extend_from_slice(b"de");
+
         // filename (4 bytes)
         packet.extend_from_slice(b"test");
 
@@ -495,7 +521,6 @@ mod tests {
 
         let parsed = result.unwrap();
         assert_eq!(parsed.data.filename, "test");
-        assert_eq!(parsed.data.display_name_length, 3);
         assert_eq!(parsed.data.display_name, "abc"); // Only first 3 bytes
     }
 
@@ -522,6 +547,9 @@ mod tests {
         // display_name_length = 4
         packet.extend_from_slice(&4u16.to_ne_bytes());
 
+        // lang (2 bytes)
+        packet.extend_from_slice(b"en");
+
         // filename (5 bytes)
         packet.extend_from_slice(b"hello");
 
@@ -532,7 +560,6 @@ mod tests {
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
-        assert_eq!(parsed.data.filename_length, 5);
         assert_eq!(parsed.data.filename, "hello");
         assert_eq!(parsed.data.display_name, "test");
     }
@@ -560,6 +587,9 @@ mod tests {
         // display_name_length = 4
         packet.extend_from_slice(&4u16.to_ne_bytes());
 
+        // lang (2 bytes)
+        packet.extend_from_slice(b"de");
+
         // filename (8 bytes)
         packet.extend_from_slice(b"file.csv");
 
@@ -571,7 +601,6 @@ mod tests {
 
         let parsed = result.unwrap();
         assert_eq!(parsed.data.filename, "file.csv");
-        assert_eq!(parsed.data.display_name_length, 4);
         assert_eq!(parsed.data.display_name, "User"); // Only first 4 bytes
     }
 }
