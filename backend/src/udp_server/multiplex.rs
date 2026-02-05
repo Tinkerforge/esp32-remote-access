@@ -1,5 +1,5 @@
 /* esp32-remote-access
- * Copyright (C) 2024 Frederic Henrichs <frederic@tinkerforge.com>
+ * Copyright (C) 2026 Frederic Henrichs <frederic@tinkerforge.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,7 +18,7 @@
  */
 
 use std::{
-    collections::hash_map::Entry, net::{IpAddr, SocketAddr}, sync::Arc, time::Duration
+    collections::hash_map::Entry, io::{BufWriter, Write}, net::{IpAddr, SocketAddr}, sync::Arc
 };
 use tokio::net::UdpSocket;
 
@@ -33,10 +33,10 @@ use rand::TryRngCore;
 use rand_core::OsRng;
 
 use crate::{
-    AppState, BridgeState, udp_server::{management::RemoteConnMeta, packet::ChargeLogSendMetadataPacket}, utils::update_charger_state_change, ws_udp_bridge::open_connection
+    AppState, BridgeState, routes::{send_chargelog_to_user::send_charge_log_to_user}, udp_server::{management::RemoteConnMeta, packet::ChargeLogSendMetadataPacket}, utils::update_charger_state_change, ws_udp_bridge::open_connection
 };
 
-use super::{management::try_port_discovery, socket::ManagementSocket};
+use super::{management::try_port_discovery, socket::{ManagementSocket, ManagementSocketTCPReceiver, TCPRecvResult}};
 
 #[derive(Debug)]
 enum Error {
@@ -231,128 +231,142 @@ pub async fn run_server(
     loop {
         if let Ok((s, addr)) = bridge_state.socket.recv_from(&mut buf).await {
             let bridge_state = bridge_state.clone();
+            let app_state = app_state.clone();
             let buf = buf.clone();
 
-            // Check if the packet is for port discovery
-            if try_port_discovery(&bridge_state, &buf[..s], addr)
-                .await
-                .is_ok()
-            {
-                continue;
-            }
-
-            // Check if we need to relay the packet
-            {
-                let mut client_map = bridge_state.web_client_map.lock().await;
-                if let Some(client) = client_map.get_mut(&addr) {
-                    let payload = Bytes::copy_from_slice(&buf[0..s]);
-                    client.binary(payload).await.ok();
-                    continue;
+            actix::spawn(async move {
+                // Check if the packet is for port discovery
+                if try_port_discovery(&bridge_state, &buf[..s], addr)
+                    .await
+                    .is_ok()
+                {
+                    return;
                 }
-            }
 
-            // Get the management socket or create a new one when it does not exist
-            let tunn_sock = {
-                // Maybe we could release the lock when adding a new management connection and get it back later
-                // in case it turns out that holding it causes major connection issues.
-                let mut charger_map = bridge_state.charger_management_map.lock().await;
+                // Check if we need to relay the packet
+                {
+                    let mut client_map = bridge_state.web_client_map.lock().await;
+                    if let Some(client) = client_map.get_mut(&addr) {
+                        let payload = Bytes::copy_from_slice(&buf[0..s]);
+                        client.binary(payload).await.ok();
+                        return;
+                    }
+                }
 
-                match charger_map.entry(addr) {
-                    Entry::Occupied(tunn) => tunn.into_mut().clone(),
-                    Entry::Vacant(v) => {
-                        let (id, tunn_data) =
-                            match create_tunn(&bridge_state, addr, &buf[..s]).await {
-                                Ok(tunn) => tunn,
-                                Err(_err) => {
-                                    continue;
-                                }
-                            };
+                // Get the management socket or create a new one when it does not exist
+                let tunn_sock = {
+                    // Maybe we could release the lock when adding a new management connection and get it back later
+                    // in case it turns out that holding it causes major connection issues.
+                    let mut charger_map = bridge_state.charger_management_map.lock().await;
 
-                        let tunn_data = Arc::new(Mutex::new(tunn_data));
-                        {
-                            let mut map = bridge_state.charger_management_map_with_id.lock().await;
-                            map.insert(id, tunn_data.clone());
-                            v.insert(tunn_data.clone());
-                            let tunn = tunn_data.clone();
-                            let mut lost_map = bridge_state.lost_connections.lock().await;
-                            let mut undiscovered_clients =
-                                bridge_state.undiscovered_clients.lock().await;
-                            if let Some(conns) = lost_map.remove(&id) {
-                                for (conn_no, recipient) in conns.into_iter() {
-                                    let meta = RemoteConnMeta {
-                                        charger_id: id,
-                                        conn_no,
-                                    };
-                                    undiscovered_clients.insert(meta, recipient);
+                    match charger_map.entry(addr) {
+                        Entry::Occupied(tunn) => tunn.into_mut().clone(),
+                        Entry::Vacant(v) => {
+                            let (id, tunn_data) =
+                                match create_tunn(&bridge_state, addr, &buf[..s]).await {
+                                    Ok(tunn) => tunn,
+                                    Err(_err) => {
+                                        return;
+                                    }
+                                };
 
-                                    open_connection(
-                                        conn_no,
-                                        id,
-                                        tunn.clone(),
-                                        bridge_state.port_discovery.clone(),
-                                    )
-                                    .await
-                                    .ok();
+                            let tunn_data = Arc::new(Mutex::new(tunn_data));
+                            {
+                                let mut map = bridge_state.charger_management_map_with_id.lock().await;
+                                map.insert(id, tunn_data.clone());
+                                v.insert(tunn_data.clone());
+                                let tunn = tunn_data.clone();
+                                let mut lost_map = bridge_state.lost_connections.lock().await;
+                                let mut undiscovered_clients =
+                                    bridge_state.undiscovered_clients.lock().await;
+                                if let Some(conns) = lost_map.remove(&id) {
+                                    for (conn_no, recipient) in conns.into_iter() {
+                                        let meta = RemoteConnMeta {
+                                            charger_id: id,
+                                            conn_no,
+                                        };
+                                        undiscovered_clients.insert(meta, recipient);
+
+                                        open_connection(
+                                            conn_no,
+                                            id,
+                                            tunn.clone(),
+                                            bridge_state.port_discovery.clone(),
+                                        )
+                                        .await
+                                        .ok();
+                                    }
                                 }
                             }
+                            update_charger_state_change(
+                                id,
+                                app_state.clone(),
+                                bridge_state.clone(),
+                            ).await;
+                            tunn_data.clone()
                         }
-                        update_charger_state_change(
-                            id,
-                            app_state.clone(),
-                            bridge_state.clone(),
-                        ).await;
-                        tunn_data.clone()
                     }
-                }
-            };
+                };
 
-            let data = {
-                let mut tun_sock = tunn_sock.lock().await;
+                let data = {
+                    let mut tun_sock = tunn_sock.lock().await;
 
-                // Decrypts wireguard packet, returning udp payload directly and pushing tcp payloads
-                // into the tcp socket inside the tunn object.
-                match tun_sock.decrypt(&buf[..s]) {
-                    Ok(data) => data,
-                    Err(_) => {
-                        continue;
+                    // Decrypts wireguard packet, returning udp payload directly and pushing tcp payloads
+                    // into the tcp socket inside the tunn object.
+                    match tun_sock.decrypt(&buf[..s]) {
+                        Ok(data) => data,
+                        Err(_) => {
+                            return;
+                        }
                     }
-                }
-            };
+                };
 
-            if let Ok(packet) = ChargeLogSendMetadataPacket::try_from(data.as_slice()) {
-                let mut tun_sock_guard = tunn_sock.lock().await;
-                tun_sock_guard.set_send_metadata(packet.data);
-                tun_sock_guard.init_tcp_socket();
-                let tcp_sock = tun_sock_guard.get_tcp_socket().unwrap();
-                tcp_sock.listen(8080).unwrap();
-                let tunn_sock = tunn_sock.clone();
-                actix::spawn(async move {
+                if let Ok(meta_data) = ChargeLogSendMetadataPacket::try_from(data.as_slice()) {
+                    let tcp_receiver = ManagementSocketTCPReceiver::new(tunn_sock.clone()).await;
+                    let tunn_sock = tunn_sock.clone();
+                    let mut buf = BufWriter::new(
+                        Vec::with_capacity(10 * 1024 * 1024)
+                    );
                     loop {
-                        tokio::time::sleep(Duration::from_millis(100)).await;
-                        let mut tunn_sock_lock = tunn_sock.lock().await;
-                        if let Some(tcp_sock) = tunn_sock_lock.get_tcp_socket() {
-                            if !tcp_sock.is_open() && !tcp_sock.can_recv() {
-                                log::error!("TCP socket is closed.");
-                                continue;
+                        let handle_tcp_fut = tcp_receiver.handle_tcp_recv();
+                        tokio::select! {
+                            res = handle_tcp_fut => {
+                                match res {
+                                    TCPRecvResult::Ok(data) => {
+                                        if let Err(e) = buf.write_all(&data) {
+                                            log::error!("Error writing to charge log buffer: {}", e);
+                                            return;
+                                        }
+                                    },
+                                    TCPRecvResult::Finished => {
+                                        if let Err(e) = buf.flush() {
+                                            log::error!("Error flushing charge log buffer: {}", e);
+                                            return;
+                                        }
+                                        break;
+                                    }
+                                    TCPRecvResult::Err(e) => {
+                                        log::error!("Error receiving from TCP socket: {}", e);
+                                        return;
+                                    }
+                                }
+                            },
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(10)) => {
+                                return;
                             }
-                            let buf = match tcp_sock.recv(|buf| (buf.len(), buf.to_vec())) {
-                                Ok(buf) => buf,
-                                Err(smoltcp::socket::tcp::RecvError::Finished) => {
-                                    tcp_sock.close();
-                                    tunn_sock_lock.poll();
-                                    tunn_sock_lock.remove_tcp_socket();
-                                    log::error!("TCP socket finished.");
-                                    break;
-                                },
-                                Err(smoltcp::socket::tcp::RecvError::InvalidState) => continue,
-                            };
-                            log::error!("Received TCP data: {buf:02x?} bytes");
-                        } else {
-                            break;
                         }
                     }
-                });
-            }
+
+                    // Send the charge log to the user
+                    let charger_uuid = {
+                        let tunn_sock_lock = tunn_sock.lock().await;
+                        tunn_sock_lock.id()
+                    };
+                    if let Err(e) = send_charge_log_to_user(charger_uuid, &meta_data, buf.into_inner().unwrap(), &app_state).await {
+                        log::error!("Failed to send charge log to user: {:?}", e);
+                    }
+                }
+            });
         }
     }
 }

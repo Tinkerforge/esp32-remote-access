@@ -17,10 +17,11 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use std::{net::{Ipv4Addr, SocketAddr}, sync::Arc, time::{Duration, Instant}};
+use std::{future::poll_fn, net::{Ipv4Addr, SocketAddr}, sync::Arc, task::Poll, time::{Duration, Instant}};
 use tokio::net::UdpSocket;
 
 use boringtun::noise::{rate_limiter::RateLimiter, Tunn, TunnResult};
+use futures_util::lock::Mutex;
 use smoltcp::{
     iface::{self, Config, Interface, SocketHandle, SocketSet},
     socket::{tcp, udp},
@@ -253,5 +254,70 @@ impl<'a> ManagementSocket<'a> {
     /// Returns the current pcap file path if logging is enabled.
     pub fn get_pcap_file_path(&self) -> Option<std::path::PathBuf> {
         self.pcap_logger.get_file_path()
+    }
+}
+
+pub enum TCPRecvResult {
+    Ok(Vec<u8>),
+    Finished,
+    Err(std::io::Error),
+}
+
+pub struct ManagementSocketTCPReceiver<'a>(Arc<Mutex<ManagementSocket<'a>>>);
+
+impl<'a> ManagementSocketTCPReceiver<'a> {
+    pub async fn new(socket: Arc<Mutex<ManagementSocket<'a>>>) -> Self {
+        let mut sock_lock = socket.lock().await;
+        sock_lock.init_tcp_socket();
+        let tcp_socket = sock_lock.get_tcp_socket().unwrap();
+        tcp_socket.listen(8080).unwrap();
+        drop(sock_lock);
+
+        Self(socket)
+    }
+
+    pub async fn handle_tcp_recv(&self) -> TCPRecvResult {
+        poll_fn(|ctx| {
+            let mut tunn_sock = match self.0.try_lock() {
+                Some(guard) => guard,
+                None => {
+                    log::error!("Failed to acquire lock on tunn_sock, will retry");
+                    ctx.waker().wake_by_ref();
+                    return Poll::Pending;
+                }
+            };
+
+            if let Some(socket) = tunn_sock.get_tcp_socket() {
+                socket.register_recv_waker(ctx.waker());
+
+                if let tcp::State::CloseWait = socket.state() {
+                    return Poll::Ready(TCPRecvResult::Finished);
+                }
+
+                if !socket.can_recv() {
+                    return Poll::Pending;
+                }
+
+                match socket.recv(|buf| (buf.len(), buf.to_vec())) {
+                    Ok(data) => Poll::Ready(TCPRecvResult::Ok(data)),
+                    Err(tcp::RecvError::Finished) => {
+                        Poll::Ready(TCPRecvResult::Err(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "TCP socket finished",
+                        )))
+                    }
+                    Err(tcp::RecvError::InvalidState) => {
+                        log::error!("TCP socket in invalid state");
+                        Poll::Pending
+                    }
+                }
+            } else {
+                Poll::Ready(TCPRecvResult::Err(std::io::Error::new(
+                    std::io::ErrorKind::NotConnected,
+                    "TCP socket not initialized",
+                )))
+            }
+        })
+        .await
     }
 }

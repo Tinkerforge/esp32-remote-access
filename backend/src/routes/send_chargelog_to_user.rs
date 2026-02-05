@@ -1,17 +1,16 @@
 use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
+use lettre::message::IntoBody;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use utoipa::ToSchema;
 
 use crate::{
-    branding,
-    error::Error,
-    rate_limit::ChargerRateLimiter,
-    routes::{charger::add::password_matches, user::get_user},
-    utils::{get_charger_from_db, parse_uuid, send_email_with_attachment},
-    AppState,
+    AppState, branding, error::Error, rate_limit::ChargerRateLimiter, routes::{
+        charger::{add::password_matches, user_is_allowed},
+        user::get_user,
+    }, udp_server::packet::ChargeLogSendMetadataPacket, utils::{get_charger_from_db, parse_uuid, send_email_with_attachment}
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -22,6 +21,7 @@ pub struct SendChargelogMetadata {
     pub filename: String,
     pub display_name: String,
     pub monthly_send: bool,
+    pub lang: String,
 }
 
 #[derive(ToSchema, MultipartForm)]
@@ -210,6 +210,105 @@ pub async fn send_chargelog(
     Ok(HttpResponse::Ok())
 }
 
+/// Send a charge log to a user via email using data received over TCP.
+///
+/// This function takes a `ChargeLogSendMetadataPacket` containing metadata about the charge log
+/// and a `BufReader` containing the charge log data. It verifies that the user specified in the
+/// metadata is allowed to access the charger, then sends the charge log via email.
+///
+/// # Arguments
+/// * `metadata` - The metadata packet containing charger UUID, user UUID, filename, and display name
+/// * `reader` - A BufReader containing the charge log data
+/// * `state` - The application state containing database pool and other configuration
+///
+/// # Returns
+/// * `Ok(())` if the email was sent successfully
+/// * `Err(...)` if the user is not allowed to access the charger or if any other error occurs
+pub async fn send_charge_log_to_user<R: IntoBody>(
+    charger_uuid: uuid::Uuid,
+    metadata: &ChargeLogSendMetadataPacket,
+    charge_log: R,
+    state: &web::Data<AppState>,
+) -> Result<(), Error> {
+    let user_uuid = uuid::Uuid::from_u128(metadata.data.user_uuid);
+
+    // Check if the user is allowed to access this charger
+    let is_allowed = user_is_allowed(state, user_uuid, charger_uuid)
+        .await
+        .map_err(|e| {
+            log::error!(
+                "Failed to check if user '{}' is allowed to access charger '{}': {:?}",
+                user_uuid,
+                charger_uuid,
+                e
+            );
+            Error::InternalError
+        })?;
+
+    if !is_allowed {
+        log::warn!(
+            "User '{}' is not allowed to access charger '{}', not sending charge log",
+            user_uuid,
+            charger_uuid
+        );
+        return Err(Error::Unauthorized);
+    }
+
+    // Get the user from the database
+    let user = get_user(state, user_uuid).await.map_err(|e| {
+        log::error!("Failed to get user '{}': {:?}", user_uuid, e);
+        Error::InternalError
+    })?;
+
+    // Use the language from the metadata packet
+    let lang_str = &metadata.data.lang;
+    let Some(last_month) = chrono::Utc::now()
+        .date_naive()
+        .checked_sub_months(chrono::Months::new(1))
+    else {
+        log::error!("Failed to calculate last month for charge log email");
+        return Err(Error::InternalError);
+    };
+    let month = last_month.format("%B %Y").to_string();
+
+    // Render the email template (TCP-based sends are always monthly)
+    let (body, subject) = render_chargelog_email(
+        &user.name,
+        &month,
+        &metadata.data.display_name,
+        lang_str,
+        true, // monthly_send is always true for TCP-based sends
+        state.brand,
+    )
+    .map_err(|e| {
+        log::error!(
+            "Failed to render charge log email for user '{}': {:?}",
+            user.email,
+            e
+        );
+        Error::InternalError
+    })?;
+
+    // Send the email with the charge log attached
+    send_email_with_attachment(
+        &user.email,
+        &subject,
+        body,
+        charge_log,
+        &metadata.data.filename,
+        state,
+    );
+
+    log::error!(
+        "Successfully sent charge log from charger '{}' to user '{}' ({})",
+        charger_uuid,
+        user_uuid,
+        user.email
+    );
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -255,7 +354,8 @@ mod tests {
                 .to_string(),
             "display_name": "Test Device",
             "filename": "chargelog.pdf",
-            "monthly_send": true
+            "monthly_send": true,
+            "lang": "en"
         });
 
         let boundary = "----testboundary";
@@ -291,7 +391,9 @@ mod tests {
                 .to_string(),
             "display_name": "Test Device",
             "filename": "chargelog.pdf",
-            "monthly_send": false
+            "monthly_send": false,
+            "lang": "de",
+            "lang": "de"
         });
 
         let boundary = "----testboundary2";
@@ -329,7 +431,8 @@ mod tests {
             "user_uuid": user_uuid,
             "display_name": "Test Device",
             "filename": "chargelog.pdf",
-            "monthly_send": true
+            "monthly_send": true,
+            "lang": "en"
         });
 
         let boundary = "----testboundary3";
@@ -400,7 +503,8 @@ mod tests {
             "user_uuid": user_uuid,
             "display_name": "Test Device 2",
             "filename": "chargelog2.pdf",
-            "monthly_send": false
+            "monthly_send": false,
+            "lang": "de"
         });
         let body = build_multipart_body(boundary, &metadata2, &[1, 2, 3, 4, 5]);
         let req = test::TestRequest::post()

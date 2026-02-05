@@ -28,6 +28,7 @@ use diesel::{
     result::Error::NotFound,
     PgConnection,
 };
+use lettre::message::IntoBody;
 #[cfg(not(test))]
 use lettre::message::header::ContentType;
 #[cfg(not(test))]
@@ -217,11 +218,11 @@ pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<Ap
 }
 
 /// Send an email with a binary attachment (chargelog)
-pub fn send_email_with_attachment(
+pub fn send_email_with_attachment<T: IntoBody>(
     email: &str,
     subject: &str,
     body: String,
-    attachment_data: Vec<u8>,
+    attachment_data: T,
     attachment_filename: &str,
     state: &web::Data<AppState>,
 ) {
