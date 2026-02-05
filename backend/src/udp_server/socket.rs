@@ -17,9 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use std::{
-    net::{Ipv4Addr, SocketAddr}, sync::{Arc, Mutex}, time::{Duration, Instant}
-};
+use std::{net::{Ipv4Addr, SocketAddr}, sync::Arc, time::{Duration, Instant}};
 use tokio::net::UdpSocket;
 
 use boringtun::noise::{rate_limiter::RateLimiter, Tunn, TunnResult};
@@ -27,8 +25,6 @@ use smoltcp::{
     iface::{self, Config, Interface, SocketHandle, SocketSet},
     socket::{tcp, udp},
 };
-
-use crate::udp_server::packet::ChargeLogSendMetadata;
 
 use super::{device::ManagementDevice, packet::ManagementPacket, pcap_logger::PcapLogger};
 
@@ -38,14 +34,12 @@ pub struct ManagementSocket<'a> {
     sockets: SocketSet<'a>,
     iface: iface::Interface,
     device: ManagementDevice,
-    tunn: Arc<Mutex<Tunn>>,
     rate_limiter: Arc<RateLimiter>,
     peer_ip: Ipv4Addr,
     remote_addr: SocketAddr,
     udp_socket: Arc<UdpSocket>,
     last_seen: Instant,
     out_sequence: u16,
-    send_metadata: Option<ChargeLogSendMetadata>,
     tcp_socket: Option<SocketHandle>,
     pcap_logger: PcapLogger,
 }
@@ -68,10 +62,8 @@ impl<'a> ManagementSocket<'a> {
         udp_socket: Arc<UdpSocket>,
         charger_id: uuid::Uuid,
     ) -> Self {
-        let tunn = Arc::new(Mutex::new(tunn));
-
         let pcap_logger = PcapLogger::new();
-        let mut device = ManagementDevice::new(udp_socket.clone(), tunn.clone(), remote_addr, pcap_logger.clone());
+        let mut device = ManagementDevice::new(udp_socket.clone(), tunn, remote_addr, pcap_logger.clone());
 
         let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         config.random_seed = rand::random();
@@ -101,22 +93,19 @@ impl<'a> ManagementSocket<'a> {
             sockets,
             iface: interface,
             device,
-            tunn,
             rate_limiter,
             peer_ip,
             remote_addr,
             udp_socket,
             last_seen: Instant::now(),
             out_sequence: 1,
-            send_metadata: None,
             tcp_socket: None,
             pcap_logger,
         }
     }
 
     pub fn reset(&mut self) {
-        let mut tunn = self.tunn.lock().unwrap();
-        tunn.clear_sessions();
+        self.device.reset();
     }
 
     pub fn poll(&mut self) {
@@ -175,13 +164,12 @@ impl<'a> ManagementSocket<'a> {
     }
 
     pub fn decrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, String> {
-        let mut tunn = self.tunn.lock().unwrap();
         let mut dst = vec![0; data.len()];
-        match tunn.decapsulate(None, data, &mut dst) {
+        match self.device.decapsulate(data, &mut dst) {
             TunnResult::WriteToNetwork(data) => {
                 self.send_slice(data)?;
                 while let TunnResult::WriteToNetwork(data) =
-                    tunn.decapsulate(None, &Vec::new(), &mut dst)
+                    self.device.decapsulate(&Vec::new(), &mut dst)
                 {
                     self.send_slice(data)?;
                 }
@@ -189,7 +177,6 @@ impl<'a> ManagementSocket<'a> {
                 Ok(Vec::new())
             }
             TunnResult::WriteToTunnelV4(data, _) => {
-                drop(tunn);
                 self.device.push_packet(data.to_owned());
                 self.poll();
                 self.last_seen = Instant::now();
@@ -224,14 +211,6 @@ impl<'a> ManagementSocket<'a> {
 
     pub fn get_remote_address(&self) -> SocketAddr {
         self.remote_addr
-    }
-
-    pub fn set_send_metadata(&mut self, metadata: ChargeLogSendMetadata) {
-        self.send_metadata = Some(metadata);
-    }
-
-    pub fn take_send_metadata(&mut self) -> Option<ChargeLogSendMetadata> {
-        self.send_metadata.take()
     }
 
     pub fn get_tcp_socket(&mut self) -> Option<&mut tcp::Socket<'a>> {
