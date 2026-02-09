@@ -1,5 +1,5 @@
 /* esp32-remote-access
- * Copyright (C) 2024 Frederic Henrichs <frederic@tinkerforge.com>
+ * Copyright (C) 2026 Frederic Henrichs <frederic@tinkerforge.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -89,7 +89,7 @@ async fn resend_thread(bridge_state: web::Data<BridgeState<'_>>) {
                 length: std::mem::size_of::<ManagementCommand>() as u16,
                 seq_number: 0,
                 version: 1,
-                p_type: 0x00,
+                p_type: udp_server::packet::PacketType::ManagementCommand,
             };
 
             let packet = ManagementCommandPacket { header, command };

@@ -39,7 +39,7 @@ use validator::{Validate, ValidationError};
 use crate::udp_server::management::RemoteConnMeta;
 use crate::udp_server::packet::{
     ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
-    ManagementPacketHeader, ManagementResponseV2,
+    ManagementPacketHeader, ManagementResponseV2, PacketType,
 };
 use crate::udp_server::socket::ManagementSocket;
 use crate::{
@@ -197,7 +197,7 @@ impl<'a> WebClient<'a> {
                 length: std::mem::size_of::<ManagementCommand>() as u16,
                 seq_number: 0,
                 version: 1,
-                p_type: 0x00,
+                p_type: PacketType::ManagementCommand,
             };
 
             let packet = ManagementCommandPacket { header, command };
@@ -243,7 +243,7 @@ pub async fn open_connection(
         length: std::mem::size_of::<ManagementCommand>() as u16,
         seq_number: 0,
         version: 1,
-        p_type: 0x00,
+        p_type: PacketType::ManagementCommand,
     };
 
     let packet = ManagementCommandPacket { header, command };

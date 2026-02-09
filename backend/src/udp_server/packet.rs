@@ -2,6 +2,31 @@ use serde::Serialize;
 
 use crate::utils::as_u8_slice;
 
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+pub enum PacketType {
+    ManagementCommand = 0x00,
+    Ack = 0x01,
+    Nack = 0x02,
+    MetadataForChargeLog = 0x03,
+    RequestChargeLogSend = 0x04,
+}
+
+impl TryFrom<u8> for PacketType {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0x00 => Ok(PacketType::ManagementCommand),
+            0x01 => Ok(PacketType::Ack),
+            0x02 => Ok(PacketType::MetadataForChargeLog),
+            0x03 => Ok(PacketType::RequestChargeLogSend),
+            0x04 => Ok(PacketType::Nack),
+            _ => Err(anyhow::anyhow!("Invalid packet type: {}", value)),
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub enum ManagementCommandId {
@@ -28,12 +53,27 @@ pub struct ManagementPacketHeader {
     pub length: u16,
     pub seq_number: u16,
     pub version: u8,
-    /*
-        0x00 - Management Command
-        0x01 - Ack
-        0x02 - Metadata for Charge Log
-    */
-    pub p_type: u8,
+    pub p_type: PacketType,
+}
+
+impl ManagementPacketHeader {
+    /// Creates a new ManagementPacketHeader with the magic number set to 0x1234
+    ///
+    /// # Arguments
+    ///
+    /// * `length` - The length of the packet
+    /// * `seq_number` - The sequence number of the packet
+    /// * `version` - The protocol version
+    /// * `p_type` - The packet type
+    pub fn new(length: u16, seq_number: u16, version: u8, p_type: PacketType) -> Self {
+        Self {
+            magic: 0x1234,
+            length,
+            seq_number,
+            version,
+            p_type,
+        }
+    }
 }
 
 #[repr(C, packed)]
@@ -63,6 +103,49 @@ pub struct ManagementResponseV2 {
 pub struct ManagementResponsePacket {
     pub header: ManagementPacketHeader,
     pub data: ManagementResponseV2,
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, Serialize)]
+pub enum NackReason {
+    Busy = 0,
+    TooManyRequests = 1,
+    OngoingRequest = 2,
+}
+
+#[repr(C, packed)]
+pub struct ChargeLogSendRequestPacket {
+    pub header: ManagementPacketHeader,
+}
+
+#[repr(C, packed)]
+pub struct AckPacket {
+    pub header: ManagementPacketHeader,
+}
+
+impl AckPacket {
+    /// Creates a new AckPacket with default values
+    pub fn new() -> Self {
+        Self {
+            header: ManagementPacketHeader::new(0, 0, 1, PacketType::Ack),
+        }
+    }
+}
+
+#[repr(C, packed)]
+pub struct NackPacket {
+    pub header: ManagementPacketHeader,
+    pub reason: NackReason,
+}
+
+impl NackPacket {
+    /// Creates a new NackPacket with the specified reason
+    pub fn new(reason: NackReason) -> Self {
+        Self {
+            header: ManagementPacketHeader::new(0, 0, 1, PacketType::Nack),
+            reason,
+        }
+    }
 }
 
 /// Metadata for a charge log being sent from a charger
@@ -142,6 +225,8 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
 
 pub enum ManagementPacket {
     CommandPacket(ManagementCommandPacket),
+    AckPacket(AckPacket),
+    NackPacket(NackPacket),
 }
 
 impl ManagementPacket {
@@ -152,6 +237,8 @@ impl ManagementPacket {
     fn get_header(&mut self) -> &mut ManagementPacketHeader {
         match self {
             Self::CommandPacket(p) => &mut p.header,
+            Self::AckPacket(p) => &mut p.header,
+            Self::NackPacket(p) => &mut p.header,
         }
     }
 
@@ -160,6 +247,65 @@ impl ManagementPacket {
         header.seq_number = num;
     }
 }
+
+/// Extracts and validates the management packet header from a byte slice
+///
+/// # Arguments
+///
+/// * `data` - A byte slice containing at least the header data
+///
+/// # Returns
+///
+/// * `Ok(ManagementPacketHeader)` - If the header is valid and successfully extracted
+/// * `Err(anyhow::Error)` - If the packet is too short or header validation fails
+///
+/// # Validation performed
+///
+/// - Packet must be at least 8 bytes (size of ManagementPacketHeader)
+/// - Magic number must be 0x1234
+/// - Protocol type (p_type) must be 0-4 (valid packet types)
+pub fn extract_management_packet_header(data: &[u8], id: uuid::Uuid) -> anyhow::Result<ManagementPacketHeader> {
+    let header_size = std::mem::size_of::<ManagementPacketHeader>();
+
+    // Check minimum packet size
+    if data.len() < header_size {
+        return Err(anyhow::anyhow!(
+            "Packet too short for device {}: expected at least {} bytes, got {}",
+            id,
+            header_size,
+            data.len()
+        ));
+    }
+
+    // Extract header
+    let header = unsafe { std::ptr::read(data.as_ptr() as *const ManagementPacketHeader) };
+
+    // Copy fields to local variables for validation (required for packed structs)
+    let magic = { header.magic };
+    let p_type = { header.p_type };
+
+    // Validate magic number
+    if magic != 0x1234 {
+        return Err(anyhow::anyhow!(
+            "Invalid magic number for device {}: expected 0x1234, got 0x{:04x}",
+            id,
+            magic
+        ));
+    }
+
+    // Validate packet type
+    let p_type_value = p_type as u8;
+    if p_type_value > 4 {
+        return Err(anyhow::anyhow!(
+            "Invalid packet type for device {}: expected 0-4, got {}",
+            id,
+            p_type_value
+        ));
+    }
+
+    Ok(header)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -173,13 +319,10 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes()); // length
         packet.extend_from_slice(&0u16.to_ne_bytes()); // seq_number
         packet.push(1); // version
-        packet.push(2); // p_type
-
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&0x12345678_9ABCDEF0_12345678_9ABCDEF0u128.to_ne_bytes());
+        packet.push(PacketType::MetadataForChargeLog as u8); // p_type
 
         // user_uuid (16 bytes)
-        packet.extend_from_slice(&0xFEDCBA98_76543210_FEDCBA98_76543210u128.to_ne_bytes());
+        packet.extend_from_slice(&0xFEDCBA98_76543210_FEDCBA98_76543210u128.to_be_bytes());
 
         // filename_length (2 bytes)
         packet.extend_from_slice(&(filename.len() as u16).to_ne_bytes());
@@ -197,6 +340,142 @@ mod tests {
         packet.extend_from_slice(display_name.as_bytes());
 
         packet
+    }
+
+    // Tests for extract_management_packet_header function
+    #[test]
+    fn test_extract_header_valid_packet() {
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // magic
+        packet.extend_from_slice(&100u16.to_ne_bytes()); // length
+        packet.extend_from_slice(&42u16.to_ne_bytes()); // seq_number
+        packet.push(1); // version
+        packet.push(PacketType::MetadataForChargeLog as u8); // p_type
+
+        let id = uuid::Uuid::nil();
+        let result = extract_management_packet_header(&packet, id);
+        assert!(result.is_ok());
+
+        let header = result.unwrap();
+        let magic = { header.magic };
+        let length = { header.length };
+        let seq_number = { header.seq_number };
+        let version = { header.version };
+        let p_type = { header.p_type };
+
+        assert_eq!(magic, 0x1234);
+        assert_eq!(length, 100);
+        assert_eq!(seq_number, 42);
+        assert_eq!(version, 1);
+        assert_eq!(p_type, PacketType::MetadataForChargeLog);
+    }
+
+    #[test]
+    fn test_extract_header_packet_too_short() {
+        // Only 4 bytes (header is 8)
+        let packet = vec![0u8; 4];
+
+        let id = uuid::Uuid::nil();
+        let result = extract_management_packet_header(&packet, id);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Packet too short"));
+    }
+
+    #[test]
+    fn test_extract_header_empty_packet() {
+        let packet: Vec<u8> = vec![];
+
+        let id = uuid::Uuid::nil();
+        let result = extract_management_packet_header(&packet, id);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Packet too short"));
+    }
+
+    #[test]
+    fn test_extract_header_invalid_magic() {
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&0xABCDu16.to_ne_bytes()); // wrong magic
+        packet.extend_from_slice(&100u16.to_ne_bytes()); // length
+        packet.extend_from_slice(&42u16.to_ne_bytes()); // seq_number
+        packet.push(1); // version
+        packet.push(2); // p_type
+
+        let id = uuid::Uuid::nil();
+        let result = extract_management_packet_header(&packet, id);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid magic number"));
+    }
+
+    #[test]
+    fn test_extract_header_invalid_packet_type_too_high() {
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // magic
+        packet.extend_from_slice(&100u16.to_ne_bytes()); // length
+        packet.extend_from_slice(&42u16.to_ne_bytes()); // seq_number
+        packet.push(1); // version
+        packet.push(5); // p_type - invalid (should be 0-4)
+
+        let id = uuid::Uuid::nil();
+        let result = extract_management_packet_header(&packet, id);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid packet type"));
+    }
+
+    #[test]
+    fn test_extract_header_all_valid_packet_types() {
+        let id = uuid::Uuid::nil();
+        let valid_types = vec![
+            PacketType::ManagementCommand,
+            PacketType::Ack,
+            PacketType::MetadataForChargeLog,
+            PacketType::RequestChargeLogSend,
+            PacketType::Nack,
+        ];
+
+        for p_type in valid_types {
+            let mut packet = Vec::new();
+            packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // magic
+            packet.extend_from_slice(&100u16.to_ne_bytes()); // length
+            packet.extend_from_slice(&42u16.to_ne_bytes()); // seq_number
+            packet.push(1); // version
+            packet.push(p_type as u8); // p_type
+
+            let result = extract_management_packet_header(&packet, id);
+            assert!(result.is_ok(), "p_type {:?} should be valid", p_type);
+
+            let header = result.unwrap();
+            let header_p_type = { header.p_type };
+            assert_eq!(header_p_type, p_type);
+        }
+    }
+
+    #[test]
+    fn test_extract_header_with_extra_data() {
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // magic
+        packet.extend_from_slice(&100u16.to_ne_bytes()); // length
+        packet.extend_from_slice(&42u16.to_ne_bytes()); // seq_number
+        packet.push(1); // version
+        packet.push(PacketType::ManagementCommand as u8); // p_type
+
+        // Add extra data after header
+        packet.extend_from_slice(&[0xFFu8; 100]);
+
+        let id = uuid::Uuid::nil();
+        let result = extract_management_packet_header(&packet, id);
+        assert!(result.is_ok());
+
+        let header = result.unwrap();
+        let magic = { header.magic };
+        let length = { header.length };
+        assert_eq!(magic, 0x1234);
+        assert_eq!(length, 100);
     }
 
     #[test]
@@ -246,7 +525,11 @@ mod tests {
         let mut packet = Vec::new();
 
         // Header (8 bytes)
-        packet.extend_from_slice(&[0u8; 8]);
+        packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // magic
+        packet.extend_from_slice(&0u16.to_ne_bytes()); // length
+        packet.extend_from_slice(&0u16.to_ne_bytes()); // seq_number
+        packet.push(1); // version
+        packet.push(PacketType::MetadataForChargeLog as u8); // p_type
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&[0u8; 16]);
@@ -273,7 +556,11 @@ mod tests {
         let mut packet = Vec::new();
 
         // Header (8 bytes)
-        packet.extend_from_slice(&[0u8; 8]);
+        packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // magic
+        packet.extend_from_slice(&0u16.to_ne_bytes()); // length
+        packet.extend_from_slice(&0u16.to_ne_bytes()); // seq_number
+        packet.push(1); // version
+        packet.push(PacketType::MetadataForChargeLog as u8); // p_type
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&[0u8; 16]);
@@ -317,7 +604,7 @@ mod tests {
         packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // length
         packet.extend_from_slice(&0x5678u16.to_ne_bytes()); // seq_number
         packet.push(0x9A); // version
-        packet.push(0xBC); // p_type
+        packet.push(0x02); // p_type (MetadataForChargeLog)
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -347,7 +634,7 @@ mod tests {
         assert_eq!(length, 0x1234);
         assert_eq!(seq_number, 0x5678);
         assert_eq!(version, 0x9A);
-        assert_eq!(p_type, 0xBC);
+        assert_eq!(p_type, PacketType::MetadataForChargeLog);
     }
 
     #[test]
@@ -373,7 +660,7 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes()); // length
         packet.extend_from_slice(&0u16.to_ne_bytes()); // seq_number
         packet.push(1); // version
-        packet.push(2); // p_type
+        packet.push(PacketType::MetadataForChargeLog as u8); // p_type
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -404,7 +691,7 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes()); // length
         packet.extend_from_slice(&0u16.to_ne_bytes()); // seq_number
         packet.push(1); // version
-        packet.push(2); // p_type
+        packet.push(PacketType::MetadataForChargeLog as u8); // p_type
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -438,7 +725,7 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.push(1);
-        packet.push(2);
+        packet.push(PacketType::MetadataForChargeLog as u8);
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -475,7 +762,7 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.push(1);
-        packet.push(2);
+        packet.push(PacketType::MetadataForChargeLog as u8);
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -512,7 +799,7 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.push(1);
-        packet.push(2);
+        packet.push(PacketType::MetadataForChargeLog as u8);
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -549,7 +836,7 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.push(1);
-        packet.push(2);
+        packet.push(PacketType::MetadataForChargeLog as u8);
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
