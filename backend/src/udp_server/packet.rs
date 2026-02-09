@@ -233,8 +233,8 @@ mod tests {
 
     #[test]
     fn test_packet_too_short_minimum() {
-        // Packet with only 45 bytes (minimum is 46)
-        let packet = vec![0u8; 45];
+        // Packet with only 29 bytes (minimum is 30)
+        let packet = vec![0u8; 29];
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_err());
@@ -247,9 +247,6 @@ mod tests {
 
         // Header (8 bytes)
         packet.extend_from_slice(&[0u8; 8]);
-
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&[0u8; 16]);
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&[0u8; 16]);
@@ -278,9 +275,6 @@ mod tests {
         // Header (8 bytes)
         packet.extend_from_slice(&[0u8; 8]);
 
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&[0u8; 16]);
-
         // user_uuid (16 bytes)
         packet.extend_from_slice(&[0u8; 16]);
 
@@ -306,9 +300,9 @@ mod tests {
 
     #[test]
     fn test_packet_exactly_minimum_size() {
-        // The implementation requires at least 46 bytes for fixed fields.
+        // The implementation requires at least 30 bytes for fixed fields.
         let packet = create_valid_packet("", "", "en");
-        assert!(packet.len() >= 46);
+        assert!(packet.len() >= 30);
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
@@ -324,9 +318,6 @@ mod tests {
         packet.extend_from_slice(&0x5678u16.to_ne_bytes()); // seq_number
         packet.push(0x9A); // version
         packet.push(0xBC); // p_type
-
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&0u128.to_ne_bytes());
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -384,9 +375,6 @@ mod tests {
         packet.push(1); // version
         packet.push(2); // p_type
 
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&0u128.to_ne_bytes());
-
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
 
@@ -417,9 +405,6 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes()); // seq_number
         packet.push(1); // version
         packet.push(2); // p_type
-
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&0u128.to_ne_bytes());
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -454,9 +439,6 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.push(1);
         packet.push(2);
-
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&0u128.to_ne_bytes());
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -495,9 +477,6 @@ mod tests {
         packet.push(1);
         packet.push(2);
 
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&0u128.to_ne_bytes());
-
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
 
@@ -535,9 +514,6 @@ mod tests {
         packet.push(1);
         packet.push(2);
 
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&0u128.to_ne_bytes());
-
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
 
@@ -574,9 +550,6 @@ mod tests {
         packet.extend_from_slice(&0u16.to_ne_bytes());
         packet.push(1);
         packet.push(2);
-
-        // charger_uuid (16 bytes)
-        packet.extend_from_slice(&0u128.to_ne_bytes());
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
