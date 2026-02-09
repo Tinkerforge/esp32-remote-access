@@ -205,6 +205,7 @@ async fn main() -> std::io::Result<()> {
     monitoring::start_monitoring(state.clone());
 
     let udp_socket = UdpSocket::bind("0.0.0.0:51820").await.expect("Failed to bind UDP socket");
+    let charger_ratelimiter = crate::rate_limit::ChargerRateLimiter::new();
     let bridge_state = web::Data::new(BridgeState {
         pool,
         web_client_map: Mutex::new(HashMap::new()),
@@ -217,6 +218,7 @@ async fn main() -> std::io::Result<()> {
         lost_connections: Mutex::new(HashMap::new()),
         socket: Arc::new(udp_socket),
         state_update_clients: Mutex::new(HashMap::new()),
+        charger_ratelimiter,
     });
 
     let state_cpy = state.clone();

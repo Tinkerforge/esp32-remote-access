@@ -10,7 +10,7 @@ use crate::{
     AppState, branding, error::Error, rate_limit::ChargerRateLimiter, routes::{
         charger::{add::password_matches, user_is_allowed},
         user::get_user,
-    }, udp_server::packet::ChargeLogSendMetadataPacket, utils::{get_charger_from_db, parse_uuid, send_email_with_attachment}
+    }, udp_server::packet::ChargeLogSendMetadata, utils::{get_charger_from_db, parse_uuid, send_email_with_attachment}
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -226,11 +226,11 @@ pub async fn send_chargelog(
 /// * `Err(...)` if the user is not allowed to access the charger or if any other error occurs
 pub async fn send_charge_log_to_user<R: IntoBody>(
     charger_uuid: uuid::Uuid,
-    metadata: &ChargeLogSendMetadataPacket,
+    metadata: &ChargeLogSendMetadata,
     charge_log: R,
     state: &web::Data<AppState>,
 ) -> Result<(), Error> {
-    let user_uuid = uuid::Uuid::from_u128(metadata.data.user_uuid);
+    let user_uuid = uuid::Uuid::from_u128(metadata.user_uuid);
 
     // Check if the user is allowed to access this charger
     let is_allowed = user_is_allowed(state, user_uuid, charger_uuid)
@@ -261,7 +261,7 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
     })?;
 
     // Use the language from the metadata packet
-    let lang_str = &metadata.data.lang;
+    let lang_str = &metadata.lang;
     let Some(last_month) = chrono::Utc::now()
         .date_naive()
         .checked_sub_months(chrono::Months::new(1))
@@ -275,7 +275,7 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
     let (body, subject) = render_chargelog_email(
         &user.name,
         &month,
-        &metadata.data.display_name,
+        &metadata.display_name,
         lang_str,
         true, // monthly_send is always true for TCP-based sends
         state.brand,
@@ -295,7 +295,7 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
         &subject,
         body,
         charge_log,
-        &metadata.data.filename,
+        &metadata.filename,
         state,
     );
 

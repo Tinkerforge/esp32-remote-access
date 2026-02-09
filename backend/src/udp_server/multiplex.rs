@@ -18,7 +18,7 @@
  */
 
 use std::{
-    collections::hash_map::Entry, io::{BufWriter, Write}, net::{IpAddr, SocketAddr}, sync::Arc
+    collections::hash_map::Entry, io::{BufWriter, Write}, net::{IpAddr, SocketAddr}, sync::{Arc, atomic::AtomicUsize}
 };
 use tokio::net::UdpSocket;
 
@@ -33,10 +33,41 @@ use rand::TryRngCore;
 use rand_core::OsRng;
 
 use crate::{
-    AppState, BridgeState, routes::send_chargelog_to_user::send_charge_log_to_user, udp_server::{management::RemoteConnMeta, packet::{AckPacket, ChargeLogSendMetadataPacket, ManagementPacket, PacketType, extract_management_packet_header}}, utils::update_charger_state_change, ws_udp_bridge::open_connection
+    AppState, BridgeState, routes::send_chargelog_to_user::send_charge_log_to_user, udp_server::{management::RemoteConnMeta, packet::{AckPacket, ChargeLogSendMetadata, ChargeLogSendMetadataPacket, ManagementPacket, NackPacket, NackReason, PacketType, extract_management_packet_header}}, utils::update_charger_state_change, ws_udp_bridge::open_connection
 };
 
 use super::{management::try_port_discovery, socket::{ManagementSocket, ManagementSocketTCPReceiver, TCPRecvResult}};
+
+static CURRENT_CHARGE_LOG_SENDS: AtomicUsize = AtomicUsize::new(0);
+
+struct CurrentChargeLogSendsRAII;
+
+impl CurrentChargeLogSendsRAII {
+    fn new() -> anyhow::Result<Self> {
+        match CURRENT_CHARGE_LOG_SENDS.fetch_update(std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst, |x| {
+            if x < 250 {
+                Some(x + 1)
+            } else {
+                None
+            }
+        }) {
+            Ok(_) => Ok(Self),
+            Err(_) => Err(anyhow::Error::msg("Too many concurrent charge log sends")),
+        }
+    }
+}
+
+impl Drop for CurrentChargeLogSendsRAII {
+    fn drop(&mut self) {
+        let _ = CURRENT_CHARGE_LOG_SENDS.fetch_update(std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst, |x| {
+            if x > 0 {
+                Some(x - 1)
+            } else {
+                None
+            }
+        });
+    }
+}
 
 #[derive(Debug)]
 enum Error {
@@ -223,6 +254,66 @@ pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
     }
 }
 
+async fn handle_charge_log<'a>(
+    meta_data: ChargeLogSendMetadata,
+    tunn_sock: Arc<Mutex<ManagementSocket<'a>>>,
+    app_state: web::Data<AppState>,
+) {
+    let tcp_receiver = ManagementSocketTCPReceiver::new(tunn_sock.clone()).await;
+    let ack_packet = ManagementPacket::AckPacket(AckPacket::new());
+    {
+        let mut tun_sock = tunn_sock.lock().await;
+        tun_sock.send_packet(ack_packet);
+    }
+
+    let mut buf = BufWriter::new(Vec::with_capacity(10 * 1024 * 1024));
+    loop {
+        let handle_tcp_fut = tcp_receiver.handle_tcp_recv();
+        tokio::select! {
+            res = handle_tcp_fut => {
+                match res {
+                    TCPRecvResult::Ok(data) => {
+                        if let Err(e) = buf.write_all(&data) {
+                            log::error!("Error writing to charge log buffer: {}", e);
+                            return;
+                        }
+                    },
+                    TCPRecvResult::Finished => {
+                        if let Err(e) = buf.flush() {
+                            log::error!("Error flushing charge log buffer: {}", e);
+                            return;
+                        }
+                        break;
+                    }
+                    TCPRecvResult::Err(e) => {
+                        log::error!("Error receiving from TCP socket: {}", e);
+                        return;
+                    }
+                }
+            },
+            _ = tokio::time::sleep(std::time::Duration::from_secs(10)) => {
+                return;
+            }
+        }
+    }
+
+    // Send the charge log to the user
+    let charger_uuid = {
+        let tunn_sock_lock = tunn_sock.lock().await;
+        tunn_sock_lock.id()
+    };
+    if let Err(e) = send_charge_log_to_user(
+        charger_uuid,
+        &meta_data,
+        buf.into_inner().unwrap(),
+        &app_state,
+    )
+    .await
+    {
+        log::error!("Failed to send charge log to user: {:?}", e);
+    }
+}
+
 pub async fn run_server(
     bridge_state: web::Data<BridgeState<'static>>,
     app_state: web::Data<AppState>,
@@ -308,62 +399,95 @@ pub async fn run_server(
                     }
                 };
 
-                let data = {
+                let (data, id) = {
                     let mut tun_sock = tunn_sock.lock().await;
 
                     // Decrypts wireguard packet, returning udp payload directly and pushing tcp payloads
                     // into the tcp socket inside the tunn object.
                     match tun_sock.decrypt(&buf[..s]) {
-                        Ok(data) => data,
+                        Ok(data) => (data, tun_sock.id()),
                         Err(_) => {
                             return;
                         }
                     }
                 };
 
-                if let Ok(meta_data) = ChargeLogSendMetadataPacket::try_from(data.as_slice()) {
-                    let tcp_receiver = ManagementSocketTCPReceiver::new(tunn_sock.clone()).await;
-                    let tunn_sock = tunn_sock.clone();
-                    let mut buf = BufWriter::new(
-                        Vec::with_capacity(10 * 1024 * 1024)
-                    );
-                    loop {
-                        let handle_tcp_fut = tcp_receiver.handle_tcp_recv();
-                        tokio::select! {
-                            res = handle_tcp_fut => {
+                let Ok(header) = extract_management_packet_header(&data, id) else {
+                    return;
+                };
+
+                match header.p_type {
+                    // Charge log send metadata packet
+                    PacketType::MetadataForChargeLog => {
+                        if let Ok(meta_data) = ChargeLogSendMetadataPacket::try_from(data.as_slice()) {
+                            let mut tunn_sock = tunn_sock.lock().await;
+                            let Some(sender) = tunn_sock.take_sender() else {
+                                log::error!("Received unexpected charge log send metadata packet from charger with id '{}'", id);
+                                return;
+                            };
+                            sender.send(meta_data.data).ok();
+                        }
+                    },
+                    // Charge log send request
+                    PacketType::RequestChargeLogSend => {
+                        // Check rate limit first
+                        let charger_id_str = id.to_string();
+                        let ip_str = addr.ip().to_string();
+                        if !bridge_state.charger_ratelimiter.check_key(charger_id_str, ip_str) {
+                            let mut tun_sock = tunn_sock.lock().await;
+                            log::error!("Rate limit exceeded for charge log send request from charger with id '{}'", id);
+                            let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::ToManyRequests));
+                            tun_sock.send_packet(nack_packet);
+                            return;
+                        }
+
+                        {
+                            let mut tunn_sock = tunn_sock.lock().await;
+                            if tunn_sock.has_sender() {
+                                log::error!("Received charge log send request from charger with id '{}' while another send is still in progress", id);
+                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::OngoingRequest));
+                                tunn_sock.send_packet(nack_packet);
+                                return;
+                            }
+                        }
+
+                        let Ok(_guard) = CurrentChargeLogSendsRAII::new() else {
+                            log::error!("Too many concurrent charge log sends, rejecting new request for charger with id '{}'", id);
+                            let mut tun_sock = tunn_sock.lock().await;
+                            let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::Busy));
+                            tun_sock.send_packet(nack_packet);
+                            return;
+                        };
+                        let (sender, receiver) = tokio::sync::oneshot::channel();
+                        {
+                            let mut tun_sock = tunn_sock.lock().await;
+                            tun_sock.set_sender(sender);
+                        }
+
+                        let meta_data = tokio::select! {
+                            res = receiver => {
                                 match res {
-                                    TCPRecvResult::Ok(data) => {
-                                        if let Err(e) = buf.write_all(&data) {
-                                            log::error!("Error writing to charge log buffer: {}", e);
-                                            return;
-                                        }
-                                    },
-                                    TCPRecvResult::Finished => {
-                                        if let Err(e) = buf.flush() {
-                                            log::error!("Error flushing charge log buffer: {}", e);
-                                            return;
-                                        }
-                                        break;
-                                    }
-                                    TCPRecvResult::Err(e) => {
-                                        log::error!("Error receiving from TCP socket: {}", e);
+                                    Ok(meta_data) => meta_data,
+                                    Err(e) => {
+                                        log::error!("Failed to receive trigger for charge log send from charger with id '{}': {}", id, e);
                                         return;
                                     }
                                 }
                             },
-                            _ = tokio::time::sleep(std::time::Duration::from_secs(10)) => {
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                                log::error!("Did not receive trigger for charge log send from charger with id '{}' within timeout", id);
                                 return;
                             }
-                        }
-                    }
+                        };
 
-                    // Send the charge log to the user
-                    let charger_uuid = {
-                        let tunn_sock_lock = tunn_sock.lock().await;
-                        tunn_sock_lock.id()
-                    };
-                    if let Err(e) = send_charge_log_to_user(charger_uuid, &meta_data, buf.into_inner().unwrap(), &app_state).await {
-                        log::error!("Failed to send charge log to user: {:?}", e);
+                        handle_charge_log(meta_data, tunn_sock.clone(), app_state.clone()).await;
+                        let mut tunn_sock = tunn_sock.lock().await;
+                        let ack_packet = ManagementPacket::AckPacket(AckPacket::new());
+                        tunn_sock.send_packet(ack_packet);
+                    },
+                    _ => {
+                        log::error!("Received unknown management packet type {:02x} from charger with id '{}'", header.p_type as u8, id);
+                        return;
                     }
                 }
             });

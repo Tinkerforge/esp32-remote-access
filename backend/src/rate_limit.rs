@@ -137,6 +137,11 @@ impl ChargerRateLimiter {
             Ok(())
         }
     }
+
+    pub fn check_key(&self, charger_id: String, ip: String) -> bool {
+        let key = ChargerRateLimitKey { charger_id, ip };
+        self.0.check_key(&key).is_ok()
+    }
 }
 
 #[derive(Debug)]

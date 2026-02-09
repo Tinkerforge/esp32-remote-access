@@ -27,6 +27,8 @@ use smoltcp::{
     socket::{tcp, udp},
 };
 
+use crate::udp_server::packet::ChargeLogSendMetadata;
+
 use super::{device::ManagementDevice, packet::ManagementPacket, pcap_logger::PcapLogger};
 
 pub struct ManagementSocket<'a> {
@@ -43,6 +45,7 @@ pub struct ManagementSocket<'a> {
     out_sequence: u16,
     tcp_socket: Option<SocketHandle>,
     pcap_logger: PcapLogger,
+    sender: Option<tokio::sync::oneshot::Sender<ChargeLogSendMetadata>>,
 }
 
 impl std::fmt::Debug for ManagementSocket<'_> {
@@ -102,6 +105,7 @@ impl<'a> ManagementSocket<'a> {
             out_sequence: 1,
             tcp_socket: None,
             pcap_logger,
+            sender: None,
         }
     }
 
@@ -254,6 +258,18 @@ impl<'a> ManagementSocket<'a> {
     /// Returns the current pcap file path if logging is enabled.
     pub fn get_pcap_file_path(&self) -> Option<std::path::PathBuf> {
         self.pcap_logger.get_file_path()
+    }
+
+    pub fn set_sender(&mut self, sender: tokio::sync::oneshot::Sender<ChargeLogSendMetadata>) {
+        self.sender = Some(sender);
+    }
+
+    pub fn take_sender(&mut self,) -> Option<tokio::sync::oneshot::Sender<ChargeLogSendMetadata>> {
+        self.sender.take()
+    }
+
+    pub fn has_sender(&self) -> bool {
+        self.sender.is_some()
     }
 }
 
