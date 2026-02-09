@@ -32,7 +32,6 @@ impl TryFrom<u8> for PacketType {
 pub enum ManagementCommandId {
     Connect,
     Disconnect,
-    SendChargeLog,
 }
 
 #[repr(C, packed)]
@@ -109,7 +108,7 @@ pub struct ManagementResponsePacket {
 #[derive(Debug, Clone, Copy, Serialize)]
 pub enum NackReason {
     Busy = 0,
-    TooManyRequests = 1,
+    ToManyRequests = 1,
     OngoingRequest = 2,
 }
 
