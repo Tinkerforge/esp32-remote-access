@@ -160,12 +160,14 @@ impl NackPacket {
 /// * `filename_length` - Length of the filename string in bytes
 /// * `display_name_length` - Length of the display name string in bytes
 /// * `lang` - Language code for the charge log, two bytes (e.g., "en", "de")
+/// * `is_monthly_email` - Flag indicating if this is a monthly email (1 byte, 0 or 1)
 /// * `filename` - The actual filename of the charge log
 /// * `display_name` - Human-readable display name for the charge log
 #[derive(Debug)]
 pub struct ChargeLogSendMetadata {
     pub user_uuid: u128,
     pub lang: String,
+    pub is_monthly_email: bool,
     pub filename: String,
     pub display_name: String,
 }
@@ -181,9 +183,9 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
     type Error = anyhow::Error;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        // The packet must be at least 30 bytes to be able to contain all fixed-size fields
-        // (header (8) + user_uuid (16) + filename_length (2) + display_name_length (2) + lang (2))
-        if value.len() < 30 {
+        // The packet must be at least 31 bytes to be able to contain all fixed-size fields
+        // (header (8) + user_uuid (16) + filename_length (2) + display_name_length (2) + lang (2) + is_monthly_email (1))
+        if value.len() < 31 {
             return Err(anyhow::anyhow!("Packet too short"));
         }
         let header =
@@ -200,6 +202,8 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
         let lang_bytes = &value[..2];
         let lang = String::from_utf8_lossy(lang_bytes).to_string();
         let value = &value[2..];
+        let is_monthly_email = value[0] != 0;
+        let value = &value[1..];
 
         // Check if there are enougth bytes for the filename and display name
         if value.len() < (filename_length + display_name_length) as usize {
@@ -215,6 +219,7 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
         let data = ChargeLogSendMetadata {
             user_uuid,
             lang,
+            is_monthly_email,
             filename,
             display_name,
         };
@@ -315,7 +320,7 @@ pub fn extract_management_packet_header(data: &[u8], id: uuid::Uuid) -> anyhow::
 mod tests {
     use super::*;
 
-    fn create_valid_packet(filename: &str, display_name: &str, lang: &str) -> Vec<u8> {
+    fn create_valid_packet(filename: &str, display_name: &str, lang: &str, is_monthly_email: bool) -> Vec<u8> {
         let mut packet = Vec::new();
 
         // Header (8 bytes)
@@ -336,6 +341,9 @@ mod tests {
 
         // lang (2 bytes)
         packet.extend_from_slice(&lang.as_bytes()[..2]);
+
+        // is_monthly_email (1 byte)
+        packet.push(if is_monthly_email { 1 } else { 0 });
 
         // filename
         packet.extend_from_slice(filename.as_bytes());
@@ -487,7 +495,8 @@ mod tests {
         let filename = "test_file.csv";
         let display_name = "Test Display Name";
         let lang = "en";
-        let packet = create_valid_packet(filename, display_name, lang);
+        let is_monthly_email = true;
+        let packet = create_valid_packet(filename, display_name, lang, is_monthly_email);
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
@@ -498,11 +507,12 @@ mod tests {
         assert_eq!(parsed.data.filename, filename);
         assert_eq!(parsed.data.display_name, display_name);
         assert_eq!(parsed.data.lang, lang);
+        assert_eq!(parsed.data.is_monthly_email, is_monthly_email);
     }
 
     #[test]
     fn test_parse_empty_strings() {
-        let packet = create_valid_packet("", "", "en");
+        let packet = create_valid_packet("", "", "en", false);
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
@@ -512,12 +522,35 @@ mod tests {
         assert_eq!(parsed.data.filename, "");
         assert_eq!(parsed.data.display_name, "");
         assert_eq!(parsed.data.lang, "en");
+        assert_eq!(parsed.data.is_monthly_email, false);
+    }
+
+    #[test]
+    fn test_is_monthly_email_flag_true() {
+        let packet = create_valid_packet("test.csv", "Test File", "en", true);
+
+        let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.data.is_monthly_email, true);
+    }
+
+    #[test]
+    fn test_is_monthly_email_flag_false() {
+        let packet = create_valid_packet("test.csv", "Test File", "de", false);
+
+        let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.data.is_monthly_email, false);
     }
 
     #[test]
     fn test_packet_too_short_minimum() {
-        // Packet with only 29 bytes (minimum is 30)
-        let packet = vec![0u8; 29];
+        // Packet with only 30 bytes (minimum is 31)
+        let packet = vec![0u8; 30];
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_err());
@@ -546,6 +579,9 @@ mod tests {
 
         // lang (2 bytes)
         packet.extend_from_slice(b"en");
+
+        // is_monthly_email (1 byte)
+        packet.push(0);
 
         // Only 5 bytes for filename (not enough)
         packet.extend_from_slice(&[b'a'; 5]);
@@ -578,6 +614,9 @@ mod tests {
         // lang (2 bytes)
         packet.extend_from_slice(b"de");
 
+        // is_monthly_email (1 byte)
+        packet.push(1);
+
         // filename (4 bytes)
         packet.extend_from_slice(b"test");
 
@@ -591,9 +630,9 @@ mod tests {
 
     #[test]
     fn test_packet_exactly_minimum_size() {
-        // The implementation requires at least 30 bytes for fixed fields.
-        let packet = create_valid_packet("", "", "en");
-        assert!(packet.len() >= 30);
+        // The implementation requires at least 31 bytes for fixed fields.
+        let packet = create_valid_packet("", "", "en", false);
+        assert!(packet.len() >= 31);
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
@@ -608,7 +647,7 @@ mod tests {
         packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // length
         packet.extend_from_slice(&0x5678u16.to_ne_bytes()); // seq_number
         packet.push(0x9A); // version
-        packet.push(0x02); // p_type (MetadataForChargeLog)
+        packet.push(0x03); // p_type (MetadataForChargeLog)
 
         // user_uuid (16 bytes)
         packet.extend_from_slice(&0u128.to_ne_bytes());
@@ -621,6 +660,9 @@ mod tests {
 
         // lang (2 bytes)
         packet.extend_from_slice(b"en");
+
+        // is_monthly_email (1 byte)
+        packet.push(0);
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
@@ -645,7 +687,7 @@ mod tests {
     fn test_unicode_in_strings() {
         let filename = "tëst_fïlé.csv";
         let display_name = "Tëst Dïsplây Nàmé 日本語";
-        let packet = create_valid_packet(filename, display_name, "de");
+        let packet = create_valid_packet(filename, display_name, "de", true);
 
         let result = ChargeLogSendMetadataPacket::try_from(packet.as_slice());
         assert!(result.is_ok());
@@ -653,6 +695,7 @@ mod tests {
         let parsed = result.unwrap();
         assert_eq!(parsed.data.filename, filename);
         assert_eq!(parsed.data.display_name, display_name);
+        assert_eq!(parsed.data.is_monthly_email, true);
     }
 
     #[test]
@@ -677,6 +720,9 @@ mod tests {
 
         // lang (2 bytes)
         packet.extend_from_slice(b"en");
+
+        // is_monthly_email (1 byte)
+        packet.push(0);
 
         // Only 5 bytes of filename data
         packet.extend_from_slice(b"hello");
@@ -708,6 +754,9 @@ mod tests {
 
         // lang (2 bytes)
         packet.extend_from_slice(b"de");
+
+        // is_monthly_email (1 byte)
+        packet.push(1);
 
         // filename (4 bytes)
         packet.extend_from_slice(b"test");
@@ -742,6 +791,9 @@ mod tests {
 
         // lang (2 bytes)
         packet.extend_from_slice(b"en");
+
+        // is_monthly_email (1 byte)
+        packet.push(0);
 
         // filename (5 bytes)
         packet.extend_from_slice(b"hello");
@@ -780,6 +832,9 @@ mod tests {
         // lang (2 bytes)
         packet.extend_from_slice(b"de");
 
+        // is_monthly_email (1 byte)
+        packet.push(1);
+
         // filename (4 bytes)
         packet.extend_from_slice(b"test");
 
@@ -817,6 +872,9 @@ mod tests {
         // lang (2 bytes)
         packet.extend_from_slice(b"en");
 
+        // is_monthly_email (1 byte)
+        packet.push(0);
+
         // filename (5 bytes)
         packet.extend_from_slice(b"hello");
 
@@ -853,6 +911,9 @@ mod tests {
 
         // lang (2 bytes)
         packet.extend_from_slice(b"de");
+
+        // is_monthly_email (1 byte)
+        packet.push(1);
 
         // filename (8 bytes)
         packet.extend_from_slice(b"file.csv");
