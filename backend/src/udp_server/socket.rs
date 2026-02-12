@@ -307,6 +307,7 @@ impl<'a> ManagementSocketTCPReceiver<'a> {
                 socket.register_recv_waker(ctx.waker());
 
                 if let tcp::State::CloseWait = socket.state() {
+                    socket.close();
                     return Poll::Ready(TCPRecvResult::Finished);
                 }
 
