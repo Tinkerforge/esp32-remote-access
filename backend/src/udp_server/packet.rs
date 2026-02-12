@@ -110,14 +110,17 @@ pub enum NackReason {
     Busy = 0,
     ToManyRequests = 1,
     OngoingRequest = 2,
+    Timeout = 3,
 }
 
 #[repr(C, packed)]
+#[derive(Debug)]
 pub struct ChargeLogSendRequestPacket {
     pub header: ManagementPacketHeader,
 }
 
 #[repr(C, packed)]
+#[derive(Debug)]
 pub struct AckPacket {
     pub header: ManagementPacketHeader,
 }
@@ -132,6 +135,7 @@ impl AckPacket {
 }
 
 #[repr(C, packed)]
+#[derive(Debug)]
 pub struct NackPacket {
     pub header: ManagementPacketHeader,
     pub reason: NackReason,
@@ -222,6 +226,7 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
     }
 }
 
+#[derive(Debug)]
 pub enum ManagementPacket {
     CommandPacket(ManagementCommandPacket),
     AckPacket(AckPacket),

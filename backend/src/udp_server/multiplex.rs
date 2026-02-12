@@ -291,7 +291,12 @@ async fn handle_charge_log<'a>(
                     }
                 }
             },
-            _ = tokio::time::sleep(std::time::Duration::from_secs(10)) => {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                let mut tun_sock = tunn_sock.lock().await;
+                tun_sock.remove_tcp_socket();
+
+                tun_sock.send_packet(ManagementPacket::NackPacket(NackPacket::new(NackReason::Timeout)));
+                log::error!("Timeout while waiting for charge log data");
                 return;
             }
         }
