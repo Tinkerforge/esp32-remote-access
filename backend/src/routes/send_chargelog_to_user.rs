@@ -21,7 +21,7 @@ pub struct SendChargelogMetadata {
     pub filename: String,
     pub display_name: String,
     pub monthly_send: bool,
-    pub lang: String,
+    pub lang: Option<String>,
 }
 
 #[derive(ToSchema, MultipartForm)]
