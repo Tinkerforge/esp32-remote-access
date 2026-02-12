@@ -271,13 +271,13 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
     };
     let month = last_month.format("%B %Y").to_string();
 
-    // Render the email template (TCP-based sends are always monthly)
+    // Render the email template
     let (body, subject) = render_chargelog_email(
         &user.name,
         &month,
         &metadata.display_name,
         lang_str,
-        true, // monthly_send is always true for TCP-based sends
+        metadata.is_monthly_email,
         state.brand,
     )
     .map_err(|e| {
