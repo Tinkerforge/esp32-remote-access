@@ -480,6 +480,9 @@ pub async fn run_server(
                                 }
                             },
                             _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                                let mut tun_sock = tunn_sock.lock().await;
+                                tun_sock.send_packet(ManagementPacket::NackPacket(NackPacket::new(NackReason::Timeout)));
+
                                 log::error!("Did not receive trigger for charge log send from charger with id '{}' within timeout", id);
                                 return;
                             }
