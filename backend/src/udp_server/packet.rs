@@ -231,6 +231,7 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
     }
 }
 
+#[repr(u8)]
 #[derive(Debug)]
 pub enum ManagementPacket {
     CommandPacket(ManagementCommandPacket),
@@ -239,8 +240,9 @@ pub enum ManagementPacket {
 }
 
 impl ManagementPacket {
-    pub fn as_bytes(&mut self) -> &[u8] {
-        as_u8_slice(self)
+    pub fn as_bytes(self) -> Vec<u8> {
+        let bytes = as_u8_slice(&self);
+        bytes[1..].to_vec()
     }
 
     fn get_header(&mut self) -> &mut ManagementPacketHeader {
