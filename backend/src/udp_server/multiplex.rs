@@ -257,7 +257,7 @@ async fn handle_charge_log<'a>(
     meta_data: ChargeLogSendMetadata,
     tunn_sock: Arc<Mutex<ManagementSocket<'a>>>,
     app_state: web::Data<AppState>,
-) {
+) -> anyhow::Result<()> {
     let tcp_receiver = ManagementSocketTCPReceiver::new(tunn_sock.clone()).await;
     let ack_packet = ManagementPacket::AckPacket(AckPacket::new());
     {
@@ -272,31 +272,23 @@ async fn handle_charge_log<'a>(
             res = handle_tcp_fut => {
                 match res {
                     TCPRecvResult::Ok(data) => {
-                        if let Err(e) = buf.write_all(&data) {
-                            log::error!("Error writing to charge log buffer: {}", e);
-                            return;
-                        }
+                        buf.write_all(&data)
+                            .map_err(|e| anyhow::Error::msg(format!("Error writing to charge log buffer: {}", e)))?;
                     },
                     TCPRecvResult::Finished => {
-                        if let Err(e) = buf.flush() {
-                            log::error!("Error flushing charge log buffer: {}", e);
-                            return;
-                        }
+                        buf.flush()
+                            .map_err(|e| anyhow::Error::msg(format!("Error flushing charge log buffer: {}", e)))?;
                         break;
                     }
                     TCPRecvResult::Err(e) => {
-                        log::error!("Error receiving from TCP socket: {}", e);
-                        return;
+                        return Err(anyhow::Error::msg(format!("Error receiving from TCP socket: {}", e)));
                     }
                 }
             },
-            _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {
                 let mut tun_sock = tunn_sock.lock().await;
                 tun_sock.remove_tcp_socket();
-
-                tun_sock.send_packet(ManagementPacket::NackPacket(NackPacket::new(NackReason::Timeout)));
-                log::error!("Timeout while waiting for charge log data");
-                return;
+                return Err(anyhow::Error::msg("Timeout while waiting for charge log data"));
             }
         }
     }
@@ -306,16 +298,15 @@ async fn handle_charge_log<'a>(
         let tunn_sock_lock = tunn_sock.lock().await;
         tunn_sock_lock.id()
     };
-    if let Err(e) = send_charge_log_to_user(
+    send_charge_log_to_user(
         charger_uuid,
         &meta_data,
         buf.into_inner().unwrap(),
         &app_state,
     )
-    .await
-    {
-        log::error!("Failed to send charge log to user: {:?}", e);
-    }
+    .await?;
+
+    Ok(())
 }
 
 pub async fn run_server(

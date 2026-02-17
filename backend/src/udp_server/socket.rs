@@ -144,7 +144,9 @@ impl<'a> ManagementSocket<'a> {
     pub fn send_packet(&mut self, mut packet: ManagementPacket) {
         packet.set_seq_num(self.out_sequence);
         self.out_sequence += 1;
-        self.encrypt_and_send_slice(packet.as_bytes());
+
+        let bytes = packet.as_bytes();
+        self.encrypt_and_send_slice(&bytes);
     }
 
     pub fn encrypt_and_send_slice(&mut self, data: &[u8]) {
