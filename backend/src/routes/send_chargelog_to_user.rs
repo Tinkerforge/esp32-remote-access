@@ -269,7 +269,15 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
         log::error!("Failed to calculate last month for charge log email");
         return Err(Error::InternalError);
     };
-    let month = last_month.format("%B %Y").to_string();
+
+    log::error!("lang_str: {}", lang_str);
+
+    let month = match lang_str.as_str() {
+        "de" => last_month
+            .format_localized("%B %Y", chrono::Locale::de_DE)
+            .to_string(),
+        _ => last_month.format("%B %Y").to_string(),
+    };
 
     // Render the email template
     let (body, subject) = render_chargelog_email(
