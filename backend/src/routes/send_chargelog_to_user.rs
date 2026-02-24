@@ -7,10 +7,16 @@ use std::io::Read;
 use utoipa::ToSchema;
 
 use crate::{
-    AppState, branding, error::Error, rate_limit::ChargerRateLimiter, routes::{
+    branding,
+    error::Error,
+    rate_limit::ChargerRateLimiter,
+    routes::{
         charger::{add::password_matches, user_is_allowed},
         user::get_user,
-    }, udp_server::packet::ChargeLogSendMetadata, utils::{get_charger_from_db, parse_uuid, send_email_with_attachment}
+    },
+    udp_server::packet::ChargeLogSendMetadata,
+    utils::{get_charger_from_db, parse_uuid, send_email_with_attachment},
+    AppState,
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]

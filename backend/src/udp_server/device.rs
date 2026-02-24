@@ -19,11 +19,7 @@
 
 use boringtun::noise::{Tunn, TunnResult};
 use smoltcp::phy::{self, DeviceCapabilities, Medium};
-use std::{
-    collections::VecDeque,
-    net::SocketAddr,
-    sync::Arc,
-};
+use std::{collections::VecDeque, net::SocketAddr, sync::Arc};
 use tokio::net::UdpSocket;
 
 use super::multiplex::send_data;
@@ -38,7 +34,12 @@ pub struct ManagementDevice {
 }
 
 impl ManagementDevice {
-    pub fn new(socket: Arc<UdpSocket>, tunn: Tunn, remote_addr: SocketAddr, pcap_logger: PcapLogger) -> Self {
+    pub fn new(
+        socket: Arc<UdpSocket>,
+        tunn: Tunn,
+        remote_addr: SocketAddr,
+        pcap_logger: PcapLogger,
+    ) -> Self {
         let rx_buf = VecDeque::new();
         Self {
             rx_buf,
@@ -63,10 +64,12 @@ impl ManagementDevice {
 }
 
 impl phy::Device for ManagementDevice {
-    type RxToken<'b> = ManagementRxToken
+    type RxToken<'b>
+        = ManagementRxToken
     where
         Self: 'b;
-    type TxToken<'b> = ManagementTxToken<'b>
+    type TxToken<'b>
+        = ManagementTxToken<'b>
     where
         Self: 'b;
 
