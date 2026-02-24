@@ -80,11 +80,11 @@ pub async fn user_is_allowed(
     state: &web::Data<AppState>,
     uid: uuid::Uuid,
     cid: uuid::Uuid,
-) -> Result<bool, actix_web::Error> {
+) -> Result<(), actix_web::Error> {
     use db_connector::schema::allowed_users::dsl::*;
 
     let mut conn = get_connection(state)?;
-    let owner = web_block_unpacked(move || {
+    web_block_unpacked(move || {
         let _allowed_user: AllowedUser = match allowed_users
             .filter(user_id.eq(uid))
             .filter(charger_id.eq(cid))
@@ -96,11 +96,11 @@ pub async fn user_is_allowed(
             Err(_err) => return Err(Error::InternalError),
         };
 
-        Ok(true)
+        Ok(())
     })
     .await?;
 
-    Ok(owner)
+    Ok(())
 }
 
 #[cfg(test)]

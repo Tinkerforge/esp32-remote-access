@@ -76,9 +76,7 @@ pub async fn get_webinterface(
     let charger = parse_uuid(&query.charger)?;
     let user: uuid::Uuid = user.into();
 
-    if !crate::routes::charger::user_is_allowed(&state, user, charger).await? {
-        return Err(actix_web::error::ErrorUnauthorized("Unauthorized"));
-    }
+    crate::routes::charger::user_is_allowed(&state, user, charger).await?;
 
     let charger = get_charger_from_db(charger, &state).await?;
     let firmware = charger.firmware_version.replace('+', "_");
