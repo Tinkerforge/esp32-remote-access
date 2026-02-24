@@ -40,6 +40,7 @@ diesel::table! {
         last_state_change -> Nullable<Timestamp>,
         device_type -> Nullable<Varchar>,
         mtu -> Nullable<Int4>,
+        last_charge_log_upload_hash -> Nullable<Bytea>,
     }
 }
 
