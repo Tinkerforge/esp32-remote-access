@@ -479,7 +479,7 @@ pub async fn run_server(
 
                             let mut tun_sock = tunn_sock.lock().await;
                             if let Some(sender) = sender {
-                                if let Err(_) = sender.send(meta_data.data) {
+                                if sender.send(meta_data.data).is_err() {
                                     log::error!(
                                         "Failed to send charge log send trigger for charger '{}' to TCP socket",
                                         id
@@ -633,7 +633,6 @@ pub async fn run_server(
                     }
                     _ => {
                         log::error!("Received unknown management packet type {:02x} from charger with id '{}'", header.p_type as u8, id);
-                        return;
                     }
                 }
             });

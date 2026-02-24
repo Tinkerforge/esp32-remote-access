@@ -235,7 +235,7 @@ impl<'a> ManagementSocket<'a> {
         None
     }
 
-    pub fn init_tcp_socket(&mut self) -> () {
+    pub fn init_tcp_socket(&mut self) {
         let rx_buf = tcp::SocketBuffer::new(vec![0; 65535]);
         let tx_buf = tcp::SocketBuffer::new(vec![0; 65535]);
         let socket = tcp::Socket::new(rx_buf, tx_buf);
