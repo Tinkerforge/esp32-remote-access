@@ -19,9 +19,9 @@ impl TryFrom<u8> for PacketType {
         match value {
             0x00 => Ok(PacketType::ManagementCommand),
             0x01 => Ok(PacketType::Ack),
-            0x02 => Ok(PacketType::MetadataForChargeLog),
-            0x03 => Ok(PacketType::RequestChargeLogSend),
-            0x04 => Ok(PacketType::Nack),
+            0x02 => Ok(PacketType::Nack),
+            0x03 => Ok(PacketType::MetadataForChargeLog),
+            0x04 => Ok(PacketType::RequestChargeLogSend),
             _ => Err(anyhow::anyhow!("Invalid packet type: {}", value)),
         }
     }
@@ -111,6 +111,9 @@ pub enum NackReason {
     ToManyRequests = 1,
     OngoingRequest = 2,
     Timeout = 3,
+    Unauthorized = 4,
+    InternalError = 5,
+    AlreadySent = 6,
 }
 
 #[repr(C, packed)]
@@ -148,6 +151,39 @@ impl NackPacket {
             header: ManagementPacketHeader::new(0, 0, 1, PacketType::Nack),
             reason,
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct RequestChargeLogSendPacket {
+    pub header: ManagementPacketHeader,
+    pub hash: [u8; 32], // SHA-256 hash
+}
+
+impl TryFrom<&[u8]> for RequestChargeLogSendPacket {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        // The packet must be at least 40 bytes to contain header (8) + hash (32)
+        let expected_size = std::mem::size_of::<ManagementPacketHeader>() + 32;
+        if value.len() < expected_size {
+            return Err(anyhow::anyhow!(
+                "Packet too short for RequestChargeLogSendPacket: expected at least {} bytes, got {}",
+                expected_size,
+                value.len()
+            ));
+        }
+
+        // Extract header
+        let header = unsafe { std::ptr::read(value.as_ptr() as *const ManagementPacketHeader) };
+        let header_size = std::mem::size_of::<ManagementPacketHeader>();
+
+        // Extract hash (32 bytes)
+        let hash_slice = &value[header_size..header_size + 32];
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(hash_slice);
+
+        Ok(Self { header, hash })
     }
 }
 
@@ -929,5 +965,148 @@ mod tests {
         let parsed = result.unwrap();
         assert_eq!(parsed.data.filename, "file.csv");
         assert_eq!(parsed.data.display_name, "User"); // Only first 4 bytes
+    }
+
+    // Tests for RequestChargeLogSendPacket parsing
+    fn create_request_charge_log_packet(hash: [u8; 32]) -> Vec<u8> {
+        let mut packet = Vec::new();
+
+        // Header (8 bytes)
+        packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // magic
+        packet.extend_from_slice(&40u16.to_ne_bytes()); // length (header + hash)
+        packet.extend_from_slice(&0u16.to_ne_bytes()); // seq_number
+        packet.push(1); // version
+        packet.push(PacketType::RequestChargeLogSend as u8); // p_type
+
+        // hash (32 bytes)
+        packet.extend_from_slice(&hash);
+
+        packet
+    }
+
+    #[test]
+    fn test_request_charge_log_packet_valid() {
+        let hash = [0xABu8; 32];
+        let packet = create_request_charge_log_packet(hash);
+
+        let result = RequestChargeLogSendPacket::try_from(packet.as_slice());
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        let magic = { parsed.header.magic };
+        assert_eq!(magic, 0x1234);
+        assert_eq!(parsed.hash, hash);
+    }
+
+    #[test]
+    fn test_request_charge_log_packet_too_short() {
+        // Only 39 bytes (missing 1 byte of hash)
+        let packet = vec![0u8; 39];
+
+        let result = RequestChargeLogSendPacket::try_from(packet.as_slice());
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Packet too short"));
+    }
+
+    #[test]
+    fn test_request_charge_log_packet_empty() {
+        let packet: Vec<u8> = vec![];
+
+        let result = RequestChargeLogSendPacket::try_from(packet.as_slice());
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Packet too short"));
+    }
+
+    #[test]
+    fn test_request_charge_log_packet_minimum_size() {
+        // Exactly 40 bytes (8 header + 32 hash)
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&0x1234u16.to_ne_bytes());
+        packet.extend_from_slice(&40u16.to_ne_bytes());
+        packet.extend_from_slice(&0u16.to_ne_bytes());
+        packet.push(1);
+        packet.push(PacketType::RequestChargeLogSend as u8);
+        packet.extend_from_slice(&[0xCDu8; 32]);
+
+        assert_eq!(packet.len(), 40);
+
+        let result = RequestChargeLogSendPacket::try_from(packet.as_slice());
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.hash, [0xCDu8; 32]);
+    }
+
+    #[test]
+    fn test_request_charge_log_packet_with_extra_data() {
+        let hash = [0x12u8; 32];
+        let mut packet = create_request_charge_log_packet(hash);
+
+        // Add extra data after the required 40 bytes
+        packet.extend_from_slice(&[0xFFu8; 100]);
+
+        let result = RequestChargeLogSendPacket::try_from(packet.as_slice());
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.hash, hash);
+    }
+
+    #[test]
+    fn test_request_charge_log_packet_hash_values() {
+        // Test with various hash patterns
+        let test_hashes = vec![
+            [0u8; 32],
+            [0xFFu8; 32],
+            [0x01u8; 32],
+            [0x80u8; 32],
+        ];
+
+        for hash in test_hashes {
+            let packet = create_request_charge_log_packet(hash);
+            let result = RequestChargeLogSendPacket::try_from(packet.as_slice());
+            assert!(result.is_ok());
+
+            let parsed = result.unwrap();
+            assert_eq!(parsed.hash, hash);
+        }
+    }
+
+    #[test]
+    fn test_request_charge_log_packet_header_preserved() {
+        let mut packet = Vec::new();
+
+        // Header with specific values
+        packet.extend_from_slice(&0xABCDu16.to_ne_bytes()); // magic
+        packet.extend_from_slice(&0x1234u16.to_ne_bytes()); // length
+        packet.extend_from_slice(&0x5678u16.to_ne_bytes()); // seq_number
+        packet.push(0x9A); // version
+        packet.push(PacketType::RequestChargeLogSend as u8); // p_type
+
+        // hash (32 bytes)
+        packet.extend_from_slice(&[0x42u8; 32]);
+
+        let result = RequestChargeLogSendPacket::try_from(packet.as_slice());
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        let magic = { parsed.header.magic };
+        let length = { parsed.header.length };
+        let seq_number = { parsed.header.seq_number };
+        let version = { parsed.header.version };
+        let p_type = { parsed.header.p_type };
+
+        assert_eq!(magic, 0xABCD);
+        assert_eq!(length, 0x1234);
+        assert_eq!(seq_number, 0x5678);
+        assert_eq!(version, 0x9A);
+        assert_eq!(p_type, PacketType::RequestChargeLogSend);
+        assert_eq!(parsed.hash, [0x42u8; 32]);
     }
 }
