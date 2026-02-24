@@ -140,6 +140,29 @@ pub async fn get_charger_from_db(
     Ok(charger)
 }
 
+pub async fn get_last_charge_log_upload_hash(
+    charger_id: uuid::Uuid,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<Option<Vec<u8>>> {
+    let mut conn = get_connection(state)?;
+    let hash: Option<Vec<u8>> = web_block_unpacked(move || {
+        use db_connector::schema::chargers::dsl::*;
+
+        match chargers
+            .filter(id.eq(charger_id))
+            .select(last_charge_log_upload_hash)
+            .get_result(&mut conn)
+        {
+            Ok(value) => Ok(value),
+            Err(NotFound) => Err(Error::ChargerDoesNotExist),
+            Err(_err) => Err(Error::InternalError),
+        }
+    })
+    .await?;
+
+    Ok(hash)
+}
+
 pub async fn validate_auth_token(
     token: String,
     user_id: uuid::Uuid,
@@ -382,6 +405,28 @@ async fn notify_state_change(
             state_update_clients.remove(&user_id);
         }
     }
+}
+
+/// Sets the last_charge_log_upload_hash for a charger/device
+pub async fn set_last_charge_log_upload_hash(
+    charger_id: uuid::Uuid,
+    hash: Vec<u8>,
+    state: &web::Data<AppState>,
+) -> actix_web::Result<()> {
+    let mut conn = get_connection(state)?;
+    web_block_unpacked(move || {
+        use db_connector::schema::chargers::dsl::*;
+        match diesel::update(chargers)
+            .filter(id.eq(charger_id))
+            .set(last_charge_log_upload_hash.eq(Some(hash.clone())))
+            .execute(&mut conn)
+        {
+            Ok(_) => Ok(()),
+            Err(NotFound) => Err(Error::ChargerDoesNotExist),
+            Err(_err) => Err(Error::InternalError),
+        }
+    }).await?;
+    Ok(())
 }
 
 #[cfg(test)]
