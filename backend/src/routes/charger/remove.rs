@@ -183,9 +183,7 @@ pub async fn remove(
     bridge_state: web::Data<BridgeState<'_>>,
 ) -> Result<impl Responder, actix_web::Error> {
     let charger_id = parse_uuid(&data.charger)?;
-    if !user_is_allowed(&state, user_id.clone().into(), charger_id).await? {
-        return Err(Error::Unauthorized.into());
-    }
+    user_is_allowed(&state, user_id.clone().into(), charger_id).await?;
 
     if is_last_user(charger_id, &state).await? {
         delete_all_keys(charger_id, &state).await?;

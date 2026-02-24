@@ -97,10 +97,7 @@ pub async fn add_device_to_grouping(
     .await?;
 
     // Verify user has access to the charger
-    let is_allowed = user_is_allowed(&state, user_uuid, charger_uuid).await?;
-    if !is_allowed {
-        return Err(Error::Unauthorized.into());
-    }
+    user_is_allowed(&state, user_uuid, charger_uuid).await?;
 
     // Add the device to the grouping
     let mut conn = get_connection(&state)?;
