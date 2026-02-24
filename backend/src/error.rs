@@ -100,3 +100,41 @@ impl error::ResponseError for Error {
         }
     }
 }
+
+impl From<actix_web::error::Error> for Error {
+    fn from(err: actix_web::error::Error) -> Self {
+        // Map based on status code
+        let status = err.as_response_error().status_code();
+        match status {
+            StatusCode::UNAUTHORIZED => Error::Unauthorized,
+            StatusCode::FORBIDDEN => Error::Unauthorized,
+            StatusCode::BAD_REQUEST => Error::InvalidPayload,
+            StatusCode::CONFLICT => Error::InternalError,
+            _ => Error::InternalError,
+        }
+    }
+}
+
+impl From<actix_web::error::PayloadError> for Error {
+    fn from(_: actix_web::error::PayloadError) -> Self {
+        Error::InvalidPayload
+    }
+}
+
+impl From<actix_web::error::JsonPayloadError> for Error {
+    fn from(_: actix_web::error::JsonPayloadError) -> Self {
+        Error::InvalidPayload
+    }
+}
+
+impl From<actix_web::error::UrlencodedError> for Error {
+    fn from(_: actix_web::error::UrlencodedError) -> Self {
+        Error::InvalidPayload
+    }
+}
+
+impl From<actix_web::error::BlockingError> for Error {
+    fn from(_: actix_web::error::BlockingError) -> Self {
+        Error::InternalError
+    }
+}

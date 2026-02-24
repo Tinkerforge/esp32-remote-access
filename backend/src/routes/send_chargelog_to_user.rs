@@ -233,7 +233,7 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
     let user_uuid = uuid::Uuid::from_u128(metadata.user_uuid);
 
     // Check if the user is allowed to access this charger
-    let is_allowed = user_is_allowed(state, user_uuid, charger_uuid)
+    user_is_allowed(state, user_uuid, charger_uuid)
         .await
         .map_err(|e| {
             log::error!(
@@ -242,22 +242,13 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
                 charger_uuid,
                 e
             );
-            Error::InternalError
+            Error::from(e)
         })?;
-
-    if !is_allowed {
-        log::warn!(
-            "User '{}' is not allowed to access charger '{}', not sending charge log",
-            user_uuid,
-            charger_uuid
-        );
-        return Err(Error::Unauthorized);
-    }
 
     // Get the user from the database
     let user = get_user(state, user_uuid).await.map_err(|e| {
         log::error!("Failed to get user '{}': {:?}", user_uuid, e);
-        Error::InternalError
+        Error::from(e)
     })?;
 
     // Use the language from the metadata packet
@@ -296,6 +287,8 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
         );
         Error::InternalError
     })?;
+
+    log::error!("{:?}", metadata);
 
     // Send the email with the charge log attached
     send_email_with_attachment(
