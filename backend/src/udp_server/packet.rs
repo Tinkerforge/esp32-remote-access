@@ -224,8 +224,7 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
         if value.len() < 31 {
             return Err(anyhow::anyhow!("Packet too short"));
         }
-        let header =
-            unsafe { std::ptr::read(value.as_ptr() as *const ManagementPacketHeader) };
+        let header = unsafe { std::ptr::read(value.as_ptr() as *const ManagementPacketHeader) };
         let header_size = std::mem::size_of::<ManagementPacketHeader>();
         let value = &value[header_size..];
         let user_uuid = unsafe { std::ptr::read(value.as_ptr() as *const u128) };
@@ -260,10 +259,7 @@ impl TryFrom<&[u8]> for ChargeLogSendMetadataPacket {
             display_name,
         };
 
-        Ok(Self {
-            header,
-            data,
-        })
+        Ok(Self { header, data })
     }
 }
 
@@ -311,7 +307,10 @@ impl ManagementPacket {
 /// - Packet must be at least 8 bytes (size of ManagementPacketHeader)
 /// - Magic number must be 0x1234
 /// - Protocol type (p_type) must be 0-4 (valid packet types)
-pub fn extract_management_packet_header(data: &[u8], id: uuid::Uuid) -> anyhow::Result<ManagementPacketHeader> {
+pub fn extract_management_packet_header(
+    data: &[u8],
+    id: uuid::Uuid,
+) -> anyhow::Result<ManagementPacketHeader> {
     let header_size = std::mem::size_of::<ManagementPacketHeader>();
 
     // Check minimum packet size
@@ -353,12 +352,16 @@ pub fn extract_management_packet_header(data: &[u8], id: uuid::Uuid) -> anyhow::
     Ok(header)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn create_valid_packet(filename: &str, display_name: &str, lang: &str, is_monthly_email: bool) -> Vec<u8> {
+    fn create_valid_packet(
+        filename: &str,
+        display_name: &str,
+        lang: &str,
+        is_monthly_email: bool,
+    ) -> Vec<u8> {
         let mut packet = Vec::new();
 
         // Header (8 bytes)
@@ -541,7 +544,10 @@ mod tests {
 
         let parsed = result.unwrap();
 
-        assert_eq!(parsed.data.user_uuid, 0xFEDCBA98_76543210_FEDCBA98_76543210u128);
+        assert_eq!(
+            parsed.data.user_uuid,
+            0xFEDCBA98_76543210_FEDCBA98_76543210u128
+        );
         assert_eq!(parsed.data.filename, filename);
         assert_eq!(parsed.data.display_name, display_name);
         assert_eq!(parsed.data.lang, lang);
@@ -1005,10 +1011,7 @@ mod tests {
 
         let result = RequestChargeLogSendPacket::try_from(packet.as_slice());
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Packet too short"));
+        assert!(result.unwrap_err().to_string().contains("Packet too short"));
     }
 
     #[test]
@@ -1017,10 +1020,7 @@ mod tests {
 
         let result = RequestChargeLogSendPacket::try_from(packet.as_slice());
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Packet too short"));
+        assert!(result.unwrap_err().to_string().contains("Packet too short"));
     }
 
     #[test]
@@ -1061,12 +1061,7 @@ mod tests {
     #[test]
     fn test_request_charge_log_packet_hash_values() {
         // Test with various hash patterns
-        let test_hashes = vec![
-            [0u8; 32],
-            [0xFFu8; 32],
-            [0x01u8; 32],
-            [0x80u8; 32],
-        ];
+        let test_hashes = vec![[0u8; 32], [0xFFu8; 32], [0x01u8; 32], [0x80u8; 32]];
 
         for hash in test_hashes {
             let packet = create_request_charge_log_packet(hash);

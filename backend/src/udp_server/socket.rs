@@ -17,7 +17,13 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use std::{future::poll_fn, net::{Ipv4Addr, SocketAddr}, sync::Arc, task::Poll, time::{Duration, Instant}};
+use std::{
+    future::poll_fn,
+    net::{Ipv4Addr, SocketAddr},
+    sync::Arc,
+    task::Poll,
+    time::{Duration, Instant},
+};
 use tokio::net::UdpSocket;
 
 use boringtun::noise::{rate_limiter::RateLimiter, Tunn, TunnResult};
@@ -67,7 +73,8 @@ impl<'a> ManagementSocket<'a> {
         charger_id: uuid::Uuid,
     ) -> Self {
         let pcap_logger = PcapLogger::new();
-        let mut device = ManagementDevice::new(udp_socket.clone(), tunn, remote_addr, pcap_logger.clone());
+        let mut device =
+            ManagementDevice::new(udp_socket.clone(), tunn, remote_addr, pcap_logger.clone());
 
         let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         config.random_seed = rand::random();
@@ -266,7 +273,7 @@ impl<'a> ManagementSocket<'a> {
         self.sender = Some(sender);
     }
 
-    pub fn take_sender(&mut self,) -> Option<tokio::sync::oneshot::Sender<ChargeLogSendMetadata>> {
+    pub fn take_sender(&mut self) -> Option<tokio::sync::oneshot::Sender<ChargeLogSendMetadata>> {
         self.sender.take()
     }
 
@@ -314,13 +321,13 @@ impl<'a> ManagementSocketTCPReceiver<'a> {
                             Ok(data) => {
                                 ctx.waker().wake_by_ref();
                                 return Poll::Ready(TCPRecvResult::Ok(data));
-                            },
+                            }
                             Err(tcp::RecvError::Finished) => {
                                 return Poll::Ready(TCPRecvResult::Err(std::io::Error::new(
                                     std::io::ErrorKind::UnexpectedEof,
                                     "TCP socket finished",
                                 )));
-                            },
+                            }
                             Err(tcp::RecvError::InvalidState) => {
                                 log::error!("TCP socket in invalid state");
                                 return Poll::Pending;
