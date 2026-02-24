@@ -309,6 +309,24 @@ impl<'a> ManagementSocketTCPReceiver<'a> {
                 socket.register_recv_waker(ctx.waker());
 
                 if let tcp::State::CloseWait = socket.state() {
+                    if socket.recv_queue() != 0 {
+                        match socket.recv(|buf| (buf.len(), buf.to_vec())) {
+                            Ok(data) => {
+                                ctx.waker().wake_by_ref();
+                                return Poll::Ready(TCPRecvResult::Ok(data));
+                            },
+                            Err(tcp::RecvError::Finished) => {
+                                return Poll::Ready(TCPRecvResult::Err(std::io::Error::new(
+                                    std::io::ErrorKind::UnexpectedEof,
+                                    "TCP socket finished",
+                                )));
+                            },
+                            Err(tcp::RecvError::InvalidState) => {
+                                log::error!("TCP socket in invalid state");
+                                return Poll::Pending;
+                            }
+                        }
+                    }
                     socket.close();
                     return Poll::Ready(TCPRecvResult::Finished);
                 }
