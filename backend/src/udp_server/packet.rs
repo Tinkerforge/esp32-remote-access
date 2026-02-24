@@ -128,12 +128,18 @@ pub struct AckPacket {
     pub header: ManagementPacketHeader,
 }
 
-impl AckPacket {
-    /// Creates a new AckPacket with default values
-    pub fn new() -> Self {
+impl Default for AckPacket {
+    fn default() -> Self {
         Self {
             header: ManagementPacketHeader::new(0, 0, 1, PacketType::Ack),
         }
+    }
+}
+
+impl AckPacket {
+    /// Creates a new AckPacket with default values
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
