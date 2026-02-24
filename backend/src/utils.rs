@@ -28,9 +28,9 @@ use diesel::{
     result::Error::NotFound,
     PgConnection,
 };
-use lettre::message::IntoBody;
 #[cfg(not(test))]
 use lettre::message::header::ContentType;
+use lettre::message::IntoBody;
 #[cfg(not(test))]
 use lettre::{Message, Transport};
 use rand::RngExt;
@@ -353,7 +353,11 @@ async fn notify_state_change(
     {
         Ok(Ok(users)) => users.into_iter().map(|u| u.user_id).collect(),
         Ok(Err(e)) => {
-            log::error!("Failed to fetch allowed users for charger {}: {:?}", charger_id, e);
+            log::error!(
+                "Failed to fetch allowed users for charger {}: {:?}",
+                charger_id,
+                e
+            );
             return;
         }
         Err(e) => {
@@ -425,7 +429,8 @@ pub async fn set_last_charge_log_upload_hash(
             Err(NotFound) => Err(Error::ChargerDoesNotExist),
             Err(_err) => Err(Error::InternalError),
         }
-    }).await?;
+    })
+    .await?;
     Ok(())
 }
 

@@ -83,11 +83,7 @@ async fn start_rate_limiters_reset_thread(
                     log::info!("Charger {id} has timeouted and will be removed.");
                     map.remove(&id);
                     drop(map);
-                    update_charger_state_change(
-                        id,
-                        state.clone(),
-                        bridge_state.clone(),
-                    ).await;
+                    update_charger_state_change(id, state.clone(), bridge_state.clone()).await;
                 }
             }
         }
@@ -138,16 +134,14 @@ async fn start_rate_limiters_reset_thread(
 
 pub fn start_server(bridge_state: web::Data<BridgeState<'static>>, app_state: web::Data<AppState>) {
     log::info!("Starting Wireguard server.");
-    actix::spawn(
-        start_rate_limiters_reset_thread(
+    actix::spawn(start_rate_limiters_reset_thread(
         bridge_state.charger_management_map.clone(),
         bridge_state.charger_management_map_with_id.clone(),
         bridge_state.port_discovery.clone(),
-            bridge_state.undiscovered_chargers.clone(),
-            app_state.clone(),
-            bridge_state.clone(),
-        ));
-
+        bridge_state.undiscovered_chargers.clone(),
+        app_state.clone(),
+        bridge_state.clone(),
+    ));
 
     actix::spawn(run_server(bridge_state, app_state));
 }

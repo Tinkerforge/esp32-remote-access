@@ -18,7 +18,10 @@
  */
 
 use std::{
-    collections::hash_map::Entry, io::{BufWriter, Write}, net::{IpAddr, SocketAddr}, sync::{Arc, atomic::AtomicUsize}
+    collections::hash_map::Entry,
+    io::{BufWriter, Write},
+    net::{IpAddr, SocketAddr},
+    sync::{atomic::AtomicUsize, Arc},
 };
 use tokio::net::UdpSocket;
 
@@ -32,10 +35,27 @@ use ipnetwork::{IpNetwork, Ipv4Network};
 use rand_core::{OsRng, TryRngCore};
 
 use crate::{
-    AppState, BridgeState, routes::{charger::user_is_allowed, send_chargelog_to_user::send_charge_log_to_user}, udp_server::{management::RemoteConnMeta, packet::{AckPacket, ChargeLogSendMetadata, ChargeLogSendMetadataPacket, ManagementPacket, NackPacket, NackReason, PacketType, RequestChargeLogSendPacket, extract_management_packet_header}}, utils::{get_last_charge_log_upload_hash, set_last_charge_log_upload_hash, update_charger_state_change}, ws_udp_bridge::open_connection
+    routes::{charger::user_is_allowed, send_chargelog_to_user::send_charge_log_to_user},
+    udp_server::{
+        management::RemoteConnMeta,
+        packet::{
+            extract_management_packet_header, AckPacket, ChargeLogSendMetadata,
+            ChargeLogSendMetadataPacket, ManagementPacket, NackPacket, NackReason, PacketType,
+            RequestChargeLogSendPacket,
+        },
+    },
+    utils::{
+        get_last_charge_log_upload_hash, set_last_charge_log_upload_hash,
+        update_charger_state_change,
+    },
+    ws_udp_bridge::open_connection,
+    AppState, BridgeState,
 };
 
-use super::{management::try_port_discovery, socket::{ManagementSocket, ManagementSocketTCPReceiver, TCPRecvResult}};
+use super::{
+    management::try_port_discovery,
+    socket::{ManagementSocket, ManagementSocketTCPReceiver, TCPRecvResult},
+};
 
 static CURRENT_CHARGE_LOG_SENDS: AtomicUsize = AtomicUsize::new(0);
 
@@ -43,13 +63,17 @@ struct CurrentChargeLogSendsRAII;
 
 impl CurrentChargeLogSendsRAII {
     fn new() -> anyhow::Result<Self> {
-        match CURRENT_CHARGE_LOG_SENDS.fetch_update(std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst, |x| {
-            if x < 250 {
-                Some(x + 1)
-            } else {
-                None
-            }
-        }) {
+        match CURRENT_CHARGE_LOG_SENDS.fetch_update(
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+            |x| {
+                if x < 250 {
+                    Some(x + 1)
+                } else {
+                    None
+                }
+            },
+        ) {
             Ok(_) => Ok(Self),
             Err(_) => Err(anyhow::Error::msg("Too many concurrent charge log sends")),
         }
@@ -58,13 +82,17 @@ impl CurrentChargeLogSendsRAII {
 
 impl Drop for CurrentChargeLogSendsRAII {
     fn drop(&mut self) {
-        let _ = CURRENT_CHARGE_LOG_SENDS.fetch_update(std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst, |x| {
-            if x > 0 {
-                Some(x - 1)
-            } else {
-                None
-            }
-        });
+        let _ = CURRENT_CHARGE_LOG_SENDS.fetch_update(
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+            |x| {
+                if x > 0 {
+                    Some(x - 1)
+                } else {
+                    None
+                }
+            },
+        );
     }
 }
 
@@ -228,9 +256,17 @@ async fn create_tunn<'a>(
         {
             let pcap_path = std::path::PathBuf::from(format!("pcap/charger_{}.pcapng", charger.id));
             if let Err(e) = socket.enable_pcap_logging(pcap_path.clone()) {
-                log::error!("Failed to enable pcap logging for charger {}: {}", charger.id, e);
+                log::error!(
+                    "Failed to enable pcap logging for charger {}: {}",
+                    charger.id,
+                    e
+                );
             } else {
-                log::error!("Enabled pcap logging for charger {} at {:?}", charger.id, pcap_path);
+                log::error!(
+                    "Enabled pcap logging for charger {} at {:?}",
+                    charger.id,
+                    pcap_path
+                );
             }
         }
 
@@ -358,7 +394,8 @@ pub async fn run_server(
 
                             let tunn_data = Arc::new(Mutex::new(tunn_data));
                             {
-                                let mut map = bridge_state.charger_management_map_with_id.lock().await;
+                                let mut map =
+                                    bridge_state.charger_management_map_with_id.lock().await;
                                 map.insert(id, tunn_data.clone());
                                 v.insert(tunn_data.clone());
                                 let tunn = tunn_data.clone();
@@ -388,7 +425,8 @@ pub async fn run_server(
                                 id,
                                 app_state.clone(),
                                 bridge_state.clone(),
-                            ).await;
+                            )
+                            .await;
                             tunn_data.clone()
                         }
                     }
@@ -414,7 +452,9 @@ pub async fn run_server(
                 match header.p_type {
                     // Charge log send metadata packet
                     PacketType::MetadataForChargeLog => {
-                        if let Ok(meta_data) = ChargeLogSendMetadataPacket::try_from(data.as_slice()) {
+                        if let Ok(meta_data) =
+                            ChargeLogSendMetadataPacket::try_from(data.as_slice())
+                        {
                             let user_uuid = uuid::Uuid::from_u128(meta_data.data.user_uuid);
                             let sender = {
                                 let mut tun_sock = tunn_sock.lock().await;
@@ -430,7 +470,9 @@ pub async fn run_server(
                                     e
                                 );
                                 let mut tun_sock = tunn_sock.lock().await;
-                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::Unauthorized));
+                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                    NackReason::Unauthorized,
+                                ));
                                 tun_sock.send_packet(nack_packet);
                                 return;
                             }
@@ -442,7 +484,9 @@ pub async fn run_server(
                                         "Failed to send charge log send trigger for charger '{}' to TCP socket",
                                         id
                                     );
-                                    let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::InternalError));
+                                    let nack_packet = ManagementPacket::NackPacket(
+                                        NackPacket::new(NackReason::InternalError),
+                                    );
                                     tun_sock.send_packet(nack_packet);
                                 }
                             } else {
@@ -450,34 +494,46 @@ pub async fn run_server(
                                     "Failed to get sender for charge log send request for charger '{}'",
                                     id
                                 );
-                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::InternalError));
+                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                    NackReason::InternalError,
+                                ));
                                 tun_sock.send_packet(nack_packet);
                             }
                             tun_sock.send_packet(ManagementPacket::AckPacket(AckPacket::new()));
                         }
-                    },
+                    }
                     // Charge log send request
                     PacketType::RequestChargeLogSend => {
                         // Check rate limit first
                         let charger_id_str = id.to_string();
                         let ip_str = addr.ip().to_string();
-                        if !bridge_state.charger_ratelimiter.check_key(charger_id_str, ip_str) {
+                        if !bridge_state
+                            .charger_ratelimiter
+                            .check_key(charger_id_str, ip_str)
+                        {
                             let mut tun_sock = tunn_sock.lock().await;
                             log::error!("Rate limit exceeded for charge log send request from charger with id '{}'", id);
-                            let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::ToManyRequests));
+                            let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                NackReason::ToManyRequests,
+                            ));
                             tun_sock.send_packet(nack_packet);
                             return;
                         }
 
-                        let Ok(packet) = RequestChargeLogSendPacket::try_from(data.as_slice()) else {
+                        let Ok(packet) = RequestChargeLogSendPacket::try_from(data.as_slice())
+                        else {
                             log::error!("Failed to parse charge log send request packet from charger with id '{}'", id);
                             return;
                         };
 
-                        let Ok(last_charge_log_upload_hash) = get_last_charge_log_upload_hash(id, &app_state).await else {
+                        let Ok(last_charge_log_upload_hash) =
+                            get_last_charge_log_upload_hash(id, &app_state).await
+                        else {
                             log::error!("Failed to get last charge log upload hash for charger with id '{}'", id);
                             let mut tun_sock = tunn_sock.lock().await;
-                            let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::InternalError));
+                            let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                NackReason::InternalError,
+                            ));
                             tun_sock.send_packet(nack_packet);
                             return;
                         };
@@ -486,7 +542,9 @@ pub async fn run_server(
                             if last_hash == packet.hash {
                                 log::error!("Received charge log send request from charger with id '{}' with hash that matches the last uploaded charge log, rejecting request", id);
                                 let mut tun_sock = tunn_sock.lock().await;
-                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::AlreadySent));
+                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                    NackReason::AlreadySent,
+                                ));
                                 tun_sock.send_packet(nack_packet);
                                 return;
                             }
@@ -496,7 +554,9 @@ pub async fn run_server(
                             let mut tunn_sock = tunn_sock.lock().await;
                             if tunn_sock.has_sender() {
                                 log::info!("Received charge log send request from charger with id '{}' while another send is still in progress", id);
-                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::OngoingRequest));
+                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                    NackReason::OngoingRequest,
+                                ));
                                 tunn_sock.send_packet(nack_packet);
                                 return;
                             }
@@ -505,7 +565,8 @@ pub async fn run_server(
                         let Ok(_guard) = CurrentChargeLogSendsRAII::new() else {
                             log::error!("Too many concurrent charge log sends, rejecting new request for charger with id '{}'", id);
                             let mut tun_sock = tunn_sock.lock().await;
-                            let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::Busy));
+                            let nack_packet =
+                                ManagementPacket::NackPacket(NackPacket::new(NackReason::Busy));
                             tun_sock.send_packet(nack_packet);
                             return;
                         };
@@ -541,10 +602,18 @@ pub async fn run_server(
                         };
 
                         let is_monthly_email = meta_data.is_monthly_email;
-                        match handle_charge_log(meta_data, tunn_sock.clone(), app_state.clone()).await {
+                        match handle_charge_log(meta_data, tunn_sock.clone(), app_state.clone())
+                            .await
+                        {
                             Ok(_) => {
                                 if is_monthly_email {
-                                    if let Err(e) = set_last_charge_log_upload_hash(id, packet.hash.to_vec(), &app_state).await {
+                                    if let Err(e) = set_last_charge_log_upload_hash(
+                                        id,
+                                        packet.hash.to_vec(),
+                                        &app_state,
+                                    )
+                                    .await
+                                    {
                                         log::error!("Failed to set last charge log upload hash for charger with id '{}': {:?}", id, e);
                                     }
                                 }
@@ -555,11 +624,13 @@ pub async fn run_server(
                             Err(e) => {
                                 log::error!("Failed to handle charge log: {:?}", e);
                                 let mut tunn_sock = tunn_sock.lock().await;
-                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(NackReason::Timeout));
+                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                    NackReason::Timeout,
+                                ));
                                 tunn_sock.send_packet(nack_packet);
                             }
                         }
-                    },
+                    }
                     _ => {
                         log::error!("Received unknown management packet type {:02x} from charger with id '{}'", header.p_type as u8, id);
                         return;
