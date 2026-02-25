@@ -526,7 +526,7 @@ pub async fn run_server(
                             return;
                         };
 
-                        let Ok(last_charge_log_upload_hash) =
+                        let Ok(last_charge_log_upload_hashes) =
                             get_last_charge_log_upload_hash(id, &app_state).await
                         else {
                             log::error!("Failed to get last charge log upload hash for charger with id '{}'", id);
@@ -538,16 +538,22 @@ pub async fn run_server(
                             return;
                         };
 
-                        if let Some(last_hash) = last_charge_log_upload_hash {
-                            if last_hash == packet.hash {
-                                log::error!("Received charge log send request from charger with id '{}' with hash that matches the last uploaded charge log, rejecting request", id);
-                                let mut tun_sock = tunn_sock.lock().await;
-                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
-                                    NackReason::AlreadySent,
-                                ));
-                                tun_sock.send_packet(nack_packet);
-                                return;
+                        // last_charge_log_upload_hashes is now Vec<Option<Vec<u8>>>
+                        let hash_exists = last_charge_log_upload_hashes.iter().any(|opt| {
+                            if let Some(ref h) = opt {
+                                h == &packet.hash.to_vec()
+                            } else {
+                                false
                             }
+                        });
+                        if hash_exists {
+                            log::error!("Received charge log send request from charger with id '{}' with hash that matches a previously uploaded charge log, rejecting request", id);
+                            let mut tun_sock = tunn_sock.lock().await;
+                            let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                NackReason::AlreadySent,
+                            ));
+                            tun_sock.send_packet(nack_packet);
+                            return;
                         }
 
                         {
