@@ -702,6 +702,7 @@ pub(crate) mod tests {
             last_state_change: None,
             device_type: None,
             mtu: None,
+            last_charge_log_upload_hash: None,
         };
 
         let pool = test_connection_pool();
