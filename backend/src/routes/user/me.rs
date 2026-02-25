@@ -203,6 +203,7 @@ pub(crate) mod tests {
             last_state_change: None,
             device_type: None,
             mtu: None,
+            last_charge_log_upload_hash: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)
@@ -283,6 +284,7 @@ pub(crate) mod tests {
             last_state_change: None,
             device_type: Some("WEM2".to_string()),
             mtu: None,
+            last_charge_log_upload_hash: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)
@@ -365,6 +367,7 @@ pub(crate) mod tests {
             last_state_change: None,
             device_type: None,
             mtu: None,
+            last_charge_log_upload_hash: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)
@@ -444,6 +447,7 @@ pub(crate) mod tests {
             last_state_change: None,
             device_type: None,
             mtu: None,
+            last_charge_log_upload_hash: None,
         };
         diesel::insert_into(c::chargers)
             .values(&test_charger)
