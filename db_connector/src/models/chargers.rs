@@ -22,5 +22,5 @@ pub struct Charger {
     pub last_state_change: Option<chrono::NaiveDateTime>,
     pub device_type: Option<String>,
     pub mtu: Option<i32>,
-    pub last_charge_log_upload_hash: Option<Vec<u8>>,
+    pub last_charge_log_upload_hash: Vec<Option<Vec<u8>>>,
 }

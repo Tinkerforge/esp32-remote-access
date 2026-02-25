@@ -143,9 +143,9 @@ pub async fn get_charger_from_db(
 pub async fn get_last_charge_log_upload_hash(
     charger_id: uuid::Uuid,
     state: &web::Data<AppState>,
-) -> actix_web::Result<Option<Vec<u8>>> {
+) -> actix_web::Result<Vec<Option<Vec<u8>>>> {
     let mut conn = get_connection(state)?;
-    let hash: Option<Vec<u8>> = web_block_unpacked(move || {
+    let hashes: Vec<Option<Vec<u8>>> = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
 
         match chargers
@@ -160,7 +160,7 @@ pub async fn get_last_charge_log_upload_hash(
     })
     .await?;
 
-    Ok(hash)
+    Ok(hashes)
 }
 
 pub async fn validate_auth_token(
@@ -411,7 +411,8 @@ async fn notify_state_change(
     }
 }
 
-/// Sets the last_charge_log_upload_hash for a charger/device
+/// Sets the last_charge_log_upload_hash for a charger/device.
+/// Appends the new hash to the list, keeping only the last 5 entries.
 pub async fn set_last_charge_log_upload_hash(
     charger_id: uuid::Uuid,
     hash: Vec<u8>,
@@ -420,9 +421,27 @@ pub async fn set_last_charge_log_upload_hash(
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
+
+        // Get current hashes
+        let mut current_hashes: Vec<Option<Vec<u8>>> = match chargers
+            .filter(id.eq(charger_id))
+            .select(last_charge_log_upload_hash)
+            .get_result(&mut conn)
+        {
+            Ok(hashes) => hashes,
+            Err(NotFound) => return Err(Error::ChargerDoesNotExist),
+            Err(_err) => return Err(Error::InternalError),
+        };
+
+        // Add new hash as Some(hash), keep only the last 5
+        current_hashes.push(Some(hash));
+        if current_hashes.len() > 5 {
+            current_hashes = current_hashes.split_off(current_hashes.len() - 5);
+        }
+
         match diesel::update(chargers)
             .filter(id.eq(charger_id))
-            .set(last_charge_log_upload_hash.eq(Some(hash.clone())))
+            .set(last_charge_log_upload_hash.eq(current_hashes))
             .execute(&mut conn)
         {
             Ok(_) => Ok(()),
