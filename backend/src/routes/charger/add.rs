@@ -287,7 +287,7 @@ async fn update_charger(
             last_state_change: Some(chrono::Utc::now().naive_utc()),
             device_type: None,
             mtu: None,
-            last_charge_log_upload_hash: None,
+            last_charge_log_upload_hash: Vec::new(),
         };
         match diesel::update(&charger).set(&charger).execute(&mut conn) {
             Ok(_) => Ok(pub_key),
@@ -357,7 +357,7 @@ pub async fn add_charger(
             last_state_change: None,
             device_type: None,
             mtu: None,
-            last_charge_log_upload_hash: None,
+            last_charge_log_upload_hash: Vec::new(),
         };
 
         match diesel::insert_into(chargers::chargers)
