@@ -246,7 +246,8 @@ export const en = {
         "search_placeholder": "Search by name",
         "no_tokens": "No authorization tokens yet. Create one above to get started.",
         "no_tokens_search": "No tokens match your search.",
-        firmware_needed
+        firmware_needed,
+        "decrypt_name_failed": "Failed to decrypt token name."
     },
     "wg_client": {
         "not_initialized": "The WireGuard client is not initialized. Please reload the page."

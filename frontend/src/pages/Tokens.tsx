@@ -71,6 +71,7 @@ let fetchInterval: NodeJS.Timeout | null = null;
 export function Tokens() {
     const { t } = useTranslation();
     const [tokens, setTokens] = useState<TokenRecord[]>([]);
+    const [decryptNameWarning, setDecryptNameWarning] = useState(false);
     const [useOnce, setUseOnce] = useState(true);
     const [tokenName, setTokenName] = useState("");
     const [user, setUser] = useState<components["schemas"]["UserInfo"] | null>(null);
@@ -146,7 +147,13 @@ export function Tokens() {
                     let tokenName = "";
                     if (token.name.length !== 0) {
                         const binaryName = Base64.toUint8Array(token.name);
-                        tokenName = new TextDecoder().decode(sodium.crypto_box_seal_open(binaryName, pub_key as Uint8Array, secret as Uint8Array));
+                        try {
+                            tokenName = new TextDecoder().decode(sodium.crypto_box_seal_open(binaryName, pub_key as Uint8Array, secret as Uint8Array));
+                        } catch (err) {
+                            setDecryptNameWarning(true);
+                            console.error(`Failed to decrypt name of token ${token.id}: ${err}`);
+                            tokenName = t("tokens.unknown_name");
+                        }
                     }
                     newTokens.push({
                         token: newToken,
@@ -268,6 +275,11 @@ export function Tokens() {
                 <h5 className="mb-1">{t("tokens.info_heading")}</h5>
                 <p className="mb-0">{t("tokens.info_body")}</p>
             </Alert>
+            {decryptNameWarning && (
+                <Alert variant="warning" className="mt-3">
+                    {t("tokens.decrypt_name_failed")}
+                </Alert>
+            )}
             <Card className="my-4">
                 <Card.Header className="pb-2">
                     <h5 className="mb-0">{t("tokens.create_token")}</h5>
