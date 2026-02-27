@@ -2,6 +2,7 @@ import { Signal, useSignal } from "@preact/signals";
 import { Base64 } from "js-base64";
 import { Button, Modal, Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
+import Median from "median-js-bridge";
 
 interface RecoveryDataProps {
     email: string,
@@ -22,11 +23,17 @@ export async function saveRecoveryData(secret: Uint8Array, email: string) {
     const file = new File([backupString], "RecoveryData", {
         type: "text/plain"
     });
-    const a = document.createElement("a");
     const url = URL.createObjectURL(file);
+    const title = `${email.replaceAll(".", "_").replaceAll("@", "_at_")}_${origin.replace("https://", "").replace(".", "_")}_recovery_data`;
+
+    if (Median.isNativeApp()) {
+        Median.downloads.downloadFile({url, title});
+    }
+
+    const a = document.createElement("a");
     a.href = url;
     a.target = "_blank";
-    a.download = `${email.replaceAll(".", "_").replaceAll("@", "_at_")}_${origin.replace("https://", "").replace(".", "_")}_recovery_data`;
+    a.download = title
     document.body.appendChild(a);
     a.click()
     URL.revokeObjectURL(url);
