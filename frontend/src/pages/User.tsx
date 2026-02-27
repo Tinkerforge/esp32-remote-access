@@ -29,6 +29,7 @@ import { PasswordComponent } from "../components/PasswordComponent";
 import i18n from "../i18n";
 import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
+import { saveRecoveryData } from "../components/RecoveryDataComponent";
 
 
 interface UserState {
@@ -147,6 +148,9 @@ export function User() {
     const [newPasswordIsValid, setNewPasswordIsValid] = useState(true);
     const [confirmNewPassword, setConfirmNewPassword] = useState("");
     const [confirmNewPasswordIsValid, setConfirmNewPasswordIsValid] = useState(true);
+    const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+    const [recoveryPassword, setRecoveryPassword] = useState("");
+    const [recoveryPasswordValid, setRecoveryPasswordValid] = useState(true);
     const storagePersisted = useSignal(false);
 
     // navigator.storage is not available in jsdom and some browsers
@@ -162,6 +166,8 @@ export function User() {
     const handleUpdatePasswordShow = () => setShowPasswordReset(true);
     const handleDelteUserClose = () => setDeleteUser({...deleteUser, show: false});
     const handleDeleteUserShow = () => setDeleteUser({...deleteUser, show: true});
+    const handleRecoveryClose = () => { setShowRecoveryModal(false); setRecoveryPassword(""); setRecoveryPasswordValid(true); };
+    const handleRecoveryShow = () => setShowRecoveryModal(true);
 
     const checkPasswords = (newPassword: string, confirmNewPassword: string) => {
         let ret = true;
@@ -329,6 +335,9 @@ export function User() {
                         <Button variant="primary" onClick={handleUpdatePasswordShow}>
                             {t("change_password")}
                         </Button>
+                        <Button variant="secondary" onClick={handleRecoveryShow}>
+                            {t("save_recovery_file")}
+                        </Button>
                         <Button variant="warning" onClick={() => logout(true)}>
                             {t("logout_all")}
                         </Button>
@@ -360,6 +369,62 @@ export function User() {
                     </Button>
                     <Button variant="danger" type="submit">
                         {t("delete_user_button")}
+                    </Button>
+                </Modal.Footer>
+            </Form>
+        </Modal>
+
+        {/* Save recovery file modal */}
+        <Modal show={showRecoveryModal} onHide={handleRecoveryClose} centered>
+            <Form onSubmit={async (e: SubmitEvent) => {
+                e.preventDefault();
+                if (recoveryPassword.length === 0) {
+                    setRecoveryPasswordValid(false);
+                    return;
+                }
+
+                const {data, error, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
+                const status = response.status;
+                if (error) {
+                    showAlert(i18n.t("user.save_recovery_file_failed", {status, response: error}), "danger");
+                    return;
+                }
+
+                const { secret, secret_nonce, secret_salt } = data;
+                const secret_key = await generate_hash(recoveryPassword, new Uint8Array(secret_salt), sodium.crypto_secretbox_KEYBYTES);
+
+                let decrypted_secret: Uint8Array;
+                try {
+                    decrypted_secret = sodium.crypto_secretbox_open_easy(new Uint8Array(secret), new Uint8Array(secret_nonce), secret_key);
+                } catch {
+                    setRecoveryPasswordValid(false);
+                    return;
+                }
+
+                await saveRecoveryData(new Uint8Array(decrypted_secret), email);
+                handleRecoveryClose();
+            }} noValidate>
+                <Modal.Header closeButton>
+                    <Modal.Title>{t("save_recovery_file")}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p className="mb-3">{t("save_recovery_file_password")}</p>
+                    <Form.Group controlId="recoveryPassword">
+                        <Form.Label>{t("password")}</Form.Label>
+                        <PasswordComponent
+                            value={recoveryPassword}
+                            onChange={(e) => { setRecoveryPassword(e); setRecoveryPasswordValid(true); }}
+                            isInvalid={!recoveryPasswordValid}
+                            invalidMessage={t("save_recovery_file_wrong_password")}
+                        />
+                    </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="outline-secondary" onClick={handleRecoveryClose}>
+                        {t("close")}
+                    </Button>
+                    <Button variant="primary" type="submit">
+                        {t("download")}
                     </Button>
                 </Modal.Footer>
             </Form>

@@ -47,6 +47,11 @@ export const de ={
         "email_change_disabled": "Ändern der E-Mail-Adresse ist deaktiviert, da Du Geräte mit alter Firmware-Version konfiguriert hast. Bitte aktualisiere zuerst deine Geräte.",
         "local_settings": "Lokale Einstellungen",
         "debug_mode": "Debug-Modus",
+        "save_recovery_file": "Wiederherstellungsdatei speichern",
+        "save_recovery_file_password": "Gib dein Passwort ein, um die Wiederherstellungsdatei herunterzuladen.",
+        "save_recovery_file_failed": "Herunterladen der Wiederherstellungsdatei mit dem Code {{status}} fehlgeschlagen: {{response}}",
+        "save_recovery_file_wrong_password": "Falsches Passwort. Entschlüsselung fehlgeschlagen.",
+        "download": "Herunterladen",
     },
     "recovery": {
         "recovery": "Passwort zurücksetzen",
