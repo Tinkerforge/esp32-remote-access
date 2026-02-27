@@ -47,6 +47,11 @@ export const en = {
         "email_change_disabled": "Email changes are disabled because you have chargers with old firmware versions. Please update your chargers first.",
         "local_settings": "Local settings",
         "debug_mode": "Debug mode",
+        "save_recovery_file": "Save recovery file",
+        "save_recovery_file_password": "Enter your password to download the recovery file.",
+        "save_recovery_file_failed": "Failed to download recovery file with status code {{status}}: {{response}}",
+        "save_recovery_file_wrong_password": "Wrong password. Could not decrypt secret.",
+        "download": "Download",
     },
     "recovery": {
         "recovery": "Password recovery",

@@ -2,6 +2,10 @@ import { render, fireEvent, waitFor, screen } from '@testing-library/preact';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { User } from '../User';
 
+vi.mock('../../components/RecoveryDataComponent', () => ({
+  saveRecoveryData: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('User Component', () => {
   type FetchClientMock = {
     GET: Mock;
@@ -37,6 +41,7 @@ describe('User Component', () => {
   let mockLogout: Mock;
   let mockSodium: SodiumMock;
   let mockBase64: Base64Mock;
+  let mockSaveRecoveryData: Mock;
 
   const mockUserData = {
     id: 'user-123',
@@ -91,6 +96,9 @@ describe('User Component', () => {
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {});
 
     vi.spyOn(window.localStorage, 'removeItem').mockImplementation(() => {});
+
+    const { saveRecoveryData } = await import('../../components/RecoveryDataComponent') as unknown as { saveRecoveryData: Mock };
+    mockSaveRecoveryData = saveRecoveryData;
   });
 
   describe('UserComponent (Profile Information)', () => {
@@ -595,6 +603,207 @@ describe('User Component', () => {
       const closeButton = screen.getByText('close');
       fireEvent.click(closeButton);
       expect(screen.queryByTestId('modal')).toBeNull();
+    });
+  });
+
+  describe('Save Recovery File Modal', () => {
+    const mockSecretData = {
+      secret: new Uint8Array([1, 2, 3, 4]),
+      secret_nonce: new Uint8Array([5, 6, 7, 8]),
+      secret_salt: new Uint8Array([9, 10, 11, 12]),
+    };
+
+    it('renders save recovery file button', () => {
+      render(<User />);
+
+      expect(screen.getByText('save_recovery_file')).toBeTruthy();
+    });
+
+    it('opens save recovery file modal', () => {
+      render(<User />);
+
+      const recoveryButton = screen.getByText('save_recovery_file');
+      fireEvent.click(recoveryButton);
+
+      expect(screen.getByTestId('modal')).toBeTruthy();
+      expect(screen.getByText('save_recovery_file_password')).toBeTruthy();
+    });
+
+    it('validates empty password', async () => {
+      render(<User />);
+
+      const recoveryButton = screen.getByText('save_recovery_file');
+      fireEvent.click(recoveryButton);
+
+      const submitButton = screen.getByRole('button', { name: 'download' });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        const passwordInput = screen.getByTestId('password-input');
+        expect(passwordInput).toHaveClass('invalid');
+      });
+
+      expect(mockUtils.fetchClient.GET).not.toHaveBeenCalledWith('/user/get_secret', expect.anything());
+    });
+
+    it('downloads recovery file successfully', async () => {
+      // First call returns user data, subsequent calls return secret
+      mockUtils.fetchClient.GET
+        .mockResolvedValueOnce({
+          data: mockUserData,
+          error: null,
+          response: { status: 200 },
+        })
+        .mockResolvedValueOnce({
+          data: mockSecretData,
+          error: null,
+          response: { status: 200 },
+        });
+
+      render(<User />);
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('john@example.com')).toBeTruthy();
+      });
+
+      const recoveryButton = screen.getByText('save_recovery_file');
+      fireEvent.click(recoveryButton);
+
+      const passwordInput = screen.getByTestId('password-input');
+      const submitButton = screen.getByRole('button', { name: 'download' });
+
+      fireEvent.change(passwordInput, { target: { value: 'MyPassword123!' } });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockUtils.fetchClient.GET).toHaveBeenCalledWith('/user/get_secret', {
+          credentials: 'same-origin',
+        });
+      });
+
+      await waitFor(() => {
+        expect(mockSaveRecoveryData).toHaveBeenCalled();
+      });
+
+      // Modal should close after successful download
+      await waitFor(() => {
+        expect(screen.queryByTestId('modal')).toBeNull();
+      });
+    });
+
+    it('shows error when get_secret API fails', async () => {
+      mockUtils.fetchClient.GET
+        .mockResolvedValueOnce({
+          data: mockUserData,
+          error: null,
+          response: { status: 200 },
+        })
+        .mockResolvedValueOnce({
+          data: null,
+          error: 'Failed to get secret',
+          response: { status: 500 },
+        });
+
+      render(<User />);
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('john@example.com')).toBeTruthy();
+      });
+
+      const recoveryButton = screen.getByText('save_recovery_file');
+      fireEvent.click(recoveryButton);
+
+      const passwordInput = screen.getByTestId('password-input');
+      const submitButton = screen.getByRole('button', { name: 'download' });
+
+      fireEvent.change(passwordInput, { target: { value: 'MyPassword123!' } });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockShowAlert).toHaveBeenCalledWith(
+          'user.save_recovery_file_failed',
+          'danger'
+        );
+      });
+
+      expect(mockSaveRecoveryData).not.toHaveBeenCalled();
+    });
+
+    it('shows invalid password when decryption fails', async () => {
+      mockSodium.default.crypto_secretbox_open_easy.mockImplementationOnce(() => {
+        throw new Error('decryption failed');
+      });
+
+      mockUtils.fetchClient.GET
+        .mockResolvedValueOnce({
+          data: mockUserData,
+          error: null,
+          response: { status: 200 },
+        })
+        .mockResolvedValueOnce({
+          data: mockSecretData,
+          error: null,
+          response: { status: 200 },
+        });
+
+      render(<User />);
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('john@example.com')).toBeTruthy();
+      });
+
+      const recoveryButton = screen.getByText('save_recovery_file');
+      fireEvent.click(recoveryButton);
+
+      const passwordInput = screen.getByTestId('password-input');
+      const submitButton = screen.getByRole('button', { name: 'download' });
+
+      fireEvent.change(passwordInput, { target: { value: 'WrongPassword!' } });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(passwordInput).toHaveClass('invalid');
+      });
+
+      expect(mockSaveRecoveryData).not.toHaveBeenCalled();
+    });
+
+    it('closes modal when close button is clicked', () => {
+      render(<User />);
+
+      const recoveryButton = screen.getByText('save_recovery_file');
+      fireEvent.click(recoveryButton);
+
+      expect(screen.getByTestId('modal')).toBeTruthy();
+
+      const closeButton = screen.getByText('close');
+      fireEvent.click(closeButton);
+
+      expect(screen.queryByTestId('modal')).toBeNull();
+    });
+
+    it('resets validation state when password is typed after error', async () => {
+      render(<User />);
+
+      const recoveryButton = screen.getByText('save_recovery_file');
+      fireEvent.click(recoveryButton);
+
+      // Submit with empty password to trigger validation error
+      const submitButton = screen.getByRole('button', { name: 'download' });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        const passwordInput = screen.getByTestId('password-input');
+        expect(passwordInput).toHaveClass('invalid');
+      });
+
+      // Typing a new password should clear the invalid state
+      const passwordInput = screen.getByTestId('password-input');
+      fireEvent.change(passwordInput, { target: { value: 'NewPassword' } });
+
+      await waitFor(() => {
+        expect(passwordInput).not.toHaveClass('invalid');
+      });
     });
   });
 
