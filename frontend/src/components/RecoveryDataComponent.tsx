@@ -27,13 +27,18 @@ export async function saveRecoveryData(secret: Uint8Array, email: string) {
     const title = `${email.replaceAll(".", "_").replaceAll("@", "_at_")}_${origin.replace("https://", "").replace(".", "_")}_recovery_data`;
 
     if (Median.isNativeApp()) {
-        Median.downloads.downloadFile({url, title});
+        Median.share.downloadFile({
+            url,
+            filename: title,
+            open: true,
+        });
+        return;
     }
 
     const a = document.createElement("a");
     a.href = url;
     a.target = "_blank";
-    a.download = title
+    a.download = title;
     document.body.appendChild(a);
     a.click()
     URL.revokeObjectURL(url);
