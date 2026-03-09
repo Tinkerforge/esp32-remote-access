@@ -5,7 +5,7 @@ use base64::Engine;
 use ipnetwork::IpNetwork;
 use reqwest::cookie::Jar;
 use serde::{Deserialize, Serialize};
-use reqwest_websocket::RequestBuilderExt;
+use reqwest_websocket::Upgrade;
 use tabled::Tabled;
 
 #[derive(Serialize, Deserialize)]

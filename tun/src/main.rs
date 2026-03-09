@@ -3,7 +3,7 @@ mod http;
 use boringtun::noise::TunnResult;
 use clap::{Parser, Subcommand};
 use futures_util::{SinkExt, TryStreamExt};
-use reqwest_websocket::Message;
+use reqwest_websocket::{Bytes, Message};
 use std::{env, ffi::CString};
 
 unsafe extern "C" {
@@ -119,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
             data = ws.try_next() => {
                 match data {
                     Ok(Some(Message::Binary(data))) => {
-                        send_to_tun(&mut ws, data, &mut tunn, fd).await;
+                        send_to_tun(&mut ws, data.to_vec(), &mut tunn, fd).await;
                         if let Some(timestamp) = tunn.time_since_last_handshake() {
                             if !connected && timestamp.as_secs() < 120 {
                                 log::info!("Connected. Peer IP: {}", peer_ip.to_str()?);
@@ -168,7 +168,7 @@ async fn send_to_peer(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn
     let mut buf = vec![0u8; size];
     match tunn.encapsulate(&data[4..], &mut buf) {
         TunnResult::WriteToNetwork(buf) => {
-            let msg = Message::Binary(buf.to_vec());
+            let msg = Message::Binary(Bytes::from_owner(buf.to_vec()));
             let _ = ws.send(msg).await;
         },
         TunnResult::Done => (),
@@ -182,7 +182,7 @@ async fn send_to_tun(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn:
     let mut buf = vec![0u8; 2048];
     match tunn.decapsulate(None, &data, &mut buf) {
         TunnResult::WriteToNetwork(buf) => {
-            ws.send(Message::Binary(buf.to_vec())).await.ok();
+            ws.send(Message::Binary(Bytes::from_owner(buf.to_vec()))).await.ok();
             let len = unsafe { libc::write(fd, buf.as_ptr() as _, buf.len()) };
             if len < 0 {
                 log::error!("Error writing to tun device");
