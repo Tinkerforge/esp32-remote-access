@@ -115,65 +115,65 @@ export function Tokens() {
     }, [searchQuery, sortedTokens]);
 
     // Fetch tokens and user data from the server on component mount
-    useEffect(() => {
-        async function fetchTokens() {
-            try {
-                // Fetch user data
-                const { data: userData, response: userResponse, error: userError } =
-                    await fetchClient.GET("/user/me", { credentials: "same-origin" });
-                if (userError || userResponse.status !== 200 || !userData) {
-                    showAlert(t("tokens.fetch_user_failed"), "danger");
-                    return;
-                }
-                setUser(userData);
-
-                // Fetch tokens data
-                const { data: tokensData, response: tokensResponse, error: tokensError } =
-                    await fetchClient.GET('/user/get_authorization_tokens', { credentials: 'same-origin' });
-                if (tokensError || tokensResponse.status !== 200 || !tokensData) {
-                    showAlert(t("tokens.fetch_tokens_failed"), "danger");
-                    return;
-                }
-
-                // Ensure public key is available
-                if (!pub_key) {
-                    await get_decrypted_secret();
-                }
-
-                // Process and set tokens
-                const newTokens: TokenRecord[] = [];
-                for (const token of tokensData.tokens) {
-                    const newToken = await buildToken(userData, token);
-                    let tokenName = "";
-                    if (token.name.length !== 0) {
-                        const binaryName = Base64.toUint8Array(token.name);
-                        try {
-                            tokenName = new TextDecoder().decode(sodium.crypto_box_seal_open(binaryName, pub_key as Uint8Array, secret as Uint8Array));
-                        } catch (err) {
-                            setDecryptNameWarning(true);
-                            console.error(`Failed to decrypt name of token ${token.id}: ${err}`);
-                            tokenName = t("tokens.unknown_name");
-                        }
-                    }
-                    newTokens.push({
-                        token: newToken,
-                        use_once: token.use_once,
-                        id: token.id,
-                        name: tokenName,
-                        createdAt: new Date(token.created_at * 1000),
-                        lastUsedAt: token.last_used_at ? new Date(token.last_used_at * 1000) : null,
-                    });
-                }
-                setTokens(newTokens);
-
-            } catch (err) {
-                console.error(err);
-                showAlert(t("tokens.unexpected_error"), "danger");
-            } finally {
-                setLoading(false);
+    const fetchTokens = async function() {
+        try {
+            // Fetch user data
+            const { data: userData, response: userResponse, error: userError } =
+                await fetchClient.GET("/user/me", { credentials: "same-origin" });
+            if (userError || userResponse.status !== 200 || !userData) {
+                showAlert(t("tokens.fetch_user_failed"), "danger");
+                return;
             }
-        }
+            setUser(userData);
 
+            // Fetch tokens data
+            const { data: tokensData, response: tokensResponse, error: tokensError } =
+                await fetchClient.GET('/user/get_authorization_tokens', { credentials: 'same-origin' });
+            if (tokensError || tokensResponse.status !== 200 || !tokensData) {
+                showAlert(t("tokens.fetch_tokens_failed"), "danger");
+                return;
+            }
+
+            // Ensure public key is available
+            if (!pub_key) {
+                await get_decrypted_secret();
+            }
+
+            // Process and set tokens
+            const newTokens: TokenRecord[] = [];
+            for (const token of tokensData.tokens) {
+                const newToken = await buildToken(userData, token);
+                let tokenName = "";
+                if (token.name && token.name.length !== 0) {
+                    const binaryName = Base64.toUint8Array(token.name);
+                    try {
+                        tokenName = new TextDecoder().decode(sodium.crypto_box_seal_open(binaryName, pub_key as Uint8Array, secret as Uint8Array));
+                    } catch (err) {
+                        setDecryptNameWarning(true);
+                        console.error(`Failed to decrypt name of token ${token.id}: ${err}`);
+                        tokenName = t("tokens.unknown_name");
+                    }
+                }
+                newTokens.push({
+                    token: newToken,
+                    use_once: token.use_once,
+                    id: token.id,
+                    name: tokenName,
+                    createdAt: new Date(token.created_at * 1000),
+                    lastUsedAt: token.last_used_at ? new Date(token.last_used_at * 1000) : null,
+                });
+            }
+            setTokens(newTokens);
+
+        } catch (err) {
+            console.error(err);
+            showAlert(t("tokens.unexpected_error"), "danger");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchTokens();
         fetchInterval = setInterval(() => {
             fetchTokens();
@@ -245,7 +245,8 @@ export function Tokens() {
                 showAlert(t("tokens.delete_token_failed"), "danger");
                 return;
             }
-            setTokens((prev) => prev.filter(token => token.id !== tokenToDelete));
+            setLoading(true);
+            if (fetchTokens) await fetchTokens();
         } catch (err) {
             console.error(err);
             showAlert(t("tokens.unexpected_error"), "danger");
