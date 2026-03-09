@@ -1,7 +1,7 @@
 import { Base64 } from "js-base64";
 import { Button, Card, Form, Modal } from "react-bootstrap";
 import { AppState, concat_salts, fetchClient, generate_hash, generate_random_bytes, get_salt, loggedIn } from "../utils";
-import { crypto_box_keypair, crypto_secretbox_KEYBYTES, crypto_secretbox_NONCEBYTES, crypto_secretbox_easy } from "libsodium-wrappers";
+import sodium from "libsodium-wrappers";
 import { showAlert } from "../components/Alert";
 import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "../components/PasswordComponent";
@@ -72,24 +72,24 @@ export function Recovery() {
     const executeRecovery = async () => {
         const salt1 = await get_salt();
         const secret_salt = concat_salts(salt1);
-        const secret_key = await generate_hash(state.new_password, secret_salt, crypto_secretbox_KEYBYTES);
+        const secret_key = await generate_hash(state.new_password, secret_salt, sodium.crypto_secretbox_KEYBYTES);
 
         const salt3 = await get_salt();
         const login_salt = concat_salts(salt3);
         const login_key = await generate_hash(state.new_password, login_salt);
 
-        const secret_nonce = generate_random_bytes(crypto_secretbox_NONCEBYTES);
+        const secret_nonce = generate_random_bytes(sodium.crypto_secretbox_NONCEBYTES);
 
         let secret_reuse: boolean;
         let encrypted_secret: Uint8Array;
         if (secret.value.length === 0) {
-            const key_pair = crypto_box_keypair();
+            const key_pair = sodium.crypto_box_keypair();
             const new_secret = key_pair.privateKey;
             secret.value = new Uint8Array(new_secret);
-            encrypted_secret = crypto_secretbox_easy(new_secret, secret_nonce, secret_key);
+            encrypted_secret = sodium.crypto_secretbox_easy(new_secret, secret_nonce, secret_key);
             secret_reuse = false;
         } else {
-            encrypted_secret = crypto_secretbox_easy(secret.value as Uint8Array, secret_nonce, secret_key);
+            encrypted_secret = sodium.crypto_secretbox_easy(secret.value as Uint8Array, secret_nonce, secret_key);
             secret_reuse = true;
         }
 
