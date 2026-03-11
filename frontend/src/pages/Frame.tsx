@@ -11,7 +11,7 @@ import { useLocation, useRoute } from 'preact-iso';
 import { useTranslation } from 'react-i18next';
 import { components } from '../schema';
 import { Base64 } from 'js-base64';
-import * as sodium from 'libsodium-wrappers';
+import sodium from 'libsodium-wrappers';
 
 // Extend the Window interface to include custom properties
 declare global {
