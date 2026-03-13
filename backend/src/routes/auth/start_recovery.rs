@@ -1,4 +1,4 @@
-use actix_web::{get, web, HttpResponse, Responder};
+use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
 use db_connector::models::recovery_tokens::RecoveryToken;
 use diesel::prelude::*;
@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::{
     branding,
     error::Error,
+    rate_limit::LoginRateLimiter,
     routes::user::{get_user, get_user_id},
     utils::{self, get_connection, web_block_unpacked},
     AppState,
@@ -99,8 +100,12 @@ fn send_email(
 pub async fn start_recovery(
     query: web::Query<StartRecoveryQuery>,
     state: web::Data<AppState>,
+    rate_limiter: web::Data<LoginRateLimiter>,
+    req: HttpRequest,
     #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> actix_web::Result<impl Responder> {
+    rate_limiter.check(query.email.to_lowercase(), &req)?;
+
     let user_id = match get_user_id(
         &state,
         crate::routes::auth::login::FindBy::Email(query.email.to_lowercase()),
@@ -201,6 +206,7 @@ pub mod tests {
 
         let req = TestRequest::get()
             .uri(&format!("/start_recovery?email={mail}"))
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
@@ -228,6 +234,7 @@ pub mod tests {
 
         let req = TestRequest::get()
             .uri(&format!("/start_recovery?email={mail}"))
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
@@ -241,6 +248,62 @@ pub mod tests {
             .get_result(&mut conn)
             .unwrap();
         diesel::delete(recovery_tokens.find(token.id))
+            .execute(&mut conn)
+            .unwrap();
+    }
+
+    #[actix_web::test]
+    async fn test_start_recovery_rate_limited() {
+        let (_user, mail) = TestUser::random().await;
+        let (_user2, mail2) = TestUser::random().await;
+
+        let app = App::new().configure(configure).service(start_recovery);
+        let app = test::init_service(app).await;
+
+        // Use a unique IP to avoid interference from other tests
+        let ip = "10.99.99.1";
+
+        // Exhaust the rate limit burst (5 in test mode)
+        for _ in 0..5 {
+            let req = TestRequest::get()
+                .uri(&format!("/start_recovery?email={mail}"))
+                .insert_header(("X-Forwarded-For", ip))
+                .to_request();
+            let resp = test::call_service(&app, req).await;
+            assert_eq!(resp.status(), 200);
+        }
+
+        // Next request with same email+IP should be rate limited
+        let req = TestRequest::get()
+            .uri(&format!("/start_recovery?email={mail}"))
+            .insert_header(("X-Forwarded-For", ip))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 429);
+
+        // Same IP but different email should still work
+        let req = TestRequest::get()
+            .uri(&format!("/start_recovery?email={mail2}"))
+            .insert_header(("X-Forwarded-For", ip))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+
+        // Same email but different IP should still work
+        let req = TestRequest::get()
+            .uri(&format!("/start_recovery?email={mail}"))
+            .insert_header(("X-Forwarded-For", "10.99.99.2"))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+
+        // Clean up recovery tokens
+        use db_connector::schema::recovery_tokens::dsl::*;
+        let uid = get_test_uuid(&mail).unwrap();
+        let uid2 = get_test_uuid(&mail2).unwrap();
+        let pool = test_connection_pool();
+        let mut conn = pool.get().unwrap();
+        diesel::delete(recovery_tokens.filter(user_id.eq_any(vec![uid, uid2])))
             .execute(&mut conn)
             .unwrap();
     }
