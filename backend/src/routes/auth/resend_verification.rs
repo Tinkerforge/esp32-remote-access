@@ -1,4 +1,4 @@
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
 use chrono::Days;
 use diesel::prelude::*;
@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 use crate::{
     branding,
     error::Error,
+    rate_limit::LoginRateLimiter,
     routes::auth::VERIFICATION_EXPIRATION_DAYS,
     utils::{get_connection, web_block_unpacked},
     AppState,
@@ -93,9 +94,13 @@ fn send_verification_mail(
 pub async fn resend_verification(
     state: web::Data<AppState>,
     data: web::Json<ResendSchema>,
+    rate_limiter: web::Data<LoginRateLimiter>,
+    req: HttpRequest,
     #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::users::dsl as u_dsl;
+
+    rate_limiter.check(data.email.to_lowercase(), &req)?;
 
     let mut conn = get_connection(&state)?;
     let user_email = data.email.to_lowercase();
@@ -180,6 +185,7 @@ mod tests {
         let app = test::init_service(app).await;
         let req = test::TestRequest::post()
             .uri("/resend_verification")
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
             .set_json(&ResendSchema {
                 email: mail.to_string(),
             })
@@ -198,6 +204,7 @@ mod tests {
         let app = test::init_service(app).await;
         let req = test::TestRequest::post()
             .uri("/resend_verification")
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
             .set_json(&ResendSchema {
                 email: mail.to_string(),
             })
@@ -214,11 +221,59 @@ mod tests {
         let app = test::init_service(app).await;
         let req = test::TestRequest::post()
             .uri("/resend_verification")
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
             .set_json(&ResendSchema {
                 email: mail.to_string(),
             })
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status().as_u16(), 400); // mapped from UserDoesNotExist
+    }
+
+    #[actix_web::test]
+    async fn test_resend_verification_rate_limited() {
+        let mail = "resend_rate_limit@test.invalid";
+        create_user(mail).await;
+        let app = App::new().configure(configure).service(resend_verification);
+        let app = test::init_service(app).await;
+
+        let ip = "10.98.98.1";
+
+        // Exhaust the rate limit burst (5 in test mode)
+        for _ in 0..5 {
+            let req = test::TestRequest::post()
+                .uri("/resend_verification")
+                .insert_header(("X-Forwarded-For", ip))
+                .set_json(&ResendSchema {
+                    email: mail.to_string(),
+                })
+                .to_request();
+            let resp = test::call_service(&app, req).await;
+            assert!(resp.status().is_success());
+        }
+
+        // Next request with same email+IP should be rate limited
+        let req = test::TestRequest::post()
+            .uri("/resend_verification")
+            .insert_header(("X-Forwarded-For", ip))
+            .set_json(&ResendSchema {
+                email: mail.to_string(),
+            })
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status().as_u16(), 429);
+
+        // Different IP should still work
+        let req = test::TestRequest::post()
+            .uri("/resend_verification")
+            .insert_header(("X-Forwarded-For", "10.98.98.2"))
+            .set_json(&ResendSchema {
+                email: mail.to_string(),
+            })
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        delete_user(mail);
     }
 }
