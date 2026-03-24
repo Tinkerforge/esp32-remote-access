@@ -60,7 +60,10 @@ mod tests {
     #[actix_web::test]
     async fn test_get_token_cookie_takes_priority() {
         let req = TestRequest::default()
-            .cookie(actix_web::cookie::Cookie::new("access_token", "cookie_token"))
+            .cookie(actix_web::cookie::Cookie::new(
+                "access_token",
+                "cookie_token",
+            ))
             .insert_header(("Authorization", "Bearer header_token"))
             .to_http_request();
         assert_eq!(
