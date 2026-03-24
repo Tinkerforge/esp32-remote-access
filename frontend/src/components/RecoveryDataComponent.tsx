@@ -75,16 +75,15 @@ export function RecoveryDataComponent(props: RecoveryDataProps) {
                         {t("save")}
                     </Button>
                 </div>
-                {saved.value && (
-                    <Form.Check
-                        type="checkbox"
-                        id="recovery-confirmation"
-                        label={t("save_recovery_data_confirmation")}
-                        checked={confirmed.value}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => { confirmed.value = e.currentTarget.checked; }}
-                        className="mt-3"
-                    />
-                )}
+                <Form.Check
+                    disabled={!saved.value}
+                    type="checkbox"
+                    id="recovery-confirmation"
+                    label={t("save_recovery_data_confirmation")}
+                    checked={confirmed.value}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => { confirmed.value = e.currentTarget.checked; }}
+                    className="mt-3"
+                />
             </Modal.Body>
 
             <Modal.Footer>
