@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { login, mailiskClient, mailiskNameSpace, needCustomCert, testDomain, testDomainForCharger, testPassword1, testPassword2, testUser1Email, testUser2, testUser2Email, testUserName1, testUserName2, testWallboxDomain, testWallboxUID } from './common';
+import { login, mailiskClient, mailiskNameSpace, needCustomCert, testDomain, testDomainForCharger, testPassword1, testPassword2, testUser1Email, testUser2, testUser2Email, testUserName1, testUserName2, testWallboxDomain, testWallboxUID, waitForPasswordChargerRegistration, waitForTokenChargerRegistration } from './common';
 
 test('has title', async ({ page }) => {
   await page.goto(testDomain);
@@ -129,7 +129,7 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Email address' }).fill(testUser1Email);
   await page.getByLabel('Passwordonly used for the reg').fill(testPassword1);
   await page.getByLabel('Passwordonly used for the reg').press('Enter');
-  await page.getByRole('button', { name: 'Reboot' }).click();
+  await waitForPasswordChargerRegistration(page);
 
   await login(page, testUser1Email, testPassword1);
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
@@ -143,7 +143,7 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('button', { name: 'Remote Access' }).click();
   await page.getByRole('row', { name: testUser1Email }).getByRole('button').click();
   await page.getByRole('button', { name: 'Save' }).click();
-  await page.getByRole('button', { name: 'Reboot' }).click();
+  // await page.getByRole('button', { name: 'Reboot' }).click();
   await page.waitForTimeout(6000);
   await page.goto(testDomain);
   await expect(page.getByText('No devices registered yet. Please connect your device to this account to get started.')).toBeVisible();
@@ -170,7 +170,7 @@ test('add charger with auth token', async ({page}) => {
   await page.getByLabel('Authorization method').selectOption('token');
   await page.getByLabel('Authorization token').fill(token);
   await page.getByRole('button', { name: 'Add' }).click();
-  await page.getByRole('button', { name: 'Reboot' }).click();
+  await waitForTokenChargerRegistration(page);
 
   await page.goto(testDomain);
   await expect(page.locator('tbody')).toContainText(testWallboxUID);
@@ -265,7 +265,7 @@ test('remove charger', async ({page}) => {
   await page.getByRole('button', { name: 'Remote Access' }).click();
   await page.getByRole('row', { name: testUser1Email }).getByRole('button').click();
   await page.getByRole('button', { name: 'Save' }).click();
-  await page.getByRole('button', { name: 'Reboot' }).click();
+  // await page.getByRole('button', { name: 'Reboot' }).click();
   await page.waitForTimeout(6000);
   await login(page, testUser2Email, testPassword2);
   await expect(page.getByText('No devices registered yet. Please connect your device to this account to get started.')).toBeVisible();

@@ -50,3 +50,14 @@ export async function login(page: Page, email: string, password: string) {
     return resp.url().includes("/api/auth/login")
   });
 }
+
+export async function waitForPasswordChargerRegistration(page: Page) {
+  await expect(page.getByText('Preparing login')).toBeVisible({timeout: 30_000});
+  await expect(page.getByText('Logging in account')).toBeVisible({timeout: 60_000});
+  await expect(page.getByText('Preparing encryption')).toBeVisible({timeout: 60_000});
+  await expect(page.getByText('Registering')).toBeVisible({timeout: 120_000});
+}
+
+export async function waitForTokenChargerRegistration(page: Page) {
+  await expect(page.getByText('Registering')).toBeVisible({timeout: 30_000});
+}
