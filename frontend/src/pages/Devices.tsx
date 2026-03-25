@@ -82,7 +82,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     const message = JSON.parse(event.data);
                     // Handle state_change message with full charger list
                     if (message.type === 'state_change' && Array.isArray(message.chargers)) {
-                        console.log('Charger state changed, updating list');
+                        console.log('Charger-List state changed, updating list');
                         this.processChargers(message.chargers as Device[]);
                     }
                     // Handle initial charger list (array without type wrapper)
