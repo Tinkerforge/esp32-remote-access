@@ -189,7 +189,9 @@ export const en = {
         "success_alert_heading": "Success",
         "error_alert_text": "Failed to start recovery with status {{status}}: {{text}}",
         "verify_before_login": "Please verify your email address before logging in",
-        "verify_before_login_heading": "Email not verified"
+        "verify_before_login_heading": "Email not verified",
+        "verify_success": "Your account has been verified. You can now log in.",
+        "verify_success_heading": "Account activated"
     },
     "password_strength": {
         "strength": "Strength",
