@@ -29,7 +29,7 @@ import Row from "react-bootstrap/Row";
 import Card from "react-bootstrap/Card";
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
-import { ErrorAlert } from './components/Alert.js';
+import { ErrorAlert, showAlert } from './components/Alert.js';
 import { isDebugMode, refresh_access_token } from './utils';
 import { AppState, loggedIn } from './utils.js';
 import { Col, Form, Spinner } from 'react-bootstrap';
@@ -166,6 +166,16 @@ export function App() {
             clearInterval(refreshInterval);
         }
     }, [loggedIn.value]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("verified") === "true") {
+            showAlert(t("login.verify_success"), "success", "verify-success", t("login.verify_success_heading"));
+            const url = new URL(window.location.href);
+            url.searchParams.delete("verified");
+            window.history.replaceState({}, "", url.toString());
+        }
+    }, []);
 
     // Prepare persistence explanation modal to render alongside any app state
     const persistModal = (

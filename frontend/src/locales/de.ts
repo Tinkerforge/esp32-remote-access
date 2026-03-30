@@ -189,7 +189,9 @@ export const de ={
         "success_alert_heading": "Erfolg",
         "error_alert_text": "Failed to start recovery with status {{status}}: {{text}}",
         "verify_before_login": "Bitte bestätige deine E-Mail-Adresse, bevor du dich anmeldest",
-        "verify_before_login_heading": "E-Mail-Adresse nicht bestätigt"
+        "verify_before_login_heading": "E-Mail-Adresse nicht bestätigt",
+        "verify_success": "Dein Konto wurde bestätigt. Du kannst dich jetzt anmelden.",
+        "verify_success_heading": "Konto aktiviert"
     },
     "password_strength": {
         "strength": "Stärke",
