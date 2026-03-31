@@ -111,7 +111,10 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
         Err(_) => return Err(Error::InternalError.into()),
     }
 
-    Ok(Redirect::to(format!("{}?verified=true", state.frontend_url)))
+    Ok(Redirect::to(format!(
+        "{}?verified=true",
+        state.frontend_url
+    )))
 }
 
 #[cfg(test)]
