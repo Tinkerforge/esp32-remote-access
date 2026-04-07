@@ -15,9 +15,9 @@ actix-web = { version = "4.10.2", features = ["rustls-0_23", "compress-gzip", "c
 #actix-web-validator = {git = "https://github.com/Tinkerforge/actix-web-validator", rev = "a001926b1a51ff07daa134abcc2d8855455f0604"}
 actix-web-validator = "7"
 actix = "0.13.3"
-actix-files = "0.6"
+actix-files = "0.6.10"
 rustls = "0.23"
-rustls-pemfile = "2"
+rustls-pemfile = "2.2.0"
 
 dotenvy = "0.15.7"
 db_connector = { path = "../db_connector" }
@@ -30,7 +30,7 @@ chrono = { version = "0.4.33", features = ["unstable-locales"] }
 actix-cors = "0.7.0"
 jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 futures-util = "0.3.30"
-lettre = { version = "0.11.11", features = ["native-tls"] }
+lettre = { version = "0.11.21", features = ["native-tls"] }
 derive_more = "2"
 simplelog = "0.12.1"
 base64 = "0.22"
@@ -54,7 +54,7 @@ dashmap = "6.1.0"
 semver = "1.0.24"
 
 # This is a workaround until lettre and native-tls are updated
-openssl = "0.10.72"
+openssl = "0.10.78"
 actix-ws = "0.3.0"
 serde_json = "1.0.140"
 actix-multipart = "0.7.2"
