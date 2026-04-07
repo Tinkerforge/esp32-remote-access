@@ -21,7 +21,7 @@ actix-web-validator = "7"
 actix = "0.13.3"
 actix-files = "0.6"
 rustls = "0.23"
-rustls-pemfile = "2"
+rustls-pki-types = "1.14.0"
 
 dotenvy = "0.15.7"
 db_connector = { path = "../db_connector" }
