@@ -21,7 +21,6 @@ mod monitoring;
 
 use std::{
     collections::{HashMap, HashSet},
-    io::BufReader,
     num::NonZeroUsize,
     sync::Arc,
     time::Duration,
@@ -43,6 +42,8 @@ use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use lru::LruCache;
 use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
 use rustls::ServerConfig;
+use rustls_pki_types::pem::PemObject;
+use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use simplelog::{
     ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode,
 };
@@ -107,13 +108,11 @@ fn load_rustls_config() -> Option<ServerConfig> {
     let cert_path = std::env::var("TLS_CERT_PATH").ok()?;
     let key_path = std::env::var("TLS_KEY_PATH").ok()?;
 
-    let cert_file = &mut BufReader::new(std::fs::File::open(&cert_path).ok()?);
-    let key_file = &mut BufReader::new(std::fs::File::open(&key_path).ok()?);
-
-    let cert_chain: Vec<_> = rustls_pemfile::certs(cert_file)
+    let cert_chain: Vec<CertificateDer<'static>> = CertificateDer::pem_file_iter(&cert_path)
+        .ok()?
         .filter_map(|c| c.ok())
         .collect();
-    let key = rustls_pemfile::private_key(key_file).ok()??;
+    let key = PrivateKeyDer::from_pem_file(&key_path).ok()?;
 
     let config = ServerConfig::builder()
         .with_no_client_auth()
