@@ -143,8 +143,8 @@ pub mod tests {
         crypto_secretbox_NONCEBYTES, crypto_secretbox_easy,
     };
     use rand::{Rng, RngExt};
-    use rand_core::TryRngCore;
     use rand_core::OsRng;
+    use rand_core::TryRngCore;
 
     use crate::{
         models::response_auth_token::ResponseAuthorizationToken,
