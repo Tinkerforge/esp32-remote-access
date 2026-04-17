@@ -31,8 +31,7 @@ use db_connector::models::chargers::Charger;
 use diesel::prelude::*;
 use futures_util::lock::Mutex;
 use ipnetwork::{IpNetwork, Ipv4Network};
-use rand::TryRngCore;
-use rand_core::OsRng;
+use rand_core::{OsRng, TryRngCore};
 
 use crate::{
     udp_server::{management::RemoteConnMeta, packet::ManagementCommand},

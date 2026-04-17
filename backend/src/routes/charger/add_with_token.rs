@@ -112,8 +112,7 @@ mod tests {
     };
     use actix_web::{test, App};
     use ipnetwork::{IpNetwork, Ipv4Network};
-    use rand::TryRngCore;
-    use rand_core::OsRng;
+    use rand_core::{OsRng, TryRngCore};
 
     #[actix_web::test]
     async fn test_valid_charger() {

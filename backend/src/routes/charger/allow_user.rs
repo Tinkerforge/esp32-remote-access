@@ -225,11 +225,8 @@ pub mod tests {
     use actix_web::{test, App};
     use base64::prelude::BASE64_STANDARD;
     use db_connector::test_connection_pool;
-    use rand::{
-        distr::{Alphanumeric, SampleString},
-        TryRngCore,
-    };
-    use rand_core::OsRng;
+    use rand::distr::{Alphanumeric, SampleString};
+    use rand_core::{OsRng, TryRngCore};
 
     use crate::{
         routes::{

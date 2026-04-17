@@ -129,7 +129,7 @@ mod tests {
     use crate::{routes::user::tests::TestUser, tests::configure};
     use actix_web::{cookie::Cookie, get, test, App, Responder};
     use chrono::{Duration, Utc};
-    use rand::{distr::Alphanumeric, Rng};
+    use rand::{distr::Alphanumeric, Rng, RngExt};
 
     #[get("/hello")]
     async fn with_extractor(_: JwtMiddleware) -> impl Responder {

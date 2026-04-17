@@ -222,8 +222,7 @@ pub(crate) mod tests {
     use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::test_connection_pool;
     use diesel::r2d2::{ConnectionManager, PooledConnection};
-    use rand::TryRngCore;
-    use rand_core::OsRng;
+    use rand_core::{OsRng, TryRngCore};
 
     use crate::{
         middleware::jwt::JwtMiddleware,

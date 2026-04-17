@@ -32,7 +32,7 @@ use diesel::{
 use lettre::message::header::ContentType;
 #[cfg(not(test))]
 use lettre::{Message, Transport};
-use rand::Rng;
+use rand::RngExt;
 
 use crate::{error::Error, routes::charger::add::password_matches, AppState, BridgeState};
 

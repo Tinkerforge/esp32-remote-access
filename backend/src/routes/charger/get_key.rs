@@ -138,8 +138,7 @@ pub async fn get_key(
 mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
-    use rand::TryRngCore;
-    use rand_core::OsRng;
+    use rand_core::{OsRng, TryRngCore};
 
     use crate::{
         middleware::jwt::JwtMiddleware,

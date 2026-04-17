@@ -257,8 +257,7 @@ pub(crate) mod tests {
     use diesel::r2d2::ConnectionManager;
     use ipnetwork::Ipv4Network;
     use lru::LruCache;
-    use rand::TryRngCore;
-    use rand_core::OsRng;
+    use rand_core::{OsRng, TryRngCore};
     use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
     use routes::user::tests::{get_test_uuid, TestUser};
 

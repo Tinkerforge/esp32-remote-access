@@ -195,7 +195,7 @@ mod tests {
     };
     use chrono::{Duration, Utc};
     use jsonwebtoken::{decode, encode, Validation};
-    use rand::{distr::Alphanumeric, Rng};
+    use rand::{distr::Alphanumeric, Rng, RngExt};
 
     use crate::{
         models::token_claims::TokenClaims, routes::user::tests::TestUser, tests::configure,

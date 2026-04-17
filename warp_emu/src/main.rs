@@ -8,7 +8,6 @@ use simplelog::{ColorChoice, Config, LevelFilter, TermLogger, TerminalMode};
 use boringtun::{noise::{Tunn, TunnResult}, x25519::{PublicKey, StaticSecret}};
 use clap::Parser;
 use ipnetwork::IpNetwork;
-use rand::{Rng, SeedableRng, rngs::StdRng};
 use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
 use tokio::{net::UdpSocket, task, sync::Barrier};
@@ -96,22 +95,18 @@ struct AddChargerWithTokenSchema {
 }
 
 fn generate_random_keys() -> Keys {
-    let mut rng = rand::rng();
-
     Keys {
-        web_private: (0..32).map(|_| rng.random()).collect(),
-        psk: (0..32).map(|_| rng.random()).collect(),
-        charger_public: STANDARD.encode((0..32).map(|_| rng.random::<u8>()).collect::<Vec<u8>>()),
+        web_private: (0..32).map(|_| rand::random::<u8>()).collect(),
+        psk: (0..32).map(|_| rand::random::<u8>()).collect(),
+        charger_public: STANDARD.encode((0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>()),
         web_address: "10.0.0.1/24".parse().unwrap(),
         charger_address: "10.0.0.2/24".parse().unwrap(),
-        connection_no: rng.random(),
+        connection_no: rand::random::<u16>(),
     }
 }
 
 fn generate_random_add_charger_schema(user_id: &str, token: &str, pub_key: String, psk: &[u8; 32]) -> AddChargerWithTokenSchema {
-    let mut rng = rand::rng();
-
-    let uid: String = bs58::encode(rng.random::<[u8; 4]>()).with_alphabet(bs58::Alphabet::FLICKR).into_string();
+    let uid: String = bs58::encode(rand::random::<[u8; 4]>()).with_alphabet(bs58::Alphabet::FLICKR).into_string();
 
     let charger = ChargerSchema {
         uid: uid.clone(),
@@ -196,13 +191,11 @@ struct EmuCharger {
 
 impl EmuCharger {
     async fn new(user_id: &str, token: &str, barrier: Arc<Barrier>) -> anyhow::Result<Self> {
-        let mut rng = StdRng::from_os_rng();
-
-        let priv_key: [u8; 32] = rng.random();
+        let priv_key: [u8; 32] = rand::random();
         let priv_key = StaticSecret::from(priv_key);
         let pub_key = PublicKey::from(&priv_key);
 
-        let psk: [u8; 32] = rng.random();
+        let psk: [u8; 32] = rand::random();
 
         let schema = generate_random_add_charger_schema(user_id, token, STANDARD.encode(pub_key.as_bytes()), &psk);
 
@@ -232,7 +225,7 @@ impl EmuCharger {
             management_pub,
             Some(psk),
             Some(10), // Persistent keepalive every 10 seconds
-            rng.random(),
+            rand::random(),
             Some(rate_limiter.clone()),
         );
 
@@ -374,8 +367,7 @@ impl Drop for EmuCharger {
                     warn!("Selfdestruct failed with status: {}", r.status());
                 }
 
-                let mut rng = StdRng::from_os_rng();
-                tokio::time::sleep(Duration::from_millis(rng.random_range(1000..5000))).await;
+                tokio::time::sleep(Duration::from_millis(rand::random_range(1000..5000))).await;
                 resp = client
                 .delete(format!("https://{}/api/selfdestruct", HOST))
                 .json(&schema)
@@ -446,9 +438,8 @@ async fn main() {
                 }
 
                 // Polling loop
-                let mut rng = StdRng::from_os_rng();
                 loop {
-                    let sleep_secs = rng.random_range(5..=30);
+                    let sleep_secs = rand::random_range(5..=30);
                     tokio::select! {
                         _ = tokio::time::sleep(Duration::from_secs(sleep_secs)) => {
                             log::info!("Charger {} sending keepalive...", charger.uuid);

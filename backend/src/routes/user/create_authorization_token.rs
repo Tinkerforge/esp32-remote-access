@@ -2,7 +2,7 @@ use actix_web::{post, web, HttpResponse, Responder};
 use base64::Engine;
 use db_connector::models::authorization_tokens::AuthorizationToken;
 use diesel::prelude::*;
-use rand::RngCore;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 

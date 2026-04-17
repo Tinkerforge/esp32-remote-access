@@ -142,7 +142,8 @@ pub mod tests {
         crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES,
         crypto_secretbox_NONCEBYTES, crypto_secretbox_easy,
     };
-    use rand::{Rng, TryRngCore};
+    use rand::{Rng, RngExt};
+    use rand_core::TryRngCore;
     use rand_core::OsRng;
 
     use crate::{

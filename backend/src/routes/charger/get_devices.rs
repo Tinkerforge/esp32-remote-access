@@ -251,8 +251,7 @@ mod tests {
     use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
-    use rand::TryRngCore;
-    use rand_core::OsRng;
+    use rand_core::{OsRng, TryRngCore};
     use std::str::FromStr;
 
     use super::*;
