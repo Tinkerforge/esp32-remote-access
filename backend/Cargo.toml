@@ -40,7 +40,7 @@ utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
 log = "0.4.20"
 boringtun = { git = "https://github.com/Tinkerforge/boringtun.git", rev = "9ad180755a5281041dd6035a4db06b777f69f975" }
 rand_core = "0.9"
-rand = "0.9"
+rand = "0.10"
 anyhow = "1.0.80"
 threadpool = "1.8.1"
 num_cpus = "1.16.0"
