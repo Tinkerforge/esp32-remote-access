@@ -3,7 +3,8 @@ import preact from '@preact/preset-vite';
 import { resolve } from 'node:path';
 
 export default defineConfig({
-  plugins: [preact()],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    plugins: [preact() as any],
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
