@@ -86,6 +86,7 @@ File structure
 - ``docker`` Files to run and build the docker containers
 - ``frontend`` Website that is served by the webserver
 - ``tun`` A cli tool able to create a WireGuard tunnel on linux platforms to a WARP Device
+- ``warp_emu`` WARP Energy Manager emulator for testing
 - ``wg-webclient`` The Wireguard implementation containing also a network stack and Http and Websocket client.
 
 Build
@@ -108,7 +109,7 @@ Developement build
 2. Clone the warp-charger ropository
 3. Fill in the needed variables in the env variables. All needed variables are listed inside the .env.example files.
 4. build the wg-package by running ``wasm-pack build`` inside ``wg-webclient``.
-5. build the website by running ``npm install && npm run build`` inside ``remote-access-page``.
+5. build the website by running ``npm install && npm run build`` inside ``frontend``.
 6. start the webserver + database by running ``docker compose -f docker-compose-dev.yml up --build`` inside ``docker``.
 7. start the backend server by running ``cargo run`` inside ``backend``.
 
