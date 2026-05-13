@@ -281,7 +281,7 @@ pub(crate) mod tests {
     use crate::{defer, tests::configure, utils::generate_random_bytes};
     use actix_web::{http::header::ContentType, test, App};
     use db_connector::test_connection_pool;
-    use rand::{Rng, RngExt};
+    use rand::RngExt;
 
     use super::*;
 
