@@ -206,7 +206,14 @@ export const de ={
     "footer": {
         "imprint": "Impressum",
         "terms_of_use": "AGB",
-        "privacy_notice": "Datenschutzerklärung"
+        "privacy_notice": "Datenschutzerklärung",
+        "mobile_app_hint": "Auch als mobile App verfügbar"
+    },
+    "mobile_app": {
+        "hint_title": "Hol dir die mobile App",
+        "hint_text": "Für eine bessere Erfahrung auf Mobilgeräten, lade unsere native App herunter.",
+        "app_store": "App Store",
+        "play_store": "Google Play"
     },
     "app": {
         "close_remote_access": "Fernzugriff schließen"

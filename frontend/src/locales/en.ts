@@ -206,7 +206,14 @@ export const en = {
     "footer": {
         "imprint": "Imprint",
         "terms_of_use": "Terms and Conditions",
-        "privacy_notice": "Privacy Notice"
+        "privacy_notice": "Privacy Notice",
+        "mobile_app_hint": "Also available as a mobile app"
+    },
+    "mobile_app": {
+        "hint_title": "Get the mobile app",
+        "hint_text": "For a better experience on mobile devices, download our native app.",
+        "app_store": "App Store",
+        "play_store": "Google Play"
     },
     "app": {
         "close_remote_access": "Close Remote-Access"
