@@ -50,7 +50,17 @@ vi.mock('../recovery_data_component', () => ({
 vi.mock('links', () => ({
   privacy_notice: 'https://example.com/privacy',
   terms_of_use: 'https://example.com/terms',
+  app_store_link: 'https://example.com/appstore',
+  play_store_link: 'https://example.com/playstore',
 }));
+
+vi.mock('median-js-bridge', () => ({
+  default: {
+    isNativeApp: () => false,
+  },
+}));
+
+vi.mock('logo', () => ({ default: 'logo.png' }));
 
 describe('Register Component', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
