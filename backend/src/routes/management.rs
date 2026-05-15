@@ -285,8 +285,6 @@ pub async fn management(
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::chargers::dsl as chargers;
 
-    log::error!("Management request started");
-
     let ip = {
         let info = req.connection_info();
         let ip = info.realip_remote_addr();
