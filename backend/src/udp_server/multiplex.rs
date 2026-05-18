@@ -35,6 +35,7 @@ use ipnetwork::{IpNetwork, Ipv4Network};
 use rand_core::{OsRng, TryRngCore};
 
 use crate::{
+    rate_limit::GlobalSearchRateLimiter,
     routes::{charger::user_is_allowed, send_chargelog_to_user::send_charge_log_to_user},
     udp_server::{
         management::RemoteConnMeta,
@@ -113,6 +114,7 @@ async fn create_tunn<'a>(
     state: &web::Data<BridgeState<'_>>,
     addr: SocketAddr,
     data: &[u8],
+    rate_limiter: Arc<GlobalSearchRateLimiter>,
 ) -> anyhow::Result<(uuid::Uuid, ManagementSocket<'a>)> {
     use db_connector::schema::chargers::dsl as chargers;
 
@@ -166,8 +168,13 @@ async fn create_tunn<'a>(
                     .select(Charger::as_select())
                     .load(&mut conn)?
             } else {
-                log::info!("Could not find charger for ip '{subnet}'");
-                return Err(anyhow::Error::msg(Error::UnknownPeer));
+                if rate_limiter.check(addr).is_err() {
+                    log::warn!("Rate limit exceeded for unknown peer with ip '{ip}'");
+                    return Err(anyhow::Error::msg(Error::UnknownPeer));
+                }
+                chargers::chargers
+                    .select(Charger::as_select())
+                    .load(&mut conn)?
             }
         }
     };
@@ -350,7 +357,10 @@ pub async fn run_server(
     app_state: web::Data<AppState>,
 ) {
     let mut buf = vec![0u8; 65535];
+    let rate_limiter = Arc::new(GlobalSearchRateLimiter::new());
+
     loop {
+        let rate_limiter = Arc::clone(&rate_limiter);
         if let Ok((s, addr)) = bridge_state.socket.recv_from(&mut buf).await {
             let bridge_state = bridge_state.clone();
             let app_state = app_state.clone();
@@ -385,7 +395,9 @@ pub async fn run_server(
                         Entry::Occupied(tunn) => tunn.into_mut().clone(),
                         Entry::Vacant(v) => {
                             let (id, tunn_data) =
-                                match create_tunn(&bridge_state, addr, &buf[..s]).await {
+                                match create_tunn(&bridge_state, addr, &buf[..s], rate_limiter)
+                                    .await
+                                {
                                     Ok(tunn) => tunn,
                                     Err(_err) => {
                                         return;

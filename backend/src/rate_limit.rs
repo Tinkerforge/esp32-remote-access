@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use std::num::NonZeroU32;
+use std::{net::SocketAddr, num::NonZeroU32};
 
 use actix_web::{http::StatusCode, HttpRequest, HttpResponse, ResponseError};
 use governor::{
@@ -205,6 +205,39 @@ impl IPRateLimiter {
 
         if let Err(err) = self.0.check_key(&ip) {
             log::warn!("RateLimiter triggered for {ip}");
+            let now = self.0.clock().now();
+
+            Err(RateLimitError::new(err, now).into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+pub struct GlobalSearchRateLimiter(
+    RateLimiter<
+        SocketAddr,
+        dashmap::DashMap<SocketAddr, InMemoryState>,
+        QuantaClock,
+        governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
+    >,
+);
+
+impl Default for GlobalSearchRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl GlobalSearchRateLimiter {
+    pub fn new() -> Self {
+        Self(RateLimiter::keyed(Quota::per_minute(
+            NonZeroU32::new(1).unwrap(),
+        )))
+    }
+
+    pub fn check(&self, socket_addr: SocketAddr) -> actix_web::Result<()> {
+        if let Err(err) = self.0.check_key(&socket_addr) {
             let now = self.0.clock().now();
 
             Err(RateLimitError::new(err, now).into())
