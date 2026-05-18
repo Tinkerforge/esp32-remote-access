@@ -5,7 +5,7 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
-import { Button, Container, Dropdown, DropdownButton, Form, Spinner } from "react-bootstrap";
+import { Alert, Button, Container, Dropdown, DropdownButton, Form, Spinner } from "react-bootstrap";
 import i18n from "../i18n";
 import { useLocation } from "preact-iso";
 import { Device, StateDevice, SortColumn, DeviceListState, Grouping } from "../components/device/types";
@@ -534,6 +534,13 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     encryptGroupingName={async (name: string) => this.encryptGroupingName(name)}
                     loadGroupings={async () => this.loadGroupings()}
                 />
+
+                <Container fluid className="mt-3">
+                    <Alert variant="warning" className="d-flex align-items-center">
+                        <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                        {t("maintenance_banner")}
+                    </Alert>
+                </Container>
 
                 <Container fluid>
                     <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 mt-3">

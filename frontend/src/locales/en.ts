@@ -144,7 +144,8 @@ export const en = {
         "select_devices": "Select devices to add",
         "search_groupings": "Search",
         "save": "Save",
-        "cancel": "Cancel"
+        "cancel": "Cancel",
+        "maintenance_banner": "We are currently experiencing technical problems and are working on a fix. Some devices are temporarily not available."
     },
     "navbar": {
         "home": "Home",
