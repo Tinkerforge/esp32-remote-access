@@ -144,8 +144,7 @@ export const de ={
         "select_devices": "Geräte zum Hinzufügen auswählen",
         "search_groupings": "Suchen",
         "save": "Speichern",
-        "cancel": "Abbrechen",
-        "maintenance_banner": "Wir haben derzeit technische Probleme und arbeiten an einer Lösung. Einige Geräte sind vorübergehend nicht erreichbar."
+        "cancel": "Abbrechen"
     },
     "navbar": {
         "home": "Home",
