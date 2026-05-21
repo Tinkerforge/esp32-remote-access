@@ -9,7 +9,7 @@ set -e
 # Configuration
 BACKUP_DIR="$HOME/backups"
 CONTAINER_NAME="postgres"
-DB_USER=$(grep -E '^POSTGRES_USER=' "$(dirname "$0")/../docker/.env" | cut -d'=' -f2-)
+DB_USER=$(grep -E '^POSTGRES_USER=' "$(dirname "$0")/../.env" | cut -d'=' -f2-)
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="$BACKUP_DIR/postgres_backup_$TIMESTAMP.sql"
 KEEP_DAYS=364
