@@ -2,7 +2,6 @@ import { signal } from "@preact/signals";
 import { hash, ArgonType } from "argon2-browser";
 import createClient, { Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
-import sodium from "libsodium-wrappers";
 import { logout } from "./components/Navbar";
 import i18n from "./i18n";
 import { showAlert } from "./components/Alert";
@@ -234,6 +233,7 @@ export async function clearSecretKeyFromServiceWorker(): Promise<void> {
 }
 
 export async function get_decrypted_secret() {
+    const sodium = (await import("libsodium-wrappers")).default;
     await sodium.ready;
     const t = i18n.t;
     const {data, error, response} = await fetchClient.GET("/user/get_secret", {credentials: "same-origin"});
