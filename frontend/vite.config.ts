@@ -2,7 +2,7 @@ import { defineConfig, Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 import wasm from "vite-plugin-wasm"
 import { buildSync } from "esbuild";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import versionPlugin from './vite-plugin-version';
 
 
@@ -32,10 +32,10 @@ export default defineConfig({
 				additionalData: process.env.BRAND === "seb" ? `@import "./_seb.scss";` : `@import "./_warp.scss";`,
 				quietDeps: true,
 				silenceDeprecations: [
-					"mixed-decls",
 					"import",
 					"color-functions",
 					"global-builtin",
+					"if-function",
 				],
 				verbose: false,
 			}
@@ -44,11 +44,11 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js",
-			"logo": process.env.BRAND === "seb" ? "src/assets/seb_logo.png" : "src/assets/warp_logo.png",
-			"favicon": process.env.BRAND === "seb" ? "src/assets/seb_favicon.png" : "src/assets/warp_favicon.png",
-			"links": process.env.BRAND === "seb" ? "src/links/seb.ts" : "src/links/warp.ts",
-			"translations-de": process.env.BRAND === "seb" ? "src/locales/branding/seb_de.ts" : "src/locales/branding/warp_de.ts",
-			"translations-en": process.env.BRAND === "seb" ? "src/locales/branding/seb_en.ts" : "src/locales/branding/warp_en.ts",
+			"logo": resolve(__dirname, process.env.BRAND === "seb" ? "src/assets/seb_logo.png" : "src/assets/warp_logo.png"),
+			"favicon": resolve(__dirname, process.env.BRAND === "seb" ? "src/assets/seb_favicon.png" : "src/assets/warp_favicon.png"),
+			"links": resolve(__dirname, process.env.BRAND === "seb" ? "src/links/seb.ts" : "src/links/warp.ts"),
+			"translations-de": resolve(__dirname, process.env.BRAND === "seb" ? "src/locales/branding/seb_de.ts" : "src/locales/branding/warp_de.ts"),
+			"translations-en": resolve(__dirname, process.env.BRAND === "seb" ? "src/locales/branding/seb_en.ts" : "src/locales/branding/warp_en.ts"),
 		}
 	},
 	// build: {
@@ -61,8 +61,21 @@ export default defineConfig({
 		swBuildPlugin,
 		versionPlugin,
 	],
+	build: {
+		rolldownOptions: {
+			checks: {
+				commonJsVariableInEsm: false,
+				pluginTimings: false,
+			},
+		},
+	},
 	worker: {
 		format: "es",
+		rolldownOptions: {
+			checks: {
+				commonJsVariableInEsm: false,
+			},
+		},
 		plugins: () => [
 			wasm(),
 		],
