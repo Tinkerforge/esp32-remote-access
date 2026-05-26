@@ -1,7 +1,6 @@
 import { defineConfig, Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 import wasm from "vite-plugin-wasm"
-import topLevelAwait from 'vite-plugin-top-level-await';
 import { buildSync } from "esbuild";
 import { join } from "node:path";
 import versionPlugin from './vite-plugin-version';
@@ -59,7 +58,6 @@ export default defineConfig({
 	plugins: [
 		preact(),
 		wasm(),
-		topLevelAwait(),
 		swBuildPlugin,
 		versionPlugin,
 	],
@@ -67,7 +65,6 @@ export default defineConfig({
 		format: "es",
 		plugins: () => [
 			wasm(),
-			topLevelAwait(),
 		],
 	}
 });
