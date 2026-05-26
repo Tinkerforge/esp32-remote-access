@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import logo from "logo";
+import favicon from "favicon";
 import { app_store_link, play_store_link } from "links";
 import Median from "median-js-bridge";
 
@@ -17,7 +17,7 @@ export function MobileAppHint({ compact = false }: MobileAppHintProps) {
     if (compact) {
         return (
             <div className="d-flex align-items-center gap-2">
-                <img src={logo} alt="logo" style={{ height: "24px" }} />
+                <img src={favicon} alt="logo" style={{ height: "24px" }} />
                 <span>{t("hint_title")}</span>
                 <a href={app_store_link} target="_blank" rel="noopener noreferrer" className="text-white">
                     {t("app_store")}
@@ -32,7 +32,7 @@ export function MobileAppHint({ compact = false }: MobileAppHintProps) {
 
     return (
         <div className="text-center p-3 mt-3 border rounded bg-light">
-            <img src={logo} alt="logo" style={{ height: "40px" }} className="mb-2" />
+            <img src={favicon} alt="logo" style={{ height: "40px" }} className="mb-2" />
             <h6>{t("hint_title")}</h6>
             <p className="mb-2 text-muted">{t("hint_text")}</p>
             <div className="d-flex justify-content-center gap-3">
