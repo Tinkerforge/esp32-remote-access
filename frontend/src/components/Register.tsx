@@ -10,7 +10,6 @@ import { RecoveryDataComponent } from "./RecoveryDataComponent";
 import { ResendVerification } from "./ResendVerification";
 import { Signal, signal } from "@preact/signals";
 import { privacy_notice, terms_of_use } from "links";
-import { MobileAppHint } from "./MobileAppHint";
 
 interface RegisterSchema {
     name: string,
@@ -303,7 +302,6 @@ export class Register extends Component<Record<string, never>, RegisterState> {
 
             { this.state.registrationSuccess && this.state.email && <ResendVerification email={this.state.email} /> }
 
-            { this.state.registrationSuccess && <MobileAppHint /> }
         </>)
     }
 }
