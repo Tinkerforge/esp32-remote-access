@@ -46,7 +46,7 @@ import { startVersionChecking } from './versionChecker';
 import { initAndroidSmartBanner } from './androidSmartBanner';
 
 import "./styles/main.scss";
-import { docs } from "links";
+import { docs, injectAppMetaTag } from "links";
 import { useEffect, useState } from "preact/hooks";
 
 if (isDebugMode.value) {
@@ -84,7 +84,10 @@ const DeviceList = lazy(() => import('./pages/Devices.js').then(m => m.DeviceLis
 const Frame = lazy(() => import('./pages/Frame.js').then(m => m.Frame));
 
 export function App() {
-    const {t} = useTranslation("", {useSuspense: false});
+    const { t } = useTranslation("", { useSuspense: false });
+    useEffect(() => {
+      injectAppMetaTag();
+    }, []);
 
     const [modalConfig, setModalConfig] = useState({ show: false, rememberChoice: false });
 

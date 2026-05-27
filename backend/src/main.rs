@@ -276,11 +276,12 @@ async fn main() -> std::io::Result<()> {
     });
 
     #[cfg(debug_assertions)]
-    let port = "8081";
+    let port = "8082";
     #[cfg(not(debug_assertions))]
     let port = "443";
 
     let addr = format!("0.0.0.0:{port}");
+    log::info!("running on {:?}", addr);
 
     // crash in case of TLS loading error
     let tls_config = load_rustls_config().unwrap();
