@@ -1,5 +1,5 @@
 /* esp32-remote-access
- * Copyright (C) 2025 Frederic Henrichs <frederic@tinkerforge.com>
+ * Copyright (C) 2026 Frederic Henrichs <frederic@tinkerforge.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,7 +31,7 @@ export function AndroidSmartBanner() {
 
     useEffect(() => {
         if (Median.isNativeApp()) return;
-        // if (!/Android/i.test(navigator.userAgent)) return;
+        if (!/Android/i.test(navigator.userAgent)) return;
         if (localStorage.getItem(DISMISSED_KEY)) return;
         setShow(true);
     }, []);
