@@ -207,13 +207,6 @@ export const de ={
         "imprint": "Impressum",
         "terms_of_use": "AGB",
         "privacy_notice": "Datenschutzerklärung",
-        "mobile_app_hint": "Auch als mobile App verfügbar"
-    },
-    "mobile_app": {
-        "hint_title": "Hol dir die mobile App",
-        "hint_text": "Für eine bessere Erfahrung auf Mobilgeräten, lade unsere native App herunter.",
-        "app_store": "App Store",
-        "play_store": "Google Play"
     },
     "app": {
         "close_remote_access": "Fernzugriff schließen"
@@ -268,5 +261,10 @@ export const de ={
     },
     "iframe": {
         "error_message": "Fernzugriff kann nicht in einem iframe ausgeführt werden"
+    },
+    "android_smart_banner": {
+        "close": "Schließen",
+        "text": "Hol dir die App",
+        "view": "Ansehen"
     }
 };

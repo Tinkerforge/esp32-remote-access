@@ -268,5 +268,10 @@ export const en = {
     },
     "iframe": {
         "error_message": "Remote Access cannot run in an iframe"
+    },
+    "android_smart_banner": {
+        "close": "Close",
+        "text": "Get the app",
+        "view": "Show"
     }
 };

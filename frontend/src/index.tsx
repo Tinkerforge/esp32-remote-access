@@ -43,7 +43,7 @@ import favicon from "favicon";
 import logo from "logo";
 import { Message, MessageType } from './types';
 import { startVersionChecking } from './versionChecker';
-import { initAndroidSmartBanner } from './androidSmartBanner';
+import { AndroidSmartBanner } from './components/AndroidAppBanner';
 
 import "./styles/main.scss";
 import { docs } from "links";
@@ -299,5 +299,4 @@ export function App() {
 }
 
 // The app div will alway be present
-render(<App />, document.getElementById("app") as HTMLElement);
-initAndroidSmartBanner();
+render(<><AndroidSmartBanner /><App /></>, document.getElementById("app") as HTMLElement);
