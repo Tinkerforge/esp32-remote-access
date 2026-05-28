@@ -1,15 +1,31 @@
 import { render, screen, fireEvent } from '@testing-library/preact';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AndroidSmartBanner } from '../AndroidAppBanner';
 import { play_store_link } from 'links';
 
 const DISMISSED_KEY = "android-smart-banner-dismissed";
 
+const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36';
+
 describe('AndroidSmartBanner', () => {
+  let originalUserAgent: string;
+
   beforeEach(() => {
     localStorage.clear();
     vi.mocked(localStorage.getItem).mockClear();
     vi.mocked(localStorage.setItem).mockClear();
+    originalUserAgent = navigator.userAgent;
+    Object.defineProperty(navigator, 'userAgent', {
+      value: ANDROID_UA,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: originalUserAgent,
+      configurable: true,
+    });
   });
 
   it('renders the banner when not dismissed and not a native app', () => {
@@ -73,6 +89,16 @@ describe('AndroidSmartBanner', () => {
     expect(container.innerHTML).toBe('');
 
     isNativeAppSpy.mockRestore();
+  });
+
+  it('does not render on non-Android user agents', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0)',
+      configurable: true,
+    });
+
+    const { container } = render(<AndroidSmartBanner />);
+    expect(container.innerHTML).toBe('');
   });
 
   it('does not render after being dismissed and re-mounted', () => {
