@@ -276,7 +276,7 @@ async fn main() -> std::io::Result<()> {
     });
 
     #[cfg(debug_assertions)]
-    let port = "8082";
+    let port = "8081";
     #[cfg(not(debug_assertions))]
     let port = "443";
 
