@@ -43,6 +43,8 @@
 
 .footer {
   background-color: $navbar-color;
+  flex-shrink: 0;
+  font-size:small;
 
   a {
     color: #fff;

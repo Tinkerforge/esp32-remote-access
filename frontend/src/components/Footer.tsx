@@ -7,14 +7,14 @@ export function Footer() {
   return (
     <Container id="footer" fluid className="footer">
       <Row className="align-items-center">
-        <Col className="text-end">
-          <a target="__blank" href={privacy_notice} class="m-2">
+        <Col className="text-end d-flex flex-wrap justify-content-end">
+          <a target="__blank" href={privacy_notice} class="mx-2 my-1">
             {t("privacy_notice")}
           </a>
-          <a target="__blank" href={terms_of_use} class="m-2">
+          <a target="__blank" href={terms_of_use} class="mx-2 my-1">
             {t("terms_of_use")}
           </a>
-          <a target="__blank" href={imprint} class="m-2">
+          <a target="__blank" href={imprint} class="mx-2 my-1">
             {t("imprint")}
           </a>
         </Col>
