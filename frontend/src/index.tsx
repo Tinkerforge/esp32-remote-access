@@ -211,7 +211,7 @@ export function App() {
     );
 
     if (!window.ServiceWorker) {
-        return <Row fluid className="align-content-center justify-content-center vh-100">
+        return <Row fluid className="align-content-center justify-content-center flex-grow-1">
             {t("no_service_worker")}
         </Row>
     }
@@ -219,7 +219,7 @@ export function App() {
     switch (loggedIn.value) {
         case AppState.Loading:
             return <>
-                <Row fluid className="align-content-center justify-content-center vh-100">
+                <Row fluid className="align-content-center justify-content-center flex-grow-1">
                     <Spinner animation='border' variant='primary' />
                 </Row>
             </>
@@ -233,7 +233,7 @@ export function App() {
                     <a href="/"><img class="pt-2 pb-2 ps-2" src={logo} style="max-width: calc(100vw - 72px);" alt="logo" /></a>
                 </nav>
                 <ErrorAlert />
-                <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3">
+                <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3 overflow-auto">
                     <Card className="p-3 col-10 col-lg-5 col-xl-3">
                         <Trans i18nKey="description"><a target="__blank" href={docs} >link</a></Trans>
                     </Card>
@@ -259,7 +259,7 @@ export function App() {
             return (
                 <>
                     <ErrorAlert />
-                    <Col>
+                    <Col className="flex-grow-1 overflow-auto">
                         <LocationProvider>
                             <CustomNavbar />
                             <Router onRouteChange={() => {
