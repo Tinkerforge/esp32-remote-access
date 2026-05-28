@@ -9,6 +9,7 @@ interface PasswordComponentProps {
     isInvalid?: boolean,
     invalidMessage?: string,
     showStrength?: boolean,
+    autoComplete?: string,
     value: string,
 }
 
@@ -29,6 +30,7 @@ export function PasswordComponent(props: PasswordComponentProps) {
                 onChange={handleChange}
                 value={props.value}
                 isInvalid={props.isInvalid}
+                autoComplete={props.autoComplete}
                 required
                 minLength={8} />
             <Button

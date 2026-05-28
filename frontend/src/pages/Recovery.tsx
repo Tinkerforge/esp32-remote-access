@@ -174,6 +174,7 @@ export function Recovery() {
                         <PasswordComponent
                             value={state.new_password}
                             showStrength={true}
+                            autoComplete="new-password"
                             onChange={(e) => {
                                 setState({...state, new_password: e});
                             }} />
@@ -183,8 +184,9 @@ export function Recovery() {
                             {t("recovery.confirm_password")}
                         </Form.Label>
                         <PasswordComponent value={state.confirm_password} isInvalid={!state.confirmPasswordValid} invalidMessage={t("recovery.confirm_password_error_message")} onChange={(e) => {
-                            setState({...state, confirm_password: e});
-                        }} />
+                                setState({...state, confirm_password: e});
+                            }}
+                            autoComplete="new-password"/>
                     </Form.Group>
                     <Form.Group className="mb-3" controlId="recoveryFile">
                         <Form.Label>

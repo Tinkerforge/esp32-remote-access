@@ -222,7 +222,7 @@ export class Register extends Component<Record<string, never>, RegisterState> {
         const form = <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)} noValidate>
                 <Form.Group className="mb-3" controlId="registerName">
                     <Form.Label>{t("name")}</Form.Label>
-                    <Form.Control name="Name" type="text" placeholder="John Doe" value={this.state.name} isInvalid={!this.state.nameValid} onChange={(e) => {
+                    <Form.Control autoComplete="name" name="Name" type="text" placeholder="John Doe" value={this.state.name} isInvalid={!this.state.nameValid} onChange={(e) => {
                         const newName = (e.target as HTMLInputElement).value;
                         this.setState({
                             name: newName,
@@ -235,7 +235,7 @@ export class Register extends Component<Record<string, never>, RegisterState> {
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerEmail">
                     <Form.Label>{t("email")}</Form.Label>
-                    <Form.Control type="email" placeholder={t("email")} value={this.state.email} isInvalid={!this.state.emailValid} onChange={(e) => {
+                    <Form.Control autoComplete="email" type="email" placeholder={t("email")} value={this.state.email} isInvalid={!this.state.emailValid} onChange={(e) => {
                         const newEmail = (e.target as HTMLInputElement).value;
                         this.setState({
                             email: newEmail,
@@ -258,19 +258,21 @@ export class Register extends Component<Record<string, never>, RegisterState> {
                                 }
                             });
                         }}
+                        autoComplete="new-password"
                         isInvalid={!this.state.passwordValid}
                         invalidMessage={t("password_error_message")} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="registerConfirmPassword">
                     <Form.Label>{t("confirm_password")}</Form.Label>
                     <PasswordComponent value={this.state.confirmPassword} isInvalid={!this.state.confirmPasswordValid} onChange={(e) => {
-                        this.setState({confirmPassword: e}, () => {
-                            if (!this.state.confirmPasswordValid) {
-                                this.checkPassword();
-                            }
-                        });
-                    }}
-                    invalidMessage={t("confirm_password_error_message")} />
+                          this.setState({confirmPassword: e}, () => {
+                              if (!this.state.confirmPasswordValid) {
+                                  this.checkPassword();
+                              }
+                          });
+                        }}
+                      autoComplete="new-password"
+                      invalidMessage={t("confirm_password_error_message")} />
                 </Form.Group>
                 <Form.Group className="mb-3" onClick={() => {
                     const newChecked = !this.state.acceptPrivacyChecked;

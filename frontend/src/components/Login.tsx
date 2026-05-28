@@ -126,7 +126,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
             <Form onSubmit={async (e: SubmitEvent) => this.onSubmit(e)}>
                 <Form.Group className="mb-3" controlId="loginEmail">
                     <Form.Label>{t("email")}</Form.Label>
-                    <Form.Control isInvalid={this.state.credentials_wrong} type="email" placeholder={t("email")} value={this.state.email} onChange={(e) => {
+                    <Form.Control autoComplete="email" isInvalid={this.state.credentials_wrong} type="email" placeholder={t("email")} value={this.state.email} onChange={(e) => {
                         this.setState({email: (e.target as HTMLInputElement).value});
                     }} />
                 </Form.Group>
@@ -137,6 +137,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
                     onChange={(e) => {
                         this.setState({password: e});
                     }}
+                    autoComplete="current-password"
                     invalidMessage={t("wrong_credentials")}
                     isInvalid={this.state.credentials_wrong} />
                 </Form.Group>

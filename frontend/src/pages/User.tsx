@@ -360,7 +360,7 @@ export function User() {
                 <Modal.Body>
                     <Form.Group className="pb-3" controlId="deleteUserPassword">
                         <Form.Label>{t("password")}</Form.Label>
-                        <PasswordComponent value={deleteUser.password} onChange={(e) => setDeleteUser({...deleteUser, password: e})} isInvalid={!deleteUser.password_valid} invalidMessage={t("password_invalid")} />
+                        <PasswordComponent autoComplete="current-password" value={deleteUser.password} onChange={(e) => setDeleteUser({...deleteUser, password: e})} isInvalid={!deleteUser.password_valid} invalidMessage={t("password_invalid")} />
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
@@ -415,6 +415,7 @@ export function User() {
                             value={recoveryPassword}
                             onChange={(e) => { setRecoveryPassword(e); setRecoveryPasswordValid(true); }}
                             isInvalid={!recoveryPasswordValid}
+                            autoComplete="current-password"
                             invalidMessage={t("save_recovery_file_wrong_password")}
                         />
                     </Form.Group>
@@ -443,13 +444,14 @@ export function User() {
                 <Modal.Body>
                     <Form.Group className="pb-3" controlId="oldPassword">
                         <Form.Label>{t("current_password")}</Form.Label>
-                        <PasswordComponent value={currentPassword} isInvalid={!currentPasswordIsValid} onChange={(e) => {
+                        <PasswordComponent autoComplete="current-password" value={currentPassword} isInvalid={!currentPasswordIsValid} onChange={(e) => {
                             setCurrentPassword(e);
                         }} />
                     </Form.Group>
                     <Form.Group className="pb-3" controlId="newPassword">
                         <Form.Label>{t("new_password")}</Form.Label>
                         <PasswordComponent
+                        autoComplete="new-password"
                             onChange={(e) => {
                                 setNewPassword(e);
                                 if (!confirmNewPasswordIsValid || !newPasswordIsValid) {
@@ -463,7 +465,7 @@ export function User() {
                     </Form.Group>
                     <Form.Group className="pb-3" controlId="confirmNewPassword">
                         <Form.Label>{t("confirm_new_password")}</Form.Label>
-                        <PasswordComponent value={confirmNewPassword} onChange={(e) => {
+                        <PasswordComponent autoComplete="new-password" value={confirmNewPassword} onChange={(e) => {
                             setConfirmNewPassword(e);
                             if (!confirmNewPasswordIsValid) {
                                 checkPasswords(newPassword, e);
