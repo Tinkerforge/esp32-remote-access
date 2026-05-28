@@ -46,7 +46,7 @@ import { startVersionChecking } from './versionChecker';
 import { initAndroidSmartBanner } from './androidSmartBanner';
 
 import "./styles/main.scss";
-import { docs, injectAppMetaTag } from "links";
+import { docs } from "links";
 import { useEffect, useState } from "preact/hooks";
 
 if (isDebugMode.value) {
@@ -85,10 +85,6 @@ const Frame = lazy(() => import('./pages/Frame.js').then(m => m.Frame));
 
 export function App() {
     const { t } = useTranslation("", { useSuspense: false });
-    useEffect(() => {
-      injectAppMetaTag();
-    }, []);
-
     const [modalConfig, setModalConfig] = useState({ show: false, rememberChoice: false });
 
     const requestPersistence = async () => {

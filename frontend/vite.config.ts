@@ -6,6 +6,24 @@ import { join, resolve } from "node:path";
 import versionPlugin from './vite-plugin-version';
 
 
+const appleItunesMetaPlugin: Plugin = {
+	name: "AppleItunesMeta",
+	transformIndexHtml() {
+		if (process.env.BRAND !== "seb") {
+			return [
+				{
+					tag: "meta",
+					attrs: {
+						name: "apple-itunes-app",
+						content: "app-id=6736695801",
+					},
+					injectTo: "head",
+				},
+			];
+		}
+	},
+};
+
 const swBuildPlugin: Plugin = {
 	name: "SWBuild",
 	apply: "build",
@@ -59,6 +77,7 @@ export default defineConfig({
 		preact(),
 		wasm(),
 		swBuildPlugin,
+		appleItunesMetaPlugin,
 		versionPlugin,
 	],
 	build: {
