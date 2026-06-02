@@ -49,7 +49,7 @@
     "@types/base58": "^2.0.0",
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/node": "^22",
-    "@vitest/coverage-v8": "^4.0.10",
+    "@vitest/coverage-v8": "^4.1.0",
     "@vitest/ui": "^4.0.10",
     "dotenv": "^16.4.5",
     "eslint": "^9.39.1",
@@ -63,7 +63,7 @@
     "uuid": "^14.0.0",
     "vite": ">=8.0.10",
     "vite-plugin-wasm": "^3.6.0",
-    "vitest": "^4.0.10",
+    "vitest": "^4.1.0",
     "postcss": ">=8.5.10"
   }
 }
