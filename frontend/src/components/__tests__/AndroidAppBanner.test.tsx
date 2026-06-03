@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/preact';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AndroidSmartBanner } from '../AndroidAppBanner';
+import { is_warp_app } from '../../utils';
 import { play_store_link } from 'links';
 
 const DISMISSED_KEY = "android-smart-banner-dismissed";
@@ -99,6 +100,15 @@ describe('AndroidSmartBanner', () => {
 
     const { container } = render(<AndroidSmartBanner />);
     expect(container.innerHTML).toBe('');
+  });
+
+  it('does not render when running inside the warp Android app', () => {
+    const isWarpAppSpy = vi.mocked(is_warp_app).mockReturnValue(true);
+
+    const { container } = render(<AndroidSmartBanner />);
+    expect(container.innerHTML).toBe('');
+
+    isWarpAppSpy.mockReturnValue(false);
   });
 
   it('does not render after being dismissed and re-mounted', () => {

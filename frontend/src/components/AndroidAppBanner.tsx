@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import Median from "median-js-bridge";
 import { play_store_link } from "links";
 import favicon from "favicon";
+import { is_warp_app } from '../utils';
 
 const DISMISSED_KEY = "android-smart-banner-dismissed";
 
@@ -32,6 +33,7 @@ export function AndroidSmartBanner() {
     useEffect(() => {
         if (Median.isNativeApp()) return;
         if (!/Android/i.test(navigator.userAgent)) return;
+        if (is_warp_app()) return;
         if (localStorage.getItem(DISMISSED_KEY)) return;
         setShow(true);
     }, []);

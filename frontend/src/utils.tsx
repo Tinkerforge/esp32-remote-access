@@ -9,6 +9,10 @@ import { Base64 } from "js-base64";
 import { Message, MessageType } from "./types";
 import Median from "median-js-bridge";
 
+export function is_warp_app(): boolean {
+    return /warpapp-(android|ios)/.test(navigator.userAgent);
+}
+
 export async function get_salt() {
     const {data, response} = await fetchClient.GET("/auth/generate_salt");
     if (response.status !== 200) {
