@@ -15,6 +15,7 @@ import { DeleteDeviceModal } from "../components/device/DeleteDeviceModal";
 import { EditNoteModal } from "../components/device/EditNoteModal";
 import { SearchInput } from "../components/device/SearchInput";
 import { GroupingModal } from "../components/device/GroupingModal";
+import { LocalDevices } from "../components/LocalDevices";
 
 export class DeviceList extends Component<Record<string, never>, DeviceListState> {
     removalDevice: StateDevice;
@@ -494,18 +495,23 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         // Show empty state message if no devices at all
         if (this.state.devices.length === 0) {
             return (
-                <Container fluid className="text-center mt-5">
-                    <div className="text-muted">
-                        <h5>{t("no_devices")}</h5>
-                    </div>
-                    <Button
-                        variant="primary"
-                        className="mt-3"
-                        onClick={() => route("/tokens")}
-                    >
-                        {i18n.t("tokens.add_device")}
-                    </Button>
-                </Container>
+                <>
+                    <Container fluid className="mt-3">
+                        <LocalDevices />
+                    </Container>
+                    <Container fluid className="text-center mt-5">
+                        <div className="text-muted">
+                            <h5>{t("no_devices")}</h5>
+                        </div>
+                        <Button
+                            variant="primary"
+                            className="mt-3"
+                            onClick={() => route("/tokens")}
+                        >
+                            {i18n.t("tokens.add_device")}
+                        </Button>
+                    </Container>
+                </>
             );
         }
 
@@ -535,8 +541,12 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     loadGroupings={async () => this.loadGroupings()}
                 />
 
+                <Container fluid className="mt-3">
+                    <LocalDevices />
+                </Container>
+
                 <Container fluid>
-                    <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 mt-3">
+                    <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <div className="flex-grow-1 gap-2">
                             <SearchInput
                                 searchTerm={this.state.searchTerm}

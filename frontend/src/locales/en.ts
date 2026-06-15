@@ -273,5 +273,14 @@ export const en = {
         "close": "Close",
         "text": "Get the app",
         "view": "Show"
+    },
+    "local_devices": {
+        "title": "Local devices",
+        "searching": "Searching for local devices...",
+        "none_found": "No local devices found on your network.",
+        "retry": "Search again",
+        "firmware_version": "Firmware",
+        "provisioning_hint": "Have a new device? Scan its QR code to add it to your account.",
+        "provisioning_button": "Add via QR code"
     }
 };

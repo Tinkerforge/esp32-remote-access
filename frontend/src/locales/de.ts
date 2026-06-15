@@ -266,5 +266,14 @@ export const de ={
         "close": "Schließen",
         "text": "Hol dir die App",
         "view": "Ansehen"
+    },
+    "local_devices": {
+        "title": "Lokale Geräte",
+        "searching": "Suche nach lokalen Geräten...",
+        "none_found": "Keine lokalen Geräte im Netzwerk gefunden.",
+        "retry": "Erneut suchen",
+        "firmware_version": "Firmware",
+        "provisioning_hint": "Ein neues Gerät? Scanne den QR-Code, um es deinem Konto hinzuzufügen.",
+        "provisioning_button": "Per QR-Code hinzufügen"
     }
 };
