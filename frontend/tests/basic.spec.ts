@@ -152,7 +152,6 @@ test('charger lifecycle', async ({ page }) => {
 test('add charger with auth token', async ({page}) => {
   test.slow();
   test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
-  await page.waitForTimeout(20_000);
 
   await login(page, testUser1Email, testPassword1);
 
@@ -164,7 +163,7 @@ test('add charger with auth token', async ({page}) => {
   await page.goto(testWallboxDomain);
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Event Log' }).click();
-  await expect(page.getByPlaceholder('Loading event log...')).toContainText("Network connected");
+  await expect(page.getByPlaceholder('Loading event log...')).toContainText("Connecting to Management WireGuard peer");
   await page.getByRole('button', { name: 'Remote Access' }).click();
   await page.getByRole('row', { name: 'of 5 accounts configured' }).getByRole('button').click();
   await page.getByLabel('Authorization method').selectOption('token');
@@ -178,6 +177,138 @@ test('add charger with auth token', async ({page}) => {
   await page.getByRole('button', { name: 'Connect' }).click();
   await expect(page.locator('#interface').contentFrame().getByRole('heading', { name: 'Status' })).toBeVisible({timeout: 15_000});
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
+});
+
+test('edit charger note', async ({page}) => {
+  test.slow();
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
+
+  await login(page, testUser1Email, testPassword1);
+  await expect(page.locator('tbody')).toContainText(testWallboxUID);
+
+  const row = page.getByRole('row', { name: testWallboxUID });
+  await expect(row).toBeVisible();
+
+  // The Edit button is the only button in the note cell (the one with class `pe-0`).
+  const editButton = row.locator('td.pe-0 button');
+  await expect(editButton).toBeVisible();
+  await editButton.click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('textbox')).toBeVisible();
+
+  const newNote = 'Test integration note ' + Date.now();
+  await dialog.getByRole('textbox').fill(newNote);
+  await dialog.getByRole('button', { name: 'Accept' }).click();
+
+  await expect(dialog).not.toBeVisible();
+  await expect(row).toContainText(newNote);
+});
+
+test('edit charger note and cancel', async ({page}) => {
+  test.slow();
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
+
+  await login(page, testUser1Email, testPassword1);
+  await expect(page.locator('tbody')).toContainText(testWallboxUID);
+
+  const row = page.getByRole('row', { name: testWallboxUID });
+  const editButton = row.locator('td.pe-0 button');
+
+  await editButton.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+
+  const cancelledNote = 'Cancelled note ' + Date.now();
+  await dialog.getByRole('textbox').fill(cancelledNote);
+  await dialog.getByRole('button', { name: 'Decline' }).click();
+
+  await expect(dialog).not.toBeVisible();
+  await expect(row).not.toContainText(cancelledNote);
+});
+
+test('edit charger note modal pre-fills current note', async ({page}) => {
+  test.slow();
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
+
+  await login(page, testUser1Email, testPassword1);
+  await expect(page.locator('tbody')).toContainText(testWallboxUID);
+
+  const row = page.getByRole('row', { name: testWallboxUID });
+  const editButton = row.locator('td.pe-0 button');
+
+  // Set a known note first.
+  await editButton.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  const knownNote = 'Known pre-fill note ' + Date.now();
+  await dialog.getByRole('textbox').fill(knownNote);
+  await dialog.getByRole('button', { name: 'Accept' }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(row).toContainText(knownNote);
+
+  // Reopen the modal and verify it pre-fills with the saved note.
+  await editButton.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('textbox')).toHaveValue(knownNote);
+});
+
+test('edit charger note persists after reload', async ({page}) => {
+  test.slow();
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
+
+  await login(page, testUser1Email, testPassword1);
+  await expect(page.locator('tbody')).toContainText(testWallboxUID);
+
+  const row = page.getByRole('row', { name: testWallboxUID });
+  const editButton = row.locator('td.pe-0 button');
+
+  await editButton.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  const noteText = 'Persistence test note ' + Date.now();
+  await dialog.getByRole('textbox').fill(noteText);
+  await dialog.getByRole('button', { name: 'Accept' }).click();
+  await expect(dialog).not.toBeVisible();
+
+  await page.reload();
+  await expect(page.locator('tbody')).toContainText(noteText);
+});
+
+test('clear charger note', async ({page}) => {
+  test.slow();
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
+
+  await login(page, testUser1Email, testPassword1);
+  await expect(page.locator('tbody')).toContainText(testWallboxUID);
+
+  const row = page.getByRole('row', { name: testWallboxUID });
+  const editButton = row.locator('td.pe-0 button');
+
+  // Set a known note first so we have something to clear.
+  await editButton.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('textbox').fill('Some note to clear');
+  await dialog.getByRole('button', { name: 'Accept' }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // Clear the note by submitting an empty value.
+  await editButton.click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('textbox').fill('');
+  await dialog.getByRole('button', { name: 'Accept' }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // Reload and verify the modal opens with an empty textarea,
+  // confirming the cleared note was persisted on the server.
+  await page.reload();
+  await expect(page.locator('tbody')).toContainText(testWallboxUID);
+
+  await page.getByRole('row', { name: testWallboxUID }).locator('td.pe-0 button').click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('textbox')).toHaveValue('');
 });
 
 test('recovery page working', async ({page}) => {
