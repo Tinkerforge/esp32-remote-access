@@ -4,11 +4,11 @@ import { Badge, Button, Col, Collapse, Container, Row } from "react-bootstrap";
 import { Edit } from "react-feather";
 import * as Base58 from "base58";
 import { Circle } from "../Circle";
-import { StateDevice, Grouping } from "./types";
+import { StateDevice, Grouping, ConnectVia } from "./types";
 
 interface DeviceTableRowProps {
     device: StateDevice;
-    onConnect: (device: StateDevice) => Promise<void>;
+    onConnect: (device: StateDevice, via?: Exclude<ConnectVia, "default">) => Promise<void>;
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;
@@ -27,6 +27,7 @@ export function DeviceTableRow({
 }: DeviceTableRowProps) {
     const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
     const [expand, setExpand] = useState(false);
+    const [connectMenuOpen, setConnectMenuOpen] = useState(false);
 
     const trimmed_note = device.note.trim();
     const split = trimmed_note.split("\n");
@@ -34,6 +35,13 @@ export function DeviceTableRow({
     // Find which groupings this device belongs to
     const deviceGroupings = groupings.filter(g => g.device_ids.includes(device.id));
     const isLocalOnly = device.id === "";
+    // The split dropdown only appears for devices that are both locally
+    // reachable (host is set) *and* cloud-paired (id is non-empty).
+    // Standalone local devices are LAN-only and cloud-only devices have
+    // no LAN path to offer, so they keep the plain button.
+    const showConnectMenu = !!device.host && !isLocalOnly;
+
+    const connectDisabled = !connectionPossible(device);
 
     return (
         <tr>
@@ -66,17 +74,73 @@ export function DeviceTableRow({
             </td>
             <td class="align-middle text-center">
                 <div className="d-flex flex-row flex-md-wrap flex-lg-nowrap justify-content-center gap-2">
-                    <Button
-                        disabled={!connectionPossible(device)}
-                        id={`connect-${device.name}`}
-                        onClick={async () => {
-                            await onConnect(device);
-                        }}
-                        variant="primary"
-                        className="w-100"
-                    >
-                        {t("connect")}
-                    </Button>
+                    {showConnectMenu ? (
+                        <div className="btn-group w-100" role="group">
+                            <Button
+                                disabled={connectDisabled}
+                                id={`connect-${device.name}`}
+                                onClick={async () => {
+                                    await onConnect(device);
+                                }}
+                                variant="primary"
+                                className="w-100"
+                            >
+                                {t("connect")}
+                            </Button>
+                            <button
+                                type="button"
+                                id={`connect-dropdown-${device.name}`}
+                                disabled={connectDisabled}
+                                aria-expanded={connectMenuOpen}
+                                aria-haspopup="menu"
+                                className="btn btn-primary dropdown-toggle dropdown-toggle-split"
+                                onClick={() => setConnectMenuOpen((open) => !open)}
+                            />
+                            {connectMenuOpen && (
+                                <ul
+                                    className="dropdown-menu show"
+                                    style={{ right: 0, left: "auto" }}
+                                >
+                                    <li>
+                                        <button
+                                            type="button"
+                                            className="dropdown-item"
+                                            onClick={async () => {
+                                                setConnectMenuOpen(false);
+                                                await onConnect(device, "local");
+                                            }}
+                                        >
+                                            {t("connect_locally")}
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button
+                                            type="button"
+                                            className="dropdown-item"
+                                            onClick={async () => {
+                                                setConnectMenuOpen(false);
+                                                await onConnect(device, "cloud");
+                                            }}
+                                        >
+                                            {t("connect_via_cloud")}
+                                        </button>
+                                    </li>
+                                </ul>
+                            )}
+                        </div>
+                    ) : (
+                        <Button
+                            disabled={connectDisabled}
+                            id={`connect-${device.name}`}
+                            onClick={async () => {
+                                await onConnect(device);
+                            }}
+                            variant="primary"
+                            className="w-100"
+                        >
+                            {t("connect")}
+                        </Button>
+                    )}
                     {!isLocalOnly && (
                         <Button
                             onClick={async () => {

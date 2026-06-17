@@ -118,6 +118,8 @@ export const en = {
         "clear_search": "Clear search",
         "no_devices_found": "No devices found matching your search.",
         "local": "Local",
+        "connect_locally": "Connect locally",
+        "connect_via_cloud": "Connect via remote-access",
         "manage_groupings": "Manage Groups",
         "groupings": "Groups",
         "create_grouping": "Create Group",

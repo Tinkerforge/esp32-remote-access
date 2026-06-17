@@ -1,14 +1,14 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Card, Col, Collapse, Row } from "react-bootstrap";
 import { Edit, Monitor, Trash2 } from "react-feather";
 import * as Base58 from "base58";
 import { Circle } from "../Circle";
-import { StateDevice, Grouping } from "./types";
+import { StateDevice, Grouping, ConnectVia } from "./types";
 
 interface DeviceCardProps {
     device: StateDevice;
-    onConnect: (device: StateDevice) => Promise<void>;
+    onConnect: (device: StateDevice, via?: Exclude<ConnectVia, "default">) => Promise<void>;
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;
@@ -27,6 +27,21 @@ export function DeviceCard({
 }: DeviceCardProps) {
     const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
     const [expand, setExpand] = useState(false);
+    const [connectMenuOpen, setConnectMenuOpen] = useState(false);
+    const connectGroupRef = useRef<HTMLDivElement>(null);
+
+    // Close the connect-method dropdown when the user clicks anywhere
+    // outside of the button group that hosts it.
+    useEffect(() => {
+        if (!connectMenuOpen) return;
+        const handleMouseDown = (e: MouseEvent) => {
+            if (connectGroupRef.current && !connectGroupRef.current.contains(e.target as Node)) {
+                setConnectMenuOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleMouseDown);
+        return () => document.removeEventListener("mousedown", handleMouseDown);
+    }, [connectMenuOpen]);
 
     const trimmed_note = device.note.trim();
     const split = trimmed_note.split("\n");
@@ -35,6 +50,11 @@ export function DeviceCard({
     const deviceGroupings = groupings.filter(g => g.device_ids.includes(device.id));
 
     const isLocalOnly = device.id === "";
+    // The split dropdown only appears for devices that are both locally
+    // reachable (host is set) *and* cloud-paired (id is non-empty).
+    const showConnectMenu = !!device.host && !isLocalOnly;
+
+    const connectDisabled = !connectionPossible(device);
 
     return (
         <Card className="my-2">
@@ -70,16 +90,78 @@ export function DeviceCard({
                     )}
                 </Col>
                 <Col className="d-flex justify-content-end">
-                    <Button
-                        className="me-2"
-                        variant="primary"
-                        disabled={!connectionPossible(device)}
-                        onClick={async () => {
-                            await onConnect(device);
-                        }}
-                    >
-                        <Monitor />
-                    </Button>
+                    {showConnectMenu ? (
+                        <div ref={connectGroupRef} className="btn-group me-2" role="group">
+                            <Button
+                                variant="primary"
+                                disabled={connectDisabled}
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    await onConnect(device);
+                                }}
+                            >
+                                <Monitor />
+                            </Button>
+                            <button
+                                type="button"
+                                id={`connect-dropdown-${device.name}`}
+                                disabled={connectDisabled}
+                                aria-expanded={connectMenuOpen}
+                                aria-haspopup="menu"
+                                className="btn btn-primary dropdown-toggle dropdown-toggle-split"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConnectMenuOpen((open) => !open);
+                                }}
+                            />
+                            {connectMenuOpen && (
+                                <ul
+                                    className="dropdown-menu show"
+                                    data-bs-popper="static"
+                                    style={{ right: 0, left: "auto" }}
+                                >
+                                    <li>
+                                        <button
+                                            type="button"
+                                            className="dropdown-item"
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                setConnectMenuOpen(false);
+                                                await onConnect(device, "local");
+                                            }}
+                                        >
+                                            {t("connect_locally")}
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button
+                                            type="button"
+                                            className="dropdown-item"
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                setConnectMenuOpen(false);
+                                                await onConnect(device, "cloud");
+                                            }}
+                                        >
+                                            {t("connect_via_cloud")}
+                                        </button>
+                                    </li>
+                                </ul>
+                            )}
+                        </div>
+                    ) : (
+                        <Button
+                            className="me-2"
+                            variant="primary"
+                            disabled={connectDisabled}
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                await onConnect(device);
+                            }}
+                        >
+                            <Monitor />
+                        </Button>
+                    )}
                     {!isLocalOnly && (
                         <Button
                             variant="danger"

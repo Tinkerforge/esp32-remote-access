@@ -8,7 +8,7 @@ import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
 import { Button, Container, Dropdown, DropdownButton, Form, Spinner } from "react-bootstrap";
 import i18n from "../i18n";
 import { useLocation } from "preact-iso";
-import { Device, StateDevice, SortColumn, DeviceListState, Grouping } from "../components/device/types";
+import { Device, StateDevice, SortColumn, DeviceListState, Grouping, ConnectVia } from "../components/device/types";
 import { DeviceTable } from "../components/device/DeviceTable";
 import { DeviceMobileView } from "../components/device/DeviceMobileView";
 import { DeleteDeviceModal } from "../components/device/DeleteDeviceModal";
@@ -297,16 +297,24 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         }
     }
 
-    async connect_to_charger(device: StateDevice, route: (path: string, replace?: boolean) => void) {
-        // in case the device is locally reachable connect over the local network
-        if (device.host) {
+    async connect_to_charger(device: StateDevice, route: (path: string, replace?: boolean) => void, via: ConnectVia = "default") {
+        // Pick the effective path. "default" preserves the legacy preference
+        // for the LAN bridge when the device is locally reachable, otherwise
+        // the cloud. Explicit "local"/"cloud" honor the user's choice but
+        // fall back to the other path if the chosen one is not actually
+        // available on this device.
+        const useLocal = via === "local" || (via === "default" && !!device.host);
+
+        if (useLocal && device.host) {
             const bridge = window.tinkerforge_discovery;
             if (bridge) {
                 bridge.navigateToCharger(device.host);
             }
             return;
         }
-        route(`/devices/${device.id}`);
+        if (device.id) {
+            route(`/devices/${device.id}`);
+        }
     }
 
     async delete_charger() {
@@ -587,8 +595,8 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             ? this.state.filteredDevices
             : this.state.devices;
 
-        const handleConnect = async (device: StateDevice) => {
-            await this.connect_to_charger(device, route);
+        const handleConnect = async (device: StateDevice, via: ConnectVia = "default") => {
+            await this.connect_to_charger(device, route, via);
         };
 
         // Show empty state message if no devices at all

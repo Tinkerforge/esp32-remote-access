@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Col, Row, Table } from "react-bootstrap";
 import { ChevronDown, ChevronUp } from "react-feather";
-import { StateDevice, SortColumn, Grouping } from "./types";
+import { StateDevice, SortColumn, Grouping, ConnectVia } from "./types";
 import { DeviceTableRow } from "./DeviceTableRow";
 
 interface DeviceTableProps {
@@ -9,7 +9,7 @@ interface DeviceTableProps {
     sortColumn: SortColumn;
     sortSequence: "asc" | "desc";
     onSort: (column: SortColumn) => void;
-    onConnect: (device: StateDevice) => Promise<void>;
+    onConnect: (device: StateDevice, via?: Exclude<ConnectVia, "default">) => Promise<void>;
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;

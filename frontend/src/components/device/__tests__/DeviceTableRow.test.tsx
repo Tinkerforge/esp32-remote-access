@@ -189,4 +189,59 @@ describe('DeviceTableRow', () => {
     expect(screen.getByText('Group 2')).toBeInTheDocument();
     expect(screen.getByText('Group 3')).toBeInTheDocument();
   });
+
+  it('shows a connect-method dropdown for devices reachable locally and over the cloud', () => {
+    // host + non-empty id means the device is both LAN-reachable and
+    // cloud-paired, which is the only case where the dropdown should appear.
+    const localAndCloudDevice: StateDevice = { ...mockDevice, host: 'warp.local' };
+    const { container } = render(<table><tbody><DeviceTableRow {...defaultProps} device={localAndCloudDevice} /></tbody></table>);
+
+    expect(container.querySelector('.dropdown-toggle-split')).not.toBeNull();
+  });
+
+  it('hides the connect-method dropdown for cloud-only devices', () => {
+    // No `host` means the device is cloud-only — the dropdown has no LAN
+    // option to offer, so only the plain connect button is rendered.
+    const { container } = render(<table><tbody><DeviceTableRow {...defaultProps} /></tbody></table>);
+
+    expect(container.querySelector('.dropdown-toggle-split')).toBeNull();
+  });
+
+  it('hides the connect-method dropdown for standalone local devices', () => {
+    // Standalone local devices have an empty id and a host but no cloud
+    // pairing, so they also get the plain connect button.
+    const standaloneLocal: StateDevice = { ...mockDevice, id: '', host: 'warp.local' };
+    const { container } = render(<table><tbody><DeviceTableRow {...defaultProps} device={standaloneLocal} /></tbody></table>);
+
+    expect(container.querySelector('.dropdown-toggle-split')).toBeNull();
+  });
+
+  it('opens the dropdown and calls onConnect with "local" when the local option is picked', async () => {
+    const localAndCloudDevice: StateDevice = { ...mockDevice, host: 'warp.local' };
+    const { container } = render(<table><tbody><DeviceTableRow {...defaultProps} device={localAndCloudDevice} /></tbody></table>);
+
+    // The menu is hidden until the toggle is clicked.
+    expect(screen.queryByText('connect_locally')).not.toBeInTheDocument();
+
+    const toggle = container.querySelector('.dropdown-toggle-split') as HTMLElement;
+    fireEvent.click(toggle);
+
+    const localItem = screen.getByText('connect_locally');
+    fireEvent.click(localItem);
+
+    expect(defaultProps.onConnect).toHaveBeenCalledWith(localAndCloudDevice, 'local');
+  });
+
+  it('opens the dropdown and calls onConnect with "cloud" when the cloud option is picked', async () => {
+    const localAndCloudDevice: StateDevice = { ...mockDevice, host: 'warp.local' };
+    const { container } = render(<table><tbody><DeviceTableRow {...defaultProps} device={localAndCloudDevice} /></tbody></table>);
+
+    const toggle = container.querySelector('.dropdown-toggle-split') as HTMLElement;
+    fireEvent.click(toggle);
+
+    const cloudItem = screen.getByText('connect_via_cloud');
+    fireEvent.click(cloudItem);
+
+    expect(defaultProps.onConnect).toHaveBeenCalledWith(localAndCloudDevice, 'cloud');
+  });
 });

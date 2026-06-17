@@ -118,6 +118,8 @@ export const de ={
         "clear_search": "Suche löschen",
         "no_devices_found": "Keine Geräte gefunden, die deiner Suche entsprechen.",
         "local": "Lokal",
+        "connect_locally": "Lokal verbinden",
+        "connect_via_cloud": "Über Fernzugriff verbinden",
         "manage_groupings": "Gruppen verwalten",
         "groupings": "Gruppen",
         "create_grouping": "Gruppe erstellen",

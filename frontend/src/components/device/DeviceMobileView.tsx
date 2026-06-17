@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { ButtonGroup, Col, Container, Dropdown, DropdownButton } from "react-bootstrap";
 import Median from "median-js-bridge";
 import i18n from "../../i18n";
-import { StateDevice, SortColumn, Grouping } from "./types";
+import { StateDevice, SortColumn, Grouping, ConnectVia } from "./types";
 import { DeviceCard } from "./DeviceCard";
 
 interface DeviceMobileViewProps {
@@ -11,7 +11,7 @@ interface DeviceMobileViewProps {
     sortSequence: "asc" | "desc";
     onMobileSort: (column: SortColumn) => void;
     onSortSequenceChange: (sequence: "asc" | "desc") => void;
-    onConnect: (device: StateDevice) => Promise<void>;
+    onConnect: (device: StateDevice, via?: Exclude<ConnectVia, "default">) => Promise<void>;
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;

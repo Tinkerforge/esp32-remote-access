@@ -35,6 +35,12 @@ export interface StateDevice {
 
 export type SortColumn = "name" | "uid" | "status" | "none" | "note" | "last_state_change" | "firmware_version";
 
+// Selects how to reach a device. `"default"` keeps the legacy behavior of
+// preferring the local network when available and falling back to the cloud.
+// `"local"` / `"cloud"` force the respective path (with a graceful fallback to
+// the other if the chosen one is not actually reachable).
+export type ConnectVia = "default" | "local" | "cloud";
+
 export interface Grouping {
     id: string,
     name: string,

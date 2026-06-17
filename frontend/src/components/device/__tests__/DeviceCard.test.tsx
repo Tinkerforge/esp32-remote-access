@@ -185,4 +185,55 @@ describe('DeviceCard', () => {
     expect(screen.getByText('Group 2')).toBeInTheDocument();
     expect(screen.getByText('Group 3')).toBeInTheDocument();
   });
+
+  it('shows a connect-method dropdown for devices reachable locally and over the cloud', () => {
+    // host + non-empty id means the device is both LAN-reachable and
+    // cloud-paired, which is the only case where the dropdown should appear.
+    const localAndCloudDevice: StateDevice = { ...mockDevice, host: 'warp.local' };
+    const { container } = render(<DeviceCard {...defaultProps} device={localAndCloudDevice} />);
+
+    expect(container.querySelector('.dropdown-toggle-split')).not.toBeNull();
+  });
+
+  it('hides the connect-method dropdown for cloud-only devices', () => {
+    const { container } = render(<DeviceCard {...defaultProps} />);
+
+    expect(container.querySelector('.dropdown-toggle-split')).toBeNull();
+  });
+
+  it('hides the connect-method dropdown for standalone local devices', () => {
+    const standaloneLocal: StateDevice = { ...mockDevice, id: '', host: 'warp.local' };
+    const { container } = render(<DeviceCard {...defaultProps} device={standaloneLocal} />);
+
+    expect(container.querySelector('.dropdown-toggle-split')).toBeNull();
+  });
+
+  it('opens the dropdown and calls onConnect with "local" when the local option is picked', async () => {
+    const localAndCloudDevice: StateDevice = { ...mockDevice, host: 'warp.local' };
+    const { container } = render(<DeviceCard {...defaultProps} device={localAndCloudDevice} />);
+
+    // The menu is hidden until the toggle is clicked.
+    expect(screen.queryByText('connect_locally')).not.toBeInTheDocument();
+
+    const toggle = container.querySelector('.dropdown-toggle-split') as HTMLElement;
+    fireEvent.click(toggle);
+
+    const localItem = screen.getByText('connect_locally');
+    fireEvent.click(localItem);
+
+    expect(defaultProps.onConnect).toHaveBeenCalledWith(localAndCloudDevice, 'local');
+  });
+
+  it('opens the dropdown and calls onConnect with "cloud" when the cloud option is picked', async () => {
+    const localAndCloudDevice: StateDevice = { ...mockDevice, host: 'warp.local' };
+    const { container } = render(<DeviceCard {...defaultProps} device={localAndCloudDevice} />);
+
+    const toggle = container.querySelector('.dropdown-toggle-split') as HTMLElement;
+    fireEvent.click(toggle);
+
+    const cloudItem = screen.getByText('connect_via_cloud');
+    fireEvent.click(cloudItem);
+
+    expect(defaultProps.onConnect).toHaveBeenCalledWith(localAndCloudDevice, 'cloud');
+  });
 });
