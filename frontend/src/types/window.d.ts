@@ -8,6 +8,7 @@ export interface DiscoveredDevices {
     model: string;
     txtvers: string;
     firmwareVersion: string;
+    uid: number;
 }
 
 // Extend the global Window interface for the discovery and provisioning bridges
@@ -29,7 +30,7 @@ declare global {
         tinkerforge_devices?: {
             resetToDevices(): void;
         };
-        onWarpChargersChanged?: (chargers: DiscoveredCharger[]) => void;
+        onWarpChargersChanged?: (chargers: DiscoveredDevices[]) => void;
         onWarpDiscoveryStopped?: () => void;
         onWarpProvisioningFailed?: (reason: string) => void;
         onWarpProvisioningScanCancelled?: () => void;

@@ -135,7 +135,7 @@ describe('DeviceCard', () => {
     const buttons = screen.getAllByRole('button');
     // Find and click edit button (should be the third button)
     fireEvent.click(buttons[2]);
-    expect(defaultProps.onEditNote).toHaveBeenCalledWith(mockDevice, 0);
+    expect(defaultProps.onEditNote).toHaveBeenCalledWith(mockDevice);
   });
 
   it('calls onDelete when delete button is clicked', () => {

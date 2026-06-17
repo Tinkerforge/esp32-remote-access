@@ -148,7 +148,7 @@ describe('DeviceTableRow', () => {
     const buttons = screen.getAllByRole('button');
     // Edit button is the last button (icon button)
     fireEvent.click(buttons[buttons.length - 1]);
-    expect(defaultProps.onEditNote).toHaveBeenCalledWith(mockDevice, 0);
+    expect(defaultProps.onEditNote).toHaveBeenCalledWith(mockDevice);
   });
 
   it('disables connect button when connection not possible', () => {

@@ -8,10 +8,9 @@ import { StateDevice, Grouping } from "./types";
 
 interface DeviceTableRowProps {
     device: StateDevice;
-    index: number;
     onConnect: (device: StateDevice) => Promise<void>;
     onDelete: (device: StateDevice) => void;
-    onEditNote: (device: StateDevice, index: number) => void;
+    onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;
     formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
     groupings: Grouping[];
@@ -19,7 +18,6 @@ interface DeviceTableRowProps {
 
 export function DeviceTableRow({
     device,
-    index,
     onConnect,
     onDelete,
     onEditNote,
@@ -35,6 +33,7 @@ export function DeviceTableRow({
 
     // Find which groupings this device belongs to
     const deviceGroupings = groupings.filter(g => g.device_ids.includes(device.id));
+    const isLocalOnly = device.id === "";
 
     return (
         <tr>
@@ -46,6 +45,11 @@ export function DeviceTableRow({
             <td class="align-middle">
                 <div>
                     {device.name}
+                    {device.host && (
+                        <Badge bg="warning" text="dark" className="ms-2" style={{ fontSize: "0.7rem" }}>
+                            {t("local")}
+                        </Badge>
+                    )}
                     {deviceGroupings.length > 0 && (
                         <div className="mt-1">
                             {deviceGroupings.map(g => (
@@ -73,15 +77,17 @@ export function DeviceTableRow({
                     >
                         {t("connect")}
                     </Button>
-                    <Button
-                        onClick={async () => {
-                            onDelete(device);
-                        }}
-                        variant="danger"
-                        className="w-100"
-                    >
-                        {t("remove")}
-                    </Button>
+                    {!isLocalOnly && (
+                        <Button
+                            onClick={async () => {
+                                onDelete(device);
+                            }}
+                            variant="danger"
+                            className="w-100"
+                        >
+                            {t("remove")}
+                        </Button>
+                    )}
                 </div>
                 <p style="color:red;" hidden={device.valid}>
                     {t("no_keys")}
@@ -127,17 +133,19 @@ export function DeviceTableRow({
                                 </Row>
                             </Container>
                         </Col>
-                        <Col className="p-0" sm="auto">
-                            <Button
-                                style="background-color:transparent;border:none;"
-                                onClick={() => {
-                                    onEditNote(device, index);
-                                    setExpand(false);
-                                }}
-                            >
-                                <Edit color="#333" />
-                            </Button>
-                        </Col>
+                        {!isLocalOnly && (
+                            <Col className="p-0" sm="auto">
+                                <Button
+                                    style="background-color:transparent;border:none;"
+                                    onClick={() => {
+                                        onEditNote(device);
+                                        setExpand(false);
+                                    }}
+                                >
+                                    <Edit color="#333" />
+                                </Button>
+                            </Col>
+                        )}
                     </Row>
                 </Container>
             </td>

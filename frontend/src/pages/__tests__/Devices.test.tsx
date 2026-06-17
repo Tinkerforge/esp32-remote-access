@@ -1,6 +1,7 @@
 import { render, screen, waitFor, cleanup } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { DeviceList } from '../Devices';
+import { StateDevice } from '../../components/device/types';
 import { createRef, type RefObject } from 'preact';
 import { fetchClient, get_decrypted_secret } from '../../utils';
 import { Base64 } from 'js-base64';
@@ -390,7 +391,7 @@ describe('Devices.tsx - DeviceList', () => {
     getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [], groupings: [], selectedGroupingId: null, groupingSearchTerm: '', isLoading: false });
     await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
 
-    getRef(ref).handleEditNote(devices[0], 0);
+    getRef(ref).handleEditNote(devices[0]);
     await waitFor(() => expect(getRef(ref).state.showEditNoteModal).toBe(true));
 
     (sodium.crypto_box_seal as unknown as Mock).mockReturnValue(new Uint8Array([9, 9]));
@@ -401,7 +402,7 @@ describe('Devices.tsx - DeviceList', () => {
     await waitFor(() => expect(getRef(ref).state.devices[0].note).toBe('new'));
     expect(getRef(ref).state.showEditNoteModal).toBe(false);
 
-    getRef(ref).handleEditNote(devices[0], 0);
+    getRef(ref).handleEditNote(devices[0]);
     await waitFor(() => expect(getRef(ref).state.showEditNoteModal).toBe(true));
     getRef(ref).handleEditNoteCancel();
     await waitFor(() => expect(getRef(ref).state.showEditNoteModal).toBe(false));
@@ -685,6 +686,298 @@ describe('Devices.tsx - DeviceList', () => {
 
       // The component should render only the filtered device
       // This tests the logic in the render method that chooses between devices and filteredDevices
+    });
+  });
+
+  describe('Local + cloud device merge', () => {
+    // `deviceMatches` is a pure helper so we can call it on a bare `this`.
+    const matches = DeviceList.prototype.deviceMatches;
+    const merge = DeviceList.prototype.mergeDevices.bind({ deviceMatches: matches });
+
+    const baseCloud = (overrides: Partial<StateDevice> = {}): StateDevice => ({
+      id: 'cloud-1',
+      uid: 12345,
+      name: 'Garage',
+      status: 'Connected',
+      note: 'cloud note',
+      port: 80,
+      valid: true,
+      last_state_change: 1700000000,
+      firmware_version: '2.3.1',
+      ...overrides,
+    });
+
+    const baseLocal = (overrides: Partial<StateDevice> = {}): StateDevice => ({
+      id: '',
+      uid: 0,
+      name: 'WARP-ABCD',
+      status: 'Connected',
+      note: 'warp.local',
+      port: 80,
+      valid: true,
+      last_state_change: null,
+      firmware_version: '2.3.1',
+      host: 'warp.local',
+      ...overrides,
+    });
+
+    describe('deviceMatches', () => {
+      it('returns true when both uids are set and equal', () => {
+        const cloud = baseCloud({ uid: 12345 });
+        const local = baseLocal({ uid: 12345, host: 'warp.local' });
+
+        expect(matches(cloud, local)).toBe(true);
+      });
+
+      it('returns false when both uids are set but differ', () => {
+        const cloud = baseCloud({ uid: 12345 });
+        const local = baseLocal({ uid: 67890, host: 'warp.local' });
+
+        expect(matches(cloud, local)).toBe(false);
+      });
+
+      it('returns false when the cloud uid is 0', () => {
+        // 0 is the default for an unpaired cloud device; the local uid
+        // is irrelevant in that case because the early-return guard
+        // treats 0 as "no uid yet".
+        const cloud = baseCloud({ uid: 0 });
+        const local = baseLocal({ uid: 12345, host: 'warp.local' });
+
+        expect(matches(cloud, local)).toBe(false);
+      });
+
+      it('returns false when the local uid is 0', () => {
+        // The local side starts with uid: 0 until the discovery payload
+        // carries one; in that state the match must not be claimed.
+        const cloud = baseCloud({ uid: 12345 });
+        const local = baseLocal({ uid: 0, host: 'warp.local' });
+
+        expect(matches(cloud, local)).toBe(false);
+      });
+
+      it('returns false when both uids are 0', () => {
+        const cloud = baseCloud({ uid: 0 });
+        const local = baseLocal({ uid: 0, host: 'warp.local' });
+
+        expect(matches(cloud, local)).toBe(false);
+      });
+
+      it('ignores non-uid fields when deciding a match', () => {
+        // Even if every other field is wildly different, a uid match
+        // must be enough for the devices to be considered the same.
+        const cloud = baseCloud({
+          uid: 12345,
+          id: 'cloud-1',
+          name: 'Garage',
+          status: 'Connected',
+          port: 80,
+          firmware_version: '2.3.1',
+        });
+        const local = baseLocal({
+          uid: 12345,
+          id: '',
+          name: 'WARP-ABCD',
+          status: 'Disconnected',
+          port: 8080,
+          firmware_version: '9.9.9',
+          host: 'new.local',
+        });
+
+        expect(matches(cloud, local)).toBe(true);
+      });
+
+      it('is symmetric for two uids that are equal', () => {
+        // The function is a pure boolean, so swapping the arguments must
+        // not change the result. This is a useful invariant for the
+        // merge logic that iterates over `cloud` while passing each entry
+        // through `find` over `local`.
+        const cloud = baseCloud({ uid: 42 });
+        const local = baseLocal({ uid: 42, host: 'warp.local' });
+
+        expect(matches(cloud, local)).toBe(matches(local, cloud));
+      });
+    });
+
+    it('mergeDevices pairs by uid even when the local host has moved to a new port', () => {
+      const cloud = baseCloud({ uid: 12345, port: 80, firmware_version: '2.3.1' });
+      const local = baseLocal({ uid: 12345, port: 8080, firmware_version: '2.3.1', host: 'new.local' });
+
+      const merged = merge([cloud], [local]);
+
+      expect(merged).toHaveLength(1);
+      expect(merged[0].id).toBe('cloud-1');
+      // The new local `host` and `port` win over the cloud values because
+      // the local entry is the freshest source of LAN-side reachability:
+      // these are the values the bridge actually dials to reach the
+      // charger on the local network.
+      expect(merged[0].host).toBe('new.local');
+      expect(merged[0].port).toBe(8080);
+      expect(merged[0].uid).toBe(12345);
+    });
+
+    it('mergeDevices folds a local device into its cloud counterpart', () => {
+      const cloud = baseCloud();
+      const local = baseLocal({ uid: 12345 });
+
+      const merged = merge([cloud], [local]);
+
+      expect(merged).toHaveLength(1);
+      expect(merged[0].id).toBe('cloud-1');
+      expect(merged[0].name).toBe('Garage');
+      expect(merged[0].host).toBe('warp.local');
+      // Cloud-only fields must win over the local entry's defaults.
+      expect(merged[0].uid).toBe(12345);
+      expect(merged[0].status).toBe('Connected');
+      expect(merged[0].note).toBe('cloud note');
+    });
+
+    it('mergeDevices keeps unmatched local devices as standalone local entries', () => {
+      const cloud = baseCloud({ port: 80, firmware_version: '1.0.0' });
+      const local = baseLocal({ port: 8080, host: 'other.local' });
+
+      const merged = merge([cloud], [local]);
+
+      expect(merged).toHaveLength(2);
+      // Standalone local devices share the empty id, so look them up by host.
+      const mergedLocal = merged.find(d => d.host === 'other.local');
+      expect(mergedLocal).toBeDefined();
+      expect(mergedLocal?.id).toBe('');
+      expect(mergedLocal?.host).toBe('other.local');
+    });
+
+    it('mergeDevices keeps unmatched cloud devices as cloud-only entries', () => {
+      const cloud = baseCloud({ id: 'cloud-lonely', port: 80, firmware_version: '1.0.0' });
+      const local = baseLocal({ port: 8080 });
+
+      const merged = merge([cloud], [local]);
+
+      expect(merged).toHaveLength(2);
+      const cloudEntry = merged.find(d => d.id === 'cloud-lonely');
+      expect(cloudEntry).toBeDefined();
+      expect(cloudEntry?.host).toBeUndefined();
+    });
+
+    it('mergeDevices drops a stale host from a previous merge', () => {
+      // Simulate a cloud device that was merged in a previous discovery pass
+      // and has now lost its local counterpart. The stale `host` must be
+      // removed so the device no longer looks reachable on the LAN.
+      const previouslyMerged = baseCloud({ host: 'stale.local' });
+      const noMatch = baseLocal({ port: 8080, host: 'other.local' });
+
+      const merged = merge([previouslyMerged], [noMatch]);
+
+      expect(merged).toHaveLength(2);
+      const cloudEntry = merged.find(d => d.id === 'cloud-1');
+      expect(cloudEntry?.host).toBeUndefined();
+    });
+
+    it('mergeDevices does not consume a local entry twice', () => {
+      // Two cloud devices with identical match keys should not both claim the
+      // same local entry. The second cloud device falls through and stays
+      // cloud-only.
+      const cloudA = baseCloud({ id: 'cloud-a' });
+      const cloudB = baseCloud({ id: 'cloud-b' });
+      const local = baseLocal({ uid: 12345 });
+
+      const merged = merge([cloudA, cloudB], [local]);
+
+      expect(merged).toHaveLength(2);
+      const mergedA = merged.find(d => d.id === 'cloud-a');
+      const mergedB = merged.find(d => d.id === 'cloud-b');
+      expect(mergedA?.host).toBe('warp.local');
+      expect(mergedB?.host).toBeUndefined();
+    });
+
+    it('onWarpChargersChanged merges discovered devices into the existing cloud list', async () => {
+      // Set up the WARP discovery bridge BEFORE mounting so the constructor's
+      // `subscribeToLocalDiscovery` actually registers the discovery callback.
+      // In a real app the bridge is provided by the WARP Android app.
+      const startDiscovery = vi.fn();
+      const stopDiscovery = vi.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).tinkerforge_discovery = {
+        isSupported: () => true,
+        startDiscovery,
+        stopDiscovery,
+        getChargers: () => '[]',
+        navigateToCharger: () => {},
+      };
+
+      // Stop the other constructor side-effects so we can drive the lifecycle
+      // manually.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const wsSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const groupsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+      const ref = createRef<DeviceList>();
+      // @ts-expect-error - ref is valid but types dont allow it
+      render(<DeviceList ref={ref} />);
+      wsSpy.mockRestore();
+      groupsSpy.mockRestore();
+
+      // The component should have started discovery via the bridge and wired
+      // up the `onWarpChargersChanged` callback we are about to call.
+      expect(startDiscovery).toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(typeof (window as any).onWarpChargersChanged).toBe('function');
+
+      // Seed the state with a single cloud-paired device. `cloudDevices` is
+      // the source of truth for the cloud side of the merge now that the
+      // `local:` id prefix has been removed.
+      const cloudDevice = baseCloud();
+      getRef(ref).setState({
+        devices: [cloudDevice],
+        localDevices: [],
+        cloudDevices: [cloudDevice],
+        sortColumn: 'none',
+        sortSequence: 'asc',
+        showDeleteModal: false,
+        showEditNoteModal: false,
+        showGroupingModal: false,
+        editNote: '',
+        editChargerIdx: 0,
+        searchTerm: '',
+        filteredDevices: [],
+        groupings: [],
+        selectedGroupingId: null,
+        groupingSearchTerm: '',
+        isLoading: false,
+      });
+
+      // Simulate the bridge discovering the same charger on the LAN.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).onWarpChargersChanged([{
+        serviceName: 'WARP-ABCD',
+        displayName: 'WARP-ABCD',
+        host: 'warp.local',
+        port: 80,
+        brand: 'Tinkerforge',
+        model: 'WARP3',
+        txtvers: '1',
+        uid: 12345,
+        firmwareVersion: '2.3.1',
+      }]);
+
+      await waitFor(() => {
+        const state = getRef(ref).state;
+        // The cloud device must be marked reachable locally after the merge.
+        expect(state.devices.some(d => d.id === 'cloud-1' && d.host === 'warp.local')).toBe(true);
+        // And there must be exactly one device in the list, not two (the
+        // local entry must have been folded into the cloud entry, not kept
+        // as a separate standalone local stub).
+        const localAnchorMatches = state.devices.filter(d =>
+          (d.id === 'cloud-1' || d.id === '') && d.host === 'warp.local'
+        );
+        expect(localAnchorMatches).toHaveLength(1);
+      });
+
+      // Tidy up the bridge so it does not leak into other tests.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).tinkerforge_discovery;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).onWarpChargersChanged;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).onWarpDiscoveryStopped;
     });
   });
 });

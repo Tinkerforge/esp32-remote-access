@@ -1,6 +1,6 @@
 
 interface CircleProps {
-  color: 'success' | 'danger' | 'warning' | 'info' | 'primary' | 'secondary';
+  color: 'success' | 'danger' | 'info' | 'primary' | 'secondary';
 }
 
 export function Circle({ color }: CircleProps) {

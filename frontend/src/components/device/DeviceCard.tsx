@@ -8,10 +8,9 @@ import { StateDevice, Grouping } from "./types";
 
 interface DeviceCardProps {
     device: StateDevice;
-    index: number;
     onConnect: (device: StateDevice) => Promise<void>;
     onDelete: (device: StateDevice) => void;
-    onEditNote: (device: StateDevice, index: number) => void;
+    onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;
     formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
     groupings: Grouping[];
@@ -19,7 +18,6 @@ interface DeviceCardProps {
 
 export function DeviceCard({
     device,
-    index,
     onConnect,
     onDelete,
     onEditNote,
@@ -36,6 +34,8 @@ export function DeviceCard({
     // Find which groupings this device belongs to
     const deviceGroupings = groupings.filter(g => g.device_ids.includes(device.id));
 
+    const isLocalOnly = device.id === "";
+
     return (
         <Card className="my-2">
             <Card.Header
@@ -51,7 +51,14 @@ export function DeviceCard({
                     {device.status === "Disconnected" ? <Circle color="danger" /> : <Circle color="success" />}
                 </Col>
                 <Col className="mx-3">
-                    <h5 class="text-break" style="margin-bottom: 0;">{device.name}</h5>
+                    <h5 class="text-break" style="margin-bottom: 0;">
+                        {device.name}
+                        {device.host && (
+                            <Badge bg="warning" text="dark" className="ms-2" style={{ fontSize: "0.7rem" }}>
+                                {t("local")}
+                            </Badge>
+                        )}
+                    </h5>
                     {deviceGroupings.length > 0 && (
                         <div className="mt-1">
                             {deviceGroupings.map(g => (
@@ -73,15 +80,17 @@ export function DeviceCard({
                     >
                         <Monitor />
                     </Button>
-                    <Button
-                        variant="danger"
-                        onClick={async (e) => {
-                            e.stopPropagation();
-                            onDelete(device);
-                        }}
-                    >
-                        <Trash2 />
-                    </Button>
+                    {!isLocalOnly && (
+                        <Button
+                            variant="danger"
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                onDelete(device);
+                            }}
+                        >
+                            <Trash2 />
+                        </Button>
+                    )}
                 </Col>
             </Card.Header>
             <Card.Body>
@@ -105,18 +114,20 @@ export function DeviceCard({
                         <Row>
                             <b>{t("note")}</b>
                         </Row>
-                        <Row>
-                            <Col className="p-0">
-                                <Button
-                                    style="background-color:transparent;border:none;"
-                                    onClick={() => {
-                                        onEditNote(device, index);
-                                    }}
-                                >
-                                    <Edit color="#333" />
-                                </Button>
-                            </Col>
-                        </Row>
+                        {!isLocalOnly && (
+                            <Row>
+                                <Col className="p-0">
+                                    <Button
+                                        style="background-color:transparent;border:none;"
+                                        onClick={() => {
+                                            onEditNote(device);
+                                        }}
+                                    >
+                                        <Edit color="#333" />
+                                    </Button>
+                                </Col>
+                            </Row>
+                        )}
                     </Col>
                     <Col
                         onClick={split.length <= 3 ? undefined : () => setExpand(!expand)}

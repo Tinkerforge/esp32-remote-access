@@ -15,7 +15,8 @@ import { DeleteDeviceModal } from "../components/device/DeleteDeviceModal";
 import { EditNoteModal } from "../components/device/EditNoteModal";
 import { SearchInput } from "../components/device/SearchInput";
 import { GroupingModal } from "../components/device/GroupingModal";
-import { LocalDevices } from "../components/LocalDevices";
+import { Provisioning } from "../components/Provisioning";
+import { DiscoveredDevices } from "../types/window";
 
 export class DeviceList extends Component<Record<string, never>, DeviceListState> {
     removalDevice: StateDevice;
@@ -51,12 +52,15 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             selectedGroupingId: null,
             groupingSearchTerm: "",
             isLoading: true,
+            localDevices: [],
+            cloudDevices: [],
         };
 
         this.stateUpdateWs = null;
         this.isMounted = true;
         this.loadGroupings();
         this.connectStateUpdateWebSocket();
+        this.subscribeToLocalDiscovery();
     }
 
     componentWillUnmount() {
@@ -64,6 +68,12 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         if (this.stateUpdateWs) {
             this.stateUpdateWs.close();
             this.stateUpdateWs = null;
+        }
+        const bridge = window.tinkerforge_discovery;
+        if (bridge) {
+            bridge.stopDiscovery();
+            window.onWarpChargersChanged = undefined;
+            window.onWarpDiscoveryStopped = undefined;
         }
     }
 
@@ -83,12 +93,10 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     const message = JSON.parse(event.data);
                     // Handle state_change message with full charger list
                     if (message.type === 'state_change' && Array.isArray(message.chargers)) {
-                        console.log('Charger-List state changed, updating list');
                         this.processChargers(message.chargers as Device[]);
                     }
                     // Handle initial charger list (array without type wrapper)
                     else if (Array.isArray(message)) {
-                        console.log('Received initial charger list');
                         this.processChargers(message as Device[]);
                     }
                 } catch (e) {
@@ -104,7 +112,6 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
 
             this.stateUpdateWs.onclose = () => {
                 if (this.isMounted) {
-                    console.log('State update WebSocket closed, reconnecting in 5s...');
                     setTimeout(() => this.connectStateUpdateWebSocket(), 5000);
                 }
             };
@@ -128,7 +135,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             }
             const state_charger: StateDevice = {
                 id: device.id,
-                uid: device.uid,
+                uid: Number(device.uid),
                 name,
                 note,
                 status: device.status,
@@ -139,8 +146,88 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             };
             stateDevices.push(state_charger);
         }
-        this.setSortedDevices(stateDevices);
+        this.setState({ cloudDevices: stateDevices }, () => {
+            // Merge the freshly-received devices with the current local devices
+            this.setSortedDevices(this.mergeDevices(stateDevices, this.state.localDevices));
+        });
         this.setState({ isLoading: false });
+    }
+
+    subscribeToLocalDiscovery() {
+        const bridge = window.tinkerforge_discovery;
+        if (!bridge) {
+            return;
+        }
+
+        window.onWarpChargersChanged = (updated: DiscoveredDevices[]) => {
+            const newLocal = this.convertDiscoveredToState(updated);
+            this.setState({ localDevices: newLocal }, () => {
+                this.setSortedDevices(this.mergeDevices(this.state.cloudDevices, newLocal));
+            });
+        };
+
+        window.onWarpDiscoveryStopped = () => {
+            // Keep the last known list of discovered devices. The next discovery
+            // session will push a fresh list via `onWarpChargersChanged`.
+        };
+
+        bridge.startDiscovery();
+    }
+
+    convertDiscoveredToState(discovered: DiscoveredDevices[]): StateDevice[] {
+        return discovered.map(d => ({
+            // An empty id marks a local device.
+            id: "",
+            uid: Number(d.uid),
+            name: d.displayName || d.serviceName || d.host,
+            note: "",
+            status: "Connected",
+            port: d.port,
+            valid: true,
+            last_state_change: null,
+            firmware_version: d.firmwareVersion || "",
+            host: d.host,
+        }));
+    }
+
+    deviceMatches(cloud: StateDevice, local: StateDevice): boolean {
+        if (cloud.uid && local.uid) {
+            return cloud.uid === local.uid;
+        }
+        return false;
+    }
+
+    mergeDevices(cloud: StateDevice[], local: StateDevice[]): StateDevice[] {
+        const consumed = new Set<string>();
+        const merged: StateDevice[] = [];
+
+        for (const c of cloud) {
+            const match = local.find(l => {
+                return !consumed.has(l.host as string) && this.deviceMatches(c, l)
+            });
+            if (match) {
+                consumed.add(match.host as string);
+                // Remote data wins for most shared fields, but the local entry
+                // is the freshest source of LAN-side reachability
+                merged.push({ ...c, host: match.host, port: match.port });
+            } else {
+                // Strip the stale `host` carried over from a previous merge so
+                // a cloud device that lost its local match no longer looks
+                // reachable on the LAN. The `delete` form keeps the rest of
+                // the device object intact.
+                const rest: StateDevice = { ...c };
+                delete rest.host;
+                merged.push(rest);
+            }
+        }
+
+        for (const l of local) {
+            if (!consumed.has(l.host as string)) {
+                merged.push(l);
+            }
+        }
+
+        return merged;
     }
 
     decryptNote(note?: string | null) {
@@ -211,6 +298,14 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
     }
 
     async connect_to_charger(device: StateDevice, route: (path: string, replace?: boolean) => void) {
+        // in case the device is locally reachable connect over the local network
+        if (device.host) {
+            const bridge = window.tinkerforge_discovery;
+            if (bridge) {
+                bridge.navigateToCharger(device.host);
+            }
+            return;
+        }
         route(`/devices/${device.id}`);
     }
 
@@ -308,6 +403,9 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
     }
 
     connection_possible(device: StateDevice) {
+        if (device.host) {
+            return true;
+        }
         let connection_possible = true;
         if (device.status !== "Connected" || device.valid === false) {
             connection_possible = false;
@@ -415,11 +513,12 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         this.setState({ showDeleteModal: true });
     }
 
-    handleEditNote = (device: StateDevice, index: number) => {
+    handleEditNote = (device: StateDevice) => {
+        const editChargerIdx = this.state.devices.findIndex(d => d.id === device.id);
         this.setState({
             showEditNoteModal: true,
             editNote: device.note,
-            editChargerIdx: index
+            editChargerIdx
         });
     }
 
@@ -497,7 +596,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             return (
                 <>
                     <Container fluid className="mt-3">
-                        <LocalDevices />
+                        <Provisioning />
                     </Container>
                     <Container fluid className="text-center mt-5">
                         <div className="text-muted">
@@ -542,7 +641,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                 />
 
                 <Container fluid className="mt-3">
-                    <LocalDevices />
+                    <Provisioning />
                 </Container>
 
                 <Container fluid>

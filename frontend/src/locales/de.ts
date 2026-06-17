@@ -72,7 +72,7 @@ export const de ={
         "loading": "Lädt...",
         "charger_name": "Name",
         "charger_id": "Geräte-ID",
-        "mobile_charger_id": "ID",
+        "mobile_charger_id": "UID",
         "status": "Status",
         "status_connected": "Verbunden",
         "status_disconnected": "Getrennt",
@@ -117,6 +117,7 @@ export const de ={
         "search_devices_placeholder": "Suche nach Name, ID, Notiz oder Status...",
         "clear_search": "Suche löschen",
         "no_devices_found": "Keine Geräte gefunden, die deiner Suche entsprechen.",
+        "local": "Lokal",
         "manage_groupings": "Gruppen verwalten",
         "groupings": "Gruppen",
         "create_grouping": "Gruppe erstellen",
@@ -267,12 +268,8 @@ export const de ={
         "text": "Hol dir die App",
         "view": "Ansehen"
     },
-    "local_devices": {
-        "title": "Lokale Geräte",
-        "searching": "Suche nach lokalen Geräten...",
-        "none_found": "Keine lokalen Geräte im Netzwerk gefunden.",
-        "retry": "Erneut suchen",
-        "firmware_version": "Firmware",
+    "provisioning": {
+        "title": "Gerät einrichten",
         "provisioning_hint": "Ein neues Gerät? Scanne den QR-Code, um es deinem Konto hinzuzufügen.",
         "provisioning_button": "Per QR-Code hinzufügen"
     }

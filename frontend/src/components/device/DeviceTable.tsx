@@ -11,7 +11,7 @@ interface DeviceTableProps {
     onSort: (column: SortColumn) => void;
     onConnect: (device: StateDevice) => Promise<void>;
     onDelete: (device: StateDevice) => void;
-    onEditNote: (device: StateDevice, index: number) => void;
+    onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;
     formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
     groupings: Grouping[];
@@ -108,11 +108,12 @@ export function DeviceTable({
                     </tr>
                 </thead>
                 <tbody>
-                    {devices.map((device, index) => (
+                    {devices.map((device) => (
                         <DeviceTableRow
-                            key={device.id}
+                            // Standalone local devices share the empty id, so
+                            // key them by their (unique) LAN host instead.
+                            key={device.id === "" ? (device.host ?? "") : device.id}
                             device={device}
-                            index={index}
                             onConnect={onConnect}
                             onDelete={onDelete}
                             onEditNote={onEditNote}
