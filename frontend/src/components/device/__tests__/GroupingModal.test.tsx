@@ -154,6 +154,63 @@ describe('GroupingModal', () => {
     });
   });
 
+  it('hides standalone local devices from the picker when creating a group', async () => {
+    const standaloneLocal: StateDevice = {
+      id: '',
+      uid: 99999,
+      name: 'Local Only Device',
+      status: 'Connected',
+      note: '',
+      port: 8083,
+      valid: true,
+      last_state_change: null,
+      firmware_version: '1.0.0',
+      host: 'warp.local',
+    };
+
+    render(<GroupingModal {...defaultProps} devices={[...mockDevices, standaloneLocal]} />);
+
+    const createButton = screen.getByRole('button', { name: /create/i });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      // Cloud-paired devices remain selectable...
+      expect(screen.getByText('Test Device 1')).toBeInTheDocument();
+      // ...while the LAN-only device (empty id) is filtered out.
+      expect(screen.queryByText('Local Only Device')).not.toBeInTheDocument();
+    });
+  });
+
+  it('hides standalone local devices from the picker when editing a group', async () => {
+    const standaloneLocal: StateDevice = {
+      id: '',
+      uid: 99999,
+      name: 'Local Only Device',
+      status: 'Connected',
+      note: '',
+      port: 8083,
+      valid: true,
+      last_state_change: null,
+      firmware_version: '1.0.0',
+      host: 'warp.local',
+    };
+
+    const { container } = render(
+      <GroupingModal {...defaultProps} devices={[...mockDevices, standaloneLocal]} />,
+    );
+
+    // The react-feather icons render as <span> test stubs in this environment,
+    // so the only reliable way to target the edit button is its outline-primary
+    // variant class.
+    const editButton = container.querySelector('.btn-outline-primary') as HTMLElement;
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Test Group 1')).toBeInTheDocument();
+      expect(screen.queryByText('Local Only Device')).not.toBeInTheDocument();
+    });
+  });
+
   it('allows selecting devices when creating a grouping', async () => {
     render(<GroupingModal {...defaultProps} />);
 

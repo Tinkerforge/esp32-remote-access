@@ -202,12 +202,17 @@ export function GroupingModal({
     };
 
     const filterDevices = (devices: StateDevice[]): StateDevice[] => {
+        // Groupings live in the cloud, so standalone local devices (empty id,
+        // discovered on the LAN but not paired with this account) cannot be
+        // referenced and are hidden from the picker.
+        const pairableDevices = devices.filter(device => device.id !== "");
+
         if (!deviceSearchQuery.trim()) {
-            return devices;
+            return pairableDevices;
         }
 
         const query = deviceSearchQuery.toLowerCase();
-        return devices.filter(device => {
+        return pairableDevices.filter(device => {
             const name = device.name.toLowerCase();
             const uid = Base58.int_to_base58(device.uid).toLowerCase();
             return name.includes(query) || uid.includes(query);
