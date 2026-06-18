@@ -59,11 +59,13 @@ const mockGroupings: Grouping[] = [
     id: 'group1',
     name: 'Test Group 1',
     device_ids: ['device1', 'device2'],
+    is_default: false,
   },
   {
     id: 'group2',
     name: 'Test Group 2',
     device_ids: ['device3'],
+    is_default: false,
   },
 ];
 
@@ -252,7 +254,7 @@ describe('GroupingModal', () => {
     const nameInput = screen.getByPlaceholderText('grouping_name_placeholder');
     fireEvent.change(nameInput, { target: { value: 'New Group' } });
 
-    const checkboxes = screen.getAllByRole('checkbox');
+    const checkboxes = screen.getAllByTestId('checkbox');
     fireEvent.click(checkboxes[0]);
 
     const saveButton = screen.getByRole('button', { name: 'save' });
@@ -479,5 +481,134 @@ describe('GroupingModal', () => {
     });
 
     window.confirm = originalConfirm;
+  });
+
+  it('shows the default badge and checks the per-row checkbox for the default grouping', () => {
+    const groupings: Grouping[] = [
+      { id: 'group1', name: 'Test Group 1', device_ids: ['device1'], is_default: false },
+      { id: 'group2', name: 'Test Group 2', device_ids: ['device3'], is_default: true },
+    ];
+
+    render(<GroupingModal {...defaultProps} groupings={groupings} />);
+
+    // The "Default" badge should be rendered for group2 only.
+    expect(screen.getByText('default_grouping')).toBeInTheDocument();
+
+    // The list-view "Set as default" checkbox for group2 should be checked,
+    // and the one for group1 should not.
+    const group1Checkbox = document.getElementById('set-default-group1') as HTMLInputElement;
+    const group2Checkbox = document.getElementById('set-default-group2') as HTMLInputElement;
+    expect(group1Checkbox).toBeTruthy();
+    expect(group2Checkbox).toBeTruthy();
+    expect(group1Checkbox.checked).toBe(false);
+    expect(group2Checkbox.checked).toBe(true);
+  });
+
+  it('toggles the persisted default when the per-row checkbox is clicked', async () => {
+    const mockPut = vi.mocked(fetchClient.PUT);
+    mockPut.mockResolvedValue({
+      data: { id: 'group1', name: 'Test Group 1', is_default: true } as never,
+      response: { status: 200 } as Response,
+      error: undefined,
+    });
+
+    const mockLoadGroupings = vi.fn().mockResolvedValue(undefined);
+
+    render(<GroupingModal {...defaultProps} loadGroupings={mockLoadGroupings} />);
+
+    const group1Checkbox = document.getElementById('set-default-group1') as HTMLInputElement;
+    fireEvent.click(group1Checkbox);
+
+    await waitFor(() => {
+      // Since the current value is false, the toggle sends is_default: true.
+      expect(mockPut).toHaveBeenCalledWith('/grouping/edit', expect.objectContaining({
+        body: expect.objectContaining({ grouping_id: 'group1', is_default: true }),
+      }));
+      expect(mockLoadGroupings).toHaveBeenCalled();
+    });
+  });
+
+  it('passes is_default on the edit PUT body when the create form checkbox is toggled', async () => {
+    const mockPost = vi.mocked(fetchClient.POST);
+    mockPost.mockResolvedValue({
+      data: { id: 'new-group-id', is_default: true },
+      response: { status: 200 } as Response,
+      error: undefined,
+    });
+    mockPost.mockResolvedValue({
+      data: { id: 'new-group-id', is_default: true },
+      response: { status: 200 } as Response,
+      error: undefined,
+    });
+
+    const mockLoadGroupings = vi.fn().mockResolvedValue(undefined);
+
+    render(<GroupingModal {...defaultProps} loadGroupings={mockLoadGroupings} />);
+
+    // Open the create form.
+    const createButton = screen.getByRole('button', { name: /create/i });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('grouping_name_placeholder')).toBeInTheDocument();
+    });
+
+    // Fill the name.
+    const nameInput = screen.getByPlaceholderText('grouping_name_placeholder');
+    fireEvent.change(nameInput, { target: { value: 'New Default' } });
+
+    // Tick the "Set as default" checkbox in the create form.
+    const setAsDefaultCheckbox = document.getElementById('set-as-default') as HTMLInputElement;
+    fireEvent.click(setAsDefaultCheckbox);
+
+    // Save.
+    const saveButton = screen.getByRole('button', { name: 'save' });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      // The create POST body should include is_default: true.
+      expect(mockPost).toHaveBeenCalledWith('/grouping/create', expect.objectContaining({
+        body: expect.objectContaining({ name: 'encrypted_New Default', is_default: true }),
+      }));
+    });
+  });
+
+  it('passes is_default on the edit PUT body when the edit form checkbox is toggled', async () => {
+    const mockPut = vi.mocked(fetchClient.PUT);
+    mockPut.mockResolvedValue({
+      data: { id: 'group1', name: 'Test Group 1', is_default: true } as never,
+      response: { status: 200 } as Response,
+      error: undefined,
+    });
+
+    const mockLoadGroupings = vi.fn().mockResolvedValue(undefined);
+
+    const { container } = render(<GroupingModal {...defaultProps} loadGroupings={mockLoadGroupings} />);
+
+    // Open the edit form for group1 (currently is_default: false). The
+    // outline-primary class is the only reliable way to target the edit
+    // button in this test environment because the icon library is stubbed
+    // as <span>, not <svg>.
+    const editButton = container.querySelector('.btn-outline-primary') as HTMLElement;
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Test Group 1')).toBeInTheDocument();
+    });
+
+    // Tick the "Set as default" checkbox.
+    const setAsDefaultCheckbox = document.getElementById('set-as-default') as HTMLInputElement;
+    expect(setAsDefaultCheckbox.checked).toBe(false);
+    fireEvent.click(setAsDefaultCheckbox);
+
+    // Save.
+    const saveButton = screen.getByRole('button', { name: 'save' });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockPut).toHaveBeenCalledWith('/grouping/edit', expect.objectContaining({
+        body: expect.objectContaining({ grouping_id: 'group1', is_default: true }),
+      }));
+    });
   });
 });

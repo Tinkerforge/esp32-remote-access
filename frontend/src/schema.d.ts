@@ -379,7 +379,6 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Edit the name of a device grouping */
         put: operations["edit_grouping"];
         post?: never;
         delete?: never;
@@ -699,9 +698,11 @@ export interface components {
         };
         CreateGroupingResponse: {
             id: string;
+            is_default: boolean;
             name: string;
         };
         CreateGroupingSchema: {
+            is_default?: boolean;
             name: string;
         };
         DeleteAuthorizationTokenSchema: {
@@ -718,11 +719,18 @@ export interface components {
         };
         EditGroupingResponse: {
             id: string;
+            is_default: boolean;
             name: string;
         };
         EditGroupingSchema: {
             grouping_id: string;
-            name: string;
+            /** @description New value for the default flag. Omit to leave it unchanged. */
+            is_default?: boolean | null;
+            /**
+             * @description New name for the grouping. Omit (or send the current name) when only
+             *     toggling the default flag.
+             */
+            name?: string | null;
         };
         GetAuthorizationTokensResponseSchema: {
             tokens: components["schemas"]["ResponseAuthorizationToken"][];
@@ -761,6 +769,7 @@ export interface components {
         GroupingInfo: {
             device_ids: string[];
             id: string;
+            is_default: boolean;
             name: string;
         };
         Keys: {
@@ -864,6 +873,7 @@ export interface components {
             charger_uuid: string;
             display_name: string;
             filename: string;
+            lang?: string | null;
             monthly_send: boolean;
             password: string;
             user_uuid: string;
@@ -1634,7 +1644,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Grouping name updated successfully */
+            /** @description Grouping updated successfully */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1643,7 +1653,7 @@ export interface operations {
                     "application/json": components["schemas"]["EditGroupingResponse"];
                 };
             };
-            /** @description Invalid grouping ID or grouping not found */
+            /** @description Invalid grouping ID, grouping not found, or no fields to update */
             400: {
                 headers: {
                     [name: string]: unknown;

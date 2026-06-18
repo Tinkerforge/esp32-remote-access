@@ -147,7 +147,11 @@ export const en = {
         "select_devices": "Select devices to add",
         "search_groupings": "Search",
         "save": "Save",
-        "cancel": "Cancel"
+        "cancel": "Cancel",
+        "set_as_default": "Set as default",
+        "default_grouping": "Default",
+        "set_as_default_replaces": "This will replace \"{{name}}\" as the default group.",
+        "set_default_failed": "Failed to set default group: {{error}}"
     },
     "navbar": {
         "home": "Home",

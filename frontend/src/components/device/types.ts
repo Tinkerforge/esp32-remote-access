@@ -45,6 +45,7 @@ export interface Grouping {
     id: string,
     name: string,
     device_ids: string[],
+    is_default: boolean,
 }
 
 export interface DeviceListState {

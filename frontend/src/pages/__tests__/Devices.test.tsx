@@ -339,7 +339,7 @@ describe('Devices.tsx - DeviceList', () => {
     ];
 
     const groupings = [
-      { id: 'group-1', name: 'Group1', device_ids: ['dev-1', 'dev-2'] },
+      { id: 'group-1', name: 'Group1', device_ids: ['dev-1', 'dev-2'], is_default: false },
     ];
 
     // Set up state with a grouping filter active

@@ -147,7 +147,11 @@ export const de ={
         "select_devices": "Geräte zum Hinzufügen auswählen",
         "search_groupings": "Suchen",
         "save": "Speichern",
-        "cancel": "Abbrechen"
+        "cancel": "Abbrechen",
+        "set_as_default": "Als Standard festlegen",
+        "default_grouping": "Standard",
+        "set_as_default_replaces": "Dies ersetzt \"{{name}}\" als Standardgruppe.",
+        "set_default_failed": "Standardgruppe konnte nicht gesetzt werden: {{error}}"
     },
     "navbar": {
         "home": "Home",

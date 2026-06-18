@@ -11,4 +11,5 @@ pub struct DeviceGrouping {
     pub id: uuid::Uuid,
     pub name: String,
     pub user_id: uuid::Uuid,
+    pub is_default: bool,
 }

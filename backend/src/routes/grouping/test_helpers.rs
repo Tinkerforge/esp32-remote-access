@@ -32,6 +32,7 @@ pub async fn create_test_grouping(access_token: &str, name: &str) -> CreateGroup
 
     let body = CreateGroupingSchema {
         name: name.to_string(),
+        is_default: false,
     };
 
     let cookie = Cookie::new("access_token", access_token);

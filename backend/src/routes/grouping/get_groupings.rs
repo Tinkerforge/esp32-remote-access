@@ -36,6 +36,7 @@ pub struct GroupingInfo {
     pub id: String,
     pub name: String,
     pub device_ids: Vec<String>,
+    pub is_default: bool,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -95,6 +96,7 @@ pub async fn get_groupings(
                     .iter()
                     .map(|m| m.charger_id.to_string())
                     .collect(),
+                is_default: grouping.is_default,
             });
         }
 

@@ -20,11 +20,13 @@ const mockGroupings: Grouping[] = [
     id: 'group1',
     name: 'Test Group',
     device_ids: ['1'],
+    is_default: false,
   },
   {
     id: 'group2',
     name: 'Another Group',
     device_ids: ['1', '2'],
+    is_default: false,
   },
 ];
 
@@ -179,9 +181,9 @@ describe('DeviceTableRow', () => {
 
   it('renders multiple grouping badges', () => {
     const manyGroupings: Grouping[] = [
-      { id: 'g1', name: 'Group 1', device_ids: ['1'] },
-      { id: 'g2', name: 'Group 2', device_ids: ['1'] },
-      { id: 'g3', name: 'Group 3', device_ids: ['1'] },
+      { id: 'g1', name: 'Group 1', device_ids: ['1'], is_default: false },
+      { id: 'g2', name: 'Group 2', device_ids: ['1'], is_default: false },
+      { id: 'g3', name: 'Group 3', device_ids: ['1'], is_default: false },
     ];
 
     render(<table><tbody><DeviceTableRow {...defaultProps} groupings={manyGroupings} /></tbody></table>);

@@ -355,7 +355,21 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                 };
             }));
 
-            this.setState({ groupings: decryptedGroupings });
+            // Apply the default grouping (if any) as the active filter so the
+            // user lands on a pre-filtered view on initial load and after
+            // grouping changes made via the GroupingModal.
+            const defaultGrouping = decryptedGroupings.find(g => g.is_default);
+            const defaultGroupingId = defaultGrouping ? defaultGrouping.id : null;
+
+            this.setState({
+                groupings: decryptedGroupings,
+                selectedGroupingId: defaultGroupingId,
+            }, () => {
+                // `setSortedDevices` (called by `processChargers`) re-runs
+                // `applyFilters` once devices arrive, but devices may already
+                // be present at this point, so run the filter eagerly.
+                this.applyFilters();
+            });
         } catch (error) {
             console.error("Failed to load groupings:", error);
         }

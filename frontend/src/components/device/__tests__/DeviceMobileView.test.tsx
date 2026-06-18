@@ -33,6 +33,7 @@ const mockGroupings: Grouping[] = [
     id: 'group1',
     name: 'Test Group',
     device_ids: ['1'],
+    is_default: false,
   },
 ];
 
