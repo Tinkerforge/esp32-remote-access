@@ -131,6 +131,7 @@ export const en = {
         "add_devices_to_grouping": "Add Devices to Group",
         "remove_device_from_grouping": "Remove from Group",
         "no_groupings": "No groups created yet",
+        "no_groupings_found": "No groups found matching your search.",
         "create_grouping_success": "Group created successfully",
         "update_grouping_success": "Group updated successfully",
         "delete_grouping_success": "Group deleted successfully",

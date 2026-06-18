@@ -131,6 +131,7 @@ export const de ={
         "add_devices_to_grouping": "Geräte zur Gruppe hinzufügen",
         "remove_device_from_grouping": "Aus Gruppe entfernen",
         "no_groupings": "Noch keine Gruppen erstellt",
+        "no_groupings_found": "Keine Gruppen gefunden, die deiner Suche entsprechen.",
         "create_grouping_success": "Gruppe erfolgreich erstellt",
         "update_grouping_success": "Gruppe erfolgreich aktualisiert",
         "delete_grouping_success": "Gruppe erfolgreich gelöscht",

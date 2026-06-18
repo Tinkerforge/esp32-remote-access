@@ -30,6 +30,7 @@ export function GroupingModal({
     const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set());
     const [isCreating, setIsCreating] = useState(false);
     const [deviceSearchQuery, setDeviceSearchQuery] = useState("");
+    const [groupingSearchQuery, setGroupingSearchQuery] = useState("");
     const [setAsDefault, setSetAsDefault] = useState(false);
     const [isDefaultChangePending, setIsDefaultChangePending] = useState(false);
 
@@ -40,6 +41,7 @@ export function GroupingModal({
             setSelectedDevices(new Set());
             setIsCreating(false);
             setDeviceSearchQuery("");
+            setGroupingSearchQuery("");
             setSetAsDefault(false);
         }
     }, [show]);
@@ -50,6 +52,7 @@ export function GroupingModal({
         setGroupingName("");
         setSelectedDevices(new Set());
         setDeviceSearchQuery("");
+        setGroupingSearchQuery("");
         setSetAsDefault(false);
     };
 
@@ -59,6 +62,7 @@ export function GroupingModal({
         setSelectedDevices(new Set(grouping.device_ids));
         setIsCreating(false);
         setDeviceSearchQuery("");
+        setGroupingSearchQuery("");
         setSetAsDefault(grouping.is_default);
     };
 
@@ -68,6 +72,7 @@ export function GroupingModal({
         setSelectedDevices(new Set());
         setIsCreating(false);
         setDeviceSearchQuery("");
+        setGroupingSearchQuery("");
         setSetAsDefault(false);
     };
 
@@ -272,7 +277,26 @@ export function GroupingModal({
         });
     };
 
-    const renderGroupingList = () => (
+    // Always presents groupings in a stable alphabetical order
+    const sortAndFilterGroupings = (items: Grouping[]): Grouping[] => {
+        const sorted = [...items].sort((a, b) =>
+            a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+        );
+
+        if (!groupingSearchQuery.trim()) {
+            return sorted;
+        }
+
+        const query = groupingSearchQuery.toLowerCase();
+        return sorted.filter(g => g.name.toLowerCase().includes(query));
+    };
+
+    const renderGroupingList = () => {
+        const visibleGroupings = sortAndFilterGroupings(groupings);
+        const hasGroupings = groupings.length > 0;
+        const showNoResults = hasGroupings && visibleGroupings.length === 0;
+
+        return (
         <>
             <Modal.Header closeButton>
                 <Modal.Title>{t("manage_groupings")}</Modal.Title>
@@ -286,11 +310,28 @@ export function GroupingModal({
                     </Button>
                 </div>
 
-                {groupings.length === 0 ? (
+                {hasGroupings && (
+                    <InputGroup className="mb-3">
+                        <InputGroup.Text>
+                            <Search size={16} />
+                        </InputGroup.Text>
+                        <Form.Control
+                            type="search"
+                            placeholder={t("search_groupings")}
+                            value={groupingSearchQuery}
+                            onChange={(e) => setGroupingSearchQuery((e.target as HTMLInputElement).value)}
+                            aria-label={t("search_groupings")}
+                        />
+                    </InputGroup>
+                )}
+
+                {!hasGroupings ? (
                     <p className="text-muted text-center">{t("no_groupings")}</p>
+                ) : showNoResults ? (
+                    <p className="text-muted text-center">{t("no_groupings_found")}</p>
                 ) : (
                     <ListGroup>
-                        {groupings.map(grouping => (
+                        {visibleGroupings.map(grouping => (
                             <ListGroup.Item key={grouping.id}>
                                 <Row className="align-items-center">
                                     <Col>
@@ -342,7 +383,8 @@ export function GroupingModal({
                 </Button>
             </Modal.Footer>
         </>
-    );
+        );
+    };
 
     const renderEditForm = () => (
         <>
