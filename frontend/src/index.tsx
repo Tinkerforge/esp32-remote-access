@@ -48,7 +48,7 @@ import { AndroidSmartBanner } from './components/AndroidAppBanner';
 import "./styles/main.scss";
 import { docs } from "links";
 import { useEffect, useState } from "preact/hooks";
-import { Provisioning } from "./components/Provisioning";
+import { LocalDevices } from "./components/LocalDevices";
 
 if (isDebugMode.value) {
     addEventListener("unhandledrejection", (event) => {
@@ -238,7 +238,7 @@ export function App() {
                 </Row>
                 <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3 overflow-auto">
                     <div class="p-3">
-                        <Provisioning/>
+                        <LocalDevices/>
                     </div>
                     <Card className="p-3 col-10 col-lg-5 col-xl-3">
                         <Trans i18nKey="description"><a target="__blank" href={docs} >link</a></Trans>

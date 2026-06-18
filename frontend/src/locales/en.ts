@@ -281,5 +281,12 @@ export const en = {
         "title": "Provision device",
         "provisioning_hint": "Have a new device? Scan its QR code to add it to your account.",
         "provisioning_button": "Add via QR code"
+    },
+    "local_devices": {
+        "title": "Local network",
+        "searching": "Searching for devices on the local network...",
+        "none_found": "No devices found on the local network.",
+        "connect": "Connect",
+        "firmware": "Firmware"
     }
 };

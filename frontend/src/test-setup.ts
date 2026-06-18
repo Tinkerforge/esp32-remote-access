@@ -392,6 +392,8 @@ vi.mock('react-feather', () => ({
   Server: () => h('span', { 'data-testid': 'server-icon' }),
   User: () => h('span', { 'data-testid': 'user-icon' }),
   Search: () => h('span', { 'data-testid': 'search-icon' }),
+  Camera: () => h('span', { 'data-testid': 'camera-icon' }),
+  ChevronRight: () => h('span', { 'data-testid': 'chevron-right' }),
   X: () => h('span', { 'data-testid': 'x-icon', style: { cursor: 'pointer' } }),
 }));
 

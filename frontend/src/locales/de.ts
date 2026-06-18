@@ -274,5 +274,12 @@ export const de ={
         "title": "Gerät einrichten",
         "provisioning_hint": "Ein neues Gerät? Scanne den QR-Code, um es deinem Konto hinzuzufügen.",
         "provisioning_button": "Per QR-Code hinzufügen"
+    },
+    "local_devices": {
+        "title": "Lokales Netzwerk",
+        "searching": "Suche nach Geräten im lokalen Netzwerk...",
+        "none_found": "Keine Geräte im lokalen Netzwerk gefunden.",
+        "connect": "Verbinden",
+        "firmware": "Firmware"
     }
 };
