@@ -132,10 +132,12 @@ mod tests {
 
     #[actix_web::test]
     async fn test_create_grouping_as_default_clears_existing_default() {
-        use actix_web::{cookie::Cookie, test, App};
+        use crate::routes::grouping::create_grouping::{
+            CreateGroupingResponse, CreateGroupingSchema,
+        };
         use crate::routes::grouping::edit_grouping::EditGroupingSchema;
-        use crate::routes::grouping::create_grouping::{CreateGroupingResponse, CreateGroupingSchema};
         use crate::tests::configure as test_configure;
+        use actix_web::{cookie::Cookie, test, App};
 
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await;
@@ -144,7 +146,9 @@ mod tests {
         let first = create_test_grouping(token, "First").await;
         let first_id = first.id.clone();
 
-        let app = App::new().configure(test_configure).configure(super::super::configure);
+        let app = App::new()
+            .configure(test_configure)
+            .configure(super::super::configure);
         let app = test::init_service(app).await;
 
         let promote = EditGroupingSchema {

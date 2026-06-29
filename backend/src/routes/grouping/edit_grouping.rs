@@ -109,15 +109,22 @@ pub async fn edit_grouping(
         // be present thanks to the early return above, but handling both
         // keeps the path open for callers that want to update both at once.
         let result = match (new_name.as_ref(), new_is_default) {
-            (Some(name), Some(is_default)) => diesel::update(groupings::device_groupings.find(grouping_uuid))
-                .set((groupings::name.eq(name), groupings::is_default.eq(is_default)))
-                .get_result::<DeviceGrouping>(&mut conn),
+            (Some(name), Some(is_default)) => {
+                diesel::update(groupings::device_groupings.find(grouping_uuid))
+                    .set((
+                        groupings::name.eq(name),
+                        groupings::is_default.eq(is_default),
+                    ))
+                    .get_result::<DeviceGrouping>(&mut conn)
+            }
             (Some(name), None) => diesel::update(groupings::device_groupings.find(grouping_uuid))
                 .set(groupings::name.eq(name))
                 .get_result::<DeviceGrouping>(&mut conn),
-            (None, Some(is_default)) => diesel::update(groupings::device_groupings.find(grouping_uuid))
-                .set(groupings::is_default.eq(is_default))
-                .get_result::<DeviceGrouping>(&mut conn),
+            (None, Some(is_default)) => {
+                diesel::update(groupings::device_groupings.find(grouping_uuid))
+                    .set(groupings::is_default.eq(is_default))
+                    .get_result::<DeviceGrouping>(&mut conn)
+            }
             (None, None) => return Err(Error::InvalidPayload),
         };
 
