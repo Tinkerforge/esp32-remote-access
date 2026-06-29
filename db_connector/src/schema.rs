@@ -58,7 +58,6 @@ diesel::table! {
         id -> Uuid,
         name -> Varchar,
         user_id -> Uuid,
-        #[sql_name = "default"]
         is_default -> Bool,
     }
 }
