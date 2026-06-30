@@ -98,11 +98,12 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     // Handle initial charger list (array without type wrapper)
                     else if (Array.isArray(message)) {
                         this.processChargers(message as Device[]);
+                    } else {
+                        console.warn('Ignoring unknown state update payload:', message);
                     }
                 } catch (e) {
                     console.error('Failed to parse state update message:', e);
                     showAlert(i18n.t("chargers.websocket_parse_error"), "danger");
-                    this.processChargers([]);
                 }
             };
 
@@ -146,11 +147,9 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             };
             stateDevices.push(state_charger);
         }
-        this.setState({ cloudDevices: stateDevices }, () => {
-            // Merge the freshly-received devices with the current local devices
-            this.setSortedDevices(this.mergeDevices(stateDevices, this.state.localDevices));
-        });
-        this.setState({ isLoading: false });
+        const merged = this.mergeDevices(stateDevices, this.state.localDevices);
+        this.setSortedDevices(merged);
+        this.setState({ cloudDevices: stateDevices, isLoading: false });
     }
 
     subscribeToLocalDiscovery() {

@@ -971,13 +971,119 @@ describe('Devices.tsx - DeviceList', () => {
         expect(localAnchorMatches).toHaveLength(1);
       });
 
-      // Tidy up the bridge so it does not leak into other tests.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).tinkerforge_discovery;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).onWarpChargersChanged;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).onWarpDiscoveryStopped;
-    });
-  });
-});
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            delete (window as any).tinkerforge_discovery;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            delete (window as any).onWarpChargersChanged;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            delete (window as any).onWarpDiscoveryStopped;
+          });
+        });
+
+        describe('state_change WebSocket envelope', () => {
+          it('updates state.devices in the same tick as the state_change envelope', async () => {
+            (get_decrypted_secret as unknown as Mock).mockResolvedValue(undefined);
+            (Base64.toUint8Array as unknown as Mock).mockReturnValue(new Uint8Array([1, 2, 3]));
+            (sodium.crypto_box_seal_open as unknown as Mock).mockImplementation(() => new TextEncoder().encode('decoded'));
+
+            (fetchClient.GET as unknown as Mock).mockImplementation((url: string) => {
+              if (url === '/grouping/list') {
+                return Promise.resolve({
+                  data: { groupings: [] },
+                  error: undefined,
+                  response: { status: 200 },
+                });
+              }
+              return Promise.resolve({ data: undefined, error: 'not found', response: { status: 404 } });
+            });
+
+            const ref = createRef<DeviceList>();
+            // @ts-expect-error - ref is valid but types dont allow it
+            render(<DeviceList ref={ref} />);
+
+            await waitFor(() => {
+              const wsInstances = getMockWebSocketInstances();
+              expect(wsInstances.length).toBeGreaterThan(0);
+            });
+
+            const wsInstance = getMockWebSocketInstances()[0];
+            // Send the post-initial-list envelope that the backend uses for
+            // ongoing updates (`{type: 'state_change', chargers: [...]}`).
+            wsInstance.simulateMessage({
+              type: 'state_change',
+              chargers: [
+                {
+                  id: 'dev-state-change',
+                  uid: 42,
+                  name: 'b64name',
+                  note: 'b64note',
+                  status: 'Connected',
+                  port: 1,
+                  valid: true,
+                  last_state_change: null,
+                  firmware_version: '1.0.0',
+                },
+              ],
+            });
+
+            await waitFor(() => {
+              expect(getRef(ref).state.devices.map(d => d.id)).toContain('dev-state-change');
+              expect(getRef(ref).state.isLoading).toBe(false);
+              expect(getRef(ref).state.cloudDevices.map(d => d.id)).toContain('dev-state-change');
+            });
+          });
+
+          it('does not hide existing devices on a transient parse error', async () => {
+            (get_decrypted_secret as unknown as Mock).mockResolvedValue(undefined);
+            (Base64.toUint8Array as unknown as Mock).mockReturnValue(new Uint8Array([1, 2, 3]));
+            (sodium.crypto_box_seal_open as unknown as Mock).mockImplementation(() => new TextEncoder().encode('decoded'));
+
+            (fetchClient.GET as unknown as Mock).mockImplementation((url: string) => {
+              if (url === '/grouping/list') {
+                return Promise.resolve({
+                  data: { groupings: [] },
+                  error: undefined,
+                  response: { status: 200 },
+                });
+              }
+              return Promise.resolve({ data: undefined, error: 'not found', response: { status: 404 } });
+            });
+
+            const ref = createRef<DeviceList>();
+            // @ts-expect-error - ref is valid but types dont allow it
+            render(<DeviceList ref={ref} />);
+
+            await waitFor(() => {
+              const wsInstances = getMockWebSocketInstances();
+              expect(wsInstances.length).toBeGreaterThan(0);
+            });
+
+            const wsInstance = getMockWebSocketInstances()[0];
+            // First, a valid initial list so the page has devices to keep.
+            wsInstance.simulateMessage([
+              {
+                id: 'dev-persistent',
+                uid: 7,
+                name: 'b64name',
+                note: 'b64note',
+                status: 'Connected',
+                port: 1,
+                valid: true,
+                last_state_change: null,
+                firmware_version: '1.0.0',
+              },
+            ]);
+
+            await waitFor(() => {
+              expect(getRef(ref).state.devices.map(d => d.id)).toContain('dev-persistent');
+            });
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (wsInstance as any).onmessage?.(new MessageEvent('message', { data: '{not valid json' }));
+
+            await waitFor(() => {
+              expect(getRef(ref).state.devices.map(d => d.id)).toContain('dev-persistent');
+            });
+          });
+        });
+      });

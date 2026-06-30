@@ -59,5 +59,70 @@ export async function waitForPasswordChargerRegistration(page: Page) {
 }
 
 export async function waitForTokenChargerRegistration(page: Page) {
-  await expect(page.getByText('Registering')).toBeVisible({timeout: 30_000});
+    await expect(page.getByText('Registering')).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText('Registering')).toBeHidden({ timeout: 90_000 });
 }
+
+export async function ensureChargerConnected(page: Page, email: string, password: string): Promise<void> {
+  if (!testWallboxUID) {
+    throw new Error('TEST_WALLBOX_UID environment variable is not set');
+  }
+  if (!testWallboxDomain) {
+    throw new Error('TEST_WALLBOX_DOMAIN environment variable is not set');
+  }
+
+  await login(page, email, password);
+
+  // Already connected — nothing to do.
+  const chargerVisible = await page.locator('tbody').getByText(testWallboxUID).count() > 0;
+  if (chargerVisible) {
+    return;
+  }
+
+  // Create an auth token on the account.
+  await page.getByRole('link', { name: 'Token' }).click();
+  await page.getByRole('textbox', { name: 'Name' }).fill('Test');
+  await page.getByRole('button', { name: 'Create token' }).click();
+  const token = await page.getByRole('textbox').nth(1).inputValue();
+
+  // Register the wallbox using the token.
+  await page.goto(testWallboxDomain);
+  await page.getByRole('button', { name: 'System' }).click();
+  await page.getByRole('button', { name: 'Event Log' }).click();
+  await expect(page.getByPlaceholder('Loading event log...')).toContainText("Connecting to Management WireGuard peer");
+  await page.getByRole('button', { name: 'Remote Access' }).click();
+  await page.getByRole('row', { name: 'of 5 accounts configured' }).getByRole('button').click();
+  await page.getByLabel('Authorization method').selectOption('token');
+  await page.getByLabel('Authorization token').fill(token);
+  await page.getByRole('button', { name: 'Add' }).click();
+  await waitForTokenChargerRegistration(page);
+
+  // Verify the wallbox shows up under the account and is online.
+    await page.goto(testDomain);
+    await expect(page.locator('tbody')).toContainText(testWallboxUID);
+    await expect(page.locator('.bg-success').first()).toBeVisible({timeout: 100_000});
+  }
+
+  export async function ensureChargerDisconnected(page: Page, email: string): Promise<void> {
+    if (!testWallboxDomain || !email) {
+      // Nothing to clean up if required env vars are missing.
+      return;
+    }
+
+    await page.goto(testWallboxDomain + '/#status');
+    await page.getByRole('button', { name: 'System' }).click();
+    await page.getByRole('button', { name: 'Remote Access' }).click();
+
+    // If the user row isn't there, the wallbox is already disconnected.
+    const userRow = page.getByRole('row', { name: email });
+    if (await userRow.count() === 0) {
+      return;
+    }
+
+    // Click the action button (trash) for the user row, then save.
+    await userRow.getByRole('button').click();
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    // Give the wallbox a moment to apply the new configuration.
+    await page.waitForTimeout(6000);
+  }
