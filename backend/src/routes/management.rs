@@ -340,16 +340,6 @@ pub async fn management(
         });
     }
 
-    {
-        let mut map = bridge_state.charger_management_map.lock().await;
-        let mut id_map = bridge_state.charger_management_map_with_id.lock().await;
-        let sock = id_map.remove(&charger_id);
-        if let Some(socket) = sock {
-            let socket = socket.lock().await;
-            let _ = map.remove(&socket.get_remote_address());
-        }
-    }
-
     let addresses = {
         let mut map = bridge_state.charger_remote_conn_map.lock().await;
         let mut addresses = Vec::new();
@@ -1111,6 +1101,126 @@ mod tests {
         assert_eq!(
             vec![String::new(), String::new()],
             resp.configured_users_uuids
+        );
+    }
+
+    /// Regression test for the bug where `/devices` briefly shows a freshly
+    /// connected charger as `Disconnected`.
+    ///
+    /// Sequence under test:
+    ///   1. A charger establishes its WireGuard tunnel. The UDP server inserts
+    ///      an entry into `charger_management_map_with_id` and notifies clients
+    ///      (`status = Connected`).
+    ///   2. The charger immediately calls `PUT /management` to identify itself
+    ///      and register its configured users.
+    ///   3. The management handler used to remove the entry from
+    ///      `charger_management_map_with_id` before calling
+    ///      `update_charger_state_change`. The notification read the now-empty
+    ///      map and reported `status = Disconnected`, briefly flipping the
+    ///      `/devices` page to show the just-connected charger as offline.
+    ///
+    /// This test asserts that step 2 leaves the map entry intact so the
+    /// subsequent `fetch_chargers` keeps reporting `Connected`.
+    #[actix::test]
+    async fn test_management_keeps_active_tunnel_alive() {
+        use crate::{
+            routes::charger::get_devices::{fetch_chargers, ChargerStatus},
+            udp_server::socket::ManagementSocket,
+        };
+        use futures_util::lock::Mutex;
+        use std::sync::Arc;
+
+        let (mut user, mail) = TestUser::random().await;
+        user.login().await;
+        let charger = user.add_random_charger().await;
+
+        let charger_uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+        let user_id = get_test_uuid(&mail).unwrap();
+
+        // Build the app on top of our own bridge_state so we can inspect and
+        // populate it before the request runs.
+        let pool = db_connector::test_connection_pool();
+        let state = crate::tests::create_test_state(Some(pool.clone()));
+        let bridge_state = crate::tests::create_test_bridge_state(Some(pool.clone()));
+        let rate_limiter = web::Data::new(crate::rate_limit::ChargerRateLimiter::new());
+
+        // Simulate the WireGuard tunnel being established by inserting a
+        // ManagementSocket into the same map the UDP server uses.
+        let remote_addr: std::net::SocketAddr = "123.123.123.123:12345".parse().unwrap();
+        let mgmt_socket = ManagementSocket::new_for_test(charger_uuid, remote_addr).await;
+        let mgmt_socket = Arc::new(Mutex::new(mgmt_socket));
+        {
+            let mut id_map = bridge_state.charger_management_map_with_id.lock().await;
+            id_map.insert(charger_uuid, mgmt_socket.clone());
+        }
+        {
+            let mut addr_map = bridge_state.charger_management_map.lock().await;
+            addr_map.insert(remote_addr, mgmt_socket);
+        }
+
+        // Sanity check: before the management request the charger is Connected.
+        let before = fetch_chargers(&state, user_id, &bridge_state)
+            .await
+            .expect("fetch_chargers before");
+        assert_eq!(before.len(), 1);
+        assert!(
+            matches!(before[0].status, ChargerStatus::Connected),
+            "expected Connected before management call, got {:?}",
+            before[0].status,
+        );
+
+        // Build the management app sharing our bridge_state via app_data.
+        let app = App::new()
+            .app_data(state.clone())
+            .app_data(bridge_state.clone())
+            .app_data(rate_limiter.clone())
+            .service(management);
+        let app = test::init_service(app).await;
+
+        let data = ManagementDataVersion::V2(ManagementDataVersion2 {
+            id: charger.uuid.clone(),
+            password: charger.password.clone(),
+            port: 0,
+            firmware_version: "2.3.1".to_string(),
+            configured_users: vec![ConfiguredUser {
+                email: None,
+                user_id: Some(user_id.to_string()),
+                name: Some(String::new()),
+            }],
+            mtu: None,
+        });
+        let body = ManagementSchema {
+            id: None,
+            password: None,
+            data,
+        };
+        let req = test::TestRequest::put()
+            .uri("/management")
+            .append_header(("X-Forwarded-For", "123.123.123.123"))
+            .set_json(body)
+            .to_request();
+        let _resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
+
+        // The charger must still be reported as Connected after the
+        // management request; otherwise the `/devices` WebSocket would push a
+        // Disconnected notification that overrides the Connected one the UDP
+        // server just sent.
+        let after = fetch_chargers(&state, user_id, &bridge_state)
+            .await
+            .expect("fetch_chargers after");
+        assert_eq!(after.len(), 1);
+        assert!(
+            matches!(after[0].status, ChargerStatus::Connected),
+            "expected Connected after management call, got {:?}",
+            after[0].status,
+        );
+
+        // The map entry should also still be present so that
+        // `start_ws` (browser→charger tunnel setup) can find it.
+        let id_map = bridge_state.charger_management_map_with_id.lock().await;
+        assert!(
+            id_map.contains_key(&charger_uuid),
+            "management request must not remove the active tunnel entry",
         );
     }
 }

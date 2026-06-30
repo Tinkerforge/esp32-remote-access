@@ -120,6 +120,42 @@ impl<'a> ManagementSocket<'a> {
         self.device.reset();
     }
 
+    /// Construct a `ManagementSocket` suitable for unit/integration tests that
+    /// only need a populated entry in `charger_management_map_with_id`. The
+    /// underlying boringtun state is initialized with zeroed keys; the socket
+    /// is never expected to send or receive real traffic, so the lack of a
+    /// real handshake partner is irrelevant.
+    #[cfg(test)]
+    pub async fn new_for_test(charger_id: uuid::Uuid, remote_addr: SocketAddr) -> Self {
+        use boringtun::x25519::{PublicKey, StaticSecret};
+
+        let static_private = StaticSecret::from([0u8; 32]);
+        let peer_static_public = PublicKey::from([0u8; 32]);
+        let rate_limiter = Arc::new(RateLimiter::new(&peer_static_public, 10));
+        let tunn = Tunn::new(
+            static_private,
+            peer_static_public,
+            None,
+            Some(5),
+            0,
+            Some(rate_limiter.clone()),
+        );
+        let udp_socket = Arc::new(
+            UdpSocket::bind("0.0.0.0:0")
+                .await
+                .expect("failed to bind test UDP socket"),
+        );
+        Self::new(
+            Ipv4Addr::new(0, 0, 0, 0),
+            Ipv4Addr::new(0, 0, 0, 0),
+            remote_addr,
+            tunn,
+            rate_limiter,
+            udp_socket,
+            charger_id,
+        )
+    }
+
     pub fn poll(&mut self) {
         let now = smoltcp::time::Instant::now();
         self.iface.poll(now, &mut self.device, &mut self.sockets);

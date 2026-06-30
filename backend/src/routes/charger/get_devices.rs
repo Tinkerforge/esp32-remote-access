@@ -39,7 +39,7 @@ use crate::{
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(15);
 
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, PartialEq, Eq)]
 pub enum ChargerStatus {
     Disconnected = 0,
     Connected = 1,
@@ -47,15 +47,15 @@ pub enum ChargerStatus {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct GetChargerSchema {
-    id: String,
-    uid: i32,
-    name: String,
-    note: Option<String>,
-    status: ChargerStatus,
-    port: i32,
-    valid: bool,
-    last_state_change: Option<i64>,
-    firmware_version: String,
+    pub(crate) id: String,
+    pub(crate) uid: i32,
+    pub(crate) name: String,
+    pub(crate) note: Option<String>,
+    pub(crate) status: ChargerStatus,
+    pub(crate) port: i32,
+    pub(crate) valid: bool,
+    pub(crate) last_state_change: Option<i64>,
+    pub(crate) firmware_version: String,
 }
 
 #[derive(Serialize, Clone)]
