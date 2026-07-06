@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
-import { Badge, Button, Col, Form, InputGroup, ListGroup, Modal, Row } from "react-bootstrap";
+import { Badge, Button, Col, Collapse, Form, InputGroup, ListGroup, Modal, Row } from "react-bootstrap";
 import { Trash2, Plus, Edit2, Search } from "react-feather";
 import { showAlert } from "../Alert";
 import { fetchClient } from "../../utils";
@@ -33,6 +33,7 @@ export function GroupingModal({
     const [groupingSearchQuery, setGroupingSearchQuery] = useState("");
     const [setAsDefault, setSetAsDefault] = useState(false);
     const [isDefaultChangePending, setIsDefaultChangePending] = useState(false);
+    const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (!show) {
@@ -43,6 +44,7 @@ export function GroupingModal({
             setDeviceSearchQuery("");
             setGroupingSearchQuery("");
             setSetAsDefault(false);
+            setExpandedNotes(new Set());
         }
     }, [show]);
 
@@ -54,6 +56,7 @@ export function GroupingModal({
         setDeviceSearchQuery("");
         setGroupingSearchQuery("");
         setSetAsDefault(false);
+        setExpandedNotes(new Set());
     };
 
     const handleEdit = (grouping: Grouping) => {
@@ -64,6 +67,7 @@ export function GroupingModal({
         setDeviceSearchQuery("");
         setGroupingSearchQuery("");
         setSetAsDefault(grouping.is_default);
+        setExpandedNotes(new Set());
     };
 
     const handleCancel = () => {
@@ -74,6 +78,7 @@ export function GroupingModal({
         setDeviceSearchQuery("");
         setGroupingSearchQuery("");
         setSetAsDefault(false);
+        setExpandedNotes(new Set());
     };
 
     // Toggles the persisted default for an existing grouping. The backend
@@ -110,6 +115,16 @@ export function GroupingModal({
             newSelected.add(deviceId);
         }
         setSelectedDevices(newSelected);
+    };
+
+    const handleNoteToggle = (deviceId: string) => {
+        const newExpanded = new Set(expandedNotes);
+        if (newExpanded.has(deviceId)) {
+            newExpanded.delete(deviceId);
+        } else {
+            newExpanded.add(deviceId);
+        }
+        setExpandedNotes(newExpanded);
     };
 
     const handleSave = async (e: Event) => {
@@ -423,34 +438,82 @@ export function GroupingModal({
                                         />
                                     </InputGroup>
                                 </ListGroup.Item>
-                                {filterDevices(devices).map(device => (
-                                    <ListGroup.Item
-                                        key={device.id}
-                                        action
-                                        onClick={(e: Event) => {
-                                            e.preventDefault();
-                                            handleDeviceToggle(device.id);
-                                        }}
-                                        style={{ cursor: "pointer" }}
-                                    >
-                                        <Form.Check
-                                            type="checkbox"
-                                            checked={selectedDevices.has(device.id)}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
+                                {filterDevices(devices).map(device => {
+                                    const trimmedNote = device.note.trim();
+                                    const noteLines = trimmedNote ? trimmedNote.split("\n") : [];
+                                    const noteIsExpanded = expandedNotes.has(device.id);
+                                    const NOTE_PREVIEW_LINES = 2;
+                                    const noteIsCollapsible = noteLines.length > NOTE_PREVIEW_LINES;
+                                    return (
+                                        <ListGroup.Item
+                                            key={device.id}
+                                            action
+                                            onClick={(e: Event) => {
+                                                e.preventDefault();
                                                 handleDeviceToggle(device.id);
                                             }}
-                                            label={
-                                                <div style={{ cursor: "pointer" }}>
-                                                    <strong>{device.name}</strong>
-                                                    <span className="text-muted ms-2">
-                                                        ({Base58.int_to_base58(device.uid)})
-                                                    </span>
-                                                </div>
-                                            }
-                                        />
-                                    </ListGroup.Item>
-                                ))}
+                                            style={{ cursor: "pointer" }}
+                                        >
+                                            <Form.Check
+                                                type="checkbox"
+                                                checked={selectedDevices.has(device.id)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeviceToggle(device.id);
+                                                }}
+                                                label={
+                                                    <div style={{ cursor: "pointer" }}>
+                                                        <div>
+                                                            <strong>{device.name}</strong>
+                                                            <span className="text-muted ms-2">
+                                                                ({Base58.int_to_base58(device.uid)})
+                                                            </span>
+                                                        </div>
+                                                        {noteLines.length > 0 && (
+                                                            <div
+                                                                className="text-muted small mt-1"
+                                                                onClick={(e) => {
+                                                                    if (!noteIsCollapsible) {
+                                                                        return;
+                                                                    }
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    handleNoteToggle(device.id);
+                                                                }}
+                                                                style={{
+                                                                    whiteSpace: "pre-line",
+                                                                    cursor: noteIsCollapsible ? "pointer" : undefined
+                                                                }}
+                                                            >
+                                                                <div>
+                                                                    {noteIsCollapsible
+                                                                        ? noteLines.slice(0, NOTE_PREVIEW_LINES).join("\n")
+                                                                        : trimmedNote}
+                                                                    {noteIsCollapsible && !noteIsExpanded && noteLines.length > NOTE_PREVIEW_LINES ? "…" : ""}
+                                                                </div>
+                                                                {noteIsCollapsible && (
+                                                                    <Collapse in={noteIsExpanded}>
+                                                                        <div>
+                                                                            {noteLines.slice(NOTE_PREVIEW_LINES).join("\n")}
+                                                                        </div>
+                                                                    </Collapse>
+                                                                )}
+                                                                {noteIsCollapsible && (
+                                                                    <div
+                                                                        className="text-primary"
+                                                                        style={{ fontSize: "14px", textDecoration: "underline" }}
+                                                                    >
+                                                                        {noteIsExpanded ? t("show_less") : t("show_more")}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                }
+                                            />
+                                        </ListGroup.Item>
+                                    );
+                                })}
                             </ListGroup>
                         </Form.Group>
 

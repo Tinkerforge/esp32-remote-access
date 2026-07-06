@@ -611,4 +611,158 @@ describe('GroupingModal', () => {
       }));
     });
   });
+
+  it('displays device notes when creating a grouping', async () => {
+    render(<GroupingModal {...defaultProps} />);
+
+    const createButton = screen.getByRole('button', { name: /create/i });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Test note 1')).toBeInTheDocument();
+      expect(screen.getByText('Test note 2')).toBeInTheDocument();
+    });
+  });
+
+  it('displays device notes when editing a grouping', async () => {
+    const { container } = render(<GroupingModal {...defaultProps} />);
+
+    const editButton = container.querySelector('.btn-outline-primary') as HTMLElement;
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Test note 1')).toBeInTheDocument();
+      expect(screen.getByText('Test note 2')).toBeInTheDocument();
+    });
+  });
+
+  it('does not render a note section for devices with empty notes', async () => {
+    render(<GroupingModal {...defaultProps} />);
+
+    const createButton = screen.getByRole('button', { name: /create/i });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      // The empty-note device (device3) is still rendered by name, but its note
+      // is the empty string so nothing should be displayed as a note.
+      expect(screen.getByText('Another Device')).toBeInTheDocument();
+      // The other two devices show their non-empty notes.
+      expect(screen.getByText('Test note 1')).toBeInTheDocument();
+      expect(screen.getByText('Test note 2')).toBeInTheDocument();
+    });
+  });
+
+  it('collapses long notes behind a Show more toggle', async () => {
+    const longNoteDevice: StateDevice = {
+      id: 'device-long',
+      uid: 99999,
+      name: 'Long Note Device',
+      status: 'Connected',
+      note: 'Line 1\nLine 2\nLine 3\nLine 4',
+      port: 8083,
+      valid: true,
+      last_state_change: 1640995400,
+      firmware_version: '1.3.0',
+    };
+    render(<GroupingModal {...defaultProps} devices={[...mockDevices, longNoteDevice]} />);
+
+    const createButton = screen.getByRole('button', { name: /create/i });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      // The note's first lines render in the preview, with an ellipsis for the
+      // collapsed tail. The deep content is inside <Collapse>, which still
+      // mounts its children even when hidden.
+      expect(screen.getByText('Long Note Device')).toBeInTheDocument();
+      expect(screen.getByText('show_more')).toBeInTheDocument();
+      // The first preview line must be visible above the toggle.
+      expect(screen.getByText(/Line 1/)).toBeInTheDocument();
+    });
+  });
+
+  it('expands the full note when the Show more toggle is clicked', async () => {
+    const longNoteDevice: StateDevice = {
+      id: 'device-long-expand',
+      uid: 77777,
+      name: 'Expandable Note Device',
+      status: 'Connected',
+      note: 'Line 1\nLine 2\nLine 3\nLine 4',
+      port: 8085,
+      valid: true,
+      last_state_change: 1640995600,
+      firmware_version: '1.5.0',
+    };
+    const { container } = render(
+      <GroupingModal {...defaultProps} devices={[longNoteDevice]} />
+    );
+
+    const createButton = screen.getByRole('button', { name: /create/i });
+    fireEvent.click(createButton);
+
+    // Collapsed: preview shows the first two lines, the trailing lines are
+    // mounted but hidden, the ellipsis is appended, and show_more is shown.
+    await waitFor(() => {
+      expect(screen.getByText('show_more')).toBeInTheDocument();
+    });
+
+    const collapsedPreview = container.querySelector('.text-muted.small.mt-1') as HTMLElement;
+    expect(collapsedPreview).toBeTruthy();
+    expect(collapsedPreview.textContent).toContain('Line 1');
+    expect(collapsedPreview.textContent).toContain('Line 2');
+    expect(collapsedPreview.textContent).not.toContain('Line 3');
+    expect(collapsedPreview.textContent).not.toContain('Line 4');
+    expect(collapsedPreview.textContent).toContain('…');
+
+    // Click Show more to expand the note.
+    fireEvent.click(screen.getByText('show_more'));
+
+    // Expanded: all lines of the note are visible, the ellipsis is gone, and
+    // the toggle now reads show_less.
+    await waitFor(() => {
+      expect(screen.getByText('show_less')).toBeInTheDocument();
+    });
+
+    const expandedPreview = container.querySelector('.text-muted.small.mt-1') as HTMLElement;
+    expect(expandedPreview).toBeTruthy();
+    expect(expandedPreview.textContent).toContain('Line 1');
+    expect(expandedPreview.textContent).toContain('Line 2');
+    expect(expandedPreview.textContent).toContain('Line 3');
+    expect(expandedPreview.textContent).toContain('Line 4');
+    expect(expandedPreview.textContent).not.toContain('…');
+  });
+
+  it('clicking the note toggle does not toggle the device checkbox', async () => {
+    const longNoteDevice: StateDevice = {
+      id: 'device-long-2',
+      uid: 88888,
+      name: 'Long Note Device 2',
+      status: 'Connected',
+      note: 'Alpha\nBeta\nGamma\nDelta',
+      port: 8084,
+      valid: true,
+      last_state_change: 1640995500,
+      firmware_version: '1.4.0',
+    };
+    const { container } = render(
+      <GroupingModal {...defaultProps} devices={[longNoteDevice]} />
+    );
+
+    const createButton = screen.getByRole('button', { name: /create/i });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Long Note Device 2')).toBeInTheDocument();
+    });
+
+    // Find the checkbox; it should start unchecked.
+    const checkbox = container.querySelector('input[type="checkbox"]:not([id^="set-as-default"])') as HTMLInputElement;
+    expect(checkbox).toBeTruthy();
+    expect(checkbox.checked).toBe(false);
+
+    // Click the show_more toggle (the i18n key is rendered verbatim in tests).
+    fireEvent.click(screen.getByText('show_more'));
+
+    // The checkbox must not have flipped as a side effect of the note toggle.
+    expect(checkbox.checked).toBe(false);
+  });
 });
