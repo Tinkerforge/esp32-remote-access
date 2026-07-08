@@ -134,6 +134,11 @@ pub async fn recovery(
                 secret.eq(&data.new_encrypted_secret),
                 secret_nonce.eq(&data.new_secret_nonce),
                 secret_salt.eq(&data.new_secret_salt),
+                // The user proved control of the email address by clicking the
+                // link in the recovery email and submitting a new password.
+                // Verify the account so they can actually log in, even if they
+                // never completed the original email verification.
+                email_verified.eq(true),
             ))
             .execute(&mut conn)
         {
@@ -156,7 +161,7 @@ mod tests {
         App,
     };
     use db_connector::{
-        models::{allowed_users::AllowedUser, wg_keys::WgKey},
+        models::{allowed_users::AllowedUser, users::User, wg_keys::WgKey},
         test_connection_pool,
     };
     use diesel::prelude::*;
@@ -167,7 +172,10 @@ mod tests {
 
     use crate::{
         routes::{
-            auth::start_recovery::tests::start_test_recovery,
+            auth::{
+                register::tests::{create_user, delete_user},
+                start_recovery::tests::start_test_recovery,
+            },
             user::{
                 get_secret::tests::get_test_secret,
                 tests::{generate_random_bytes_len, get_test_uuid, hash_test_key, TestUser},
@@ -411,5 +419,95 @@ mod tests {
         let body = test::read_body(resp).await;
         let body_str = String::from_utf8(body.to_vec()).unwrap();
         assert!(body_str.contains("Recovery token unknown"));
+    }
+
+    #[actix_web::test]
+    async fn test_recovery_verifies_unverified_account() {
+        // A user that registered but never verified their email must end up
+        // verified after completing the password-recovery flow, so they can
+        // actually log in.
+        let mail = "recovery_verify@test.invalid";
+        let _login_key = create_user(mail).await;
+        crate::defer!(delete_user(mail));
+
+        {
+            use db_connector::schema::users::dsl::*;
+            use db_connector::test_connection_pool;
+            use diesel::prelude::*;
+
+            let pool = test_connection_pool();
+            let mut conn = pool.get().unwrap();
+            let u: User = users
+                .filter(email.eq(mail))
+                .select(User::as_select())
+                .get_result(&mut conn)
+                .unwrap();
+            assert!(!u.email_verified, "user should start out unverified");
+        }
+
+        let recovery_id = start_test_recovery(mail).await;
+
+        let new_secret = generate_random_bytes_len(crypto_box_SECRETKEYBYTES as usize);
+        let new_login_salt = generate_random_bytes_len(48);
+        let new_password = generate_random_bytes_len(48);
+        let new_login_key = hash_test_key(&new_password, &new_login_salt, None);
+        let new_secret_salt = generate_random_bytes_len(48);
+        let new_secret_nonce = generate_random_bytes_len(crypto_secretbox_NONCEBYTES as usize);
+        let secret_key = hash_test_key(
+            &new_password,
+            &new_secret_salt,
+            Some(crypto_secretbox_KEYBYTES as usize),
+        );
+        let mut new_encrypted_secret =
+            vec![0u8; (crypto_secretbox_MACBYTES + crypto_box_SECRETKEYBYTES) as usize];
+        unsafe {
+            if crypto_secretbox_easy(
+                new_encrypted_secret.as_mut_ptr(),
+                new_secret.as_ptr(),
+                new_secret.len() as u64,
+                new_secret_nonce.as_ptr(),
+                secret_key.as_ptr(),
+            ) != 0
+            {
+                panic!("Encrypting secret failed.");
+            }
+        }
+
+        let body = RecoverySchema {
+            recovery_key: recovery_id.to_string(),
+            new_login_key,
+            new_login_salt,
+            new_encrypted_secret,
+            new_secret_nonce,
+            new_secret_salt,
+            reused_secret: false,
+        };
+
+        let app = App::new().configure(configure).service(recovery);
+        let app = test::init_service(app).await;
+
+        let req = TestRequest::post()
+            .uri("/recovery")
+            .set_json(body)
+            .append_header(ContentType::json())
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+
+        {
+            use db_connector::schema::users::dsl::*;
+            use db_connector::test_connection_pool;
+            use diesel::prelude::*;
+
+            let pool = test_connection_pool();
+            let mut conn = pool.get().unwrap();
+            let u: User = users
+                .filter(email.eq(mail))
+                .select(User::as_select())
+                .get_result(&mut conn)
+                .unwrap();
+            assert!(u.email_verified, "user should be verified after recovery");
+        }
     }
 }
