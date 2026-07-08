@@ -152,7 +152,11 @@ export const en = {
         "set_as_default": "Set as default",
         "default_grouping": "Default",
         "set_as_default_replaces": "This will replace \"{{name}}\" as the default group.",
-        "set_default_failed": "Failed to set default group: {{error}}"
+        "set_default_failed": "Failed to set default group: {{error}}",
+        "no_group": "Ungrouped",
+        "group_by_toggle": "Group devices by group",
+        "group_by_on": "Grouped",
+        "group_by_off": "Flat"
     },
     "navbar": {
         "home": "Home",

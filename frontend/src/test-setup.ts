@@ -190,9 +190,19 @@ vi.mock('react-bootstrap', () => {
   Card.Body = ({ children, ...props }: MockComponentProps) =>
     h('div', { ...props, className: 'card-body' }, children);
 
-  const Dropdown = {
-    Item: ({ children, ...props }: MockComponentProps) => h('button', { ...props }, children),
-  };
+  // `Dropdown` is used both as `<Dropdown>` (a wrapping component) and via
+  // its sub-components `Dropdown.Toggle`, `Dropdown.Menu`, `Dropdown.Item`.
+  // Earlier mock only exposed `Item`, which broke the moment the production
+  // code switched from `DropdownButton` to the explicit form so it could put a
+  // class on the inner toggle button. Mock both shapes now.
+  const Dropdown = ({ children, ...props }: MockComponentProps) =>
+    h('div', { ...props, 'data-testid': 'dropdown' }, children);
+  Dropdown.Item = ({ children, ...props }: MockComponentProps) =>
+    h('button', { ...props, 'data-testid': 'dropdown-item' }, children);
+  Dropdown.Toggle = ({ children, ...props }: MockComponentProps) =>
+    h('button', { ...props, 'data-testid': 'dropdown-toggle' }, children);
+  Dropdown.Menu = ({ children, ...props }: MockComponentProps) =>
+    h('div', { ...props, 'data-testid': 'dropdown-menu' }, children);
 
   const Nav = ({ children, className }: MockComponentProps) =>
     h('div', { className }, children);
@@ -251,12 +261,12 @@ vi.mock('react-bootstrap', () => {
   return {
     Alert,
     Badge,
-    Button: ({ children, type, variant, disabled, onClick, ...props }: ButtonProps) => h('button', {
+    Button: ({ children, type, variant, size, disabled, onClick, ...props }: ButtonProps) => h('button', {
       ...props,
       type,
       disabled,
       onClick,
-      className: variant ? `btn btn-${variant}` : 'btn',
+      className: variant ? `btn btn-${variant}${size ? ` btn-${size}` : ''}` : 'btn',
       'data-testid': 'submit-button'
     }, children),
     ButtonGroup: ({ children, ...props }: MockComponentProps) => h('div', { ...props }, children),
@@ -379,6 +389,9 @@ vi.mock('react-bootstrap/Navbar', () => {
 vi.mock('react-feather', () => ({
   ChevronDown: () => h('span', { 'data-testid': 'chevron-down' }),
   ChevronUp: () => h('span', { 'data-testid': 'chevron-up' }),
+  Layers: () => h('span', { 'data-testid': 'layers-icon' }),
+  Grid: () => h('span', { 'data-testid': 'grid-icon' }),
+  List: () => h('span', { 'data-testid': 'list-icon' }),
   Edit: () => h('span', { 'data-testid': 'edit-icon' }),
   Edit2: () => h('span', { 'data-testid': 'edit2-icon' }),
   Clipboard: () => h('span', { 'data-testid': 'clipboard-icon' }),
@@ -394,8 +407,10 @@ vi.mock('react-feather', () => ({
   Search: () => h('span', { 'data-testid': 'search-icon' }),
   Camera: () => h('span', { 'data-testid': 'camera-icon' }),
   ChevronRight: () => h('span', { 'data-testid': 'chevron-right' }),
-  X: () => h('span', { 'data-testid': 'x-icon', style: { cursor: 'pointer' } }),
-}));
+  FolderPlus: () => h('span', { 'data-testid': 'folder-plus-icon' }),
+    X: () => h('span', { 'data-testid': 'x-icon', style: { cursor: 'pointer' } }),
+    Filter: () => h('span', { 'data-testid': 'filter-icon' }),
+  }));
 
 // Mock i18next
 vi.mock('react-i18next', () => {

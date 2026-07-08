@@ -48,6 +48,15 @@ const defaultProps = {
   connectionPossible: vi.fn(() => true),
   formatLastStateChange: vi.fn((t, timestamp) => timestamp ? 'formatted date' : '-'),
   groupings: mockGroupings,
+  searchTerm: '',
+  onSearchChange: vi.fn(),
+  selectedGroupingId: null,
+  onGroupingFilterChange: vi.fn(),
+  groupingSearchTerm: '',
+  setGroupingSearchTerm: vi.fn(),
+  groupByEnabled: true,
+  onGroupByToggle: vi.fn(),
+  onManageGroupingsClick: vi.fn(),
 };
 
 describe('DeviceTable', () => {
@@ -166,4 +175,78 @@ describe('DeviceTable', () => {
     expect(screen.getByText('formatted date')).toBeInTheDocument();
     expect(screen.getByText('-')).toBeInTheDocument();
   });
-});
+
+  // --- Bundled-by-groups view ---
+
+  it('renders groups as collapsed sections when bundleByGroups is true', () => {
+    render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
+    const header = screen.getByText('Test Group');
+    expect(header).toBeInTheDocument();
+    expect(screen.queryByText('Test Device 1')).not.toBeInTheDocument();
+  });
+
+  it('expands a group section and shows its devices when the header is clicked', () => {
+        render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
+        const header = screen.getByText('Test Group');
+        fireEvent.click(header.closest('tr') as HTMLElement);
+        expect(screen.getByText('Test Device 1')).toBeInTheDocument();
+
+        expect(screen.queryByText('Test Device 2')).not.toBeInTheDocument();
+      });
+
+    it('renders an Ungrouped section header for devices not in any group', () => {
+        render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
+        expect(screen.queryByText('Test Device 2')).not.toBeInTheDocument();
+        expect(screen.getByText('no_group')).toBeInTheDocument();
+      });
+
+    it('expands the Ungrouped section and reveals its devices when clicked', () => {
+        render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
+        const header = screen.getByText('no_group').closest('tr') as HTMLElement;
+        fireEvent.click(header);
+        expect(screen.getByText('Test Device 2')).toBeInTheDocument();
+      });
+
+  it('keeps the flat layout when bundleByGroups is false', () => {
+      render(<DeviceTable {...defaultProps} bundleByGroups={false} />);
+      expect(screen.getByText('Test Device 1')).toBeInTheDocument();
+      expect(screen.getByText('Test Device 2')).toBeInTheDocument();
+    });
+
+    it('uses a darker gray for collapsed group headers and a lighter gray when expanded', () => {
+        render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
+        const header = screen.getByText('Test Group').closest('tr') as HTMLElement;
+        expect(header.style.background).toBe('rgb(206, 212, 218)');
+
+        fireEvent.click(header);
+        expect(header.style.background).toBe('rgb(233, 236, 239)');
+      });
+
+      it('renders a colgroup that locks column widths', () => {
+        const { container } = render(<DeviceTable {...defaultProps} />);
+        const cols = container.querySelectorAll('colgroup col');
+              expect(cols.length).toBe(7);
+              expect(cols[0].className).toContain('charger-col-status');
+              expect(cols[1].className).toContain('charger-col-name');
+              expect(cols[2].className).toContain('charger-col-uid');
+              expect(cols[3].className).toContain('charger-col-actions');
+              expect(cols[4].className).toContain('charger-col-state-change');
+              expect(cols[5].className).toContain('charger-col-note');
+              expect(cols[6].className).toContain('charger-col-firmware');
+              const table = container.querySelector('table');
+              expect(table?.classList.contains('charger-table')).toBe(true);
+            });
+
+            it('locks each <th> width with an inline style as a fallback', () => {
+              const { container } = render(<DeviceTable {...defaultProps} />);
+              const ths = Array.from(container.querySelectorAll('thead th'));
+              expect(ths).toHaveLength(7);
+              expect((ths[0] as HTMLElement).style.width).toBe('60px');
+              expect((ths[1] as HTMLElement).style.width).toBe('auto');
+              expect((ths[2] as HTMLElement).style.width).toBe('110px');
+              expect((ths[3] as HTMLElement).style.width).toBe('220px');
+              expect((ths[4] as HTMLElement).style.width).toBe('160px');
+              expect((ths[5] as HTMLElement).style.width).toBe('50%');
+              expect((ths[6] as HTMLElement).style.width).toBe('130px');
+            });
+          });

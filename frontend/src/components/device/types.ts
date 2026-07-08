@@ -71,4 +71,5 @@ export interface DeviceListState {
     // local-discovery update can re-merge with the original cloud entries
     // (instead of re-deriving them from the already-merged `devices` list).
     cloudDevices: StateDevice[],
+    groupByEnabled: boolean,
 }

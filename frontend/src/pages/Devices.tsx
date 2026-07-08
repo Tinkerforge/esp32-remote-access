@@ -5,7 +5,7 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { Component } from "preact";
 import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
-import { Button, Container, Dropdown, DropdownButton, Form, Spinner } from "react-bootstrap";
+import { Button, Container, Spinner } from "react-bootstrap";
 import i18n from "../i18n";
 import { useLocation } from "preact-iso";
 import { Device, StateDevice, SortColumn, DeviceListState, Grouping, ConnectVia } from "../components/device/types";
@@ -13,7 +13,6 @@ import { DeviceTable } from "../components/device/DeviceTable";
 import { DeviceMobileView } from "../components/device/DeviceMobileView";
 import { DeleteDeviceModal } from "../components/device/DeleteDeviceModal";
 import { EditNoteModal } from "../components/device/EditNoteModal";
-import { SearchInput } from "../components/device/SearchInput";
 import { GroupingModal } from "../components/device/GroupingModal";
 import { Provisioning } from "../components/Provisioning";
 import { DiscoveredDevices } from "../types/window";
@@ -54,6 +53,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             isLoading: true,
             localDevices: [],
             cloudDevices: [],
+            groupByEnabled: window.localStorage.getItem("groupByEnabled") !== "false",
         };
 
         this.stateUpdateWs = null;
@@ -588,6 +588,12 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         });
     }
 
+    handleGroupByToggle = () => {
+        const nextValue = !this.state.groupByEnabled;
+        window.localStorage.setItem("groupByEnabled", String(nextValue));
+        this.setState({ groupByEnabled: nextValue });
+    }
+
     render() {
         const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
         const { route } = useLocation();
@@ -665,43 +671,6 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     <Provisioning />
                 </Container>
 
-                <Container fluid>
-                    <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <div className="flex-grow-1 gap-2">
-                            <SearchInput
-                                searchTerm={this.state.searchTerm}
-                                onSearchChange={this.handleSearchChange}
-                            />
-                        </div>
-                        <div className="d-flex gap-2">
-                            {this.state.groupings.length > 0 && (
-                                <DropdownButton variant="outline-secondary" title={t("groupings")} className="w-auto"
-                                >
-                                    <div class="px-1">
-                                        <Form.Control placeholder={t("search_groupings")}
-                                            value={this.state.groupingSearchTerm}
-                                            onChange={(e) => this.setState({ groupingSearchTerm: (e.target as HTMLInputElement).value })} />
-                                    </div>
-                                    <Dropdown.Item onClick={() => this.handleGroupingFilterChange(null)}>
-                                        {t("all_devices")}
-                                    </Dropdown.Item>
-                                    {this.state.groupings.filter(grouping => grouping.name.toLowerCase().includes(this.state.groupingSearchTerm.toLowerCase())).map(grouping => (
-                                        <Dropdown.Item key={grouping.id} disabled={grouping.id === this.state.selectedGroupingId} onClick={() => this.handleGroupingFilterChange(grouping.id)}>
-                                            {grouping.name} ({grouping.device_ids.length})
-                                        </Dropdown.Item>
-                                    ))}
-                                </DropdownButton>
-                            )}
-                            <Button
-                                variant="primary"
-                                onClick={() => this.setState({ showGroupingModal: true })}
-                            >
-                                {t("manage_groupings")}
-                            </Button>
-                        </div>
-                    </div>
-                </Container>
-
                 {devices.length === 0 && (this.state.searchTerm || this.state.selectedGroupingId) ? (
                     <Container fluid className="text-center mt-5">
                         <div className="text-muted">
@@ -709,37 +678,60 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                         </div>
                     </Container>
                 ) : (
-                    <>
-                        <DeviceTable
-                            devices={devices}
-                            sortColumn={this.state.sortColumn}
-                            sortSequence={this.state.sortSequence}
-                            onSort={(column) => this.setSort(column)}
-                            onConnect={handleConnect}
-                            onDelete={this.handleDelete}
-                            onEditNote={this.handleEditNote}
-                            connectionPossible={(device) => this.connection_possible(device)}
-                            formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
-                            groupings={this.state.groupings}
-                        />
+                    (() => {
+                        const bundleByGroups = this.state.groupByEnabled
+                            && this.state.groupings.length > 0
+                            && !this.state.searchTerm
+                            && !this.state.selectedGroupingId;
 
-                        <DeviceMobileView
-                            devices={devices}
-                            sortColumn={this.state.sortColumn}
-                            sortSequence={this.state.sortSequence}
-                            onMobileSort={(column) => this.setMobileSort(column)}
-                            onSortSequenceChange={(sequence) => this.setState({ sortSequence: sequence }, () => {
-                                // Re-sort the devices after state update
-                                this.setSortedDevices([...this.state.devices]);
-                            })}
-                            onConnect={handleConnect}
-                            onDelete={this.handleDelete}
-                            onEditNote={this.handleEditNote}
-                            connectionPossible={(device) => this.connection_possible(device)}
-                            formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
-                            groupings={this.state.groupings}
-                        />
-                    </>
+                        const toolbarProps = {
+                            searchTerm: this.state.searchTerm,
+                            onSearchChange: this.handleSearchChange,
+                            groupings: this.state.groupings,
+                            selectedGroupingId: this.state.selectedGroupingId,
+                            onGroupingFilterChange: this.handleGroupingFilterChange,
+                            groupingSearchTerm: this.state.groupingSearchTerm,
+                            setGroupingSearchTerm: (term: string) => this.setState({ groupingSearchTerm: term }),
+                            groupByEnabled: this.state.groupByEnabled,
+                            onGroupByToggle: this.handleGroupByToggle,
+                            onManageGroupingsClick: () => this.setState({ showGroupingModal: true }),
+                        };
+
+                        return (
+                            <>
+                                <DeviceTable
+                                    devices={devices}
+                                    sortColumn={this.state.sortColumn}
+                                    sortSequence={this.state.sortSequence}
+                                    onSort={(column) => this.setSort(column)}
+                                    onConnect={handleConnect}
+                                    onDelete={this.handleDelete}
+                                    onEditNote={this.handleEditNote}
+                                    connectionPossible={(device) => this.connection_possible(device)}
+                                    formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
+                                    bundleByGroups={bundleByGroups}
+                                    {...toolbarProps}
+                                />
+
+                                <DeviceMobileView
+                                    devices={devices}
+                                    sortColumn={this.state.sortColumn}
+                                    sortSequence={this.state.sortSequence}
+                                    onMobileSort={(column) => this.setMobileSort(column)}
+                                    onSortSequenceChange={(sequence) => this.setState({ sortSequence: sequence }, () => {
+                                        this.setSortedDevices([...this.state.devices]);
+                                    })}
+                                    onConnect={handleConnect}
+                                    onDelete={this.handleDelete}
+                                    onEditNote={this.handleEditNote}
+                                    connectionPossible={(device) => this.connection_possible(device)}
+                                    formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
+                                    bundleByGroups={bundleByGroups}
+                                    {...toolbarProps}
+                                />
+                            </>
+                        );
+                    })()
                 )}
             </>
         );

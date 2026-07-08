@@ -41,6 +41,7 @@ describe('Devices.tsx - DeviceList', () => {
     vi.clearAllMocks();
     // Clear WebSocket instances
     getMockWebSocketInstances().length = 0;
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -193,9 +194,9 @@ describe('Devices.tsx - DeviceList', () => {
   it('setSort toggles sequence and sorts devices', async () => {
     // Prevent constructor-triggered updates from interfering
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
     const ref = createRef<DeviceList>();
     // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -229,9 +230,9 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('setMobileSort toggles between selected and none', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
     const ref = createRef<DeviceList>();
     // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -248,9 +249,9 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleDelete and handleDeleteConfirm remove device on success', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
     const ref = createRef<DeviceList>();
     // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -273,9 +274,9 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleDeleteConfirm updates filteredDevices when search filter is active', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
     const ref = createRef<DeviceList>();
     // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -323,9 +324,9 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleDeleteConfirm updates filteredDevices when grouping filter is active', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
     const ref = createRef<DeviceList>();
     // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -377,9 +378,9 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleEditNote flows: submit updates note and cancel resets', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
     const ref = createRef<DeviceList>();
     // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -412,9 +413,9 @@ describe('Devices.tsx - DeviceList', () => {
 
   it('handleEditNoteSubmit shows alert on error', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
     const ref = createRef<DeviceList>();
     // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -436,7 +437,7 @@ describe('Devices.tsx - DeviceList', () => {
   it('componentWillUnmount closes the WebSocket', async () => {
     // Only mock loadGroupings - let connectStateUpdateWebSocket run to create the WebSocket
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
     const ref = createRef<DeviceList>();
     // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -566,9 +567,9 @@ describe('Devices.tsx - DeviceList', () => {
 
     it('handleSearchChange updates search term and filtered devices', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+      const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
       const ref = createRef<DeviceList>();
       // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -590,9 +591,9 @@ describe('Devices.tsx - DeviceList', () => {
 
     it('handleSearchChange with empty string shows all devices', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+      const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
       const ref = createRef<DeviceList>();
       // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -620,9 +621,9 @@ describe('Devices.tsx - DeviceList', () => {
 
     it('setSortedDevices updates both devices and filteredDevices', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+      const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
       const ref = createRef<DeviceList>();
       // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -649,9 +650,9 @@ describe('Devices.tsx - DeviceList', () => {
 
     it('render uses filteredDevices when search term is present', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+      const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
       const ref = createRef<DeviceList>();
       // @ts-expect-error - ref is valid but types dont allow it
     render(<DeviceList ref={ref} />);
@@ -686,6 +687,88 @@ describe('Devices.tsx - DeviceList', () => {
 
       // The component should render only the filtered device
       // This tests the logic in the render method that chooses between devices and filteredDevices
+    });
+  });
+
+  describe('group-by toggle', () => {
+    const setup = async () => {
+      // Mock only `loadGroupings` so the constructor's WS call runs and
+      // creates a real (mocked) WebSocket we can drive from the test.
+      const loadSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
+      const ref = createRef<DeviceList>();
+      // @ts-expect-error - ref is valid but types dont allow it
+      render(<DeviceList ref={ref} />);
+      loadSpy.mockRestore();
+      await waitFor(() => expect(getMockWebSocketInstances().length).toBeGreaterThan(0));
+      const wsInstance = getMockWebSocketInstances()[0];
+      wsInstance.simulateMessage([
+        { id: 'd-1', uid: 1, name: 'b64', note: 'b64', status: 'Connected', port: 1, valid: true, last_state_change: null, firmware_version: '1' },
+      ]);
+      await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
+      return ref;
+    };
+
+    it('defaults to bundled view when localStorage has no preference', async () => {
+      localStorage.clear();
+      const ref = await setup();
+      expect(getRef(ref).state.groupByEnabled).toBe(true);
+    });
+
+    it('reads the persisted preference from localStorage on mount', async () => {
+      localStorage.setItem('groupByEnabled', 'false');
+      const connectSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
+      const loadSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
+      const ref = createRef<DeviceList>();
+      // @ts-expect-error - ref is valid but types dont allow it
+      render(<DeviceList ref={ref} />);
+      connectSpy.mockRestore();
+      loadSpy.mockRestore();
+      expect(getRef(ref).state.groupByEnabled).toBe(false);
+    });
+
+    it('handleGroupByToggle flips the state and writes to localStorage', async () => {
+      const ref = await setup();
+      expect(getRef(ref).state.groupByEnabled).toBe(true);
+      expect(localStorage.getItem('groupByEnabled')).toBe(null);
+
+      getRef(ref).handleGroupByToggle();
+
+      await waitFor(() => expect(getRef(ref).state.groupByEnabled).toBe(false));
+      expect(localStorage.getItem('groupByEnabled')).toBe('false');
+
+      getRef(ref).handleGroupByToggle();
+
+      await waitFor(() => expect(getRef(ref).state.groupByEnabled).toBe(true));
+      expect(localStorage.getItem('groupByEnabled')).toBe('true');
+    });
+
+    it('renders the toggle as a compact icon-only button with a state-driven icon', async () => {
+
+      const ref = await setup();
+      expect(getRef(ref).state.isLoading).toBe(false);
+      getRef(ref).setState({
+        groupings: [{ id: 'g', name: 'Test Group', device_ids: ['d-1'], is_default: false }],
+      });
+      const buttons = await screen.findAllByLabelText('group_by_toggle');
+      expect(buttons.length).toBeGreaterThan(0);
+      const button = buttons[0];
+      expect(button.textContent?.trim()).toBe('');
+      // The accessibility label and tooltip both come from the same
+      // translation key so the screen reader and hover text agree.
+      expect(button.getAttribute('title')).toBe(button.getAttribute('aria-label'));
+      expect(button.querySelector('[data-testid="grid-icon"]')).not.toBeNull();
+      expect(button.querySelector('[data-testid="list-icon"]')).toBeNull();
+      // The button is solid-primary in both states; only the icon and
+      // aria-pressed communicate the toggle mode.
+      expect(button.className).toContain('btn-primary');
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+
+      getRef(ref).handleGroupByToggle();
+      await waitFor(() => expect(getRef(ref).state.groupByEnabled).toBe(false));
+      expect(button.querySelector('[data-testid="list-icon"]')).not.toBeNull();
+      expect(button.querySelector('[data-testid="grid-icon"]')).toBeNull();
+      expect(button.className).toContain('btn-primary');
+      expect(button.getAttribute('aria-pressed')).toBe('false');
     });
   });
 
@@ -906,9 +989,9 @@ describe('Devices.tsx - DeviceList', () => {
       // Stop the other constructor side-effects so we can drive the lifecycle
       // manually.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const wsSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as any);
+      const wsSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const groupsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as any);
+      const groupsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
       const ref = createRef<DeviceList>();
       // @ts-expect-error - ref is valid but types dont allow it
       render(<DeviceList ref={ref} />);

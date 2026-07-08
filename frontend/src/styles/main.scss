@@ -101,20 +101,81 @@ th:hover:has(div) {
   background-color: rgba(var(--bs-emphasis-color-rgb), 0.075);
 }
 
-.charger-head th {
-  width: min-content;
-  white-space: nowrap;
+// Lock the column widths of the device table so that opening/closing a
+// group section doesn't reflow the headers — without `table-layout:
+// fixed`, the browser recomputes every column width whenever rows are
+// added or removed, which makes the headers jump in size. The widths
+// are tuned so the note column takes most of the leftover space while
+// the icon/UID/action/version columns stay narrow.
+.charger-table {
+  table-layout: fixed;
 
-  &:nth-last-child(2) {
-    width: 60%;
+  .charger-col-status {
+    width: 60px;
+  }
+
+  .charger-col-name {
+    width: auto;
+  }
+
+  .charger-col-uid {
+    width: 110px;
+  }
+
+  .charger-col-actions {
+    width: 220px;
+  }
+
+  .charger-col-state-change {
+    width: 160px;
+  }
+
+  .charger-col-note {
+    width: 50%;
 
     @media (max-width: 1600px) {
-      width: 50% !important;
+      width: 40%;
     }
 
     @media (max-width: 1200px) {
-      width: 40% !important;
+      width: 30%;
     }
+  }
+
+  .charger-col-firmware {
+    width: 130px;
+  }
+}
+
+.charger-head th {
+  white-space: nowrap;
+}
+
+// =============================================================================
+// View toggle button (grouped vs flat device list)
+// =============================================================================
+
+// The button swaps icons based on the bundled/flat state, so the icon
+// itself communicates the current mode. The styling keeps it visually
+// distinct from the warning filter dropdown and the primary "Manage
+// Groups" button — a softer outline and a subtle hover/focus lift so
+// it reads as a friendly switch rather than another heavy action.
+.group-by-toggle {
+  border-radius: 0.375rem;
+  transition: background-color 0.15s ease-in-out,
+              box-shadow 0.15s ease-in-out,
+              transform 0.15s ease-in-out;
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
   }
 }
 
