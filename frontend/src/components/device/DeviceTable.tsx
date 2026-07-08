@@ -1,10 +1,10 @@
 import { useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
-import { Button, Col, Dropdown, Form, Row, Table } from "react-bootstrap";
-import { ChevronDown, ChevronUp, Filter, Grid, List } from "react-feather";
+import { Col, Row, Table } from "react-bootstrap";
+import { ChevronDown, ChevronUp } from "react-feather";
 import { StateDevice, SortColumn, Grouping, ConnectVia } from "./types";
 import { DeviceTableRow } from "./DeviceTableRow";
-import { SearchInput } from "./SearchInput";
+import { DeviceToolbar } from "./DeviceToolbar";
 
 interface DeviceTableProps {
     devices: StateDevice[];
@@ -153,81 +153,22 @@ export function DeviceTable({
         </thead>
     );
 
-    const renderToolbar = () => {
-        const selectedGrouping = groupings.find((g) => g.id === selectedGroupingId);
-        return (
-            <div className="d-flex justify-content-between align-items-center mb-3 mx-2 flex-nowrap gap-2">
-                <div className="flex-grow-1">
-                    <SearchInput searchTerm={searchTerm} onSearchChange={onSearchChange} />
-                </div>
-                <div className="d-flex flex-nowrap align-items-center gap-1">
-                    {groupings.length > 0 && (
-                        <Dropdown>
-                            <Dropdown.Toggle
-                                variant={selectedGrouping ? "warning" : "primary"}
-                                title={selectedGrouping ? `${t("filter_by_grouping")}: ${selectedGrouping.name}` : t("filter_by_grouping")}
-                            >
-                                <span className="d-inline-flex align-items-center gap-1">
-                                    <Filter size={16} />
-                                    {selectedGrouping ? selectedGrouping.name : t("filter_by_grouping")}
-                                </span>
-                            </Dropdown.Toggle>
-                            <Dropdown.Menu>
-                                <div class="px-1">
-                                    <Form.Control
-                                        placeholder={t("search_groupings")}
-                                        value={groupingSearchTerm}
-                                        onChange={(e) => setGroupingSearchTerm((e.target as HTMLInputElement).value)}
-                                    />
-                                </div>
-                                <Dropdown.Item
-                                    active={selectedGroupingId === null}
-                                    onClick={() => onGroupingFilterChange(null)}
-                                >
-                                    {t("all_devices")}
-                                </Dropdown.Item>
-                                {groupings
-                                    .filter((grouping) => grouping.name.toLowerCase().includes(groupingSearchTerm.toLowerCase()))
-                                    .map((grouping) => (
-                                        <Dropdown.Item
-                                            key={grouping.id}
-                                            active={grouping.id === selectedGroupingId}
-                                            onClick={() => onGroupingFilterChange(grouping.id)}
-                                        >
-                                            {grouping.name} ({grouping.device_ids.length})
-                                        </Dropdown.Item>
-                                    ))}
-                            </Dropdown.Menu>
-                        </Dropdown>
-                    )}
-                    {groupings.length > 0 && (
-                        <Button
-                            variant="primary"
-                            onClick={onGroupByToggle}
-                            aria-pressed={groupByEnabled}
-                            aria-label={t("group_by_toggle")}
-                            title={t("group_by_toggle")}
-                            data-testid="group-by-toggle"
-                            className="group-by-toggle"
-                        >
-                            {groupByEnabled ? <Grid size={16} /> : <List size={16} />}
-                        </Button>
-                    )}
-                    <Button
-                        variant="primary"
-                        onClick={onManageGroupingsClick}
-                    >
-                        {t("manage_groupings")}
-                    </Button>
-                </div>
-            </div>
-        );
-    };
-
     if (!bundleByGroups) {
         return (
             <Col className="d-none d-md-block">
-                {renderToolbar()}
+                <DeviceToolbar
+                    searchTerm={searchTerm}
+                    onSearchChange={onSearchChange}
+                    groupings={groupings}
+                    selectedGroupingId={selectedGroupingId}
+                    onGroupingFilterChange={onGroupingFilterChange}
+                    groupingSearchTerm={groupingSearchTerm}
+                    setGroupingSearchTerm={setGroupingSearchTerm}
+                    groupByEnabled={groupByEnabled}
+                    onGroupByToggle={onGroupByToggle}
+                    onManageGroupingsClick={onManageGroupingsClick}
+                    variant="desktop"
+                />
                 <Table striped hover responsive class="charger-table">
                     {renderColgroup()}
                     {renderTableHeader()}
@@ -302,7 +243,19 @@ export function DeviceTable({
 
     return (
         <Col className="d-none d-md-block">
-            {renderToolbar()}
+            <DeviceToolbar
+                searchTerm={searchTerm}
+                onSearchChange={onSearchChange}
+                groupings={groupings}
+                selectedGroupingId={selectedGroupingId}
+                onGroupingFilterChange={onGroupingFilterChange}
+                groupingSearchTerm={groupingSearchTerm}
+                setGroupingSearchTerm={setGroupingSearchTerm}
+                groupByEnabled={groupByEnabled}
+                onGroupByToggle={onGroupByToggle}
+                onManageGroupingsClick={onManageGroupingsClick}
+                variant="desktop"
+            />
             <Table striped hover responsive class="charger-table">
                 {renderColgroup()}
                 {renderTableHeader()}

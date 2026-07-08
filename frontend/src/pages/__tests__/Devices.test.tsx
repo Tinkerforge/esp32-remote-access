@@ -649,45 +649,93 @@ describe('Devices.tsx - DeviceList', () => {
     });
 
     it('render uses filteredDevices when search term is present', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
-      const ref = createRef<DeviceList>();
-      // @ts-expect-error - ref is valid but types dont allow it
-    render(<DeviceList ref={ref} />);
-      initSpy.mockRestore();
-      loadGroupingsSpy.mockRestore();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
+          const ref = createRef<DeviceList>();
+          // @ts-expect-error - ref is valid but types dont allow it
+        render(<DeviceList ref={ref} />);
+          initSpy.mockRestore();
+          loadGroupingsSpy.mockRestore();
 
-      const devices = [
-        { id: '1', uid: 1, name: 'TestDevice', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
-        { id: '2', uid: 2, name: 'ProductionDevice', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
-      ];
-      const filteredDevices = [devices[0]]; // Only TestDevice
+          const devices = [
+            { id: '1', uid: 1, name: 'TestDevice', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+            { id: '2', uid: 2, name: 'ProductionDevice', status: 'Connected', note: 'Note2', port: 0, valid: true, last_state_change: null, firmware_version: '2.0.0' },
+          ];
+          const filteredDevices = [devices[0]]; // Only TestDevice
 
-      getRef(ref).setState({
-        devices,
-        filteredDevices,
-        searchTerm: 'test',
-        sortColumn: 'none',
-        sortSequence: 'asc',
-        showDeleteModal: false,
-        showEditNoteModal: false,
-        editNote: '',
-        editChargerIdx: 0,
-        groupings: [],
-        selectedGroupingId: null,
-        groupingSearchTerm: '',
-        isLoading: false,
-        showGroupingModal: false
-      });
+          getRef(ref).setState({
+            devices,
+            filteredDevices,
+            searchTerm: 'test',
+            sortColumn: 'none',
+            sortSequence: 'asc',
+            showDeleteModal: false,
+            showEditNoteModal: false,
+            editNote: '',
+            editChargerIdx: 0,
+            groupings: [],
+            selectedGroupingId: null,
+            groupingSearchTerm: '',
+            isLoading: false,
+            showGroupingModal: false
+          });
 
-      await waitFor(() => expect(getRef(ref).state.devices.length).toBe(2));
-      await waitFor(() => expect(getRef(ref).state.filteredDevices.length).toBe(1));
+          await waitFor(() => expect(getRef(ref).state.devices.length).toBe(2));
+          await waitFor(() => expect(getRef(ref).state.filteredDevices.length).toBe(1));
 
-      // The component should render only the filtered device
-      // This tests the logic in the render method that chooses between devices and filteredDevices
-    });
+        });
+
+        it('still renders the toolbar when a group filter matches no devices', async () => {
+          // Reproduces a bug where applying a group filter that produced an
+          // empty result also removed the toolbar (search input, group filter
+          // dropdown, group-by toggle, manage groupings button), leaving the
+          // user no way to clear the filter.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
+          const ref = createRef<DeviceList>();
+          // @ts-expect-error - ref is valid but types dont allow it
+          render(<DeviceList ref={ref} />);
+          initSpy.mockRestore();
+          loadGroupingsSpy.mockRestore();
+
+          const devices = [
+            { id: '1', uid: 1, name: 'TestDevice', status: 'Connected', note: 'Note1', port: 0, valid: true, last_state_change: null, firmware_version: '1.0.0' },
+          ];
+          const groupings = [
+            { id: 'empty-group', name: 'Empty Group', device_ids: [] as string[], is_default: false },
+          ];
+
+          getRef(ref).setState({
+            devices,
+            filteredDevices: [],
+            searchTerm: '',
+            sortColumn: 'none',
+            sortSequence: 'asc',
+            showDeleteModal: false,
+            showEditNoteModal: false,
+            editNote: '',
+            editChargerIdx: 0,
+            groupings,
+            selectedGroupingId: 'empty-group',
+            groupingSearchTerm: '',
+            isLoading: false,
+            showGroupingModal: false,
+          });
+
+          await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
+          await waitFor(() => expect(getRef(ref).state.filteredDevices.length).toBe(0));
+
+          // The "no devices found" hint is still rendered, but the toolbar
+          // around it must stay visible so the user can adjust the filter.
+          expect(await screen.findByText('no_devices_found')).toBeInTheDocument();
+          expect(screen.getAllByPlaceholderText('search_devices_placeholder').length).toBeGreaterThan(0);
+          expect(screen.getAllByLabelText('group_by_toggle').length).toBeGreaterThan(0);
+          expect(screen.getAllByText('manage_groupings').length).toBeGreaterThan(0);
+        });
   });
 
   describe('group-by toggle', () => {

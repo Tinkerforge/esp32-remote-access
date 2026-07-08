@@ -1,12 +1,12 @@
 import { useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
-import { Button, ButtonGroup, Col, Container, Dropdown, DropdownButton, Form } from "react-bootstrap";
-import { ChevronDown, ChevronUp, Filter, Grid, List } from "react-feather";
+import { ButtonGroup, Col, Container, Dropdown, DropdownButton } from "react-bootstrap";
+import { ChevronDown, ChevronUp } from "react-feather";
 import Median from "median-js-bridge";
 import i18n from "../../i18n";
 import { StateDevice, SortColumn, Grouping, ConnectVia } from "./types";
 import { DeviceCard } from "./DeviceCard";
-import { SearchInput } from "./SearchInput";
+import { DeviceToolbar } from "./DeviceToolbar";
 
 interface DeviceMobileViewProps {
     devices: StateDevice[];
@@ -108,81 +108,22 @@ export function DeviceMobileView({
         </Col>
     );
 
-    const renderToolbar = () => {
-        const selectedGrouping = groupings.find((g) => g.id === selectedGroupingId);
-        return (
-            <div className="d-flex flex-column mb-3 gap-2">
-                <SearchInput searchTerm={searchTerm} onSearchChange={onSearchChange} />
-                <div className="d-flex flex-wrap gap-1 w-100">
-                    {groupings.length > 0 && (
-                        <Dropdown className="w-100 w-md-auto">
-                            <Dropdown.Toggle
-                                variant={selectedGrouping ? "warning" : "primary"}
-                                className="w-100"
-                                title={selectedGrouping ? `${t("filter_by_grouping")}: ${selectedGrouping.name}` : t("filter_by_grouping")}
-                            >
-                                <span className="d-inline-flex align-items-center gap-1">
-                                    <Filter size={16} />
-                                    {selectedGrouping ? selectedGrouping.name : t("filter_by_grouping")}
-                                </span>
-                            </Dropdown.Toggle>
-                            <Dropdown.Menu>
-                                <div class="px-1">
-                                    <Form.Control
-                                        placeholder={t("search_groupings")}
-                                        value={groupingSearchTerm}
-                                        onChange={(e) => setGroupingSearchTerm((e.target as HTMLInputElement).value)}
-                                    />
-                                </div>
-                                <Dropdown.Item
-                                    active={selectedGroupingId === null}
-                                    onClick={() => onGroupingFilterChange(null)}
-                                >
-                                    {t("all_devices")}
-                                </Dropdown.Item>
-                                {groupings
-                                    .filter((grouping) => grouping.name.toLowerCase().includes(groupingSearchTerm.toLowerCase()))
-                                    .map((grouping) => (
-                                        <Dropdown.Item
-                                            key={grouping.id}
-                                            active={grouping.id === selectedGroupingId}
-                                            onClick={() => onGroupingFilterChange(grouping.id)}
-                                        >
-                                            {grouping.name} ({grouping.device_ids.length})
-                                        </Dropdown.Item>
-                                    ))}
-                            </Dropdown.Menu>
-                        </Dropdown>
-                    )}
-                    {groupings.length > 0 && (
-                        <Button
-                            variant="primary"
-                            onClick={onGroupByToggle}
-                            aria-pressed={groupByEnabled}
-                            aria-label={t("group_by_toggle")}
-                            title={t("group_by_toggle")}
-                            data-testid="group-by-toggle"
-                            className="group-by-toggle"
-                        >
-                            {groupByEnabled ? <Grid size={16} /> : <List size={16} />}
-                        </Button>
-                    )}
-                    <Button
-                        variant="primary"
-                        onClick={onManageGroupingsClick}
-                        className="flex-grow-1"
-                    >
-                        {t("manage_groupings")}
-                    </Button>
-                </div>
-            </div>
-        );
-    };
-
     if (!bundleByGroups) {
         return (
             <Container fluid className="d-md-none">
-                {renderToolbar()}
+                <DeviceToolbar
+                    searchTerm={searchTerm}
+                    onSearchChange={onSearchChange}
+                    groupings={groupings}
+                    selectedGroupingId={selectedGroupingId}
+                    onGroupingFilterChange={onGroupingFilterChange}
+                    groupingSearchTerm={groupingSearchTerm}
+                    setGroupingSearchTerm={setGroupingSearchTerm}
+                    groupByEnabled={groupByEnabled}
+                    onGroupByToggle={onGroupByToggle}
+                    onManageGroupingsClick={onManageGroupingsClick}
+                    variant="mobile"
+                />
                 {renderSortControls()}
                 {devices.map((device) => (
                     <DeviceCard
@@ -286,7 +227,19 @@ export function DeviceMobileView({
 
     return (
         <Container fluid className="d-md-none">
-            {renderToolbar()}
+            <DeviceToolbar
+                searchTerm={searchTerm}
+                onSearchChange={onSearchChange}
+                groupings={groupings}
+                selectedGroupingId={selectedGroupingId}
+                onGroupingFilterChange={onGroupingFilterChange}
+                groupingSearchTerm={groupingSearchTerm}
+                setGroupingSearchTerm={setGroupingSearchTerm}
+                groupByEnabled={groupByEnabled}
+                onGroupByToggle={onGroupByToggle}
+                onManageGroupingsClick={onManageGroupingsClick}
+                variant="mobile"
+            />
             {renderSortControls()}
             {grouped.map((g) => renderSection(g.id, g.name, g.devices))}
             {ungroupedDevices.length > 0 && renderSection("__ungrouped__", t("no_group"), ungroupedDevices)}

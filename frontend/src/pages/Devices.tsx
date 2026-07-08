@@ -671,68 +671,68 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     <Provisioning />
                 </Container>
 
-                {devices.length === 0 && (this.state.searchTerm || this.state.selectedGroupingId) ? (
-                    <Container fluid className="text-center mt-5">
-                        <div className="text-muted">
-                            <h5>{t("no_devices_found")}</h5>
-                        </div>
-                    </Container>
-                ) : (
-                    (() => {
-                        const bundleByGroups = this.state.groupByEnabled
-                            && this.state.groupings.length > 0
-                            && !this.state.searchTerm
-                            && !this.state.selectedGroupingId;
+                {(() => {
+                    const bundleByGroups = this.state.groupByEnabled
+                        && this.state.groupings.length > 0
+                        && !this.state.searchTerm
+                        && !this.state.selectedGroupingId;
 
-                        const toolbarProps = {
-                            searchTerm: this.state.searchTerm,
-                            onSearchChange: this.handleSearchChange,
-                            groupings: this.state.groupings,
-                            selectedGroupingId: this.state.selectedGroupingId,
-                            onGroupingFilterChange: this.handleGroupingFilterChange,
-                            groupingSearchTerm: this.state.groupingSearchTerm,
-                            setGroupingSearchTerm: (term: string) => this.setState({ groupingSearchTerm: term }),
-                            groupByEnabled: this.state.groupByEnabled,
-                            onGroupByToggle: this.handleGroupByToggle,
-                            onManageGroupingsClick: () => this.setState({ showGroupingModal: true }),
-                        };
+                    const toolbarProps = {
+                        searchTerm: this.state.searchTerm,
+                        onSearchChange: this.handleSearchChange,
+                        groupings: this.state.groupings,
+                        selectedGroupingId: this.state.selectedGroupingId,
+                        onGroupingFilterChange: this.handleGroupingFilterChange,
+                        groupingSearchTerm: this.state.groupingSearchTerm,
+                        setGroupingSearchTerm: (term: string) => this.setState({ groupingSearchTerm: term }),
+                        groupByEnabled: this.state.groupByEnabled,
+                        onGroupByToggle: this.handleGroupByToggle,
+                        onManageGroupingsClick: () => this.setState({ showGroupingModal: true }),
+                    };
 
-                        return (
-                            <>
-                                <DeviceTable
-                                    devices={devices}
-                                    sortColumn={this.state.sortColumn}
-                                    sortSequence={this.state.sortSequence}
-                                    onSort={(column) => this.setSort(column)}
-                                    onConnect={handleConnect}
-                                    onDelete={this.handleDelete}
-                                    onEditNote={this.handleEditNote}
-                                    connectionPossible={(device) => this.connection_possible(device)}
-                                    formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
-                                    bundleByGroups={bundleByGroups}
-                                    {...toolbarProps}
-                                />
+                    return (
+                        <>
+                            <DeviceTable
+                                devices={devices}
+                                sortColumn={this.state.sortColumn}
+                                sortSequence={this.state.sortSequence}
+                                onSort={(column) => this.setSort(column)}
+                                onConnect={handleConnect}
+                                onDelete={this.handleDelete}
+                                onEditNote={this.handleEditNote}
+                                connectionPossible={(device) => this.connection_possible(device)}
+                                formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
+                                bundleByGroups={bundleByGroups}
+                                {...toolbarProps}
+                            />
 
-                                <DeviceMobileView
-                                    devices={devices}
-                                    sortColumn={this.state.sortColumn}
-                                    sortSequence={this.state.sortSequence}
-                                    onMobileSort={(column) => this.setMobileSort(column)}
-                                    onSortSequenceChange={(sequence) => this.setState({ sortSequence: sequence }, () => {
-                                        this.setSortedDevices([...this.state.devices]);
-                                    })}
-                                    onConnect={handleConnect}
-                                    onDelete={this.handleDelete}
-                                    onEditNote={this.handleEditNote}
-                                    connectionPossible={(device) => this.connection_possible(device)}
-                                    formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
-                                    bundleByGroups={bundleByGroups}
-                                    {...toolbarProps}
-                                />
-                            </>
-                        );
-                    })()
-                )}
+                            <DeviceMobileView
+                                devices={devices}
+                                sortColumn={this.state.sortColumn}
+                                sortSequence={this.state.sortSequence}
+                                onMobileSort={(column) => this.setMobileSort(column)}
+                                onSortSequenceChange={(sequence) => this.setState({ sortSequence: sequence }, () => {
+                                    this.setSortedDevices([...this.state.devices]);
+                                })}
+                                onConnect={handleConnect}
+                                onDelete={this.handleDelete}
+                                onEditNote={this.handleEditNote}
+                                connectionPossible={(device) => this.connection_possible(device)}
+                                formatLastStateChange={(t, timestamp) => this.formatLastStateChange(t, timestamp)}
+                                bundleByGroups={bundleByGroups}
+                                {...toolbarProps}
+                            />
+
+                            {devices.length === 0 && (this.state.searchTerm || this.state.selectedGroupingId) ? (
+                                <Container fluid className="text-center mt-5">
+                                    <div className="text-muted">
+                                        <h5>{t("no_devices_found")}</h5>
+                                    </div>
+                                </Container>
+                            ) : null}
+                        </>
+                    );
+            })()}
             </>
         );
     }
