@@ -24,7 +24,6 @@ import { Camera, ChevronRight } from "react-feather";
 import { Circle } from "./Circle";
 import { DiscoveredDevices } from "../types/window";
 
-
 export function LocalDevices() {
     const { t: tLocal } = useTranslation("", { useSuspense: false, keyPrefix: "local_devices" });
     const { t: tProv } = useTranslation("", { useSuspense: false, keyPrefix: "provisioning" });

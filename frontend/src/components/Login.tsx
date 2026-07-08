@@ -1,5 +1,5 @@
 import { Component } from "preact";
-import Button from "react-bootstrap/Button"
+import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import { AppState, bc, fetchClient, loggedIn, storeSecretKeyInServiceWorker, generate_hash, get_salt_for_user } from "../utils";
 import { showAlert } from "./Alert";
@@ -30,7 +30,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
             password: "",
             show_modal: false,
             credentials_wrong: false,
-        }
+        };
     }
 
     async onSubmit(e: SubmitEvent) {
@@ -63,7 +63,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
             if (response.status === 403) {
                 showAlert(i18n.t("login.verify_before_login"), "danger", "login", i18n.t("login.verify_before_login_heading"));
                 return;
-            }else if (error) {
+            } else if (error) {
                 this.setState({credentials_wrong: true});
                 return;
             }
@@ -86,7 +86,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
 
     render() {
         const {t} = useTranslation("", {useSuspense: false, keyPrefix: "login"});
-        return(<>
+        return (<>
             <Modal show={this.state.show_modal} onHide={() => this.setState({show_modal: false})}>
                 <Modal.Header closeButton>
                     <Modal.Title>
@@ -95,8 +95,8 @@ export class Login extends Component<Record<string, never>, LoginState> {
                 </Modal.Header>
                 <Form onSubmit={async (e: SubmitEvent) => {
                     e.preventDefault();
-                    const {response, error} = await fetchClient.GET("/auth/start_recovery", {params:{query:{email:this.state.email}}, headers: {"X-Lang": i18n.language}});
-                    if (response.status != 200) {
+                    const {response, error} = await fetchClient.GET("/auth/start_recovery", {params: {query: {email: this.state.email}}, headers: {"X-Lang": i18n.language}});
+                    if (response.status !== 200) {
                         this.setState({show_modal: false});
                         showAlert(t("error_alert_text", {status: response.status, text: error, interpolation: {escapeValue: false}}), "danger");
                     } else {
@@ -133,13 +133,13 @@ export class Login extends Component<Record<string, never>, LoginState> {
                 <Form.Group className="mb-3" controlId="loginPassword" >
                     <Form.Label>{t("password")}</Form.Label>
                     <PasswordComponent
-                    value={this.state.password}
-                    onChange={(e) => {
-                        this.setState({password: e});
-                    }}
-                    autoComplete="current-password"
-                    invalidMessage={t("wrong_credentials")}
-                    isInvalid={this.state.credentials_wrong} />
+                        value={this.state.password}
+                        onChange={(e) => {
+                            this.setState({password: e});
+                        }}
+                        autoComplete="current-password"
+                        invalidMessage={t("wrong_credentials")}
+                        isInvalid={this.state.credentials_wrong} />
                 </Form.Group>
                 <Button variant="primary" type="submit" id="loginSubmit">
                     {t("login")}

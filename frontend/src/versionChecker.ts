@@ -31,7 +31,7 @@ async function getCurrentVersionHash(): Promise<string | null> {
             headers: {
                 'Cache-Control': 'no-cache, no-store, must-revalidate',
                 'Pragma': 'no-cache',
-                'Expires': '0'
+                'Expires': '0',
             }
         });
 
@@ -46,7 +46,7 @@ async function getCurrentVersionHash(): Promise<string | null> {
             headers: {
                 'Cache-Control': 'no-cache, no-store, must-revalidate',
                 'Pragma': 'no-cache',
-                'Expires': '0'
+                'Expires': '0',
             }
         });
 

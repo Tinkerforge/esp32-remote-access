@@ -211,7 +211,7 @@ export function Recovery() {
                                 }
                                 const hash = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(file_object.email + file_object.secret));
                                 const hash_string = Base64.fromUint8Array(new Uint8Array(hash));
-                                if (hash_string != file_object.hash) {
+                                if (hash_string !== file_object.hash) {
                                     throw "Data has been modified";
                                 }
 

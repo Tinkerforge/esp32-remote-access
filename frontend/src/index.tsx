@@ -65,7 +65,7 @@ if (isDebugMode.value) {
         const msg = JSON.stringify(evt);
         const blob = new Blob([msg]);
         const url = URL.createObjectURL(blob);
-        const filename = `warp_charger_error_${Date.now()}.json`
+        const filename = `warp_charger_error_${Date.now()}.json`;
         if (Median.isNativeApp()) {
             Median.share.downloadFile({url, filename, open: true});
         }
@@ -187,7 +187,7 @@ export function App() {
             <Modal.Body>
                 {t("storage_persistence.body")}
                 <div className="mt-3"
-                     onClick={() => setModalConfig({...modalConfig, rememberChoice: !modalConfig.rememberChoice})}>
+                    onClick={() => setModalConfig({...modalConfig, rememberChoice: !modalConfig.rememberChoice})}>
                     <Form.Check
                         type="checkbox"
                         label={t("storage_persistence.remember_choice")}

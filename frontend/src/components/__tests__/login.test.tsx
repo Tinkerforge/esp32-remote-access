@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { Login } from '../Login';
 
-
 describe('Login Component', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockUtils: any;

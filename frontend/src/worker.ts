@@ -23,7 +23,7 @@ import sodium from "libsodium-wrappers";
 
 declare const self: DedicatedWorkerGlobalScope;
 
-const tunnel_url = `/api/ws?key_id=`
+const tunnel_url = `/api/ws?key_id=`;
 let wgClient: Client | undefined;
 let setup_data: SetupMessage;
 
@@ -46,7 +46,7 @@ self.addEventListener("unhandledrejection", (event) => {
         message: event.reason.message,
         stack
     }
-    self.postMessage({unresolved: true, msg: evt});
+    self.postMessage({ unresolved: true, msg: evt });
 });
 
 self.addEventListener("message", async (e: MessageEvent) => {
@@ -195,9 +195,9 @@ function connect_cb() {
 
 async function start_connection(setup_data: SetupMessage) {
     let keys: ChargerKeys;
-    const url = `/api/charger/get_key?cid=${  setup_data.chargerID}`;
+    const url = `/api/charger/get_key?cid=${setup_data.chargerID}`;
     try {
-        const resp = await fetch(url, {credentials: "same-origin"});
+        const resp = await fetch(url, { credentials: "same-origin" });
         if (resp.status === 404) {
             const msg: Message = {
                 type: MessageType.Error,

@@ -1,4 +1,3 @@
-
 interface CircleProps {
     color: "success" | "danger"
 }

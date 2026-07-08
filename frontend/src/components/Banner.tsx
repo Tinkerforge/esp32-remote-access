@@ -43,8 +43,8 @@ export function Banner() {
 
     return (
         <Alert variant="warning" dismissible onClose={handleClose} className="m-0 rounded-0 text-center p-0 py-1">
-                    <Alert.Heading>{t('banner.title')}</Alert.Heading>
-                    <p class="m-0">{t('banner.message')}</p>
+            <Alert.Heading>{t('banner.title')}</Alert.Heading>
+            <p class="m-0">{t('banner.message')}</p>
         </Alert>
     );
 }

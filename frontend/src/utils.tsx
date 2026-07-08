@@ -93,7 +93,7 @@ const AuthMiddleware: Middleware = {
 fetchClient.use(AuthMiddleware);
 
 export async function refresh_access_token() {
-    if (window.location.pathname == "/recovery") {
+    if (window.location.pathname === "/recovery") {
         loggedIn.value = AppState.Recovery;
         return;
     }

@@ -15,7 +15,7 @@ interface PasswordComponentProps {
 
 export function PasswordComponent(props: PasswordComponentProps) {
     const [showPassword, setShowPassword] = useState(false);
-    const {t} = useTranslation("", {useSuspense: false, keyPrefix: "login"})
+    const {t} = useTranslation("", {useSuspense: false, keyPrefix: "login"});
 
     const handleChange = (e: Event) => {
         const value = (e.target as HTMLInputElement).value;

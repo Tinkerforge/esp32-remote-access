@@ -14,7 +14,7 @@ import { showAlert } from "./Alert";
 export const connected = signal(false);
 
 export async function logout(logout_all: boolean) {
-        const { error } = await fetchClient.GET("/user/logout", {params:{query:{logout_all}}, credentials: "same-origin"});
+        const { error } = await fetchClient.GET("/user/logout", {params: {query: {logout_all}}, credentials: "same-origin"});
 
         if (logout_all && error) {
             showAlert(error, "danger");

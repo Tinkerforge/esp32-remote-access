@@ -1,8 +1,8 @@
 import { Message, MessageType, SetupMessage } from '../types';
-import Worker from '../worker?worker'
+import Worker from '../worker?worker';
 import { Button, Container, Row, Spinner } from 'react-bootstrap';
 import { connected, setAppNavigation } from '../components/Navbar';
-import {fetchClient, get_decrypted_secret, isDebugMode, pub_key, secret } from '../utils';
+import { fetchClient, get_decrypted_secret, isDebugMode, pub_key, secret } from '../utils';
 import Median from "median-js-bridge";
 import i18n from '../i18n';
 import { Dispatch, StateUpdater, useEffect, useState, useRef } from 'preact/hooks';
@@ -64,7 +64,7 @@ class VirtualNetworkInterface {
         this.timeout = setTimeout(() => {
             this.route("/devices");
             showAlert(i18n.t("chargers.connection_timeout_text"), "danger", "network", i18n.t("chargers.connection_timeout"));
-        }, 30_000)
+        }, 30_000);
 
         window.addEventListener("message", (e) => this.iframeMessageHandler(e), {signal: this.abort.signal});
         window.addEventListener("keydown", (e) => this.keyDownHandler(e), {signal: this.abort.signal});
@@ -131,7 +131,7 @@ class VirtualNetworkInterface {
             };
             const message: Message = {
                 type: MessageType.Setup,
-                data: message_data
+                data: message_data,
             };
 
             this.worker.postMessage(message);
@@ -231,7 +231,7 @@ class VirtualNetworkInterface {
     private keyDownHandler(e: KeyboardEvent) {
         if (e.ctrlKey && e.altKey && e.code === "KeyP") {
             this.worker.postMessage("download");
-        } else if(e.ctrlKey && e.altKey && e.shiftKey && e.code === "KeyR") {
+        } else if (e.ctrlKey && e.altKey && e.shiftKey && e.code === "KeyR") {
             const iframe = document.getElementById("interface") as HTMLIFrameElement;
             iframe.src = `/wg-${this.id}/recovery`;
         }
@@ -359,9 +359,9 @@ export function Frame() {
             <Row hidden={!state.show_spinner} className="align-content-center justify-content-center m-0 h-100">
                 <Spinner className="p-3" animation='border' variant='primary' />
                 <div className="text-center mt-2">
-                  {state.connection_state === ConnectionState.Connecting ?
-                    i18n.t("chargers.connecting") :
-                    i18n.t("chargers.loading_webinterface")}
+                    {state.connection_state === ConnectionState.Connecting ?
+                        i18n.t("chargers.connecting") :
+                        i18n.t("chargers.loading_webinterface")}
                 </div>
                 <Button className="col-lg-1 col-md-2 col-sm-3 col-6 mt-3"
                     variant="warning"

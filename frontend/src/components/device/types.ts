@@ -26,7 +26,7 @@ export interface StateDevice {
     //      account. They are identified by an empty `id`; cloud-only
     //      actions (remove, edit note) are hidden in the UI for them.
     //   2. Cloud-paired devices that are *also* reachable on the LAN. They
-    //      gain a "local" badge in the UI while the cloud management actions 
+    //      gain a "local" badge in the UI while the cloud management actions
     //      stay available.
     // Unset for cloud-only devices. The WARP app's discovery bridge uses
     // `host` to route the user to the device directly.

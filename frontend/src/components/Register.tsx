@@ -1,5 +1,5 @@
 import { Component } from "preact";
-import { Button, Form } from "react-bootstrap"
+import { Button, Form } from "react-bootstrap";
 import { showAlert } from "./Alert";
 import { fetchClient, generate_hash, generate_random_bytes, get_salt } from "../utils";
 import sodium from "libsodium-wrappers";
@@ -101,7 +101,7 @@ export class Register extends Component<Record<string, never>, RegisterState> {
     async checkForm() {
         let ret = true;
         if (!await this.checkPassword()) {
-           ret = false;
+            ret = false;
         }
 
         const state = this.state as RegisterState;
@@ -139,7 +139,7 @@ export class Register extends Component<Record<string, never>, RegisterState> {
     }
 
     async onSubmit(e: SubmitEvent) {
-        e.preventDefault()
+        e.preventDefault();
 
         if (! await this.checkForm()) {
             e.stopPropagation();
@@ -217,7 +217,7 @@ export class Register extends Component<Record<string, never>, RegisterState> {
     }
 
     render() {
-        const {t} = useTranslation("", {useSuspense: false, keyPrefix: "register"})
+        const {t} = useTranslation("", {useSuspense: false, keyPrefix: "register"});
 
         const form = <Form onSubmit={(e: SubmitEvent) => this.onSubmit(e)} noValidate>
                 <Form.Group className="mb-3" controlId="registerName">
@@ -265,14 +265,14 @@ export class Register extends Component<Record<string, never>, RegisterState> {
                 <Form.Group className="mb-3" controlId="registerConfirmPassword">
                     <Form.Label>{t("confirm_password")}</Form.Label>
                     <PasswordComponent value={this.state.confirmPassword} isInvalid={!this.state.confirmPasswordValid} onChange={(e) => {
-                          this.setState({confirmPassword: e}, () => {
-                              if (!this.state.confirmPasswordValid) {
-                                  this.checkPassword();
-                              }
-                          });
-                        }}
-                      autoComplete="new-password"
-                      invalidMessage={t("confirm_password_error_message")} />
+                        this.setState({confirmPassword: e}, () => {
+                            if (!this.state.confirmPasswordValid) {
+                                this.checkPassword();
+                            }
+                        });
+                    }}
+                        autoComplete="new-password"
+                        invalidMessage={t("confirm_password_error_message")} />
                 </Form.Group>
                 <Form.Group className="mb-3" onClick={() => {
                     const newChecked = !this.state.acceptPrivacyChecked;

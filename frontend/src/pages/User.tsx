@@ -31,7 +31,6 @@ import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { saveRecoveryData } from "../components/RecoveryDataComponent";
 
-
 interface UserState {
     id: string,
     name: string,
@@ -261,7 +260,7 @@ export function User() {
         // loginSalt will always be set if the user is logged in
         const loginSaltBs64 = window.localStorage.getItem("loginSalt") as string;
         const loginSalt = Base64.toUint8Array(loginSaltBs64);
-        const loginKey = await generate_hash(deleteUser.password, loginSalt)
+        const loginKey = await generate_hash(deleteUser.password, loginSalt);
 
         const {response, error} = await fetchClient.DELETE("/user/delete", {
             credentials: "include",
@@ -272,10 +271,10 @@ export function User() {
 
         if (response.status === 200) {
             logout(false);
-        } else  if (response.status === 400) {
-            setDeleteUser({...deleteUser, password_valid: false})
+        } else if (response.status === 400) {
+            setDeleteUser({...deleteUser, password_valid: false});
         } else {
-            showAlert(i18n.t("delete_user", {status: response.status, response: error}), "danger")
+            showAlert(i18n.t("delete_user", {status: response.status, response: error}), "danger");
             handleDelteUserClose();
         }
     }
@@ -294,39 +293,39 @@ export function User() {
                 <Card.Header className="border-top">
                     <h5 className="mb-0">{t("local_settings")}</h5>
                 </Card.Header>
-                    <Card.Body className="pt-3">
-                        <Form.Check
-                            type="switch"
-                            id="debugMode"
-                            label={t("debug_mode")}
-                            checked={isDebugMode.value}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const newDebugMode = !isDebugMode.value;
-                                isDebugMode.value = newDebugMode;
-                                if (newDebugMode) {
-                                    localStorage.setItem("debugMode", "true");
-                                } else {
-                                    localStorage.removeItem("debugMode");
-                                }
-                            }} />
-                        <Collapse in={isDebugMode.value}>
-                            <div className="mt-3">
-                                <Row>
-                                    <Col>{`Storage persisted: ${storagePersisted.value ? "yes" : "no"}`}</Col>
-                                </Row>
-                                <Button
-                                    className="mt-2"
-                                    variant="secondary"
-                                    disabled={storagePersisted.value}
-                                    size="sm" onClick={async () => {
-                                        if (storageManager && typeof storageManager.persist === "function") {
-                                            storagePersisted.value = await storageManager.persist();
-                                        }
-                                    }}>Request Storage Persistence</Button>
-                            </div>
-                        </Collapse>
-                    </Card.Body>
+                <Card.Body className="pt-3">
+                    <Form.Check
+                        type="switch"
+                        id="debugMode"
+                        label={t("debug_mode")}
+                        checked={isDebugMode.value}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const newDebugMode = !isDebugMode.value;
+                            isDebugMode.value = newDebugMode;
+                            if (newDebugMode) {
+                                localStorage.setItem("debugMode", "true");
+                            } else {
+                                localStorage.removeItem("debugMode");
+                            }
+                        }} />
+                    <Collapse in={isDebugMode.value}>
+                        <div className="mt-3">
+                            <Row>
+                                <Col>{`Storage persisted: ${storagePersisted.value ? "yes" : "no"}`}</Col>
+                            </Row>
+                            <Button
+                                className="mt-2"
+                                variant="secondary"
+                                disabled={storagePersisted.value}
+                                size="sm" onClick={async () => {
+                                    if (storageManager && typeof storageManager.persist === "function") {
+                                        storagePersisted.value = await storageManager.persist();
+                                    }
+                                }}>Request Storage Persistence</Button>
+                        </div>
+                    </Collapse>
+                </Card.Body>
                 <Card.Header className="border-top pb-2">
                     <h5 className="mb-0">{t("account_actions")}</h5>
                 </Card.Header>
@@ -451,7 +450,7 @@ export function User() {
                     <Form.Group className="pb-3" controlId="newPassword">
                         <Form.Label>{t("new_password")}</Form.Label>
                         <PasswordComponent
-                        autoComplete="new-password"
+                            autoComplete="new-password"
                             onChange={(e) => {
                                 setNewPassword(e);
                                 if (!confirmNewPasswordIsValid || !newPasswordIsValid) {

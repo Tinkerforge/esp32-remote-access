@@ -1,4 +1,3 @@
-
 export interface DiscoveredDevices {
     serviceName: string;
     displayName: string;

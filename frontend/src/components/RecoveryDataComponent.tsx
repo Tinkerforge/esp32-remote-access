@@ -21,7 +21,7 @@ export async function saveRecoveryData(secret: Uint8Array, email: string) {
 
     const backupString = JSON.stringify(backupData);
     const file = new File([backupString], "RecoveryData", {
-        type: "text/plain"
+        type: "text/plain",
     });
     const url = URL.createObjectURL(file);
     const title = `${email.replaceAll(".", "_").replaceAll("@", "_at_")}_${origin.replace("https://", "").replace(".", "_")}_recovery_data`;
@@ -40,7 +40,7 @@ export async function saveRecoveryData(secret: Uint8Array, email: string) {
     a.target = "_blank";
     a.download = title;
     document.body.appendChild(a);
-    a.click()
+    a.click();
     URL.revokeObjectURL(url);
     a.remove();
 }
@@ -51,12 +51,12 @@ export function RecoveryDataComponent(props: RecoveryDataProps) {
     const confirmed = useSignal(false);
 
     return <Modal show={props.show.value} onHide={() => {
-                    // Only allow closing if user has saved and confirmed
-                    if (saved.value && confirmed.value) {
-                        props.show.value = false;
-                        window.location.replace("/");
-                    }
-                }}>
+                // Only allow closing if user has saved and confirmed
+                if (saved.value && confirmed.value) {
+                    props.show.value = false;
+                    window.location.replace("/");
+                }
+            }}>
             <Modal.Header closeButton={saved.value && confirmed.value}>
                 <Modal.Title>{t("save_recovery_data")}</Modal.Title>
             </Modal.Header>

@@ -2,7 +2,6 @@ import { render, fireEvent, waitFor, screen } from '@testing-library/preact';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Register } from '../Register';
 
-
 // Mock all imports
 vi.mock('../Alert', () => ({
   showAlert: vi.fn(),

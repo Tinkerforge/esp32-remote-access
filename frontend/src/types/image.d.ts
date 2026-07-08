@@ -1,4 +1,3 @@
-
 declare module "logo" {
     const content: string;
 
