@@ -93,6 +93,7 @@ test.describe('GroupingModal', () => {
                 const context = await browser.newContext();
                 const page = await context.newPage();
                 try {
+                    await page.addInitScript(() => localStorage.setItem('groupByEnabled', 'false'));
                     await ensureChargerConnected(page, testUser2Email, testPassword2);
                 } finally {
                     await context.close();
@@ -124,6 +125,8 @@ test.describe('GroupingModal', () => {
         test.skip(!testUser2Email, 'Requires MAILISK_USER2 and MAILISK_NAMESPACE environment variables');
 
         await login(page, testUser2Email, testPassword2);
+        await page.evaluate(() => localStorage.setItem('groupByEnabled', 'false'));
+        await page.reload();
 
         // The login() helper only awaits the /api/auth/login response; the page
         // then has to fetch the secret salt, decrypt the secret key, and switch
