@@ -237,4 +237,50 @@ describe('DeviceCard', () => {
 
     expect(defaultProps.onConnect).toHaveBeenCalledWith(localAndCloudDevice, 'cloud');
   });
+
+  it('uses the inner Monitor button (without via) when clicking the primary action of the split button', async () => {
+    const onConnect = vi.fn().mockResolvedValue(undefined);
+    const localAndCloudDevice: StateDevice = { ...mockDevice, host: 'warp.local' };
+    const { container } = render(<DeviceCard {...defaultProps} device={localAndCloudDevice} onConnect={onConnect} />);
+
+    const connectGroup = container.querySelector('.btn-group') as HTMLElement;
+    const monitorButton = connectGroup.querySelector('.btn.btn-primary:not(.dropdown-toggle-split)') as HTMLButtonElement;
+    expect(monitorButton).not.toBeNull();
+    fireEvent.click(monitorButton);
+
+    expect(onConnect).toHaveBeenCalledWith(localAndCloudDevice);
+  });
+
+  it('invokes the Monitor click handler when no split menu is shown', async () => {
+    const onConnect = vi.fn().mockResolvedValue(undefined);
+    render(<DeviceCard {...defaultProps} onConnect={onConnect} />);
+
+    const buttons = screen.getAllByRole('button');
+    const monitor = buttons.find((b) => b.classList.contains('btn-primary')) as HTMLButtonElement;
+    expect(monitor).not.toBeNull();
+    fireEvent.click(monitor);
+
+    expect(onConnect).toHaveBeenCalledWith(mockDevice);
+  });
+
+  it('does nothing when the card header is clicked while connection is not possible', async () => {
+    const onConnect = vi.fn().mockResolvedValue(undefined);
+    const connectionPossible = vi.fn(() => false);
+    render(<DeviceCard {...defaultProps} connectionPossible={connectionPossible} onConnect={onConnect} />);
+
+    const headerArea = screen.getAllByRole('button')[0].closest('.card-header') as HTMLElement;
+    fireEvent.click(headerArea);
+
+    expect(onConnect).not.toHaveBeenCalled();
+  });
+
+  it('connects via the card-header shortcut when connection is possible', async () => {
+    const onConnect = vi.fn().mockResolvedValue(undefined);
+    render(<DeviceCard {...defaultProps} onConnect={onConnect} />);
+
+    const headerArea = screen.getAllByRole('button')[0].closest('.card-header') as HTMLElement;
+    fireEvent.click(headerArea);
+
+    expect(onConnect).toHaveBeenCalledWith(mockDevice);
+  });
 });

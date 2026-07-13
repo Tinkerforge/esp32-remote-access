@@ -182,13 +182,22 @@ vi.mock('react-bootstrap', () => {
   Modal.Footer = ({ children, ...props }: MockComponentProps) =>
     h('div', { ...props, 'data-testid': 'modal-footer' }, children);
 
+  // Helper: pass children through to preact's `h()` correctly regardless of
+  // whether the caller supplied a single child or an array (e.g. JSX with
+  // multiple sibling elements becomes an array when collected into a single
+  // `children` prop).
+  const renderChildren = (children: MockComponentProps['children']) => {
+    if (children == null) return [];
+    return Array.isArray(children) ? children : [children];
+  };
+
   const Card = ({ children, ...props }: MockComponentProps) =>
-    h('div', { ...props, className: 'card' }, children);
+    h('div', { ...props, className: 'card' }, ...renderChildren(children));
 
   Card.Header = ({ children, ...props }: MockComponentProps) =>
-    h('div', { ...props, className: 'card-header' }, children);
+    h('div', { ...props, className: 'card-header' }, ...renderChildren(children));
   Card.Body = ({ children, ...props }: MockComponentProps) =>
-    h('div', { ...props, className: 'card-body' }, children);
+    h('div', { ...props, className: 'card-body' }, ...renderChildren(children));
 
   // `Dropdown` is used both as `<Dropdown>` (a wrapping component) and via
   // its sub-components `Dropdown.Toggle`, `Dropdown.Menu`, `Dropdown.Item`.
@@ -275,7 +284,11 @@ vi.mock('react-bootstrap', () => {
     Collapse: ({ children, in: inProp, ...props }: CollapseProps) => inProp ? h('div', { ...props }, children) : null,
     Container: ({ children, ...props }: MockComponentProps) => h('div', { ...props, 'data-testid': 'container' }, children),
     Dropdown,
-    DropdownButton: ({ title, ...props }: DropdownButtonProps) => h('button', { ...props }, title),
+    DropdownButton: ({ title, children, ...props }: DropdownButtonProps) =>
+      h('div', { ...props }, [
+        h('button', {}, title),
+        children,
+      ]),
     Form,
     InputGroup,
     ListGroup,
@@ -305,11 +318,17 @@ vi.mock('react-bootstrap/Alert', () => {
     Heading?: (props: { children?: ComponentChildren }) => any;
   }
   // Define without annotation first to prevent TS from narrowing attributes incompatibly
+  const flattenForH = (children: unknown): ComponentChildren[] => {
+    if (children == null) return [];
+    return Array.isArray(children) ? (children as ComponentChildren[]) : [children as ComponentChildren];
+  };
   const AlertFn = ({ children, variant, dismissible, onClose }: MockAlertProps) =>
-    h('div', { className: `alert alert-${variant || 'primary'}` }, [
-      children,
-      dismissible && h('button', { 'data-testid': 'close-alert', onClick: onClose }, '×')
-    ]);
+    h(
+      'div',
+      { className: `alert alert-${variant || 'primary'}` },
+      ...flattenForH(children),
+      dismissible && h('button', { 'data-testid': 'close-alert', onClick: onClose }, '×'),
+    );
   const Alert = AlertFn as AlertComponent;
   Alert.Heading = ({ children }: { children?: ComponentChildren }) => h('h4', { 'data-testid': 'alert-heading' }, children);
   return { default: Alert };
@@ -730,7 +749,9 @@ beforeAll(() => {
     URL.revokeObjectURL = vi.fn();
   }
 
-  // File polyfill for environments missing it
+  // File polyfill for environments missing it. jsdom provides File but does
+  // not implement the spec-compliant `.text()` method on it, so add it if
+  // missing so components can read uploaded files.
   if (typeof (globalThis as unknown as { File?: unknown }).File === 'undefined') {
     class PolyfillFile extends Blob {
       name: string;
@@ -740,8 +761,25 @@ beforeAll(() => {
         this.name = name;
         this.lastModified = Date.now();
       }
+      async text(): Promise<string> {
+        const parts = (this as unknown as { _buffer?: BlobPart[] })._buffer ?? [];
+        return Promise.resolve(parts.map((p) => String(p)).join(''));
+      }
     }
     (globalThis as unknown as { File: unknown }).File = PolyfillFile;
+  } else if (typeof File.prototype.text !== 'function') {
+    // jsdom's File lacks `.text()` even though Blob does. Patch the
+    // prototype so component code that reads uploaded files works under
+    // jsdom.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    File.prototype.text = async function (this: any): Promise<string> {
+      const reader = new FileReader();
+      return new Promise((resolve, reject) => {
+        reader.onload = () => resolve(String(reader.result ?? ''));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(this);
+      });
+    };
   }
 });
 
@@ -753,14 +791,39 @@ vi.mock('./components/Alert', () => ({
 
 // Direct import path mocks for react-bootstrap components used by index.tsx
 vi.mock('react-bootstrap/Row', () => ({
-  default: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'row' }, children),
+  default: ({ children, ...props }: MockComponentProps) => {
+    const arr = children == null ? [] : Array.isArray(children) ? children : [children];
+    return h('div', { ...props, className: 'row' }, ...arr);
+  },
 }));
-vi.mock('react-bootstrap/Card', () => ({
-  default: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'card' }, children),
-}));
+vi.mock('react-bootstrap/Card', () => {
+    // Recursively flatten child vnodes so a mix of single children and
+    // arrays (produced by JSX with multiple siblings) renders correctly.
+    const flattenChildren = (children: unknown): ComponentChildren[] => {
+        if (children == null) return [];
+        return Array.isArray(children)
+            ? (children as unknown[]).flatMap((c) => flattenChildren(c))
+            : [children as ComponentChildren];
+    };
+    const Card = ({ children, ...props }: MockComponentProps) =>
+        h('div', { ...props, className: 'card' }, ...flattenChildren(children));
+    Card.Header = ({ children, ...props }: MockComponentProps) =>
+        h('div', { ...props, className: 'card-header' }, ...flattenChildren(children));
+    Card.Body = ({ children, ...props }: MockComponentProps) =>
+        h('div', { ...props, className: 'card-body' }, ...flattenChildren(children));
+    Card.Footer = ({ children, ...props }: MockComponentProps) =>
+        h('div', { ...props, className: 'card-footer' }, ...flattenChildren(children));
+    return { default: Card };
+});
 vi.mock('react-bootstrap/Tabs', () => ({
-  default: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'tabs' }, children),
+  default: ({ children, ...props }: MockComponentProps) => {
+    const arr = children == null ? [] : Array.isArray(children) ? children : [children];
+    return h('div', { ...props, className: 'tabs' }, ...arr);
+  },
 }));
 vi.mock('react-bootstrap/Tab', () => ({
-  default: ({ children, ...props }: MockComponentProps) => h('div', { ...props, className: 'tab-pane' }, children),
+  default: ({ children, ...props }: MockComponentProps) => {
+    const arr = children == null ? [] : Array.isArray(children) ? children : [children];
+    return h('div', { ...props, className: 'tab-pane' }, ...arr);
+  },
 }));

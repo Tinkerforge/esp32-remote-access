@@ -5,7 +5,6 @@ import { connected as connectedSignal } from '../Navbar';
 import { useLocation } from 'preact-iso';
 import { fetchClient, AppState, loggedIn, bc, resetSecret, clearSecretKeyFromServiceWorker } from '../../utils';
 
-// Use actual module for component and functions (test-setup re-exports actual)
 const { CustomNavbar } = NavbarModule;
 
 vi.mock('median-js-bridge', () => ({
@@ -21,11 +20,9 @@ describe('Navbar', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
-    // Reset connection state
     connectedSignal.value = false;
-    // Reset location
-  const loc = useLocation() as unknown as { url: string };
-  loc.url = '/';
+    const loc = useLocation() as unknown as { url: string };
+    loc.url = '/';
   });
 
   it('renders links and toggles collapse', async () => {
@@ -58,7 +55,6 @@ describe('Navbar', () => {
   const actual = await vi.importActual<typeof import('../Navbar')>('../Navbar');
     await actual.logout(false);
 
-    // Assert
     expect(fetchClient.GET).toHaveBeenCalledWith('/user/logout', { params: { query: { logout_all: false } }, credentials: 'same-origin' });
     expect(resetSecret).toHaveBeenCalled();
     expect(window.localStorage.removeItem).toHaveBeenCalledWith('loginSalt');
@@ -76,7 +72,6 @@ describe('Navbar', () => {
   const actual = await vi.importActual<typeof import('../Navbar')>('../Navbar');
     await actual.logout(true);
 
-    // Assert
     expect(showAlertSpy).toHaveBeenCalledWith('boom', 'danger');
     expect(resetSecret).not.toHaveBeenCalled();
   });
@@ -97,7 +92,6 @@ describe('Navbar', () => {
     const logoutLink = screen.getByText('logout');
     fireEvent.click(logoutLink);
 
-    // Assert that the API was called with logout_all=false
     await Promise.resolve();
     expect(fetchClient.GET).toHaveBeenCalledWith('/user/logout', { params: { query: { logout_all: false } }, credentials: 'same-origin' });
   });

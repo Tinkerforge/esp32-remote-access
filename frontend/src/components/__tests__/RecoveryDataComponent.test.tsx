@@ -10,7 +10,6 @@ describe('RecoveryDataComponent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock the origin global variable
     Object.defineProperty(globalThis, 'origin', {
       value: 'https://my.warp-charger.com',
       writable: true,
@@ -19,7 +18,6 @@ describe('RecoveryDataComponent', () => {
   });
 
   afterEach(() => {
-    // Restore original origin
     Object.defineProperty(globalThis, 'origin', {
       value: originalOrigin,
       writable: true,
@@ -35,12 +33,9 @@ describe('RecoveryDataComponent', () => {
     const email = 'john.doe@example.com';
     const secret = new Uint8Array([1, 2, 3]);
 
-    // Mock the anchor click to avoid interference with other tests
     const clickSpy = vi
       .spyOn(HTMLAnchorElement.prototype as unknown as { click: () => void }, 'click')
-      .mockImplementation(() => {
-        // Mock implementation for testing. This is comment is to silence lint warnings
-      });
+      .mockImplementation(() => undefined);
 
     render(<RecoveryDataComponent email={email} secret={secret} show={show} />);
 
@@ -49,22 +44,18 @@ describe('RecoveryDataComponent', () => {
     const footer = screen.getByTestId('modal-footer');
     const closeButton = within(footer).getByRole('button', { name: 'close' });
 
-    // Initially close button should be disabled
     expect(closeButton).toBeDisabled();
     expect(closeButton.className).toContain('btn-secondary');
 
     const saveButton = screen.getByRole('button', { name: 'save' });
     fireEvent.click(saveButton);
 
-    // After saving, confirmation checkbox should appear
     await waitFor(() => {
       expect(screen.getByLabelText('save_recovery_data_confirmation')).toBeInTheDocument();
     });
 
-    // Close button should still be disabled until checkbox is checked
     expect(closeButton).toBeDisabled();
 
-    // Check the confirmation checkbox
     const confirmationCheckbox = screen.getByLabelText('save_recovery_data_confirmation');
     fireEvent.click(confirmationCheckbox);
 
@@ -84,33 +75,25 @@ describe('RecoveryDataComponent', () => {
 
     const show = signal(true);
 
-    // Mock the anchor click to avoid interference with other tests
     const clickSpy = vi
       .spyOn(HTMLAnchorElement.prototype as unknown as { click: () => void }, 'click')
-      .mockImplementation(() => {
-        // Mock implementation for testing. This is comment is to silence lint warnings
-      });
+      .mockImplementation(() => undefined);
 
     render(<RecoveryDataComponent email={'a@b.c'} secret={new Uint8Array()} show={show} />);
 
-    // Try to close the modal without saving/confirming - should not close
     const closeButton = screen.getByRole('button', { name: 'close' });
     fireEvent.click(closeButton);
 
-    // Modal should still be open
     expect(show.value).toBe(true);
 
-    // Save the file first
     const saveButton = screen.getByRole('button', { name: 'save' });
     fireEvent.click(saveButton);
 
-    // Check the confirmation checkbox
     await waitFor(() => {
       const confirmationCheckbox = screen.getByLabelText('save_recovery_data_confirmation');
       fireEvent.click(confirmationCheckbox);
     });
 
-    // Now try to close - should work
     await waitFor(() => {
       expect(closeButton).not.toBeDisabled();
     });
@@ -127,7 +110,6 @@ describe('saveRecoveryData', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock the origin global variable
     Object.defineProperty(globalThis, 'origin', {
       value: 'https://my.warp-charger.com',
       writable: true,
@@ -136,7 +118,6 @@ describe('saveRecoveryData', () => {
   });
 
   afterEach(() => {
-    // Restore original origin
     Object.defineProperty(globalThis, 'origin', {
       value: originalOrigin,
       writable: true,
@@ -171,9 +152,35 @@ describe('saveRecoveryData', () => {
 
     expect(window.crypto.subtle.digest).toHaveBeenCalledWith('SHA-256', expect.anything());
 
-    // Clean up spies
     createUrl.mockRestore();
     clickSpy.mockRestore();
     revokeUrl.mockRestore();
+  });
+});
+
+describe('RecoveryDataComponent onHide path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.defineProperty(globalThis, 'origin', {
+      value: 'https://my.warp-charger.com',
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it('acknowledges a click on the modal close (cancel) when not yet saved/confirmed', async () => {
+    const { RecoveryDataComponent } = await importComponent();
+
+    vi.spyOn(HTMLAnchorElement.prototype as unknown as { click: () => void }, 'click')
+      .mockImplementation(() => undefined);
+
+    const show = signal(true);
+    render(<RecoveryDataComponent email={'a@b.c'} secret={new Uint8Array([1])} show={show} />);
+
+    // Close (cancel) before saving: the onHide callback short-circuits
+    // because saved/confirmed are still false, leaving the modal open.
+    const closeButtons = screen.getAllByTestId('modal-close');
+    fireEvent.click(closeButtons[0]);
+    expect(show.value).toBe(true);
   });
 });

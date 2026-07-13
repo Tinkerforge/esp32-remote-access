@@ -1,7 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/preact';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Helper to flush timers when using setTimeout
 const advanceTimers = async (ms: number) => {
   await vi.advanceTimersByTimeAsync(ms);
 };
@@ -79,5 +78,27 @@ describe('Alert component & showAlert', () => {
     fireEvent.click(closeButtons[closeButtons.length - 1]);
     rerender(<real.ErrorAlert />);
     expect(screen.queryByText('Dismiss me')).toBeNull();
+  });
+
+  it('clears the auto-dismiss timeout when an alert is manually dismissed', async () => {
+    const real = await vi.importActual<typeof import('../Alert')>('../Alert');
+    const clearSpy = vi.spyOn(window, 'clearTimeout');
+    await real.showAlert('Will be cleared', 'warning', 'cleared', 'Heading', 5000);
+    const { rerender } = render(<real.ErrorAlert />);
+    const closeButtons = screen.getAllByTestId('close-alert');
+    fireEvent.click(closeButtons[closeButtons.length - 1]);
+    rerender(<real.ErrorAlert />);
+    expect(clearSpy).toHaveBeenCalled();
+    clearSpy.mockRestore();
+  });
+
+  it('keeps an alert visible when no timeout is supplied', async () => {
+    const real = await vi.importActual<typeof import('../Alert')>('../Alert');
+    await real.showAlert('Persistent', 'success', 'persistent', 'Persistent Heading');
+    const { rerender } = render(<real.ErrorAlert />);
+    expect(screen.getByText('Persistent')).toBeTruthy();
+    await advanceTimers(60_000);
+    rerender(<real.ErrorAlert />);
+    expect(screen.getByText('Persistent')).toBeTruthy();
   });
 });

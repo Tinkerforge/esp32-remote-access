@@ -78,7 +78,8 @@ describe('DeviceMobileView', () => {
 
   it('renders sort sequence dropdown', () => {
     render(<DeviceMobileView {...defaultProps} />);
-    expect(screen.getByText('sorting_sequence_asc')).toBeInTheDocument();
+    // The same label appears as the dropdown title and as a menu item.
+    expect(screen.getAllByText('sorting_sequence_asc').length).toBeGreaterThan(0);
   });
 
   it('displays correct sort column name when name is selected', () => {
@@ -93,7 +94,7 @@ describe('DeviceMobileView', () => {
 
   it('displays correct sort sequence when desc', () => {
     render(<DeviceMobileView {...defaultProps} sortSequence="desc" />);
-    expect(screen.getByText('sorting_sequence_desc')).toBeInTheDocument();
+    expect(screen.getAllByText('sorting_sequence_desc').length).toBeGreaterThan(0);
   });
 
   it('calls onMobileSort when sort option is selected', () => {
@@ -109,8 +110,9 @@ describe('DeviceMobileView', () => {
   it('calls onSortSequenceChange when sequence is changed', () => {
     render(<DeviceMobileView {...defaultProps} />);
 
-    // Verify the component renders with the callback defined
-    expect(screen.getByText('sorting_sequence_asc')).toBeInTheDocument();
+    // Verify the component renders with the callback defined. The label
+    // appears as both the dropdown title and a menu item, so use getAllByText.
+    expect(screen.getAllByText('sorting_sequence_asc').length).toBeGreaterThan(0);
     expect(defaultProps.onSortSequenceChange).toBeDefined();
   });
 

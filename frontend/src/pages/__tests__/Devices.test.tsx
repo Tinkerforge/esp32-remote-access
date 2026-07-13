@@ -1,4 +1,4 @@
-import { render, screen, waitFor, cleanup } from '@testing-library/preact';
+import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { DeviceList } from '../Devices';
 import { StateDevice } from '../../components/device/types';
@@ -1218,3 +1218,94 @@ describe('Devices.tsx - DeviceList', () => {
           });
         });
       });
+
+describe('Devices.tsx - callbacks rendered in render()', () => {
+  // `getRef` is scoped to its enclosing describe block above, so this
+  // duplicate is needed for this nested block.
+  const getRef = (ref: RefObject<DeviceList>): DeviceList => {
+    const current = ref.current;
+    if (!current) {
+      throw new Error('DeviceList ref not set');
+    }
+    return current;
+  };
+
+  function mountList() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const initSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined as unknown as void);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const loadGroupingsSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined as unknown as void);
+    const ref = createRef<DeviceList>();
+    // @ts-expect-error - ref is valid but types dont allow it
+    render(<DeviceList ref={ref} />);
+    initSpy.mockRestore();
+    loadGroupingsSpy.mockRestore();
+    return ref;
+  }
+
+  it('opens the grouping modal when the toolbar manage-groupings control is clicked', async () => {
+    const ref = mountList();
+    // Both a device (to skip the empty state) and a grouping (to render
+    // the toolbar's manage-groupings button) are required.
+    getRef(ref).setState({
+      devices: [
+        { id: 'a', uid: 1, name: 'Alpha', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+      ],
+      groupings: [{ id: 'g1', name: 'Group', device_ids: [], is_default: false }],
+      filteredDevices: [],
+      showDeleteModal: false,
+      showEditNoteModal: false,
+      editNote: '',
+      editChargerIdx: 0,
+      searchTerm: '',
+      selectedGroupingId: null,
+      groupingSearchTerm: '',
+      isLoading: false,
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('manage_groupings').length).toBeGreaterThan(0);
+    }, { timeout: 5000 });
+
+    fireEvent.click(screen.getAllByText('manage_groupings')[0]);
+    await waitFor(() => {
+      expect(getRef(ref).state.showGroupingModal).toBe(true);
+    });
+  });
+
+  it('re-sorts devices in place when the mobile sort-sequence dropdown is used', async () => {
+    const ref = mountList();
+    const devices = [
+      { id: 'a', uid: 1, name: 'Alpha', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+      { id: 'b', uid: 2, name: 'Bravo', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+      { id: 'c', uid: 3, name: 'Charlie', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
+    ];
+    getRef(ref).setState({
+      devices,
+      sortColumn: 'name',
+      sortSequence: 'asc',
+      showDeleteModal: false,
+      showEditNoteModal: false,
+      editNote: '',
+      editChargerIdx: 0,
+      searchTerm: '',
+      filteredDevices: [],
+      groupings: [],
+      selectedGroupingId: null,
+      groupingSearchTerm: '',
+      isLoading: false,
+    });
+    await waitFor(() => expect(getRef(ref).state.devices.map((d) => d.name)).toEqual(['Alpha', 'Bravo', 'Charlie']));
+
+    // The second DropdownButton in the mobile view toggles the sort
+    // sequence. Click "desc" to flip the order and verify the rendered
+    // device cards re-order, since that's what the user actually sees.
+    const descItem = screen.getAllByText('sorting_sequence_desc')[0];
+    fireEvent.click(descItem);
+
+    await waitFor(() => {
+      expect(getRef(ref).state.sortSequence).toBe('desc');
+      expect(getRef(ref).state.devices.map((d) => d.name)).toEqual(['Charlie', 'Bravo', 'Alpha']);
+    });
+  });
+});

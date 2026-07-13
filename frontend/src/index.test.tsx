@@ -4,28 +4,25 @@ import * as utils from './utils.js';
 import Median from 'median-js-bridge';
 import type { ComponentChildren } from 'preact';
 
-// Default: stub preact.render to avoid module-level mount; tests re-do this before importing index as needed
+// Stub preact.render globally so the module-level mount in index.tsx doesn't
+// touch the real DOM; the per-test setup re-runs the same mock factory
+// after every vi.resetModules() to ensure freshly-imported modules see it.
 vi.mock('preact', async (importOriginal) => {
   const actual = await importOriginal<typeof import('preact')>();
   return { ...actual, render: vi.fn() };
 });
 
-// Silence console noise from iframe warning in App
 vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
 describe('index.tsx', () => {
   beforeEach(() => {
-    // Clean up spies between tests
     vi.restoreAllMocks();
-    // Re-silence console.warn after restore
-  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    // Default state and environment
     (utils.loggedIn as { value: number }).value = utils.AppState.LoggedOut;
     // @ts-expect-error test flag for early-return guard in App
     window.ServiceWorker = {};
 
-    // Ensure container exists
     let app = document.getElementById('app');
     if (!app) {
       app = document.createElement('div');
@@ -35,7 +32,6 @@ describe('index.tsx', () => {
   });
 
   it('shows a message when ServiceWorker is missing', async () => {
-    // Remove ServiceWorker to hit the early return branch
     // @ts-expect-error test override
     delete window.ServiceWorker;
 
@@ -98,10 +94,8 @@ describe('index.tsx', () => {
 
   it('renders Recovery state without Footer when running in native app', async () => {
     (utils.loggedIn as { value: number }).value = utils.AppState.Recovery;
-    // Ensure ServiceWorker is present to avoid early return
     // @ts-expect-error define presence flag
     window.ServiceWorker = {};
-    // Force native app so Footer is hidden in Recovery view
     const medianModule = await import('median-js-bridge');
     const nativeSpy = vi.spyOn(medianModule.default, 'isNativeApp').mockReturnValue(true);
 
@@ -119,25 +113,37 @@ describe('index.tsx', () => {
     nativeSpy.mockRestore();
   });
 
+  it('renders the loading spinner while the auth state is Loading', async () => {
+    (utils.loggedIn as { value: number }).value = utils.AppState.Loading;
+
+    vi.resetModules();
+    vi.doMock('preact', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('preact')>();
+      return { ...actual, render: vi.fn() };
+    });
+    const { App } = await import('./index');
+    render(<App />);
+
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
+  });
+
   it('resets document title on Router onRouteChange in LoggedIn state', async () => {
     (utils.loggedIn as { value: number }).value = utils.AppState.LoggedIn;
-    // Ensure ServiceWorker is present to avoid early return
     // @ts-expect-error define presence flag
     window.ServiceWorker = {};
     document.title = 'not_app_name';
 
     vi.resetModules();
-    // Mock Navbar to set connected=true so the first title-setting effect doesn't run
+    // Mock Navbar so connected=true and the document-title effect on mount
+    // doesn't reset it before onRouteChange runs.
     vi.doMock('./components/Navbar.js', () => ({
       connected: { value: true },
       CustomNavbar: () => <div data-testid="navbar" />,
     }));
-    // Mock preact render
     vi.doMock('preact', async (importOriginal) => {
       const actual = await importOriginal<typeof import('preact')>();
       return { ...actual, render: vi.fn() };
     });
-    // Mock Router to immediately invoke onRouteChange once
     vi.doMock('preact-iso', () => ({
       LocationProvider: ({ children }: { children?: ComponentChildren }) => <div>{children}</div>,
       Router: ({ children, onRouteChange }: { children?: ComponentChildren; onRouteChange?: () => void }) => {
@@ -156,5 +162,47 @@ describe('index.tsx', () => {
     render(<App />);
 
     expect(document.title).toBe('app_name');
+  });
+
+  it('registers chargers and devices Routes so the legacy /chargers path still works', async () => {
+    (utils.loggedIn as { value: number }).value = utils.AppState.LoggedIn;
+    // @ts-expect-error define presence flag
+    window.ServiceWorker = {};
+
+    const registeredRoutes: Array<{ path?: string; component: unknown }> = [];
+    vi.resetModules();
+    vi.doMock('preact', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('preact')>();
+      return { ...actual, render: vi.fn() };
+    });
+    // Capture every Route so we can assert backwards-compat paths exist.
+    vi.doMock('preact-iso', () => ({
+      LocationProvider: ({ children }: { children?: ComponentChildren }) => h('div', null, children),
+      Router: ({ children }: { children?: ComponentChildren }) => h('div', null, children),
+      Route: ((props: { path?: string; component: unknown }) => {
+        registeredRoutes.push(props);
+        return null;
+      }) as unknown as never,
+      useLocation: () => ({ route: vi.fn(), url: '/' }),
+      useRoute: () => ({ params: {} }),
+      lazy: () => () => null,
+    }));
+    vi.doMock('./components/Navbar.js', () => ({
+      connected: { value: true },
+      CustomNavbar: () => null,
+    }));
+
+    const { h } = await import('preact');
+    const { App } = await import('./index');
+    render(<App />);
+
+    const paths = registeredRoutes.map((r) => r.path);
+    expect(paths).toContain('/tokens');
+    expect(paths).toContain('/user');
+    // Backwards-compat: legacy `/chargers` URL must still resolve to the
+    // device list, alongside `/devices/...`.
+    expect(paths).toContain('/chargers');
+    expect(paths).toContain('/chargers/:device/:path*');
+    expect(paths).toContain('/devices/:device/:path*');
   });
 });

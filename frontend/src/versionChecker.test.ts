@@ -170,6 +170,29 @@ describe('versionChecker', () => {
     expect(clearSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('logs and swallows fetch errors raised inside the interval callback', async () => {
+    // The first call (from the initial `getCurrentVersionHash()` in
+    // `startVersionChecking`) seeds `currentVersion`. A later call inside
+    // the interval throws, which `getCurrentVersionHash` catches and logs
+    // — proving that a transient fetch failure does not crash the timer.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const realFetch = globalThis.fetch;
+    let n = 0;
+    globalThis.fetch = vi.fn(async () => {
+      n++;
+      if (n === 1) {
+        return new Response(JSON.stringify({ buildHash: 'v1' }), { status: 200 });
+      }
+      throw new Error('boom');
+    }) as unknown as typeof fetch;
+
+    startVersionChecking(0.001);
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(warnSpy).toHaveBeenCalled();
+    globalThis.fetch = realFetch;
+  });
+
   it('startVersionChecking reloads when user confirms on new version', async () => {
     mockFetchSequence([
       jsonResponse({ buildHash: 'v1' }), // init
