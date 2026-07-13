@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
 import { ButtonGroup, Col, Container, Dropdown, DropdownButton } from "react-bootstrap";
-import { ChevronDown, ChevronUp } from "react-feather";
+import { ChevronDown, ChevronRight } from "react-feather";
 import Median from "median-js-bridge";
 import i18n from "../../i18n";
 import { StateDevice, SortColumn, Grouping, ConnectVia } from "./types";
@@ -192,7 +192,7 @@ export function DeviceMobileView({
                         </strong>
                         <span className="text-muted">({groupDevices.length})</span>
                     </span>
-                    {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                 </button>
                 {expanded && (
                     <div

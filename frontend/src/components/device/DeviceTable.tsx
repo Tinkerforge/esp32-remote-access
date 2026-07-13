@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
 import { Col, Row, Table } from "react-bootstrap";
-import { ChevronDown, ChevronUp } from "react-feather";
+import { ChevronDown, ChevronRight, ChevronUp } from "react-feather";
 import { StateDevice, SortColumn, Grouping, ConnectVia } from "./types";
 import { DeviceTableRow } from "./DeviceTableRow";
 import { DeviceToolbar } from "./DeviceToolbar";
@@ -217,7 +217,7 @@ export function DeviceTable({
                 <td colSpan={7} class="align-middle">
                     <Row className="flex-nowrap align-items-center g-0">
                         <Col xs="auto" className="me-2">
-                            {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                            {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                         </Col>
                         <Col>
                             <strong>{name}</strong>
