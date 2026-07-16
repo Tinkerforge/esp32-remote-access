@@ -30,7 +30,7 @@ import Card from "react-bootstrap/Card";
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 import { ErrorAlert, showAlert } from './components/Alert.js';
-import { isDebugMode, refresh_access_token } from './utils';
+import { isDebugMode, is_warp_app, refresh_access_token } from './utils';
 import { AppState, loggedIn } from './utils.js';
 import { Col, Form, Spinner } from 'react-bootstrap';
 import Modal from "react-bootstrap/Modal";
@@ -234,12 +234,10 @@ export function App() {
                     <a href="/"><img class="pt-2 pb-2 ps-2" src={logo} style="max-width: calc(100vw - 72px);" alt="logo" /></a>
                 </nav>
                 <ErrorAlert />
-                <Row>
-                </Row>
                 <Row className="align-items-center justify-content-center flex-grow-1 gap-3 m-0 my-3 overflow-auto">
-                    <div class="p-3">
+                    {is_warp_app() && <div class="p-3">
                         <LocalDevices/>
-                    </div>
+                    </div>}
                     <Card className="p-3 col-10 col-lg-5 col-xl-3">
                         <Trans i18nKey="description"><a target="__blank" href={docs} >link</a></Trans>
                     </Card>
