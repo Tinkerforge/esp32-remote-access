@@ -298,13 +298,13 @@ pub async fn management(
 
     let charger_id;
     let mut output_uuid = None;
-    let charger = if let Some(charger_uid) = data.id {
+    let device = if let Some(charger_uid) = data.id {
         rate_limiter.check(charger_uid.to_string(), &req)?;
 
-        let charger = get_charger_by_uid(charger_uid, data.password.clone(), &state).await?;
-        charger_id = charger.id;
+        let device = get_charger_by_uid(charger_uid, data.password.clone(), &state).await?;
+        charger_id = device.id;
         output_uuid = Some(charger_id.to_string());
-        charger
+        device
     } else {
         match &data.data {
             ManagementDataVersion::V1(_) => return Err(Error::ChargerCredentialsWrong.into()),
@@ -312,11 +312,11 @@ pub async fn management(
                 rate_limiter.check(data.id.clone(), &req)?;
 
                 charger_id = parse_uuid(&data.id)?;
-                let charger = get_charger_from_db(charger_id, &state).await?;
-                if !password_matches(&data.password, &charger.password, &state.hasher).await? {
+                let device = get_charger_from_db(charger_id, &state).await?;
+                if !password_matches(&data.password, &device.password, &state.hasher).await? {
                     return Err(Error::ChargerCredentialsWrong.into());
                 }
-                charger
+                device
             }
         }
     };
@@ -332,16 +332,16 @@ pub async fn management(
     let configured_users = update_configured_users(&state, charger_id, &data.data).await?;
 
     {
-        let mut map = bridge_state.undiscovered_chargers.lock().await;
+        let mut map = bridge_state.undiscovered_devices.lock().await;
         let set = map.entry(ip).or_insert(HashSet::new());
         set.insert(crate::DiscoveryCharger {
-            id: charger.id,
+            id: device.id,
             last_request: Instant::now(),
         });
     }
 
     let addresses = {
-        let mut map = bridge_state.charger_remote_conn_map.lock().await;
+        let mut map = bridge_state.device_remote_conn_map.lock().await;
         let mut addresses = Vec::new();
         map.retain(|key, addr| {
             if key.charger_id == charger_id {
@@ -464,16 +464,16 @@ mod tests {
     async fn test_management() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
         let user_id = get_test_uuid(&mail).unwrap();
-        let charger_uuid_clone = charger.uuid.clone();
+        let charger_uuid_clone = device.uuid.clone();
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
-            id: charger.uuid,
-            password: charger.password,
+            id: device.uuid,
+            password: device.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
@@ -521,16 +521,16 @@ mod tests {
     async fn test_management_with_mtu() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
         let user_id = get_test_uuid(&mail).unwrap();
-        let charger_uuid_clone = charger.uuid.clone();
+        let charger_uuid_clone = device.uuid.clone();
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
-            id: charger.uuid,
-            password: charger.password,
+            id: device.uuid,
+            password: device.password,
             port: 8080,
             firmware_version: "2.4.0".to_string(),
             configured_users: vec![ConfiguredUser {
@@ -581,14 +581,14 @@ mod tests {
     async fn test_management_old_api() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
-            id: charger.uuid,
-            password: charger.password,
+            id: device.uuid,
+            password: device.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
@@ -621,7 +621,7 @@ mod tests {
     async fn test_management_v1_api() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
@@ -633,8 +633,8 @@ mod tests {
         });
 
         let body = ManagementSchema {
-            id: Some(charger.uid),
-            password: Some(charger.password),
+            id: Some(device.uid),
+            password: Some(device.password),
             data,
         };
         let req = test::TestRequest::put()
@@ -653,10 +653,10 @@ mod tests {
     async fn test_two_chargers_with_with_same_uid() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
-        let _charger2 = user2.add_charger(charger.uid).await;
+        let _device2 = user2.add_charger(device.uid).await;
 
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
@@ -668,8 +668,8 @@ mod tests {
         });
 
         let body = ManagementSchema {
-            id: Some(charger.uid),
-            password: Some(charger.password),
+            id: Some(device.uid),
+            password: Some(device.password),
             data,
         };
         let req = test::TestRequest::put()
@@ -688,13 +688,13 @@ mod tests {
     async fn test_wrong_password() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
-            id: charger.uuid,
+            id: device.uuid,
             password: Alphanumeric.sample_string(&mut rand::rng(), 32),
             port: 0,
             firmware_version: "2.3.1".to_string(),
@@ -727,7 +727,7 @@ mod tests {
     async fn test_wrong_password_v1_api() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
@@ -738,7 +738,7 @@ mod tests {
             configured_connections: vec![0, 1, 2, 3, 4],
         });
         let body: ManagementSchema = ManagementSchema {
-            id: Some(charger.uid),
+            id: Some(device.uid),
             password: Some(Alphanumeric.sample_string(&mut rand::rng(), 32)),
             data,
         };
@@ -759,13 +759,13 @@ mod tests {
     async fn test_charger_removed_user() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
         let (mut user2, mail2) = TestUser::random().await;
         user2.login().await;
         user.allow_user(
             &mail2,
             UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)),
-            &charger,
+            &device,
         )
         .await;
 
@@ -773,8 +773,8 @@ mod tests {
         let app = test::init_service(app).await;
 
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
-            id: charger.uuid.clone(),
-            password: charger.password,
+            id: device.uuid.clone(),
+            password: device.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
@@ -811,7 +811,7 @@ mod tests {
         let user_id: uuid::Uuid = {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let cid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
             let user: AllowedUser = allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
@@ -836,13 +836,13 @@ mod tests {
     async fn test_server_removed_user() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
         let (mut user2, mail2) = TestUser::random().await;
         user2.login().await;
         user.allow_user(
             &mail2,
             UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)),
-            &charger,
+            &device,
         )
         .await;
 
@@ -861,8 +861,8 @@ mod tests {
         let app = test::init_service(app).await;
 
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
-            id: charger.uuid.clone(),
-            password: charger.password,
+            id: device.uuid.clone(),
+            password: device.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![
@@ -906,7 +906,7 @@ mod tests {
         let user_id: uuid::Uuid = {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let cid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
             let user: AllowedUser = allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
@@ -921,7 +921,7 @@ mod tests {
     async fn test_server_deleted_user() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let mail2 = {
             let (mut user2, mail2) = TestUser::random().await;
@@ -929,7 +929,7 @@ mod tests {
             user.allow_user(
                 &mail2,
                 UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)),
-                &charger,
+                &device,
             )
             .await;
 
@@ -940,8 +940,8 @@ mod tests {
         let app = test::init_service(app).await;
 
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
-            id: charger.uuid.clone(),
-            password: charger.password,
+            id: device.uuid.clone(),
+            password: device.password,
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![
@@ -985,7 +985,7 @@ mod tests {
         let user_id: uuid::Uuid = {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let cid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
             let user: AllowedUser = allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
@@ -1000,7 +1000,7 @@ mod tests {
     async fn removed_connections_v1_api() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
@@ -1012,8 +1012,8 @@ mod tests {
         });
 
         let body = ManagementSchema {
-            id: Some(charger.uid),
-            password: Some(charger.password),
+            id: Some(device.uid),
+            password: Some(device.password),
             data,
         };
         let req = test::TestRequest::put()
@@ -1034,7 +1034,7 @@ mod tests {
         let user_id: uuid::Uuid = {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let cid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
             let user: AllowedUser = allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
@@ -1049,7 +1049,7 @@ mod tests {
     async fn test_management_invalid_users() {
         let (mut owner, _) = TestUser::random().await;
         owner.login().await;
-        let charger = owner.add_random_charger().await;
+        let device = owner.add_random_charger().await;
 
         let (mut user2, mail2) = TestUser::random().await;
         user2.login().await;
@@ -1057,7 +1057,7 @@ mod tests {
             .allow_user(
                 &mail2,
                 UserAuth::LoginKey(BASE64_STANDARD.encode(&user2.get_login_key().await)),
-                &charger,
+                &device,
             )
             .await;
 
@@ -1068,8 +1068,8 @@ mod tests {
             id: None,
             password: None,
             data: ManagementDataVersion::V2(ManagementDataVersion2 {
-                id: charger.uuid.clone(),
-                password: charger.password,
+                id: device.uuid.clone(),
+                password: device.password,
                 port: 4321,
                 firmware_version: String::new(),
                 configured_users: vec![
@@ -1109,12 +1109,12 @@ mod tests {
     ///
     /// Sequence under test:
     ///   1. A charger establishes its WireGuard tunnel. The UDP server inserts
-    ///      an entry into `charger_management_map_with_id` and notifies clients
+    ///      an entry into `device_management_map_with_id` and notifies clients
     ///      (`status = Connected`).
     ///   2. The charger immediately calls `PUT /management` to identify itself
     ///      and register its configured users.
     ///   3. The management handler used to remove the entry from
-    ///      `charger_management_map_with_id` before calling
+    ///      `device_management_map_with_id` before calling
     ///      `update_charger_state_change`. The notification read the now-empty
     ///      map and reported `status = Disconnected`, briefly flipping the
     ///      `/devices` page to show the just-connected charger as offline.
@@ -1132,9 +1132,9 @@ mod tests {
 
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
-        let charger_uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+        let charger_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
         let user_id = get_test_uuid(&mail).unwrap();
 
         // Build the app on top of our own bridge_state so we can inspect and
@@ -1150,11 +1150,11 @@ mod tests {
         let mgmt_socket = ManagementSocket::new_for_test(charger_uuid, remote_addr).await;
         let mgmt_socket = Arc::new(Mutex::new(mgmt_socket));
         {
-            let mut id_map = bridge_state.charger_management_map_with_id.lock().await;
+            let mut id_map = bridge_state.device_management_map_with_id.lock().await;
             id_map.insert(charger_uuid, mgmt_socket.clone());
         }
         {
-            let mut addr_map = bridge_state.charger_management_map.lock().await;
+            let mut addr_map = bridge_state.device_management_map.lock().await;
             addr_map.insert(remote_addr, mgmt_socket);
         }
 
@@ -1178,8 +1178,8 @@ mod tests {
         let app = test::init_service(app).await;
 
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
-            id: charger.uuid.clone(),
-            password: charger.password.clone(),
+            id: device.uuid.clone(),
+            password: device.password.clone(),
             port: 0,
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
@@ -1217,7 +1217,7 @@ mod tests {
 
         // The map entry should also still be present so that
         // `start_ws` (browser→charger tunnel setup) can find it.
-        let id_map = bridge_state.charger_management_map_with_id.lock().await;
+        let id_map = bridge_state.device_management_map_with_id.lock().await;
         assert!(
             id_map.contains_key(&charger_uuid),
             "management request must not remove the active tunnel entry",

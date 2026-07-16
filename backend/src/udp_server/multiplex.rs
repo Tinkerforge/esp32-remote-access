@@ -122,12 +122,12 @@ async fn create_tunn<'a>(
 
     let ip = IpNetwork::new(addr.ip(), 32)?;
 
-    let chargers: Vec<Charger> = {
-        let map = state.undiscovered_chargers.lock().await;
+    let devices: Vec<Charger> = {
+        let map = state.undiscovered_devices.lock().await;
         if let Some(set) = map.get(&ip) {
-            let charger_ids: Vec<uuid::Uuid> = set.iter().map(|c| c.id).collect();
+            let device_ids: Vec<uuid::Uuid> = set.iter().map(|c| c.id).collect();
             chargers::chargers
-                .filter(chargers::id.eq_any(charger_ids))
+                .filter(chargers::id.eq_any(device_ids))
                 .select(Charger::as_select())
                 .load(&mut conn)?
         } else {
@@ -180,9 +180,9 @@ async fn create_tunn<'a>(
     };
 
     let mut dst = vec![0u8; data.len()];
-    for charger in chargers.into_iter() {
+    for device in devices.into_iter() {
         let static_private: [u8; 32] = match BASE64_STANDARD
-            .decode(charger.management_private)?
+            .decode(device.management_private)?
             .try_into()
         {
             Ok(v) => v,
@@ -193,7 +193,7 @@ async fn create_tunn<'a>(
             }
         };
         let peer_static_public: [u8; 32] =
-            match BASE64_STANDARD.decode(charger.charger_pub)?.try_into() {
+            match BASE64_STANDARD.decode(device.charger_pub)?.try_into() {
                 Ok(v) => v,
                 Err(_) => {
                     return Err(anyhow::Error::msg(
@@ -210,7 +210,7 @@ async fn create_tunn<'a>(
             10,
         ));
 
-        let psk = BASE64_STANDARD.decode(charger.psk)?;
+        let psk = BASE64_STANDARD.decode(device.psk)?;
         let psk = match psk.try_into() {
             Ok(psk) => psk,
             Err(_err) => return Err(anyhow::Error::msg("Database is corrupted")),
@@ -232,7 +232,7 @@ async fn create_tunn<'a>(
             _ => continue,
         }
 
-        let self_ip = if let IpAddr::V4(ip) = charger.wg_server_ip.ip() {
+        let self_ip = if let IpAddr::V4(ip) = device.wg_server_ip.ip() {
             ip
         } else {
             return Err(anyhow::Error::msg(
@@ -240,7 +240,7 @@ async fn create_tunn<'a>(
             ));
         };
 
-        let peer_ip = if let IpAddr::V4(ip) = charger.wg_charger_ip.ip() {
+        let peer_ip = if let IpAddr::V4(ip) = device.wg_charger_ip.ip() {
             ip
         } else {
             return Err(anyhow::Error::msg(
@@ -256,28 +256,28 @@ async fn create_tunn<'a>(
             tunn,
             rate_limiter,
             udp_socket,
-            charger.id,
+            device.id,
         );
 
         #[cfg(feature = "pcap-logging")]
         {
-            let pcap_path = std::path::PathBuf::from(format!("pcap/charger_{}.pcapng", charger.id));
+            let pcap_path = std::path::PathBuf::from(format!("pcap/device_{}.pcapng", device.id));
             if let Err(e) = socket.enable_pcap_logging(pcap_path.clone()) {
                 log::error!(
-                    "Failed to enable pcap logging for charger {}: {}",
-                    charger.id,
+                    "Failed to enable pcap logging for device {}: {}",
+                    device.id,
                     e
                 );
             } else {
                 log::error!(
-                    "Enabled pcap logging for charger {} at {:?}",
-                    charger.id,
+                    "Enabled pcap logging for device {} at {:?}",
+                    device.id,
                     pcap_path
                 );
             }
         }
 
-        return Ok((charger.id, socket));
+        return Ok((device.id, socket));
     }
 
     Err(anyhow::Error::new(Error::UnknownPeer))
@@ -389,7 +389,7 @@ pub async fn run_server(
                 let tunn_sock = {
                     // Maybe we could release the lock when adding a new management connection and get it back later
                     // in case it turns out that holding it causes major connection issues.
-                    let mut charger_map = bridge_state.charger_management_map.lock().await;
+                    let mut charger_map = bridge_state.device_management_map.lock().await;
 
                     match charger_map.entry(addr) {
                         Entry::Occupied(tunn) => tunn.into_mut().clone(),
@@ -407,7 +407,7 @@ pub async fn run_server(
                             let tunn_data = Arc::new(Mutex::new(tunn_data));
                             {
                                 let mut map =
-                                    bridge_state.charger_management_map_with_id.lock().await;
+                                    bridge_state.device_management_map_with_id.lock().await;
                                 map.insert(id, tunn_data.clone());
                                 v.insert(tunn_data.clone());
                                 let tunn = tunn_data.clone();
@@ -520,7 +520,7 @@ pub async fn run_server(
                         let charger_id_str = id.to_string();
                         let ip_str = addr.ip().to_string();
                         if !bridge_state
-                            .charger_ratelimiter
+                            .device_ratelimiter
                             .check_key(charger_id_str, ip_str)
                         {
                             let mut tun_sock = tunn_sock.lock().await;

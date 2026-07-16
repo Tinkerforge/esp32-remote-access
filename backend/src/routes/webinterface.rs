@@ -73,13 +73,13 @@ pub async fn get_webinterface(
     user: crate::models::uuid::Uuid,
     state: web::Data<crate::AppState>,
 ) -> Result<NamedFile> {
-    let charger = parse_uuid(&query.charger)?;
+    let device = parse_uuid(&query.charger)?;
     let user: uuid::Uuid = user.into();
 
-    crate::routes::charger::user_is_allowed(&state, user, charger).await?;
+    crate::routes::charger::user_is_allowed(&state, user, device).await?;
 
-    let charger = get_charger_from_db(charger, &state).await?;
-    let firmware = charger.firmware_version.replace('+', "_");
+    let device = get_charger_from_db(device, &state).await?;
+    let firmware = device.firmware_version.replace('+', "_");
     let firmware = firmware.replace('.', "_");
     let firmware = format!("{firmware}_index.html");
     get_file(firmware)

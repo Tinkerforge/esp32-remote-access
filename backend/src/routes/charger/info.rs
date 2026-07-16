@@ -39,20 +39,20 @@ pub async fn charger_info(
     charger: web::Json<ChargerInfoRequest>,
     user: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
-    let charger_id = parse_uuid(charger.charger.as_str())?;
+    let device_id = parse_uuid(charger.charger.as_str())?;
 
     let mut conn = get_connection(&state)?;
-    let charger: AllowedUser = web_block_unpacked(move || {
+    let device: AllowedUser = web_block_unpacked(move || {
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         let user: uuid::Uuid = user.into();
         match allowed_users::allowed_users
             .filter(allowed_users::user_id.eq(user))
-            .filter(allowed_users::charger_id.eq(charger_id))
+            .filter(allowed_users::charger_id.eq(device_id))
             .select(AllowedUser::as_select())
             .get_result(&mut conn)
         {
-            Ok(charger) => Ok(charger),
+            Ok(device) => Ok(device),
             Err(NotFound) => Err(Error::ChargerDoesNotExist),
             Err(_) => Err(Error::InternalError),
         }
@@ -64,7 +64,7 @@ pub async fn charger_info(
         use db_connector::schema::chargers::dsl::*;
 
         match chargers
-            .filter(id.eq(charger_id))
+            .filter(id.eq(device_id))
             .select((webinterface_port, firmware_version, mtu))
             .get_result(&mut conn)
         {
@@ -74,12 +74,12 @@ pub async fn charger_info(
     })
     .await?;
 
-    let map = bridge_state.charger_management_map_with_id.lock().await;
-    let connected = map.get(&charger_id).is_some();
+    let map = bridge_state.device_management_map_with_id.lock().await;
+    let connected = map.get(&device_id).is_some();
 
     let info = ChargerInfo {
-        id: charger_id.to_string(),
-        name: charger.name,
+        id: device_id.to_string(),
+        name: device.name,
         configured_port: port,
         connected,
         firmware_version,
@@ -112,8 +112,8 @@ mod tests {
     async fn test_charger_info() {
         let (mut user, _) = TestUser::random().await;
         let access_token = user.login().await.to_owned();
-        let charger = user.add_random_charger().await;
-        let _charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
+        let _device = user.add_random_charger().await;
 
         let app = App::new()
             .configure(configure)
@@ -122,7 +122,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let data = ChargerInfoRequest {
-            charger: charger.uuid.clone(),
+            charger: device.uuid.clone(),
         };
         let req = test::TestRequest::post()
             .uri("/info")
@@ -140,7 +140,7 @@ mod tests {
         let name: Option<String> = {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let cid = uuid::Uuid::from_str(&charger.uuid).unwrap();
+            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
 
             allowed_users
                 .filter(user_id.eq(user.id))
@@ -153,7 +153,7 @@ mod tests {
             use db_connector::schema::chargers::dsl::*;
 
             chargers
-                .filter(id.eq(uuid::Uuid::from_str(&charger.uuid).unwrap()))
+                .filter(id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
                 .select(webinterface_port)
                 .get_result(&mut conn)
                 .unwrap()
@@ -162,13 +162,13 @@ mod tests {
             use db_connector::schema::chargers::dsl::*;
 
             chargers
-                .filter(id.eq(uuid::Uuid::from_str(&charger.uuid).unwrap()))
+                .filter(id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
                 .select(firmware_version)
                 .get_result(&mut conn)
                 .unwrap()
         };
 
-        assert_eq!(body.id, charger.uuid);
+        assert_eq!(body.id, device.uuid);
         assert_eq!(body.name, name);
         assert_eq!(body.configured_port, port);
         assert_eq!(body.firmware_version, version);
@@ -178,7 +178,7 @@ mod tests {
     async fn test_charger_info_non_existing() {
         let (mut user, _) = TestUser::random().await;
         let access_token = user.login().await.to_owned();
-        let _charger = user.add_random_charger().await;
+        let _device = user.add_random_charger().await;
         let non_existent_charger = "00000000-0000-0000-0000-000000000000".to_string();
 
         let app = App::new()

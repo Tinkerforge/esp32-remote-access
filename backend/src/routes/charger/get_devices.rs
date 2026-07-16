@@ -76,7 +76,7 @@ pub async fn fetch_chargers(
     let user = get_user(state, uid).await?;
 
     let mut conn = get_connection(state)?;
-    let charger: Vec<(Charger, AllowedUser)> = web_block_unpacked(move || {
+    let devices: Vec<(Charger, AllowedUser)> = web_block_unpacked(move || {
         let allowed_users_list: Vec<AllowedUser> = match AllowedUser::belonging_to(&user)
             .select(AllowedUser::as_select())
             .load(&mut conn)
@@ -89,39 +89,39 @@ pub async fn fetch_chargers(
             }
         };
 
-        let charger_ids = AllowedUser::belonging_to(&user).select(allowed_users::charger_id);
-        let chargers_list: Vec<Charger> = match chargers::chargers
-            .filter(chargers::id.eq_any(charger_ids))
+        let device_ids = AllowedUser::belonging_to(&user).select(allowed_users::charger_id);
+        let devices_list: Vec<Charger> = match chargers::chargers
+            .filter(chargers::id.eq_any(device_ids))
             .select(Charger::as_select())
             .load(&mut conn)
         {
             Ok(v) => v,
             Err(err) => {
-                log::error!("Failed to load chargers: {err}");
+                log::error!("Failed to load devices: {err}");
                 return Err(Error::InternalError);
             }
         };
 
-        let chargers_by_users: Vec<(Charger, AllowedUser)> = allowed_users_list
-            .grouped_by(&chargers_list)
+        let devices_by_users: Vec<(Charger, AllowedUser)> = allowed_users_list
+            .grouped_by(&devices_list)
             .into_iter()
-            .zip(chargers_list)
-            .filter_map(|(allowed_users_for_charger, charger)| {
-                allowed_users_for_charger
+            .zip(devices_list)
+            .filter_map(|(allowed_users_for_device, device)| {
+                allowed_users_for_device
                     .first()
-                    .map(|au| (charger, au.clone()))
+                    .map(|au| (device, au.clone()))
             })
             .collect();
 
-        Ok(chargers_by_users)
+        Ok(devices_by_users)
     })
     .await?;
 
-    let charger_map = bridge_state.charger_management_map_with_id.lock().await;
-    let charger = charger
+    let device_map = bridge_state.device_management_map_with_id.lock().await;
+    let devices = devices
         .into_iter()
         .map(|(c, allowed_user)| {
-            let status = if charger_map.contains_key(&c.id) {
+            let status = if device_map.contains_key(&c.id) {
                 ChargerStatus::Connected
             } else {
                 ChargerStatus::Disconnected
@@ -149,7 +149,7 @@ pub async fn fetch_chargers(
         })
         .collect::<Vec<GetChargerSchema>>();
 
-    Ok(charger)
+    Ok(devices)
 }
 
 /// WebSocket endpoint for get_devices with live state updates
@@ -306,12 +306,12 @@ mod tests {
         user2.login().await;
         for _ in 0..5 {
             let _ = user1.add_random_charger().await;
-            let charger = user2.add_random_charger().await;
+            let device = user2.add_random_charger().await;
             user2
                 .allow_user(
                     &user1.mail,
                     UserAuth::LoginKey(BASE64_STANDARD.encode(user1.get_login_key().await)),
-                    &charger,
+                    &device,
                 )
                 .await;
         }
@@ -359,20 +359,20 @@ mod tests {
         user1.login().await;
 
         // Add two chargers - we'll delete the allowed_user entry for one of them
-        let charger1 = user1.add_random_charger().await;
-        let charger2 = user1.add_random_charger().await;
+        let device1 = user1.add_random_charger().await;
+        let device2 = user1.add_random_charger().await;
 
-        // Directly delete the allowed_user entry for charger1 from the database
+        // Directly delete the allowed_user entry for device1 from the database
         // This simulates the race condition where another request deletes the
         // allowed_user between fetching allowed_users and joining with chargers
         {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let charger1_uuid = uuid::Uuid::from_str(&charger1.uuid).unwrap();
+            let device1_uuid = uuid::Uuid::from_str(&device1.uuid).unwrap();
             let pool = test_connection_pool();
             let mut conn = pool.get().unwrap();
 
-            diesel::delete(allowed_users.filter(charger_id.eq(charger1_uuid)))
+            diesel::delete(allowed_users.filter(charger_id.eq(device1_uuid)))
                 .execute(&mut conn)
                 .expect("Failed to delete allowed_user entry");
         }
@@ -380,13 +380,13 @@ mod tests {
         let (state, bridge_state) = get_test_state();
         let user_id = get_user_uuid_from_email(&user1.mail);
 
-        // This should not panic even though charger1 has no allowed_users entry
+        // This should not panic even though device1 has no allowed_users entry
         let resp = fetch_chargers(&state, user_id, &bridge_state)
             .await
             .expect("fetch_chargers failed");
 
-        // Only charger2 should be returned since charger1's allowed_user was deleted
+        // Only device2 should be returned since device1's allowed_user was deleted
         assert_eq!(resp.len(), 1);
-        assert_eq!(resp[0].id, charger2.uuid);
+        assert_eq!(resp[0].id, device2.uuid);
     }
 }

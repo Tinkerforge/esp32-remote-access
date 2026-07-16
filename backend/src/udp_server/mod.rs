@@ -45,34 +45,34 @@ use packet::ManagementResponseV2;
 /// We can do this with a very low frequency since the management connection
 /// is always one to one and the esps keepalive is two minutes.
 async fn start_rate_limiters_reset_thread(
-    charger_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket<'static>>>>>>,
-    charger_map_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
+    device_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket<'static>>>>>>,
+    device_map_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
     discovery_map: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
-    undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
+    undiscovered_devices: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     state: web::Data<AppState>,
     bridge_state: web::Data<BridgeState<'static>>,
 ) {
     loop {
         {
-            let mut charger_map = charger_map.lock().await;
-            let mut to_remove = Vec::with_capacity(charger_map.len());
-            for (addr, charger) in charger_map.iter() {
-                let charger = charger.lock().await;
-                if charger.last_seen() > Duration::from_secs(30) {
+            let mut device_map = device_map.lock().await;
+            let mut to_remove = Vec::with_capacity(device_map.len());
+            for (addr, socket) in device_map.iter() {
+                let socket = socket.lock().await;
+                if socket.last_seen() > Duration::from_secs(30) {
                     to_remove.push(addr.to_owned());
                     continue;
                 }
-                charger.reset_rate_limiter();
+                socket.reset_rate_limiter();
             }
             for addr in to_remove.into_iter() {
-                let charger = charger_map.remove(&addr).unwrap();
-                let charger = charger.lock().await;
-                let mut map = charger_map_id.lock().await;
-                let (remove, id) = if let Some(c) = map.get(&charger.id()) {
-                    drop(charger);
-                    let charger = c.lock().await;
-                    if charger.last_seen() > Duration::from_secs(30) {
-                        (true, charger.id())
+                let socket = device_map.remove(&addr).unwrap();
+                let socket = socket.lock().await;
+                let mut map = device_map_id.lock().await;
+                let (remove, id) = if let Some(c) = map.get(&socket.id()) {
+                    drop(socket);
+                    let c = c.lock().await;
+                    if c.last_seen() > Duration::from_secs(30) {
+                        (true, c.id())
                     } else {
                         (false, uuid::Uuid::nil())
                     }
@@ -100,24 +100,24 @@ async fn start_rate_limiters_reset_thread(
             }
         }
         {
-            let mut map = undiscovered_chargers.lock().await;
+            let mut map = undiscovered_devices.lock().await;
             let to_remove: Vec<Option<IpNetwork>> = map
                 .iter_mut()
-                .map(|(ip, chargers)| {
-                    let to_remove: Vec<Option<DiscoveryCharger>> = chargers
+                .map(|(ip, devices)| {
+                    let to_remove: Vec<Option<DiscoveryCharger>> = devices
                         .iter()
-                        .map(|charger| {
-                            if charger.last_request.elapsed() > Duration::from_secs(60) {
-                                Some(charger.to_owned())
+                        .map(|device| {
+                            if device.last_request.elapsed() > Duration::from_secs(60) {
+                                Some(device.to_owned())
                             } else {
                                 None
                             }
                         })
                         .collect();
                     for c in to_remove.iter().flatten() {
-                        chargers.remove(c);
+                        devices.remove(c);
                     }
-                    if chargers.is_empty() {
+                    if devices.is_empty() {
                         Some(ip.to_owned())
                     } else {
                         None
@@ -135,10 +135,10 @@ async fn start_rate_limiters_reset_thread(
 pub fn start_server(bridge_state: web::Data<BridgeState<'static>>, app_state: web::Data<AppState>) {
     log::info!("Starting Wireguard server.");
     actix::spawn(start_rate_limiters_reset_thread(
-        bridge_state.charger_management_map.clone(),
-        bridge_state.charger_management_map_with_id.clone(),
+        bridge_state.device_management_map.clone(),
+        bridge_state.device_management_map_with_id.clone(),
         bridge_state.port_discovery.clone(),
-        bridge_state.undiscovered_chargers.clone(),
+        bridge_state.undiscovered_devices.clone(),
         app_state.clone(),
         bridge_state.clone(),
     ));

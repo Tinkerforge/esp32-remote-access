@@ -93,7 +93,7 @@ pub async fn get_charger_by_uid(
     };
 
     let mut conn = get_connection(state)?;
-    let chargers: Vec<Charger> = web_block_unpacked(move || {
+    let devices: Vec<Charger> = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl as chargers;
 
         match chargers::chargers
@@ -108,7 +108,7 @@ pub async fn get_charger_by_uid(
     })
     .await?;
 
-    for c in chargers.into_iter() {
+    for c in devices.into_iter() {
         if password_matches(&password, &c.password, &state.hasher).await? {
             return Ok(c);
         }
@@ -122,7 +122,7 @@ pub async fn get_charger_from_db(
     state: &web::Data<AppState>,
 ) -> actix_web::Result<Charger> {
     let mut conn = get_connection(state)?;
-    let charger: Charger = web_block_unpacked(move || {
+    let device: Charger = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
 
         match chargers
@@ -137,7 +137,7 @@ pub async fn get_charger_from_db(
     })
     .await?;
 
-    Ok(charger)
+    Ok(device)
 }
 
 pub async fn get_last_charge_log_upload_hash(
@@ -378,17 +378,17 @@ async fn notify_state_change(
     // Send messages and track failures
     let mut to_remove = Vec::new();
     for (user_id, mut session) in sessions {
-        // Fetch chargers for this specific user
-        let chargers = match fetch_chargers(&state, user_id, &bridge_state).await {
-            Ok(chargers) => chargers,
+        // Fetch devices for this specific user
+        let devices = match fetch_chargers(&state, user_id, &bridge_state).await {
+            Ok(devices) => devices,
             Err(e) => {
-                log::error!("Failed to fetch chargers for user {}: {:?}", user_id, e);
+                log::error!("Failed to fetch devices for user {}: {:?}", user_id, e);
                 to_remove.push(user_id);
                 continue;
             }
         };
 
-        let message = StateUpdateMessage::StateChange { chargers };
+        let message = StateUpdateMessage::StateChange { chargers: devices };
         let json_msg = match serde_json::to_string(&message) {
             Ok(msg) => msg,
             Err(e) => {

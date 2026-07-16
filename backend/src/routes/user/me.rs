@@ -73,7 +73,7 @@ async fn me(
     .await?;
 
     let mut conn = get_connection(&state)?;
-    let chargers = web_block_unpacked(move || {
+    let devices = web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl as c;
 
         let ids = allowed_users
@@ -85,17 +85,17 @@ async fn me(
             .select(Charger::as_select())
             .load::<Charger>(&mut conn)
         {
-            Ok(chargers) => Ok(chargers),
+            Ok(devices) => Ok(devices),
             Err(_e) => Err(Error::InternalError),
         }
     })
     .await?;
 
     let mut has_old_charger = false;
-    for charger in chargers.into_iter() {
-        if let Ok(version) = semver::Version::parse(&charger.firmware_version) {
+    for device in devices.into_iter() {
+        if let Ok(version) = semver::Version::parse(&device.firmware_version) {
             let required_version = semver::Version::new(2, 6, 7);
-            if charger.device_type.is_none() && version < required_version {
+            if device.device_type.is_none() && version < required_version {
                 has_old_charger = true;
             }
         }
@@ -172,7 +172,7 @@ pub(crate) mod tests {
         // Add charger with old firmware version
         let user = get_test_user(mail);
         let uid = rand::random::<i32>();
-        let charger = TestCharger {
+        let device = TestCharger {
             uid,
             password: "password".to_string(),
             uuid: uuid::Uuid::new_v4().to_string(),
@@ -187,11 +187,11 @@ pub(crate) mod tests {
         use uuid::Uuid;
 
         // Insert test charger with old firmware
-        let charger_id = Uuid::new_v4();
+        let device_id = Uuid::new_v4();
         let test_charger = Charger {
-            id: charger_id,
-            uid: charger.uid,
-            password: charger.password,
+            id: device_id,
+            uid: device.uid,
+            password: device.password,
             name: None,
             charger_pub: "".to_string(),
             management_private: "".to_string(),
@@ -214,8 +214,8 @@ pub(crate) mod tests {
         let allowed_user = AllowedUser {
             id: Uuid::new_v4(),
             user_id: user.id,
-            charger_id,
-            charger_uid: charger.uid,
+            charger_id: device_id,
+            charger_uid: device.uid,
             valid: true,
             note: None,
             name: None,
@@ -253,7 +253,7 @@ pub(crate) mod tests {
         // Add charger with old firmware version BUT with a device_type set
         let user = get_test_user(mail);
         let uid = rand::random::<i32>();
-        let charger = TestCharger {
+        let device = TestCharger {
             uid,
             password: "password".to_string(),
             uuid: uuid::Uuid::new_v4().to_string(),
@@ -268,11 +268,11 @@ pub(crate) mod tests {
         use uuid::Uuid;
 
         // Insert test charger with old firmware but device_type Some => should NOT count as old
-        let charger_id = Uuid::new_v4();
+        let device_id = Uuid::new_v4();
         let test_charger = Charger {
-            id: charger_id,
-            uid: charger.uid,
-            password: charger.password,
+            id: device_id,
+            uid: device.uid,
+            password: device.password,
             name: None,
             charger_pub: "".to_string(),
             management_private: "".to_string(),
@@ -295,8 +295,8 @@ pub(crate) mod tests {
         let allowed_user = AllowedUser {
             id: Uuid::new_v4(),
             user_id: user.id,
-            charger_id,
-            charger_uid: charger.uid,
+            charger_id: device_id,
+            charger_uid: device.uid,
             valid: true,
             note: None,
             name: None,
@@ -336,7 +336,7 @@ pub(crate) mod tests {
         // Add charger with new firmware version
         let user = get_test_user(mail);
         let uid = rand::random::<i32>();
-        let charger = TestCharger {
+        let device = TestCharger {
             uid,
             password: "password".to_string(),
             uuid: uuid::Uuid::new_v4().to_string(),
@@ -351,11 +351,11 @@ pub(crate) mod tests {
         use uuid::Uuid;
 
         // Insert test charger with new firmware
-        let charger_id = Uuid::new_v4();
+        let device_id = Uuid::new_v4();
         let test_charger = Charger {
-            id: charger_id,
-            uid: charger.uid,
-            password: charger.password,
+            id: device_id,
+            uid: device.uid,
+            password: device.password,
             name: None,
             charger_pub: "".to_string(),
             management_private: "".to_string(),
@@ -378,8 +378,8 @@ pub(crate) mod tests {
         let allowed_user = AllowedUser {
             id: Uuid::new_v4(),
             user_id: user.id,
-            charger_id,
-            charger_uid: charger.uid,
+            charger_id: device_id,
+            charger_uid: device.uid,
             valid: true,
             note: None,
             name: None,
@@ -416,7 +416,7 @@ pub(crate) mod tests {
         // Add charger with invalid firmware version
         let user = get_test_user(mail);
         let uid = rand::random::<i32>();
-        let charger = TestCharger {
+        let device = TestCharger {
             uid,
             password: "password".to_string(),
             uuid: uuid::Uuid::new_v4().to_string(),
@@ -431,11 +431,11 @@ pub(crate) mod tests {
         use uuid::Uuid;
 
         // Insert test charger with invalid firmware version
-        let charger_id = Uuid::new_v4();
+        let device_id = Uuid::new_v4();
         let test_charger = Charger {
-            id: charger_id,
-            uid: charger.uid,
-            password: charger.password,
+            id: device_id,
+            uid: device.uid,
+            password: device.password,
             name: None,
             charger_pub: "".to_string(),
             management_private: "".to_string(),
@@ -458,8 +458,8 @@ pub(crate) mod tests {
         let allowed_user = AllowedUser {
             id: Uuid::new_v4(),
             user_id: user.id,
-            charger_id,
-            charger_uid: charger.uid,
+            charger_id: device_id,
+            charger_uid: device.uid,
             valid: true,
             note: None,
             name: None,

@@ -141,11 +141,11 @@ pub async fn allow_user(
 
     let cid = parse_uuid(&allow_user.charger_id)?;
 
-    let charger = get_charger_from_db(cid, &state).await?;
+    let device = get_charger_from_db(cid, &state).await?;
 
     if !password_matches(
         &allow_user.charger_password,
-        &charger.password,
+        &device.password,
         &state.hasher,
     )
     .await?
@@ -191,7 +191,7 @@ pub async fn allow_user(
             id: uuid::Uuid::new_v4(),
             user_id: allowed_uuid,
             charger_id: cid,
-            charger_uid: charger.uid,
+            charger_uid: device.uid,
             valid: true,
             name: Some(allow_user.charger_name),
             note: Some(allow_user.note),
@@ -266,19 +266,19 @@ pub mod tests {
         let (user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let charger = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = OsRng.try_next_u32().unwrap() as i32;
         user1.login().await.to_string();
-        let charger = user1.add_charger(charger).await;
+        let device = user1.add_charger(device_uid).await;
 
         let app = App::new().configure(configure).service(allow_user);
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
-            charger_id: charger.uuid,
+            charger_id: device.uuid,
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
             email: Some(user2.mail.to_owned()),
             user_uuid: None,
-            charger_password: charger.password,
+            charger_password: device.password,
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
             note: String::new(),
@@ -303,9 +303,9 @@ pub mod tests {
         let (mut user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let charger = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = OsRng.try_next_u32().unwrap() as i32;
         user1.login().await;
-        let charger = user1.add_charger(charger).await;
+        let device = user1.add_charger(device_uid).await;
 
         user2.login().await;
         let auth_token = user2.create_authorization_token(true).await;
@@ -314,11 +314,11 @@ pub mod tests {
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
-            charger_id: charger.uuid,
+            charger_id: device.uuid,
             user_auth: UserAuth::AuthToken(auth_token.token),
             email: Some(user2.mail.to_owned()),
             user_uuid: None,
-            charger_password: charger.password,
+            charger_password: device.password,
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
             note: String::new(),
@@ -343,15 +343,15 @@ pub mod tests {
         let (user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let charger = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = OsRng.try_next_u32().unwrap() as i32;
         user1.login().await.to_string();
-        let charger = user1.add_charger(charger).await;
+        let device = user1.add_charger(device_uid).await;
 
         let app = App::new().configure(configure).service(allow_user);
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
-            charger_id: charger.uuid,
+            charger_id: device.uuid,
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
             email: Some(user2.mail.to_owned()),
             user_uuid: None,
@@ -374,15 +374,15 @@ pub mod tests {
     async fn test_allow_users_non_existing() {
         let (mut user, _) = TestUser::random().await;
 
-        let charger = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = OsRng.try_next_u32().unwrap() as i32;
         user.login().await.to_string();
-        let charger = user.add_charger(charger).await;
+        let device = user.add_charger(device_uid).await;
 
         let app = App::new().configure(configure).service(allow_user);
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
-            charger_id: charger.uuid,
+            charger_id: device.uuid,
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(Vec::new())),
             email: Some(uuid::Uuid::new_v4().to_string()),
             user_uuid: None,
@@ -406,17 +406,17 @@ pub mod tests {
         let (mut user, _) = TestUser::random().await;
         let (user2, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(allow_user);
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
-            charger_id: charger.uuid.clone(),
+            charger_id: device.uuid.clone(),
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
             email: Some(user2.mail.to_owned()),
             user_uuid: None,
-            charger_password: charger.password.clone(),
+            charger_password: device.password.clone(),
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
             note: String::new(),
@@ -431,11 +431,11 @@ pub mod tests {
         assert!(resp.status().is_success());
 
         let allow = AllowUserSchema {
-            charger_id: charger.uuid.clone(),
+            charger_id: device.uuid.clone(),
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
             email: Some(user2.mail.to_owned()),
             user_uuid: None,
-            charger_password: charger.password.clone(),
+            charger_password: device.password.clone(),
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
             note: String::new(),
@@ -455,7 +455,7 @@ pub mod tests {
 
             let users: Vec<AllowedUser> = allowed_users
                 .filter(user_id.eq(get_test_uuid(&user2.mail).unwrap()))
-                .filter(charger_id.eq(uuid::Uuid::from_str(&charger.uuid).unwrap()))
+                .filter(charger_id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
                 .select(AllowedUser::as_select())
                 .load(&mut conn)
                 .unwrap();
@@ -469,19 +469,19 @@ pub mod tests {
         let (user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let charger = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = OsRng.try_next_u32().unwrap() as i32;
         user1.login().await.to_string();
-        let charger = user1.add_charger(charger).await;
+        let device = user1.add_charger(device_uid).await;
 
         let app = App::new().configure(configure).service(allow_user);
         let app = test::init_service(app).await;
 
         let allow = AllowUserSchema {
-            charger_id: charger.uuid,
+            charger_id: device.uuid,
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
             email: None,
             user_uuid: Some(get_test_uuid(&user2.mail).unwrap().to_string()),
-            charger_password: charger.password,
+            charger_password: device.password,
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
             note: String::new(),

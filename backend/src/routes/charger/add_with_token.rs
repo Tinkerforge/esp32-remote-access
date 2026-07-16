@@ -126,7 +126,7 @@ mod tests {
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
         let uid = OsRng.try_next_u32().unwrap() as i32;
-        let charger = AddChargerWithTokenSchema {
+        let device = AddChargerWithTokenSchema {
             user_id: get_test_uuid(&mail).unwrap().to_string(),
             token: auth_token.token,
             charger: ChargerSchema {
@@ -149,7 +149,7 @@ mod tests {
 
         let req = test::TestRequest::put()
             .uri("/add_with_token")
-            .set_json(charger)
+            .set_json(device)
             .to_request();
 
         let resp = test::call_service(&app, req).await;
@@ -177,7 +177,7 @@ mod tests {
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
         let uid = OsRng.try_next_u32().unwrap() as i32;
-        let charger = AddChargerWithTokenSchema {
+        let device = AddChargerWithTokenSchema {
             user_id: get_test_uuid(&mail).unwrap().to_string(),
             token: auth_token,
             charger: ChargerSchema {
@@ -200,7 +200,7 @@ mod tests {
 
         let req = test::TestRequest::put()
             .uri("/add_with_token")
-            .set_json(charger)
+            .set_json(device)
             .to_request();
 
         let resp = test::call_service(&app, req).await;

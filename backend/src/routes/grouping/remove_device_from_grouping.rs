@@ -127,8 +127,8 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_string();
 
-        let charger_id = OsRng.try_next_u32().unwrap() as i32;
-        let charger = user.add_charger(charger_id).await;
+        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device = user.add_charger(device_id).await;
         let grouping = create_test_grouping(&token, "Test Group").await;
 
         let app = App::new().configure(test_configure).configure(configure);
@@ -137,7 +137,7 @@ mod tests {
         // Add device to grouping
         let add_body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            device_id: charger.uuid.clone(),
+            device_id: device.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token);
@@ -152,7 +152,7 @@ mod tests {
         // Remove device from grouping
         let remove_body = RemoveDeviceFromGroupingSchema {
             grouping_id: grouping.id.clone(),
-            device_id: charger.uuid.clone(),
+            device_id: device.uuid.clone(),
         };
 
         let req = test::TestRequest::delete()
@@ -176,8 +176,8 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_string();
 
-        let charger_id = OsRng.try_next_u32().unwrap() as i32;
-        let charger = user.add_charger(charger_id).await;
+        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device = user.add_charger(device_id).await;
         let grouping = create_test_grouping(&token, "Test Group").await;
 
         let app = App::new().configure(test_configure).configure(configure);
@@ -186,7 +186,7 @@ mod tests {
         // Try to remove device that was never added
         let body = RemoveDeviceFromGroupingSchema {
             grouping_id: grouping.id.clone(),
-            device_id: charger.uuid.clone(),
+            device_id: device.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token);

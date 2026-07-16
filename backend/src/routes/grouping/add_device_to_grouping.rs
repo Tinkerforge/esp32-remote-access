@@ -152,8 +152,8 @@ mod tests {
         let token = user.login().await.to_string();
 
         // Create a charger
-        let charger_id = OsRng.try_next_u32().unwrap() as i32;
-        let charger = user.add_charger(charger_id).await;
+        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device = user.add_charger(device_id).await;
 
         // Create a grouping
         let grouping = create_test_grouping(&token, "Test Group").await;
@@ -163,7 +163,7 @@ mod tests {
 
         let body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            device_id: charger.uuid.clone(),
+            device_id: device.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token);
@@ -178,7 +178,7 @@ mod tests {
 
         let response: AddDeviceToGroupingResponse = test::read_body_json(resp).await;
         assert_eq!(response.grouping_id, grouping.id);
-        assert_eq!(response.device_id, charger.uuid);
+        assert_eq!(response.device_id, device.uuid);
 
         // Verify member exists in database
         let member_count = count_grouping_members(&grouping.id);
@@ -193,8 +193,8 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_string();
 
-        let charger_id = OsRng.try_next_u32().unwrap() as i32;
-        let charger = user.add_charger(charger_id).await;
+        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device = user.add_charger(device_id).await;
         let grouping = create_test_grouping(&token, "Test Group").await;
 
         let app = App::new().configure(test_configure).configure(configure);
@@ -202,7 +202,7 @@ mod tests {
 
         let body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            device_id: charger.uuid.clone(),
+            device_id: device.uuid.clone(),
         };
 
         // Add device first time
@@ -236,8 +236,8 @@ mod tests {
         let token2 = user2.login().await.to_string();
 
         // User 1 creates a charger
-        let charger_id = OsRng.try_next_u32().unwrap() as i32;
-        let charger = user1.add_charger(charger_id).await;
+        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device = user1.add_charger(device_id).await;
 
         // User 2 creates a grouping
         let grouping = create_test_grouping(&token2, "User2 Group").await;
@@ -248,7 +248,7 @@ mod tests {
         // User 2 tries to add User 1's charger to their grouping
         let body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            device_id: charger.uuid.clone(),
+            device_id: device.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token2);
@@ -271,10 +271,10 @@ mod tests {
         let token = user.login().await.to_string();
 
         // Create chargers
-        let charger1_id = OsRng.try_next_u32().unwrap() as i32;
-        let charger1 = user.add_charger(charger1_id).await;
-        let charger2_id = OsRng.try_next_u32().unwrap() as i32;
-        let charger2 = user.add_charger(charger2_id).await;
+        let device1_id = OsRng.try_next_u32().unwrap() as i32;
+        let device1 = user.add_charger(device1_id).await;
+        let device2_id = OsRng.try_next_u32().unwrap() as i32;
+        let device2 = user.add_charger(device2_id).await;
 
         // Create grouping
         let grouping = create_test_grouping(&token, "Multi-Device Group").await;
@@ -287,7 +287,7 @@ mod tests {
 
         let body1 = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            device_id: charger1.uuid.clone(),
+            device_id: device1.uuid.clone(),
         };
         let req = test::TestRequest::post()
             .uri("/grouping/add_device")
@@ -298,7 +298,7 @@ mod tests {
 
         let body2 = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            device_id: charger2.uuid.clone(),
+            device_id: device2.uuid.clone(),
         };
         let req = test::TestRequest::post()
             .uri("/grouping/add_device")
@@ -318,8 +318,8 @@ mod tests {
         let body: GetGroupingsResponse = test::read_body_json(resp).await;
         assert_eq!(body.groupings.len(), 1);
         assert_eq!(body.groupings[0].device_ids.len(), 2);
-        assert!(body.groupings[0].device_ids.contains(&charger1.uuid));
-        assert!(body.groupings[0].device_ids.contains(&charger2.uuid));
+        assert!(body.groupings[0].device_ids.contains(&device1.uuid));
+        assert!(body.groupings[0].device_ids.contains(&device2.uuid));
 
         // Cleanup
         delete_test_grouping_from_db(&grouping.id);
@@ -330,8 +330,8 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_string();
 
-        let charger_id = OsRng.try_next_u32().unwrap() as i32;
-        let charger = user.add_charger(charger_id).await;
+        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device = user.add_charger(device_id).await;
         let grouping = create_test_grouping(&token, "Cascade Test").await;
 
         let app = App::new().configure(test_configure).configure(configure);
@@ -340,7 +340,7 @@ mod tests {
         // Add device to grouping
         let add_body = AddDeviceToGroupingSchema {
             grouping_id: grouping.id.clone(),
-            device_id: charger.uuid.clone(),
+            device_id: device.uuid.clone(),
         };
 
         let cookie = Cookie::new("access_token", token);

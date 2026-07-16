@@ -143,7 +143,7 @@ mod tests {
     use crate::{
         middleware::jwt::JwtMiddleware,
         routes::user::tests::TestUser,
-        tests::{configure, get_charger_key_ids, mark_keys_as_in_use},
+        tests::{configure, get_device_key_ids, mark_keys_as_in_use},
     };
 
     #[actix_web::test]
@@ -152,7 +152,7 @@ mod tests {
         user.login().await;
 
         let charger_uid = OsRng.try_next_u32().unwrap() as i32;
-        let charger = user.add_charger(charger_uid).await;
+        let device = user.add_charger(charger_uid).await;
 
         let app = App::new()
             .configure(configure)
@@ -161,12 +161,12 @@ mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/get_key?cid={}", charger.uuid))
+            .uri(&format!("/get_key?cid={}", device.uuid))
             .cookie(Cookie::new("access_token", user.get_access_token()))
             .to_request();
 
         let resp: GetWgKeysResponseSchema = test::call_and_read_body_json(&app, req).await;
-        assert_eq!(resp.charger_id, charger.uuid);
+        assert_eq!(resp.charger_id, device.uuid);
     }
 
     #[actix_web::test]
@@ -177,11 +177,11 @@ mod tests {
         user.login().await;
 
         let charger_uid = OsRng.try_next_u32().unwrap() as i32;
-        let charger = user.add_charger(charger_uid).await;
+        let device = user.add_charger(charger_uid).await;
 
         let state = crate::tests::create_test_state(None);
-        let charger_uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
-        let key_ids = get_charger_key_ids(&state, charger_uuid).await;
+        let charger_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let key_ids = get_device_key_ids(&state, charger_uuid).await;
 
         mark_keys_as_in_use(&state, key_ids).await;
 
@@ -192,7 +192,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get()
-            .uri(&format!("/get_key?cid={}", charger.uuid))
+            .uri(&format!("/get_key?cid={}", device.uuid))
             .cookie(Cookie::new("access_token", user.get_access_token()))
             .to_request();
 

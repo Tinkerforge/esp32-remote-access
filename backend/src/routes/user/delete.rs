@@ -41,13 +41,13 @@ async fn get_all_chargers_for_user(
     })
     .await?;
 
-    let charger_ids: Vec<uuid::Uuid> = allowed_users.into_iter().map(|u| u.charger_id).collect();
+    let device_ids: Vec<uuid::Uuid> = allowed_users.into_iter().map(|u| u.charger_id).collect();
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
 
         match chargers
-            .filter(id.eq_any(charger_ids))
+            .filter(id.eq_any(device_ids))
             .select(Charger::as_select())
             .load(&mut conn)
         {
@@ -80,9 +80,9 @@ pub async fn delete_user(
     let conn = get_connection(&state)?;
     let _ = validate_password(&payload.login_key, FindBy::Uuid(uid), conn, &state.hasher).await?;
 
-    let chargers = get_all_chargers_for_user(uid, &state).await?;
-    let charger_ids: Vec<uuid::Uuid> = chargers.iter().map(|c| c.id).collect();
-    for cid in charger_ids.into_iter() {
+    let devices = get_all_chargers_for_user(uid, &state).await?;
+    let device_ids: Vec<uuid::Uuid> = devices.iter().map(|c| c.id).collect();
+    for cid in device_ids.into_iter() {
         // Remove user from allowed_users for this charger
         {
             let mut conn = get_connection(&state)?;
@@ -186,13 +186,13 @@ mod tests {
         let (mut user2, user2_mail) = TestUser::random().await;
         let token = user1.login().await.to_owned();
         user2.login().await;
-        let charger = user1.add_random_charger().await;
-        let charger2 = user2.add_random_charger().await;
+        let device = user1.add_random_charger().await;
+        let device2 = user2.add_random_charger().await;
         // Share charger with user2
         let user2_auth = crate::routes::charger::allow_user::UserAuth::LoginKey(
             base64::prelude::BASE64_STANDARD.encode(&user2.get_login_key().await),
         );
-        user1.allow_user(&user2_mail, user2_auth, &charger).await;
+        user1.allow_user(&user2_mail, user2_auth, &device).await;
         let uid1 = get_test_uuid(&user1_mail).unwrap();
         let uid2 = get_test_uuid(&user2_mail).unwrap();
 
@@ -234,14 +234,14 @@ mod tests {
                 .load::<AllowedUser>(&mut conn);
             let charger_ids: Vec<uuid::Uuid> =
                 res.unwrap().into_iter().map(|au| au.charger_id).collect();
-            let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
-            let uuid2 = uuid::Uuid::from_str(&charger2.uuid).unwrap();
+            let uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
+            let uuid2 = uuid::Uuid::from_str(&device2.uuid).unwrap();
             println!("charger_ids: {charger_ids:?}");
             assert!(charger_ids.contains(&uuid));
             assert!(charger_ids.contains(&uuid2));
         }
-        let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
-        let uuid2 = uuid::Uuid::from_str(&charger2.uuid).unwrap();
+        let uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let uuid2 = uuid::Uuid::from_str(&device2.uuid).unwrap();
         {
             use db_connector::schema::chargers::dsl::*;
 
@@ -262,8 +262,8 @@ mod tests {
             use db_connector::schema::wg_keys::dsl::*;
 
             // Only user2's keys should remain for both chargers
-            let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
-            let uuid2 = uuid::Uuid::from_str(&charger2.uuid).unwrap();
+            let uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
+            let uuid2 = uuid::Uuid::from_str(&device2.uuid).unwrap();
             let keys_user2: Vec<_> = wg_keys
                 .filter(charger_id.eq(uuid).or(charger_id.eq(uuid2)))
                 .select(WgKey::as_select())
@@ -298,8 +298,8 @@ mod tests {
         let (mut user2, user2_mail) = TestUser::random().await;
         let token = user1.login().await.to_owned();
         user2.login().await;
-        let charger = user1.add_random_charger().await;
-        let charger2 = user2.add_random_charger().await;
+        let device = user1.add_random_charger().await;
+        let device2 = user2.add_random_charger().await;
         let uid1 = get_test_uuid(&user1_mail).unwrap();
         let uid2 = get_test_uuid(&user2_mail).unwrap();
 
@@ -339,8 +339,8 @@ mod tests {
                 .get_result(&mut conn);
             assert!(res.is_ok());
         }
-        let uuid = uuid::Uuid::from_str(&charger.uuid).unwrap();
-        let uuid2 = uuid::Uuid::from_str(&charger2.uuid).unwrap();
+        let uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let uuid2 = uuid::Uuid::from_str(&device2.uuid).unwrap();
         {
             use db_connector::schema::chargers::dsl::*;
 

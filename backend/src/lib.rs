@@ -76,16 +76,16 @@ pub struct BridgeState<'a> {
     pub pool: Pool,
     pub web_client_map: Mutex<HashMap<SocketAddr, Session>>,
     pub undiscovered_clients: Mutex<HashMap<RemoteConnMeta, Session>>,
-    pub charger_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket<'a>>>>>>,
-    pub charger_management_map_with_id:
+    pub device_management_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket<'a>>>>>>,
+    pub device_management_map_with_id:
         Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'a>>>>>>,
     pub port_discovery: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
-    pub charger_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
-    pub undiscovered_chargers: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
+    pub device_remote_conn_map: Mutex<HashMap<RemoteConnMeta, SocketAddr>>,
+    pub undiscovered_devices: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<(i32, Session)>>>,
     pub socket: Arc<UdpSocket>,
     pub state_update_clients: Mutex<HashMap<uuid::Uuid, Session>>,
-    pub charger_ratelimiter: crate::rate_limit::ChargerRateLimiter,
+    pub device_ratelimiter: crate::rate_limit::ChargerRateLimiter,
 }
 
 pub struct AppState {
@@ -201,9 +201,9 @@ pub fn clean_verification_tokens(
 }
 
 // Remove chargers that dont have allowed users
-pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
+pub fn clean_devices(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
     // Get all chargers in database
-    let chargers: Vec<Charger> = {
+    let devices: Vec<Charger> = {
         use db_connector::schema::chargers::dsl::*;
 
         match chargers.select(Charger::as_select()).load(conn) {
@@ -215,9 +215,9 @@ pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManage
         }
     };
 
-    // Get allowed users for each charger and remove those without entries
-    for charger in chargers.into_iter() {
-        match AllowedUser::belonging_to(&charger)
+    // Get allowed users for each device and remove those without entries
+    for device in devices.into_iter() {
+        match AllowedUser::belonging_to(&device)
             .select(AllowedUser::as_select())
             .load(conn)
         {
@@ -225,16 +225,16 @@ pub fn clean_chargers(conn: &mut PooledConnection<diesel::r2d2::ConnectionManage
                 if users.is_empty() {
                     use db_connector::schema::chargers::dsl::*;
 
-                    let _ = diesel::delete(chargers.find(&charger.id))
+                    let _ = diesel::delete(chargers.find(&device.id))
                         .execute(conn)
                         .or_else(|e| {
-                            log::error!("Failed to remove unreferenced charger: {e}");
+                            log::error!("Failed to remove unreferenced device: {e}");
                             Ok::<usize, diesel::result::Error>(0)
                         });
                 }
             }
             Err(err) => {
-                log::error!("Failed to get allowed user for charger cleanup: {err}");
+                log::error!("Failed to get allowed user for device cleanup: {err}");
             }
         };
     }
@@ -323,7 +323,7 @@ pub(crate) mod tests {
         }
     }
 
-    pub async fn get_charger_key_ids(
+    pub async fn get_device_key_ids(
         state: &web::Data<AppState>,
         charger_uuid: uuid::Uuid,
     ) -> Vec<uuid::Uuid> {
@@ -346,17 +346,17 @@ pub(crate) mod tests {
         std_socket.set_nonblocking(true).unwrap();
         let bridge_state = BridgeState {
             pool: pool.clone(),
-            charger_management_map: Arc::new(Mutex::new(HashMap::new())),
-            charger_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
+            device_management_map: Arc::new(Mutex::new(HashMap::new())),
+            device_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
             port_discovery: Arc::new(Mutex::new(HashMap::new())),
-            charger_remote_conn_map: Mutex::new(HashMap::new()),
+            device_remote_conn_map: Mutex::new(HashMap::new()),
             undiscovered_clients: Mutex::new(HashMap::new()),
             web_client_map: Mutex::new(HashMap::new()),
-            undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
+            undiscovered_devices: Arc::new(Mutex::new(HashMap::new())),
             lost_connections: Mutex::new(HashMap::new()),
             socket: Arc::new(UdpSocket::from_std(std_socket).unwrap()),
             state_update_clients: Mutex::new(HashMap::new()),
-            charger_ratelimiter: crate::rate_limit::ChargerRateLimiter::new(),
+            device_ratelimiter: crate::rate_limit::ChargerRateLimiter::new(),
         };
 
         web::Data::new(bridge_state)
@@ -369,17 +369,17 @@ pub(crate) mod tests {
         std_socket.set_nonblocking(true).unwrap();
         let bridge_state = BridgeState {
             pool: pool.clone(),
-            charger_management_map: Arc::new(Mutex::new(HashMap::new())),
-            charger_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
+            device_management_map: Arc::new(Mutex::new(HashMap::new())),
+            device_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
             port_discovery: Arc::new(Mutex::new(HashMap::new())),
-            charger_remote_conn_map: Mutex::new(HashMap::new()),
+            device_remote_conn_map: Mutex::new(HashMap::new()),
             undiscovered_clients: Mutex::new(HashMap::new()),
             web_client_map: Mutex::new(HashMap::new()),
-            undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
+            undiscovered_devices: Arc::new(Mutex::new(HashMap::new())),
             lost_connections: Mutex::new(HashMap::new()),
             socket: Arc::new(UdpSocket::from_std(std_socket).unwrap()),
             state_update_clients: Mutex::new(HashMap::new()),
-            charger_ratelimiter: crate::rate_limit::ChargerRateLimiter::new(),
+            device_ratelimiter: crate::rate_limit::ChargerRateLimiter::new(),
         };
 
         let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> = web::Data::new(
@@ -389,10 +389,10 @@ pub(crate) mod tests {
         let state = create_test_state(Some(pool));
         let bridge_state = web::Data::new(bridge_state);
         let login_rate_limiter = web::Data::new(LoginRateLimiter::new());
-        let charger_rate_limiter = web::Data::new(ChargerRateLimiter::new());
+        let device_rate_limiter = web::Data::new(ChargerRateLimiter::new());
         let general_rate_limiter = web::Data::new(rate_limit::IPRateLimiter::new());
         cfg.app_data(login_rate_limiter);
-        cfg.app_data(charger_rate_limiter);
+        cfg.app_data(device_rate_limiter);
         cfg.app_data(general_rate_limiter);
         cfg.app_data(state);
         cfg.app_data(bridge_state);
@@ -681,8 +681,8 @@ pub(crate) mod tests {
     async fn test_charger_cleanup() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
-        let charger2 = Charger {
+        let device = user.add_random_charger().await;
+        let device2 = Charger {
             id: uuid::Uuid::new_v4(),
             uid: OsRng.try_next_u32().unwrap() as i32,
             password: String::new(),
@@ -710,25 +710,25 @@ pub(crate) mod tests {
             use db_connector::schema::chargers::dsl::*;
 
             diesel::insert_into(chargers)
-                .values(&charger2)
+                .values(&device2)
                 .execute(&mut conn)
                 .unwrap();
         }
 
-        clean_chargers(&mut conn);
+        clean_devices(&mut conn);
 
-        let charger_id = uuid::Uuid::from_str(&charger.uuid).unwrap();
-        let chargers: Vec<Charger> = {
+        let device_id = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let devices: Vec<Charger> = {
             use db_connector::schema::chargers::dsl::*;
 
             chargers
-                .filter(id.eq_any(vec![&charger_id, &charger2.id]))
+                .filter(id.eq_any(vec![&device_id, &device2.id]))
                 .select(Charger::as_select())
                 .load(&mut conn)
                 .unwrap()
         };
 
-        assert_eq!(chargers.len(), 1);
-        assert_eq!(chargers[0].id, charger_id);
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].id, device_id);
     }
 }

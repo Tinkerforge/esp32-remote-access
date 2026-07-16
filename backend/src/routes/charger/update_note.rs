@@ -93,7 +93,7 @@ mod tests {
     async fn test_update_note() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new()
             .configure(configure)
@@ -102,7 +102,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let schema = UpdateNoteSchema {
-            charger_id: charger.uuid.clone(),
+            charger_id: device.uuid.clone(),
             note: "Test".to_string(),
         };
 
@@ -124,7 +124,7 @@ mod tests {
 
             let user = get_test_uuid(&user.mail).unwrap();
             let u: AllowedUser = allowed_users
-                .filter(charger_id.eq(uuid::Uuid::from_str(&charger.uuid).unwrap()))
+                .filter(charger_id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
                 .filter(user_id.eq(user))
                 .select(AllowedUser::as_select())
                 .get_result(&mut conn)
@@ -137,8 +137,8 @@ mod tests {
     async fn test_update_two_chargers() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
-        let charger2 = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
+        let device2 = user.add_random_charger().await;
 
         let app = App::new()
             .configure(configure)
@@ -147,7 +147,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let schema = UpdateNoteSchema {
-            charger_id: charger.uuid.clone(),
+            charger_id: device.uuid.clone(),
             note: "Test".to_string(),
         };
 
@@ -169,14 +169,14 @@ mod tests {
 
             let user = get_test_uuid(&user.mail).unwrap();
             let u: AllowedUser = allowed_users
-                .filter(charger_id.eq(uuid::Uuid::from_str(&charger.uuid).unwrap()))
+                .filter(charger_id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
                 .filter(user_id.eq(user))
                 .select(AllowedUser::as_select())
                 .get_result(&mut conn)
                 .unwrap();
             assert_eq!(u.note.unwrap(), "Test");
             let u: AllowedUser = allowed_users
-                .filter(charger_id.eq(uuid::Uuid::from_str(&charger2.uuid).unwrap()))
+                .filter(charger_id.eq(uuid::Uuid::from_str(&device2.uuid).unwrap()))
                 .filter(user_id.eq(user))
                 .select(AllowedUser::as_select())
                 .get_result(&mut conn)

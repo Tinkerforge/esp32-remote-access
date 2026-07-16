@@ -16,11 +16,11 @@ use crate::{
 pub struct ServerState {
     pub clients: Vec<SocketAddr>,
     pub undiscovered_clients: Vec<RemoteConnMeta>,
-    pub charger_management_map: Vec<SocketAddr>,
-    pub charger_management_map_with_id: Vec<String>,
+    pub device_management_map: Vec<SocketAddr>,
+    pub device_management_map_with_id: Vec<String>,
     pub port_discovery: Vec<ManagementResponseV2>,
-    pub charger_remote_conn_map: Vec<RemoteConnMeta>,
-    pub undiscovered_chargers: HashMap<IpNetwork, HashSet<DiscoveryCharger>>,
+    pub device_remote_conn_map: Vec<RemoteConnMeta>,
+    pub undiscovered_devices: HashMap<IpNetwork, HashSet<DiscoveryCharger>>,
     pub lost_connections: Vec<(String, Vec<i32>)>,
 }
 
@@ -39,18 +39,17 @@ pub async fn state(brige_state: web::Data<BridgeState<'_>>) -> actix_web::Result
         undiscoverd_clients.keys().cloned().collect()
     };
 
-    let charger_management_map: Vec<SocketAddr> = {
-        let charger_management_map = brige_state.charger_management_map.lock().await;
-        charger_management_map
+    let device_management_map: Vec<SocketAddr> = {
+        let device_management_map = brige_state.device_management_map.lock().await;
+        device_management_map
             .keys()
             .map(|sock| sock.to_owned())
             .collect()
     };
 
-    let charger_management_map_with_id: Vec<String> = {
-        let charger_management_map_with_id =
-            brige_state.charger_management_map_with_id.lock().await;
-        charger_management_map_with_id
+    let device_management_map_with_id: Vec<String> = {
+        let device_management_map_with_id = brige_state.device_management_map_with_id.lock().await;
+        device_management_map_with_id
             .keys()
             .map(|id| id.to_string())
             .collect()
@@ -61,13 +60,13 @@ pub async fn state(brige_state: web::Data<BridgeState<'_>>) -> actix_web::Result
         port_discovery.keys().copied().collect()
     };
 
-    let charger_remote_conn_map: Vec<RemoteConnMeta> = {
-        let charger_remote_conn_map = brige_state.charger_remote_conn_map.lock().await;
-        charger_remote_conn_map.keys().cloned().collect()
+    let device_remote_conn_map: Vec<RemoteConnMeta> = {
+        let device_remote_conn_map = brige_state.device_remote_conn_map.lock().await;
+        device_remote_conn_map.keys().cloned().collect()
     };
 
-    let undiscovered_chargers = {
-        let map = brige_state.undiscovered_chargers.lock().await;
+    let undiscovered_devices = {
+        let map = brige_state.undiscovered_devices.lock().await;
         map.clone()
     };
 
@@ -86,11 +85,11 @@ pub async fn state(brige_state: web::Data<BridgeState<'_>>) -> actix_web::Result
     let state = ServerState {
         clients,
         undiscovered_clients,
-        charger_management_map,
+        device_management_map,
         port_discovery,
-        charger_management_map_with_id,
-        charger_remote_conn_map,
-        undiscovered_chargers,
+        device_management_map_with_id,
+        device_remote_conn_map,
+        undiscovered_devices,
         lost_connections,
     };
 

@@ -29,12 +29,12 @@ async fn get_charger(
 ) -> actix_web::Result<Charger> {
     if let Some(uuid) = schema.uuid {
         rate_limiter.check(uuid.clone(), req)?;
-        let charger_id = parse_uuid(&uuid)?;
-        let charger = get_charger_from_db(charger_id, state).await?;
-        if !password_matches(&schema.password, &charger.password, &state.hasher).await? {
+        let device_id = parse_uuid(&uuid)?;
+        let device = get_charger_from_db(device_id, state).await?;
+        if !password_matches(&schema.password, &device.password, &state.hasher).await? {
             return Err(Error::ChargerCredentialsWrong.into());
         }
-        Ok(charger)
+        Ok(device)
     } else if let Some(uid) = schema.id {
         rate_limiter.check(uid.to_string(), req)?;
         Ok(get_charger_by_uid(uid, Some(schema.password), state).await?)
@@ -59,14 +59,14 @@ pub async fn selfdestruct(
     req: HttpRequest,
 ) -> actix_web::Result<impl Responder> {
     // funtion does also the rate limiting
-    let charger = get_charger(payload.0, &state, &rate_limiter, &req).await?;
+    let device = get_charger(payload.0, &state, &rate_limiter, &req).await?;
 
     let mut conn = get_connection(&state)?;
     web_block_unpacked(move || {
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         match diesel::delete(
-            allowed_users::allowed_users.filter(allowed_users::charger_id.eq(charger.id)),
+            allowed_users::allowed_users.filter(allowed_users::charger_id.eq(device.id)),
         )
         .execute(&mut conn)
         {
@@ -80,7 +80,7 @@ pub async fn selfdestruct(
     web_block_unpacked(move || {
         use db_connector::schema::wg_keys::dsl as wg_keys;
 
-        match diesel::delete(wg_keys::wg_keys.filter(wg_keys::charger_id.eq(charger.id)))
+        match diesel::delete(wg_keys::wg_keys.filter(wg_keys::charger_id.eq(device.id)))
             .execute(&mut conn)
         {
             Ok(_) => Ok(()),
@@ -93,7 +93,7 @@ pub async fn selfdestruct(
     web_block_unpacked(move || {
         use db_connector::schema::chargers::dsl::*;
 
-        match diesel::delete(chargers.filter(id.eq(charger.id))).execute(&mut conn) {
+        match diesel::delete(chargers.filter(id.eq(device.id))).execute(&mut conn) {
             Ok(_) => Ok(()),
             Err(_err) => Err(Error::InternalError),
         }
@@ -125,15 +125,15 @@ mod tests {
     async fn test_selfdestruction() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(selfdestruct);
         let app = test::init_service(app).await;
 
         let schema = SelfdestructSchema {
             id: None,
-            uuid: Some(charger.uuid.clone()),
-            password: charger.password,
+            uuid: Some(device.uuid.clone()),
+            password: device.password,
         };
 
         let req = TestRequest::delete()
@@ -147,8 +147,8 @@ mod tests {
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
 
-        let cid = uuid::Uuid::from_str(&charger.uuid).unwrap();
-        let chargers: Vec<Charger> = {
+        let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let devices: Vec<Charger> = {
             use db_connector::schema::chargers::dsl as chargers;
 
             chargers::chargers
@@ -157,7 +157,7 @@ mod tests {
                 .load(&mut conn)
                 .unwrap()
         };
-        assert_eq!(chargers.len(), 0);
+        assert_eq!(devices.len(), 0);
 
         let allowed_users: Vec<AllowedUser> = {
             use db_connector::schema::allowed_users::dsl::*;
@@ -186,15 +186,15 @@ mod tests {
     async fn test_selfdestruction_depricated() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(selfdestruct);
         let app = test::init_service(app).await;
 
         let schema = SelfdestructSchema {
-            id: Some(charger.uid),
+            id: Some(device.uid),
             uuid: None,
-            password: charger.password,
+            password: device.password,
         };
 
         let req = TestRequest::delete()
@@ -208,8 +208,8 @@ mod tests {
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
 
-        let cid = uuid::Uuid::from_str(&charger.uuid).unwrap();
-        let chargers: Vec<Charger> = {
+        let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let devices: Vec<Charger> = {
             use db_connector::schema::chargers::dsl as chargers;
 
             chargers::chargers
@@ -218,7 +218,7 @@ mod tests {
                 .load(&mut conn)
                 .unwrap()
         };
-        assert_eq!(chargers.len(), 0);
+        assert_eq!(devices.len(), 0);
 
         let allowed_users: Vec<AllowedUser> = {
             use db_connector::schema::allowed_users::dsl::*;

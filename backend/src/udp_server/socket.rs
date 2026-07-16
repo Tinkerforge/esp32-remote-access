@@ -121,7 +121,7 @@ impl<'a> ManagementSocket<'a> {
     }
 
     /// Construct a `ManagementSocket` suitable for unit/integration tests that
-    /// only need a populated entry in `charger_management_map_with_id`. The
+    /// only need a populated entry in `device_management_map_with_id`. The
     /// underlying boringtun state is initialized with zeroed keys; the socket
     /// is never expected to send or receive real traffic, so the lack of a
     /// real handshake partner is irrelevant.

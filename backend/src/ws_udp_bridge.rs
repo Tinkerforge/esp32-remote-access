@@ -88,7 +88,7 @@ impl<'a> WebClient<'a> {
         };
 
         {
-            let map = bridge_state.charger_remote_conn_map.lock().await;
+            let map = bridge_state.device_remote_conn_map.lock().await;
             match map.get(&meta) {
                 Some(addr) => {
                     let mut client_map = bridge_state.web_client_map.lock().await;
@@ -127,7 +127,7 @@ impl<'a> WebClient<'a> {
                         charger_id: self.charger_id,
                         conn_no: self.conn_no,
                     };
-                    let map = self.bridge_state.charger_remote_conn_map.lock().await;
+                    let map = self.bridge_state.device_remote_conn_map.lock().await;
                     match map.get(&meta) {
                         Some(addr) => addr.to_owned(),
                         None => {
@@ -168,7 +168,7 @@ impl<'a> WebClient<'a> {
             conn_no: self.conn_no,
         };
         {
-            let mut map = self.bridge_state.charger_remote_conn_map.lock().await;
+            let mut map = self.bridge_state.device_remote_conn_map.lock().await;
             if let Some(addr) = map.get(&meta) {
                 let mut map = self.bridge_state.web_client_map.lock().await;
                 map.remove(addr);
@@ -201,11 +201,7 @@ impl<'a> WebClient<'a> {
             };
 
             let packet = ManagementCommandPacket { header, command };
-            let map = self
-                .bridge_state
-                .charger_management_map_with_id
-                .lock()
-                .await;
+            let map = self.bridge_state.device_management_map_with_id.lock().await;
             if let Some(sock) = map.get(&self.charger_id) {
                 let mut sock = sock.lock().await;
                 sock.send_packet(ManagementPacket::CommandPacket(packet));
@@ -294,7 +290,7 @@ async fn start_ws(
     }
 
     let management_sock = {
-        let map = bridge_state.charger_management_map_with_id.lock().await;
+        let map = bridge_state.device_management_map_with_id.lock().await;
         let management_sock = match map.get(&keys.charger_id) {
             Some(sock) => sock.clone(),
             None => return Err(Error::ChargerDisconnected.into()),

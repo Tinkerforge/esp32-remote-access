@@ -146,9 +146,9 @@ pub async fn send_chargelog(
 
     rate_limiter.check(metadata.charger_uuid.clone(), &req)?;
 
-    let charger_id = parse_uuid(&metadata.charger_uuid)?;
-    let charger = get_charger_from_db(charger_id, &state).await?;
-    if !password_matches(&metadata.password, &charger.password, &state.hasher).await? {
+    let device_id = parse_uuid(&metadata.charger_uuid)?;
+    let device = get_charger_from_db(device_id, &state).await?;
+    if !password_matches(&metadata.password, &device.password, &state.hasher).await? {
         return Err(Error::ChargerCredentialsWrong.into());
     }
 
@@ -348,14 +348,14 @@ mod tests {
     async fn test_send_chargelog_success() {
         let (mut user, _mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(send_chargelog);
         let app = test::init_service(app).await;
 
         let metadata = json!({
-            "charger_uuid": charger.uuid,
-            "password": charger.password,
+            "charger_uuid": device.uuid,
+            "password": device.password,
             "user_uuid": crate::routes::user::tests::get_test_uuid(&user.mail)
                 .unwrap()
                 .to_string(),
@@ -385,13 +385,13 @@ mod tests {
     async fn test_send_chargelog_invalid_password() {
         let (mut user, _mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(send_chargelog);
         let app = test::init_service(app).await;
 
         let metadata = json!({
-            "charger_uuid": charger.uuid,
+            "charger_uuid": device.uuid,
             "password": "wrongpassword",
             "user_uuid": crate::routes::user::tests::get_test_uuid(&user.mail)
                 .unwrap()
@@ -423,7 +423,7 @@ mod tests {
     async fn test_send_chargelog_rate_limit() {
         let (mut user, _mail) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new().configure(configure).service(send_chargelog);
         let app = test::init_service(app).await;
@@ -433,8 +433,8 @@ mod tests {
             .to_string();
 
         let metadata = json!({
-            "charger_uuid": charger.uuid,
-            "password": charger.password,
+            "charger_uuid": device.uuid,
+            "password": device.password,
             "user_uuid": user_uuid,
             "display_name": "Test Device",
             "filename": "chargelog.pdf",
@@ -503,10 +503,10 @@ mod tests {
         );
 
         // Verify that a different charger from the same IP can make requests
-        let charger2 = user.add_random_charger().await;
+        let device2 = user.add_random_charger().await;
         let metadata2 = json!({
-            "charger_uuid": charger2.uuid,
-            "password": charger2.password,
+            "charger_uuid": device2.uuid,
+            "password": device2.password,
             "user_uuid": user_uuid,
             "display_name": "Test Device 2",
             "filename": "chargelog2.pdf",

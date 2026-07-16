@@ -188,7 +188,7 @@ pub mod tests {
     #[derive(Debug)]
     pub struct TestUser {
         pub mail: String,
-        pub charger: Vec<TestCharger>,
+        pub devices: Vec<TestCharger>,
         pub password: Vec<u8>,
         pub access_token: Option<String>,
         pub refresh_token: Option<String>,
@@ -266,7 +266,7 @@ pub mod tests {
             TestUser {
                 mail: mail.to_string(),
                 password,
-                charger: Vec::new(),
+                devices: Vec::new(),
                 access_token: None,
                 refresh_token: None,
             }
@@ -318,26 +318,21 @@ pub mod tests {
         }
 
         pub async fn add_charger(&mut self, id: i32) -> TestCharger {
-            let charger = add_test_charger(id, self.access_token.as_ref().unwrap()).await;
-            self.charger.push(charger.clone());
+            let device = add_test_charger(id, self.access_token.as_ref().unwrap()).await;
+            self.devices.push(device.clone());
 
-            charger
+            device
         }
 
         pub async fn add_random_charger(&mut self) -> TestCharger {
             let id = OsRng.try_next_u32().unwrap() as i32;
-            let charger = self.add_charger(id).await;
+            let device = self.add_charger(id).await;
 
-            charger
+            device
         }
 
-        pub async fn allow_user(
-            &mut self,
-            email: &str,
-            user_auth: UserAuth,
-            charger: &TestCharger,
-        ) {
-            add_allowed_test_user(email, user_auth, charger).await;
+        pub async fn allow_user(&mut self, email: &str, user_auth: UserAuth, device: &TestCharger) {
+            add_allowed_test_user(email, user_auth, device).await;
         }
 
         pub fn get_mail(&self) -> &str {
@@ -358,10 +353,10 @@ pub mod tests {
 
     impl Drop for TestUser {
         fn drop(&mut self) {
-            while let Some(charger) = self.charger.pop() {
+            while let Some(device) = self.devices.pop() {
                 let _ = remove_test_keys(&self.mail);
-                remove_allowed_test_users(&charger.uuid);
-                remove_test_charger(&charger.uuid);
+                remove_allowed_test_users(&device.uuid);
+                remove_test_charger(&device.uuid);
             }
             delete_user(&self.mail);
         }

@@ -70,7 +70,7 @@ fn cleanup_thread(state: web::Data<AppState>) {
         clean_refresh_tokens(&mut conn);
         clean_recovery_tokens(&mut conn);
         clean_verification_tokens(&mut conn);
-        clean_chargers(&mut conn);
+        clean_devices(&mut conn);
     }
 }
 
@@ -94,9 +94,9 @@ async fn resend_thread(bridge_state: web::Data<BridgeState<'_>>) {
             };
 
             let packet = ManagementCommandPacket { header, command };
-            let charger_id = uuid::Uuid::from_u128(port.charger_id);
-            let chargers = bridge_state.charger_management_map_with_id.lock().await;
-            if let Some(sock) = chargers.get(&charger_id) {
+            let device_id = uuid::Uuid::from_u128(port.charger_id);
+            let devices = bridge_state.device_management_map_with_id.lock().await;
+            if let Some(sock) = devices.get(&device_id) {
                 let mut sock = sock.lock().await;
                 sock.send_packet(ManagementPacket::CommandPacket(packet));
             }
@@ -206,20 +206,20 @@ async fn main() -> std::io::Result<()> {
     let udp_socket = UdpSocket::bind("0.0.0.0:51820")
         .await
         .expect("Failed to bind UDP socket");
-    let charger_ratelimiter = crate::rate_limit::ChargerRateLimiter::new();
+    let device_ratelimiter = crate::rate_limit::ChargerRateLimiter::new();
     let bridge_state = web::Data::new(BridgeState {
         pool,
         web_client_map: Mutex::new(HashMap::new()),
         undiscovered_clients: Mutex::new(HashMap::new()),
-        charger_management_map: Arc::new(Mutex::new(HashMap::new())),
-        charger_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
+        device_management_map: Arc::new(Mutex::new(HashMap::new())),
+        device_management_map_with_id: Arc::new(Mutex::new(HashMap::new())),
         port_discovery: Arc::new(Mutex::new(HashMap::new())),
-        charger_remote_conn_map: Mutex::new(HashMap::new()),
-        undiscovered_chargers: Arc::new(Mutex::new(HashMap::new())),
+        device_remote_conn_map: Mutex::new(HashMap::new()),
+        undiscovered_devices: Arc::new(Mutex::new(HashMap::new())),
         lost_connections: Mutex::new(HashMap::new()),
         socket: Arc::new(udp_socket),
         state_update_clients: Mutex::new(HashMap::new()),
-        charger_ratelimiter,
+        device_ratelimiter,
     });
 
     let state_cpy = state.clone();
@@ -235,7 +235,7 @@ async fn main() -> std::io::Result<()> {
     );
 
     let login_ratelimiter = web::Data::new(LoginRateLimiter::new());
-    let charger_ratelimiter = web::Data::new(ChargerRateLimiter::new());
+    let device_ratelimiter = web::Data::new(ChargerRateLimiter::new());
     let general_ratelimiter = web::Data::new(IPRateLimiter::new());
 
     let static_files_dir = std::env::var("STATIC_FILES_DIR").unwrap();
@@ -250,7 +250,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(cache.clone())
             .app_data(state.clone())
             .app_data(login_ratelimiter.clone())
-            .app_data(charger_ratelimiter.clone())
+            .app_data(device_ratelimiter.clone())
             .app_data(general_ratelimiter.clone())
             .app_data(bridge_state.clone())
             .service(web::scope("/api").configure(routes::configure))

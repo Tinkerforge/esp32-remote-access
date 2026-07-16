@@ -108,7 +108,7 @@ pub async fn try_port_discovery(
         }
     }
 
-    let mut map = state.charger_remote_conn_map.lock().await;
+    let mut map = state.device_remote_conn_map.lock().await;
     map.insert(meta, addr);
 
     Ok(())

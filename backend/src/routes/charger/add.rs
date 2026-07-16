@@ -135,21 +135,21 @@ fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
 #[put("/add")]
 pub async fn add(
     state: web::Data<AppState>,
-    charger_schema: actix_web_validator::Json<AddChargerSchema>,
+    device_schema: actix_web_validator::Json<AddChargerSchema>,
     user_id: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
-    let resp = register_charger(state, charger_schema.0, user_id.into()).await?;
+    let resp = register_charger(state, device_schema.0, user_id.into()).await?;
 
     Ok(HttpResponse::Ok().json(resp))
 }
 
 pub async fn register_charger(
     state: web::Data<AppState>,
-    charger_schema: AddChargerSchema,
+    device_schema: AddChargerSchema,
     user_id: uuid::Uuid,
 ) -> actix_web::Result<AddChargerResponseSchema> {
     // uwrapping here is safe since it got checked in the validator.
-    let mut uid_bytes = bs58::decode(&charger_schema.charger.uid)
+    let mut uid_bytes = bs58::decode(&device_schema.charger.uid)
         .with_alphabet(bs58::Alphabet::FLICKR)
         .into_vec()
         .unwrap();
@@ -167,7 +167,7 @@ pub async fn register_charger(
         if let Some(cid) = get_charger_uuid(&state, charger_uid, user_id).await? {
             charger_id = cid;
             update_charger(
-                charger_schema.charger.clone(),
+                device_schema.charger.clone(),
                 charger_id,
                 charger_uid,
                 user_id,
@@ -177,7 +177,7 @@ pub async fn register_charger(
         } else {
             charger_id = uuid::Uuid::new_v4();
             add_charger(
-                charger_schema.clone(),
+                device_schema.clone(),
                 charger_id,
                 charger_uid,
                 user_id,
@@ -186,7 +186,7 @@ pub async fn register_charger(
             .await?
         };
 
-    for keys in charger_schema.keys.iter() {
+    for keys in device_schema.keys.iter() {
         add_wg_key(charger_id, user_id, keys.to_owned(), &state).await?;
     }
 
@@ -218,7 +218,7 @@ pub async fn password_matches(
 }
 
 async fn update_charger(
-    charger: ChargerSchema,
+    device: ChargerSchema,
     charger_id: uuid::Uuid,
     charger_uid: i32,
     user_id: uuid::Uuid,
@@ -272,16 +272,16 @@ async fn update_charger(
         let private_key = BASE64_STANDARD.encode(private_key.as_bytes());
         let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
 
-        let charger = Charger {
+        let device = Charger {
             id: charger_id,
             uid: charger_uid,
             password: hash,
             name: None,
-            charger_pub: charger.charger_pub,
+            charger_pub: device.charger_pub,
             management_private: private_key,
-            wg_charger_ip: charger.wg_charger_ip,
-            wg_server_ip: charger.wg_server_ip,
-            psk: charger.psk,
+            wg_charger_ip: device.wg_charger_ip,
+            wg_server_ip: device.wg_server_ip,
+            psk: device.psk,
             webinterface_port: 0,
             firmware_version: String::new(),
             last_state_change: Some(chrono::Utc::now().naive_utc()),
@@ -289,7 +289,7 @@ async fn update_charger(
             mtu: None,
             last_charge_log_upload_hash: Vec::new(),
         };
-        match diesel::update(&charger).set(&charger).execute(&mut conn) {
+        match diesel::update(&device).set(&device).execute(&mut conn) {
             Ok(_) => Ok(pub_key),
             Err(_err) => Err(Error::InternalError),
         }
@@ -340,18 +340,18 @@ pub async fn add_charger(
         let pub_key = boringtun::x25519::PublicKey::from(&private_key);
         let private_key = BASE64_STANDARD.encode(private_key.as_bytes());
         let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
-        let charger = &schema.charger;
+        let device = &schema.charger;
 
-        let charger = Charger {
+        let new_charger = Charger {
             id: charger_id,
             uid: charger_uid,
             password: hash,
             name: None,
-            charger_pub: charger.charger_pub.clone(),
+            charger_pub: device.charger_pub.clone(),
             management_private: private_key,
-            wg_charger_ip: charger.wg_charger_ip,
-            wg_server_ip: charger.wg_server_ip,
-            psk: charger.psk.clone(),
+            wg_charger_ip: device.wg_charger_ip,
+            wg_server_ip: device.wg_server_ip,
+            psk: device.psk.clone(),
             webinterface_port: 0,
             firmware_version: String::new(),
             last_state_change: None,
@@ -361,7 +361,7 @@ pub async fn add_charger(
         };
 
         match diesel::insert_into(chargers::chargers)
-            .values(&charger)
+            .values(&new_charger)
             .execute(&mut conn)
         {
             Ok(_) => (),
@@ -371,8 +371,8 @@ pub async fn add_charger(
         let user = AllowedUser {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
-            charger_id: charger.id,
-            charger_uid: charger.uid,
+            charger_id: new_charger.id,
+            charger_uid: new_charger.uid,
             valid: true,
             note: Some(schema.note),
             name: Some(schema.name),
@@ -501,7 +501,7 @@ pub(crate) mod tests {
             .into_string();
         println!("id: {uid_str}");
         let keys = generate_random_keys();
-        let charger = AddChargerSchema {
+        let device = AddChargerSchema {
             charger: ChargerSchema {
                 uid: uid_str,
                 charger_pub: keys[0].charger_public.clone(),
@@ -521,7 +521,7 @@ pub(crate) mod tests {
         let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
-            .set_json(charger)
+            .set_json(device)
             .to_request();
 
         let resp = test::call_service(&app, req).await;
@@ -547,7 +547,7 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
         let uid = OsRng.try_next_u32().unwrap() as i32;
-        let charger = AddChargerSchema {
+        let device = AddChargerSchema {
             charger: ChargerSchema {
                 uid: bs58::encode(uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
@@ -569,7 +569,7 @@ pub(crate) mod tests {
         let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
-            .set_json(charger)
+            .set_json(device)
             .to_request();
 
         let resp = test::call_service(&app, req).await;
@@ -592,7 +592,7 @@ pub(crate) mod tests {
 
         let (mut user, mail) = TestUser::random().await; // store mail
         let token = user.login().await.to_owned();
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let app = App::new()
             .configure(configure)
@@ -603,7 +603,7 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let charger_schema = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode(charger.uid.to_be_bytes())
+                uid: bs58::encode(device.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 charger_pub: keys[0].charger_public.clone(),
@@ -654,12 +654,12 @@ pub(crate) mod tests {
 
         let (mut user2, _) = TestUser::random().await;
         user2.login().await;
-        let charger = user2.add_random_charger().await;
+        let device = user2.add_random_charger().await;
         user2
             .allow_user(
                 &mail,
                 UserAuth::LoginKey(BASE64_STANDARD.encode(user.get_login_key().await)),
-                &charger,
+                &device,
             )
             .await;
 
@@ -672,7 +672,7 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let charger_schema = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode(charger.uid.to_be_bytes())
+                uid: bs58::encode(device.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 charger_pub: keys[0].charger_public.clone(),
@@ -709,7 +709,7 @@ pub(crate) mod tests {
     async fn test_add_existing_charger() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
-        let charger = user.add_random_charger().await;
+        let device = user.add_random_charger().await;
 
         let (mut user2, _) = TestUser::random().await;
         let user2_mail = user2.get_mail().to_owned(); // store user2 mail
@@ -724,7 +724,7 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let charger_schema = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode(charger.uid.to_be_bytes())
+                uid: bs58::encode(device.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 charger_pub: keys[0].charger_public.clone(),
