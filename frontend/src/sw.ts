@@ -22,13 +22,49 @@ import { Message, MessageType, FetchMessage, ResponseMessage } from "./types";
 declare const self: ServiceWorkerGlobalScope;
 declare const __BUILD_TIMESTAMP__: string;
 
-self.addEventListener("activate", (event) => {
-    event.waitUntil(self.clients.claim());
-});
+let lastAccessTokenRefresh = 0;
+let responseCache: Response | null = null;
 
-self.addEventListener("install", (event) => {
-    event.waitUntil(self.skipWaiting());
-});
+const pendingResolvers = new Map<string, (response: Response) => void>();
+
+const SECRET_CACHE_NAME = 'secret-cache-v1';
+
+async function storeSecretKeyInCache(secretKey: string): Promise<void> {
+    const cache = await caches.open(SECRET_CACHE_NAME);
+    const response = new Response(secretKey);
+    await cache.put('secret-key', response);
+}
+
+async function getSecretKeyFromCache(): Promise<string | null> {
+    try {
+        const cache = await caches.open(SECRET_CACHE_NAME);
+        const response = await cache.match('secret-key');
+        if (response) {
+            const secretKey = await response.text();
+            return secretKey;
+        }
+    } catch (e) {
+        console.error('Service Worker: Failed to get secretKey from cache:', e);
+    }
+    return null;
+}
+
+async function clearSecretKeyFromCache(): Promise<void> {
+    try {
+        const cache = await caches.open(SECRET_CACHE_NAME);
+        await cache.delete('secret-key');
+    } catch (e) {
+        console.error('Service Worker: Failed to clear secretKey from cache:', e);
+    }
+}
+
+function isIframeMessage(e: ExtendableMessageEvent): boolean {
+    const source = e.source;
+    if (source instanceof WindowClient && source.url.indexOf("wg-") !== -1) {
+        return true;
+    }
+    return false;
+}
 
 function handleWGRequest(event: FetchEvent) {
     let url = event.request.url.replace(self.location.origin, "");
@@ -94,10 +130,8 @@ function handleWGRequest(event: FetchEvent) {
                 type: MessageType.Fetch,
                 data: message
             };
-            self.addEventListener(id, (e: Event) => {
-                const event = e as CustomEvent;
-                resolve(event.detail);
-            }, {once: true});
+
+            pendingResolvers.set(id, resolve);
 
             // Claim all clients again. This is needed in case a window is forced to refresh
             // since they drop out of the service workers clients afterwards.
@@ -117,10 +151,7 @@ function handleWGRequest(event: FetchEvent) {
     }
 }
 
-let lastAccessTokenRefresh = 0;
-let responseCache: Response | null = null;
-
-self.addEventListener("fetch", (event: FetchEvent) => {
+function handleFetch(event: FetchEvent) {
     if (!handleWGRequest(event) && event.request.url.indexOf("/jwt_refresh") !== -1) {
         const now = Date.now();
         // In case the last access token refresh we lie to the client that the token was refreshed
@@ -144,48 +175,9 @@ self.addEventListener("fetch", (event: FetchEvent) => {
         lastAccessTokenRefresh = 0;
         responseCache = null;
     }
-});
-
-const SECRET_CACHE_NAME = 'secret-cache-v1';
-
-async function storeSecretKeyInCache(secretKey: string): Promise<void> {
-    const cache = await caches.open(SECRET_CACHE_NAME);
-    const response = new Response(secretKey);
-    await cache.put('secret-key', response);
 }
 
-async function getSecretKeyFromCache(): Promise<string | null> {
-    try {
-        const cache = await caches.open(SECRET_CACHE_NAME);
-        const response = await cache.match('secret-key');
-        if (response) {
-            const secretKey = await response.text();
-            return secretKey;
-        }
-    } catch (e) {
-        console.error('Service Worker: Failed to get secretKey from cache:', e);
-    }
-    return null;
-}
-
-async function clearSecretKeyFromCache(): Promise<void> {
-    try {
-        const cache = await caches.open(SECRET_CACHE_NAME);
-        await cache.delete('secret-key');
-    } catch (e) {
-        console.error('Service Worker: Failed to clear secretKey from cache:', e);
-    }
-}
-
-function isIframeMessage(e: ExtendableMessageEvent): boolean {
-    const source = e.source;
-    if (source instanceof WindowClient && source.url.indexOf("wg-") !== -1) {
-        return true;
-    }
-    return false;
-}
-
-self.addEventListener("message", async (e: ExtendableMessageEvent) => {
+async function handleMessage(e: ExtendableMessageEvent) {
     if (isIframeMessage(e)) {
         console.warn("Service Worker ignoring message from invalid origin or iframe:", e.source);
         return;
@@ -198,7 +190,7 @@ self.addEventListener("message", async (e: ExtendableMessageEvent) => {
     const msg = e.data as Message;
 
     switch (msg.type) {
-        case MessageType.FetchResponse:
+        case MessageType.FetchResponse: {
             const resp_message = msg.data as ResponseMessage;
             const response = new Response(
                 resp_message.body,
@@ -209,11 +201,15 @@ self.addEventListener("message", async (e: ExtendableMessageEvent) => {
                 }
             );
 
-            const event = new CustomEvent(msg.id as string, {detail: response});
-            self.dispatchEvent(event);
+            const resolver = pendingResolvers.get(msg.id as string);
+            if (resolver) {
+                pendingResolvers.delete(msg.id as string);
+                resolver(response);
+            }
             break;
+        }
 
-        case MessageType.StoreSecret:
+        case MessageType.StoreSecret: {
             try {
                 await storeSecretKeyInCache(msg.data as string);
                 const responseMsg: Message = {
@@ -229,8 +225,9 @@ self.addEventListener("message", async (e: ExtendableMessageEvent) => {
                 e.source?.postMessage(responseMsg);
             }
             break;
+        }
 
-        case MessageType.RequestSecret:
+        case MessageType.RequestSecret: {
             const secretKey = await getSecretKeyFromCache();
             if (secretKey) {
                 const responseMsg: Message = {
@@ -240,6 +237,7 @@ self.addEventListener("message", async (e: ExtendableMessageEvent) => {
                 e.source?.postMessage(responseMsg);
             }
             break;
+        }
 
         case MessageType.ClearSecret:
             await clearSecretKeyFromCache();
@@ -248,4 +246,26 @@ self.addEventListener("message", async (e: ExtendableMessageEvent) => {
         default:
             break;
     }
-});
+}
+
+function swEventHandler(event: Event) {
+    switch (event.type) {
+        case "activate":
+            (event as ExtendableEvent).waitUntil(self.clients.claim());
+            break;
+        case "install":
+            (event as ExtendableEvent).waitUntil(self.skipWaiting());
+            break;
+        case "fetch":
+            handleFetch(event as FetchEvent);
+            break;
+        case "message":
+            handleMessage(event as ExtendableMessageEvent);
+            break;
+    }
+}
+
+self.addEventListener("activate", swEventHandler);
+self.addEventListener("install", swEventHandler);
+self.addEventListener("fetch", swEventHandler);
+self.addEventListener("message", swEventHandler);
