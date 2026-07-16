@@ -337,12 +337,12 @@ async fn handle_charge_log<'a>(
     }
 
     // Send the charge log to the user
-    let charger_uuid = {
+    let device_uuid = {
         let tunn_sock_lock = tunn_sock.lock().await;
         tunn_sock_lock.id()
     };
     send_charge_log_to_user(
-        charger_uuid,
+        device_uuid,
         &meta_data,
         buf.into_inner().unwrap(),
         &app_state,
@@ -517,11 +517,11 @@ pub async fn run_server(
                     // Charge log send request
                     PacketType::RequestChargeLogSend => {
                         // Check rate limit first
-                        let charger_id_str = id.to_string();
+                        let device_id_str = id.to_string();
                         let ip_str = addr.ip().to_string();
                         if !bridge_state
                             .device_ratelimiter
-                            .check_key(charger_id_str, ip_str)
+                            .check_key(device_id_str, ip_str)
                         {
                             let mut tun_sock = tunn_sock.lock().await;
                             log::error!("Rate limit exceeded for charge log send request from charger with id '{}'", id);

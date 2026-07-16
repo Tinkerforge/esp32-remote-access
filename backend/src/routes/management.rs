@@ -298,10 +298,10 @@ pub async fn management(
 
     let charger_id;
     let mut output_uuid = None;
-    let device = if let Some(charger_uid) = data.id {
-        rate_limiter.check(charger_uid.to_string(), &req)?;
+    let device = if let Some(device_uid) = data.id {
+        rate_limiter.check(device_uid.to_string(), &req)?;
 
-        let device = get_charger_by_uid(charger_uid, data.password.clone(), &state).await?;
+        let device = get_charger_by_uid(device_uid, data.password.clone(), &state).await?;
         charger_id = device.id;
         output_uuid = Some(charger_id.to_string());
         device
@@ -470,7 +470,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let user_id = get_test_uuid(&mail).unwrap();
-        let charger_uuid_clone = device.uuid.clone();
+        let device_uuid_clone = device.uuid.clone();
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
             id: device.uuid,
             password: device.password,
@@ -506,13 +506,13 @@ mod tests {
         use db_connector::schema::chargers::dsl::*;
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let db_charger: DbCharger = chargers
-            .filter(id.eq(uuid::Uuid::from_str(&charger_uuid_clone).unwrap()))
+        let db_device: DbCharger = chargers
+            .filter(id.eq(uuid::Uuid::from_str(&device_uuid_clone).unwrap()))
             .select(DbCharger::as_select())
             .get_result(&mut conn)
             .unwrap();
         assert_eq!(
-            db_charger.device_type.as_deref(),
+            db_device.device_type.as_deref(),
             Some("Tinkerforge-WARP2_Charger/2.8.0+6811d0b1")
         );
     }
@@ -527,7 +527,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let user_id = get_test_uuid(&mail).unwrap();
-        let charger_uuid_clone = device.uuid.clone();
+        let device_uuid_clone = device.uuid.clone();
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
             id: device.uuid,
             password: device.password,
@@ -563,16 +563,16 @@ mod tests {
         use db_connector::schema::chargers::dsl::*;
         let pool = db_connector::test_connection_pool();
         let mut conn = pool.get().unwrap();
-        let db_charger: DbCharger = chargers
-            .filter(id.eq(uuid::Uuid::from_str(&charger_uuid_clone).unwrap()))
+        let db_device: DbCharger = chargers
+            .filter(id.eq(uuid::Uuid::from_str(&device_uuid_clone).unwrap()))
             .select(DbCharger::as_select())
             .get_result(&mut conn)
             .unwrap();
-        assert_eq!(db_charger.mtu, Some(1420));
-        assert_eq!(db_charger.webinterface_port, 8080);
-        assert_eq!(db_charger.firmware_version, "2.4.0");
+        assert_eq!(db_device.mtu, Some(1420));
+        assert_eq!(db_device.webinterface_port, 8080);
+        assert_eq!(db_device.firmware_version, "2.4.0");
         assert_eq!(
-            db_charger.device_type.as_deref(),
+            db_device.device_type.as_deref(),
             Some("Tinkerforge-WARP3_Charger/2.9.0+abc123")
         );
     }
@@ -1134,7 +1134,7 @@ mod tests {
         user.login().await;
         let device = user.add_random_charger().await;
 
-        let charger_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let device_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
         let user_id = get_test_uuid(&mail).unwrap();
 
         // Build the app on top of our own bridge_state so we can inspect and
@@ -1147,11 +1147,11 @@ mod tests {
         // Simulate the WireGuard tunnel being established by inserting a
         // ManagementSocket into the same map the UDP server uses.
         let remote_addr: std::net::SocketAddr = "123.123.123.123:12345".parse().unwrap();
-        let mgmt_socket = ManagementSocket::new_for_test(charger_uuid, remote_addr).await;
+        let mgmt_socket = ManagementSocket::new_for_test(device_uuid, remote_addr).await;
         let mgmt_socket = Arc::new(Mutex::new(mgmt_socket));
         {
             let mut id_map = bridge_state.device_management_map_with_id.lock().await;
-            id_map.insert(charger_uuid, mgmt_socket.clone());
+            id_map.insert(device_uuid, mgmt_socket.clone());
         }
         {
             let mut addr_map = bridge_state.device_management_map.lock().await;
@@ -1219,7 +1219,7 @@ mod tests {
         // `start_ws` (browser→charger tunnel setup) can find it.
         let id_map = bridge_state.device_management_map_with_id.lock().await;
         assert!(
-            id_map.contains_key(&charger_uuid),
+            id_map.contains_key(&device_uuid),
             "management request must not remove the active tunnel entry",
         );
     }

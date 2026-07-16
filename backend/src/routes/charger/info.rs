@@ -179,7 +179,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let access_token = user.login().await.to_owned();
         let _device = user.add_random_charger().await;
-        let non_existent_charger = "00000000-0000-0000-0000-000000000000".to_string();
+        let non_existent_device = "00000000-0000-0000-0000-000000000000".to_string();
 
         let app = App::new()
             .configure(configure)
@@ -188,7 +188,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let data = ChargerInfoRequest {
-            charger: non_existent_charger,
+            charger: non_existent_device,
         };
         let req = test::TestRequest::post()
             .uri("/info")

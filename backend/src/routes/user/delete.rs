@@ -232,13 +232,13 @@ mod tests {
                 .filter(user_id.eq(uid2))
                 .select(AllowedUser::as_select())
                 .load::<AllowedUser>(&mut conn);
-            let charger_ids: Vec<uuid::Uuid> =
+            let device_ids: Vec<uuid::Uuid> =
                 res.unwrap().into_iter().map(|au| au.charger_id).collect();
             let uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
             let uuid2 = uuid::Uuid::from_str(&device2.uuid).unwrap();
-            println!("charger_ids: {charger_ids:?}");
-            assert!(charger_ids.contains(&uuid));
-            assert!(charger_ids.contains(&uuid2));
+            println!("device_ids: {device_ids:?}");
+            assert!(device_ids.contains(&uuid));
+            assert!(device_ids.contains(&uuid2));
         }
         let uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
         let uuid2 = uuid::Uuid::from_str(&device2.uuid).unwrap();

@@ -197,7 +197,7 @@ impl TryFrom<&[u8]> for RequestChargeLogSendPacket {
 ///
 /// # Fields
 ///
-/// * `charger_uuid` - Unique identifier for the charger (16 bytes)
+/// * `device_uuid` - Unique identifier for the charger (16 bytes)
 /// * `user_uuid` - Unique identifier for the user (16 bytes)
 /// * `filename_length` - Length of the filename string in bytes
 /// * `display_name_length` - Length of the display name string in bytes

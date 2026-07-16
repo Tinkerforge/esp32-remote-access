@@ -104,7 +104,7 @@ mod tests {
         routes::{
             charger::{
                 add::{tests::generate_random_keys, AddChargerResponseSchema},
-                remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
+                remove::tests::{remove_allowed_test_users, remove_test_device, remove_test_keys},
             },
             user::tests::{get_test_uuid, TestUser},
         },
@@ -155,7 +155,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         let _ = remove_test_keys(&mail);
         remove_allowed_test_users(&cid);
-        remove_test_charger(&cid);
+        remove_test_device(&cid);
         println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
@@ -206,7 +206,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         let _ = remove_test_keys(&mail);
         remove_allowed_test_users(&cid);
-        remove_test_charger(&cid);
+        remove_test_device(&cid);
         println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert_eq!(resp.status(), 401);
@@ -269,6 +269,6 @@ mod tests {
 
         let _ = remove_test_keys(&mail);
         remove_allowed_test_users(&cid);
-        remove_test_charger(&cid);
+        remove_test_device(&cid);
     }
 }

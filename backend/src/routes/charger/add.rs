@@ -75,7 +75,7 @@ pub struct AddChargerSchema {
 #[derive(Serialize, Deserialize, ToSchema, Debug)]
 pub struct AddChargerResponseSchema {
     pub management_pub: String,
-    pub charger_uuid: String,
+    pub device_uuid: String,
     pub charger_password: String,
     pub user_id: String,
 }
@@ -193,7 +193,7 @@ pub async fn register_charger(
     let user_id: uuid::Uuid = user_id;
     let resp = AddChargerResponseSchema {
         management_pub: pub_key,
-        charger_uuid: device_id.to_string(),
+        device_uuid: device_id.to_string(),
         charger_password: password,
         user_id: user_id.to_string(),
     };
@@ -219,8 +219,8 @@ pub async fn password_matches(
 
 async fn update_charger(
     device: ChargerSchema,
-    charger_id: uuid::Uuid,
-    charger_uid: i32,
+    device_id: uuid::Uuid,
+    device_uid: i32,
     user_id: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<(String, String)> {
@@ -229,7 +229,7 @@ async fn update_charger(
     let mut conn = get_connection(state)?;
     web_block_unpacked(move || {
         if let Err(_err) = diesel::delete(wg_keys::wg_keys)
-            .filter(wg_keys::charger_id.eq(charger_id))
+            .filter(wg_keys::charger_id.eq(device_id))
             .execute(&mut conn)
         {
             return Err(Error::InternalError);
@@ -247,7 +247,7 @@ async fn update_charger(
 
         match diesel::update(
             allowed_users::allowed_users
-                .filter(allowed_users::charger_id.eq(charger_id))
+                .filter(allowed_users::charger_id.eq(device_id))
                 .filter(allowed_users::user_id.eq(user_id)),
         )
         .set(allowed_users::valid.eq(true))
@@ -273,8 +273,8 @@ async fn update_charger(
         let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
 
         let device = Charger {
-            id: charger_id,
-            uid: charger_uid,
+            id: device_id,
+            uid: device_uid,
             password: hash,
             name: None,
             charger_pub: device.charger_pub,
@@ -318,8 +318,8 @@ async fn generate_password(
 
 pub async fn add_charger(
     schema: AddChargerSchema,
-    charger_id: uuid::Uuid,
-    charger_uid: i32,
+    device_id: uuid::Uuid,
+    device_uid: i32,
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> Result<(String, String), actix_web::Error> {
@@ -342,9 +342,9 @@ pub async fn add_charger(
         let pub_key = BASE64_STANDARD.encode(pub_key.as_bytes());
         let device = &schema.charger;
 
-        let new_charger = Charger {
-            id: charger_id,
-            uid: charger_uid,
+        let new_device = Charger {
+            id: device_id,
+            uid: device_uid,
             password: hash,
             name: None,
             charger_pub: device.charger_pub.clone(),
@@ -361,7 +361,7 @@ pub async fn add_charger(
         };
 
         match diesel::insert_into(chargers::chargers)
-            .values(&new_charger)
+            .values(&new_device)
             .execute(&mut conn)
         {
             Ok(_) => (),
@@ -371,8 +371,8 @@ pub async fn add_charger(
         let user = AllowedUser {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
-            charger_id: new_charger.id,
-            charger_uid: new_charger.uid,
+            charger_id: new_device.id,
+            charger_uid: new_device.uid,
             valid: true,
             note: Some(schema.note),
             name: Some(schema.name),
@@ -454,7 +454,7 @@ pub(crate) mod tests {
         routes::{
             charger::{
                 allow_user::UserAuth,
-                remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
+                remove::tests::{remove_allowed_test_users, remove_test_device, remove_test_keys},
                 tests::TestCharger,
             },
             user::tests::{get_test_uuid, TestUser}, // ← add import for UUID check
@@ -488,7 +488,7 @@ pub(crate) mod tests {
         unsafe { std::mem::transmute::<_, [Keys; 5]>(keys) }
     }
 
-    pub async fn add_test_charger(uid: i32, token: &str) -> TestCharger {
+    pub async fn add_test_device(uid: i32, token: &str) -> TestCharger {
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
@@ -528,7 +528,7 @@ pub(crate) mod tests {
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
         TestCharger {
             uid,
-            uuid: body.charger_uuid,
+            uuid: body.device_uuid,
             password: body.charger_password,
         }
     }
@@ -575,7 +575,7 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
         let _ = remove_test_keys(&mail);
         remove_allowed_test_users(&cid);
-        remove_test_charger(&cid);
+        remove_test_device(&cid);
         println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
@@ -601,7 +601,7 @@ pub(crate) mod tests {
         let app = init_service(app).await;
 
         let keys = generate_random_keys();
-        let charger_schema = AddChargerSchema {
+        let device_schema = AddChargerSchema {
             charger: ChargerSchema {
                 uid: bs58::encode(device.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
@@ -623,7 +623,7 @@ pub(crate) mod tests {
         let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
-            .set_json(charger_schema)
+            .set_json(device_schema)
             .to_request();
 
         let resp = test::call_service(&app, req).await;
@@ -635,7 +635,7 @@ pub(crate) mod tests {
         let user_uuid = get_test_uuid(&mail).unwrap().to_string();
         assert_eq!(body.user_id, user_uuid);
 
-        let uuid = uuid::Uuid::from_str(&body.charger_uuid).unwrap();
+        let uuid = uuid::Uuid::from_str(&body.device_uuid).unwrap();
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         let keys: Vec<WgKey> = wg_keys::wg_keys
@@ -670,7 +670,7 @@ pub(crate) mod tests {
         let app = init_service(app).await;
 
         let keys = generate_random_keys();
-        let charger_schema = AddChargerSchema {
+        let device_schema = AddChargerSchema {
             charger: ChargerSchema {
                 uid: bs58::encode(device.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
@@ -692,7 +692,7 @@ pub(crate) mod tests {
         let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
-            .set_json(charger_schema)
+            .set_json(device_schema)
             .to_request();
 
         let resp = test::call_service(&app, req).await;
@@ -722,7 +722,7 @@ pub(crate) mod tests {
         let app = init_service(app).await;
 
         let keys = generate_random_keys();
-        let charger_schema = AddChargerSchema {
+        let device_schema = AddChargerSchema {
             charger: ChargerSchema {
                 uid: bs58::encode(device.uid.to_be_bytes())
                     .with_alphabet(bs58::Alphabet::FLICKR)
@@ -744,7 +744,7 @@ pub(crate) mod tests {
         let req = test::TestRequest::put()
             .uri("/add")
             .cookie(Cookie::new("access_token", token))
-            .set_json(charger_schema)
+            .set_json(device_schema)
             .to_request();
 
         let resp = test::call_service(&app, req).await;

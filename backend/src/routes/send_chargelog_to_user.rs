@@ -231,7 +231,7 @@ pub async fn send_chargelog(
 /// * `Ok(())` if the email was sent successfully
 /// * `Err(...)` if the user is not allowed to access the charger or if any other error occurs
 pub async fn send_charge_log_to_user<R: IntoBody>(
-    charger_uuid: uuid::Uuid,
+    device_uuid: uuid::Uuid,
     metadata: &ChargeLogSendMetadata,
     charge_log: R,
     state: &web::Data<AppState>,
@@ -239,13 +239,13 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
     let user_uuid = uuid::Uuid::from_u128(metadata.user_uuid);
 
     // Check if the user is allowed to access this charger
-    user_is_allowed(state, user_uuid, charger_uuid)
+    user_is_allowed(state, user_uuid, device_uuid)
         .await
         .map_err(|e| {
             log::error!(
                 "Failed to check if user '{}' is allowed to access charger '{}': {:?}",
                 user_uuid,
-                charger_uuid,
+                device_uuid,
                 e
             );
             Error::from(e)
@@ -308,7 +308,7 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
 
     log::error!(
         "Successfully sent charge log from charger '{}' to user '{}' ({})",
-        charger_uuid,
+        device_uuid,
         user_uuid,
         user.email
     );

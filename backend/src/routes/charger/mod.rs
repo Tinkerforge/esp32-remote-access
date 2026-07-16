@@ -54,7 +54,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
 pub async fn get_charger_uuid(
     state: &web::Data<AppState>,
-    charger_uid: i32,
+    device_uid: i32,
     user_id: uuid::Uuid,
 ) -> actix_web::Result<Option<uuid::Uuid>> {
     let mut conn = get_connection(state)?;
@@ -62,7 +62,7 @@ pub async fn get_charger_uuid(
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         let allowed_user: AllowedUser = match allowed_users::allowed_users
-            .filter(allowed_users::charger_uid.eq(charger_uid))
+            .filter(allowed_users::charger_uid.eq(device_uid))
             .filter(allowed_users::user_id.eq(user_id))
             .select(AllowedUser::as_select())
             .get_result(&mut conn)

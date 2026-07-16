@@ -94,10 +94,10 @@ pub async fn get_charger_by_uid(
 
     let mut conn = get_connection(state)?;
     let devices: Vec<Charger> = web_block_unpacked(move || {
-        use db_connector::schema::chargers::dsl as chargers;
+        use db_connector::schema::chargers::dsl;
 
-        match chargers::chargers
-            .filter(chargers::uid.eq(uid))
+        match dsl::chargers
+            .filter(dsl::uid.eq(uid))
             .select(Charger::as_select())
             .load(&mut conn)
         {

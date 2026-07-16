@@ -256,8 +256,8 @@ pub(crate) mod tests {
             .unwrap();
     }
 
-    pub fn remove_test_charger(charger_id: &str) {
-        let device_id = uuid::Uuid::from_str(charger_id).unwrap();
+    pub fn remove_test_device(device_id: &str) {
+        let device_id = uuid::Uuid::from_str(device_id).unwrap();
 
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
@@ -403,9 +403,9 @@ pub(crate) mod tests {
         let (mut user1, _) = TestUser::random().await;
         let email = user1.get_mail().to_owned();
         let (mut user2, _) = TestUser::random().await;
-        let charger_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = OsRng.try_next_u32().unwrap() as i32;
         user2.login().await;
-        let device = user2.add_charger(charger_uid).await;
+        let device = user2.add_charger(device_uid).await;
         user2
             .allow_user(
                 &email,
@@ -445,9 +445,9 @@ pub(crate) mod tests {
 
         let (mut user1, _) = TestUser::random().await;
         let (mut user2, _) = TestUser::random().await;
-        let charger_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = OsRng.try_next_u32().unwrap() as i32;
         user2.login().await;
-        let device = user2.add_charger(charger_uid).await;
+        let device = user2.add_charger(device_uid).await;
         let token = user1.login().await;
 
         let body = DeleteChargerSchema {

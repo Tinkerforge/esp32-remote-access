@@ -188,7 +188,7 @@ pub(crate) mod tests {
 
         // Insert test charger with old firmware
         let device_id = Uuid::new_v4();
-        let test_charger = Charger {
+        let test_device = Charger {
             id: device_id,
             uid: device.uid,
             password: device.password,
@@ -206,7 +206,7 @@ pub(crate) mod tests {
             last_charge_log_upload_hash: Vec::new(),
         };
         diesel::insert_into(c::chargers)
-            .values(&test_charger)
+            .values(&test_device)
             .execute(&mut conn)
             .unwrap();
 
@@ -269,7 +269,7 @@ pub(crate) mod tests {
 
         // Insert test charger with old firmware but device_type Some => should NOT count as old
         let device_id = Uuid::new_v4();
-        let test_charger = Charger {
+        let test_device = Charger {
             id: device_id,
             uid: device.uid,
             password: device.password,
@@ -287,7 +287,7 @@ pub(crate) mod tests {
             last_charge_log_upload_hash: Vec::new(),
         };
         diesel::insert_into(c::chargers)
-            .values(&test_charger)
+            .values(&test_device)
             .execute(&mut conn)
             .unwrap();
 
@@ -352,7 +352,7 @@ pub(crate) mod tests {
 
         // Insert test charger with new firmware
         let device_id = Uuid::new_v4();
-        let test_charger = Charger {
+        let test_device = Charger {
             id: device_id,
             uid: device.uid,
             password: device.password,
@@ -370,7 +370,7 @@ pub(crate) mod tests {
             last_charge_log_upload_hash: Vec::new(),
         };
         diesel::insert_into(c::chargers)
-            .values(&test_charger)
+            .values(&test_device)
             .execute(&mut conn)
             .unwrap();
 
@@ -432,7 +432,7 @@ pub(crate) mod tests {
 
         // Insert test charger with invalid firmware version
         let device_id = Uuid::new_v4();
-        let test_charger = Charger {
+        let test_device = Charger {
             id: device_id,
             uid: device.uid,
             password: device.password,
@@ -450,7 +450,7 @@ pub(crate) mod tests {
             last_charge_log_upload_hash: Vec::new(),
         };
         diesel::insert_into(c::chargers)
-            .values(&test_charger)
+            .values(&test_device)
             .execute(&mut conn)
             .unwrap();
 

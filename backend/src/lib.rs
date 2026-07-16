@@ -200,16 +200,16 @@ pub fn clean_verification_tokens(
     }
 }
 
-// Remove chargers that dont have allowed users
+// Remove devices that dont have allowed users
 pub fn clean_devices(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>) {
-    // Get all chargers in database
+    // Get all devices in database
     let devices: Vec<Charger> = {
-        use db_connector::schema::chargers::dsl::*;
+        use db_connector::schema::chargers::dsl as devices;
 
-        match chargers.select(Charger::as_select()).load(conn) {
+        match devices::chargers.select(Charger::as_select()).load(conn) {
             Ok(c) => c,
             Err(err) => {
-                log::error!("Failed to get chargers for cleanup: {err}");
+                log::error!("Failed to get devices for cleanup: {err}");
                 return;
             }
         }
@@ -223,9 +223,9 @@ pub fn clean_devices(conn: &mut PooledConnection<diesel::r2d2::ConnectionManager
         {
             Ok(users) => {
                 if users.is_empty() {
-                    use db_connector::schema::chargers::dsl::*;
+                    use db_connector::schema::chargers::dsl as devices;
 
-                    let _ = diesel::delete(chargers.find(&device.id))
+                    let _ = diesel::delete(devices::chargers.find(&device.id))
                         .execute(conn)
                         .or_else(|e| {
                             log::error!("Failed to remove unreferenced device: {e}");
@@ -325,13 +325,13 @@ pub(crate) mod tests {
 
     pub async fn get_device_key_ids(
         state: &web::Data<AppState>,
-        charger_uuid: uuid::Uuid,
+        device_uuid: uuid::Uuid,
     ) -> Vec<uuid::Uuid> {
         use db_connector::schema::wg_keys::dsl::*;
 
         let mut conn = state.pool.get().unwrap();
         wg_keys
-            .filter(charger_id.eq(charger_uuid))
+            .filter(charger_id.eq(device_uuid))
             .select(id)
             .load::<uuid::Uuid>(&mut conn)
             .unwrap_or_default()
@@ -707,9 +707,9 @@ pub(crate) mod tests {
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         {
-            use db_connector::schema::chargers::dsl::*;
+            use db_connector::schema::chargers::dsl;
 
-            diesel::insert_into(chargers)
+            diesel::insert_into(dsl::chargers)
                 .values(&device2)
                 .execute(&mut conn)
                 .unwrap();
@@ -719,9 +719,9 @@ pub(crate) mod tests {
 
         let device_id = uuid::Uuid::from_str(&device.uuid).unwrap();
         let devices: Vec<Charger> = {
-            use db_connector::schema::chargers::dsl::*;
+            use db_connector::schema::chargers::dsl::{self as dsl, *};
 
-            chargers
+            dsl::chargers
                 .filter(id.eq_any(vec![&device_id, &device2.id]))
                 .select(Charger::as_select())
                 .load(&mut conn)

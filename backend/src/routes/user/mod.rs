@@ -156,9 +156,9 @@ pub mod tests {
                 verify::tests::fast_verify,
             },
             charger::{
-                add::tests::add_test_charger,
+                add::tests::add_test_device,
                 allow_user::{tests::add_allowed_test_user, UserAuth},
-                remove::tests::{remove_allowed_test_users, remove_test_charger, remove_test_keys},
+                remove::tests::{remove_allowed_test_users, remove_test_device, remove_test_keys},
                 tests::TestCharger,
             },
         },
@@ -318,7 +318,7 @@ pub mod tests {
         }
 
         pub async fn add_charger(&mut self, id: i32) -> TestCharger {
-            let device = add_test_charger(id, self.access_token.as_ref().unwrap()).await;
+            let device = add_test_device(id, self.access_token.as_ref().unwrap()).await;
             self.devices.push(device.clone());
 
             device
@@ -356,7 +356,7 @@ pub mod tests {
             while let Some(device) = self.devices.pop() {
                 let _ = remove_test_keys(&self.mail);
                 remove_allowed_test_users(&device.uuid);
-                remove_test_charger(&device.uuid);
+                remove_test_device(&device.uuid);
             }
             delete_user(&self.mail);
         }

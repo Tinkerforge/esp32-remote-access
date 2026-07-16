@@ -80,7 +80,7 @@ pub async fn get_key(
     let keys_in_use_count = {
         let keys_in_use_cache = state.keys_in_use.lock().await;
 
-        let charger_key_ids: Vec<uuid::Uuid> = web_block_unpacked(move || {
+        let device_key_ids: Vec<uuid::Uuid> = web_block_unpacked(move || {
             match wg_keys
                 .filter(charger_id.eq(&cid))
                 .select(WgKey::as_select())
@@ -93,7 +93,7 @@ pub async fn get_key(
         })
         .await?;
 
-        charger_key_ids
+        device_key_ids
             .into_iter()
             .filter(|key_id| keys_in_use_cache.contains(key_id))
             .collect::<Vec<_>>()

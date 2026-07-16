@@ -71,7 +71,7 @@ pub async fn add_device_to_grouping(
     use db_connector::schema::device_groupings::dsl as groupings;
 
     let grouping_uuid = parse_uuid(&payload.grouping_id)?;
-    let charger_uuid = parse_uuid(&payload.device_id)?;
+    let device_uuid = parse_uuid(&payload.device_id)?;
     let user_uuid: uuid::Uuid = user_id.clone().into();
 
     // Verify user owns the grouping
@@ -97,7 +97,7 @@ pub async fn add_device_to_grouping(
     .await?;
 
     // Verify user has access to the charger
-    user_is_allowed(&state, user_uuid, charger_uuid).await?;
+    user_is_allowed(&state, user_uuid, device_uuid).await?;
 
     // Add the device to the grouping
     let mut conn = get_connection(&state)?;
@@ -107,7 +107,7 @@ pub async fn add_device_to_grouping(
         let new_member = DeviceGroupingMember {
             id: uuid::Uuid::new_v4(),
             grouping_id: grouping.id,
-            charger_id: charger_uuid,
+            charger_id: device_uuid,
             added_at: chrono::Utc::now().naive_utc(),
         };
 
