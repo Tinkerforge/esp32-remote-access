@@ -151,8 +151,8 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let charger_uid = OsRng.try_next_u32().unwrap() as i32;
-        let device = user.add_charger(charger_uid).await;
+        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device = user.add_charger(device_uid).await;
 
         let app = App::new()
             .configure(configure)
@@ -176,12 +176,12 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let charger_uid = OsRng.try_next_u32().unwrap() as i32;
-        let device = user.add_charger(charger_uid).await;
+        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device = user.add_charger(device_uid).await;
 
         let state = crate::tests::create_test_state(None);
-        let charger_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
-        let key_ids = get_device_key_ids(&state, charger_uuid).await;
+        let device_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let key_ids = get_device_key_ids(&state, device_uuid).await;
 
         mark_keys_as_in_use(&state, key_ids).await;
 

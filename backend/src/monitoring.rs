@@ -15,7 +15,7 @@ use diesel::{
 #[template(path = "monitoring.html")]
 struct MonitoringMail<'a> {
     num_users: i64,
-    num_chargers: i64,
+    num_devices: i64,
     server_name: &'a str,
 }
 
@@ -26,15 +26,15 @@ fn get_numbers(
     use db_connector::schema::users::dsl::*;
 
     let num_users: i64 = users.count().get_result(&mut conn)?;
-    let num_chargers: i64 = chargers.count().get_result(&mut conn)?;
+    let num_devices: i64 = chargers.count().get_result(&mut conn)?;
 
-    Ok((num_users, num_chargers))
+    Ok((num_users, num_devices))
 }
 
-fn send_mail(state: &web::Data<AppState>, num_users: i64, num_chargers: i64) -> Result<(), Error> {
+fn send_mail(state: &web::Data<AppState>, num_users: i64, num_devices: i64) -> Result<(), Error> {
     let body = MonitoringMail {
         num_users,
-        num_chargers,
+        num_devices,
         server_name: &std::env::var("SERVER_NAME")?,
     };
     let body = body.render()?;
@@ -62,7 +62,7 @@ pub fn start_monitoring(state: web::Data<AppState>) {
     std::thread::spawn(move || loop {
         match get_connection(&state) {
             Ok(conn) => {
-                let (num_users, num_chargers) = match get_numbers(conn) {
+                let (num_users, num_devices) = match get_numbers(conn) {
                     Ok(v) => v,
                     Err(err) => {
                         log::error!("Failed to get monitoring statistics from database: {err}");
@@ -70,10 +70,10 @@ pub fn start_monitoring(state: web::Data<AppState>) {
                         continue;
                     }
                 };
-                match send_mail(&state, num_users, num_chargers) {
+                match send_mail(&state, num_users, num_devices) {
                     Ok(()) => {
                         log::info!(
-                            "Monitoring email sent successfully. Users: {num_users}, Chargers: {num_chargers}"
+                            "Monitoring email sent successfully. Users: {num_users}, Chargers: {num_devices}"
                         );
                     }
                     Err(err) => {

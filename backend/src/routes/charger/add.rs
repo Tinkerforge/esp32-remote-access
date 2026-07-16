@@ -154,32 +154,32 @@ pub async fn register_charger(
         .into_vec()
         .unwrap();
     uid_bytes.reverse();
-    let mut charger_id = [0u8; 4];
-    for (uid_byte, charger_byte) in uid_bytes.into_iter().zip(charger_id.iter_mut()) {
-        *charger_byte = uid_byte;
+    let mut device_id_bytes = [0u8; 4];
+    for (uid_byte, device_byte) in uid_bytes.into_iter().zip(device_id_bytes.iter_mut()) {
+        *device_byte = uid_byte;
     }
-    let charger_uid = i32::from_le_bytes(charger_id);
-    let charger_id;
+    let device_uid = i32::from_le_bytes(device_id_bytes);
+    let device_id;
 
     let (pub_key, password) =
         // Updating a charger here is safe since we already had this combination of user and charger
         // and the user_id is not fakable except someone stole our signing key for jwt.
-        if let Some(cid) = get_charger_uuid(&state, charger_uid, user_id).await? {
-            charger_id = cid;
+        if let Some(cid) = get_charger_uuid(&state, device_uid, user_id).await? {
+            device_id = cid;
             update_charger(
                 device_schema.charger.clone(),
-                charger_id,
-                charger_uid,
+                device_id,
+                device_uid,
                 user_id,
                 &state,
             )
             .await?
         } else {
-            charger_id = uuid::Uuid::new_v4();
+            device_id = uuid::Uuid::new_v4();
             add_charger(
                 device_schema.clone(),
-                charger_id,
-                charger_uid,
+                device_id,
+                device_uid,
                 user_id,
                 &state,
             )
@@ -187,13 +187,13 @@ pub async fn register_charger(
         };
 
     for keys in device_schema.keys.iter() {
-        add_wg_key(charger_id, user_id, keys.to_owned(), &state).await?;
+        add_wg_key(device_id, user_id, keys.to_owned(), &state).await?;
     }
 
     let user_id: uuid::Uuid = user_id;
     let resp = AddChargerResponseSchema {
         management_pub: pub_key,
-        charger_uuid: charger_id.to_string(),
+        charger_uuid: device_id.to_string(),
         charger_password: password,
         user_id: user_id.to_string(),
     };
