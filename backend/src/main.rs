@@ -78,7 +78,8 @@ async fn resend_thread(bridge_state: web::Data<BridgeState<'_>>) {
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
         let undiscovered_ports = bridge_state.port_discovery.lock().await;
-        for (port, _) in undiscovered_ports.iter() {
+        for port in undiscovered_ports.iter() {
+            let port = port.0;
             let command = ManagementCommand {
                 command_id: ManagementCommandId::Connect,
                 connection_no: port.connection_no,

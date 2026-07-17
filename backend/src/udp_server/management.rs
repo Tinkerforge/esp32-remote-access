@@ -52,7 +52,8 @@ async fn process_old_packet(
     let packet: OldManagementResponse = unsafe { std::ptr::read(data.as_ptr() as *const _) };
 
     let map = state.port_discovery.lock().await;
-    for (meta, _) in map.iter() {
+    for meta in map.iter() {
+        let meta = meta.0;
         if meta.connection_no == packet.connection_no
             && meta.connection_uuid == packet.connection_uuid
         {
