@@ -158,8 +158,8 @@ async fn create_tunn<'a>(
             } else if Ipv4Network::new(std::env::var("FORWARD_HOST")?.parse()?, 32)? == ip {
                 log::info!("Found forwarded management connection");
                 let mut device_ids: Vec<uuid::Uuid> = Vec::new();
-                for (_, devices) in map.iter() {
-                    for device in devices.iter() {
+                for devices in map.iter() {
+                    for device in devices.1.iter() {
                         device_ids.push(device.id);
                     }
                 }
