@@ -247,7 +247,9 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(cors)
             .wrap(Compress::default())
-            .wrap(Logger::default())
+            .wrap(Logger::new(
+                r#"%{r}a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#,
+            ))
             .app_data(cache.clone())
             .app_data(state.clone())
             .app_data(login_ratelimiter.clone())
