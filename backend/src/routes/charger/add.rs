@@ -75,7 +75,7 @@ pub struct AddChargerSchema {
 #[derive(Serialize, Deserialize, ToSchema, Debug)]
 pub struct AddChargerResponseSchema {
     pub management_pub: String,
-    pub device_uuid: String,
+    pub charger_uuid: String,
     pub charger_password: String,
     pub user_id: String,
 }
@@ -193,7 +193,7 @@ pub async fn register_charger(
     let user_id: uuid::Uuid = user_id;
     let resp = AddChargerResponseSchema {
         management_pub: pub_key,
-        device_uuid: device_id.to_string(),
+        charger_uuid: device_id.to_string(),
         charger_password: password,
         user_id: user_id.to_string(),
     };
@@ -528,7 +528,7 @@ pub(crate) mod tests {
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
         TestCharger {
             uid,
-            uuid: body.device_uuid,
+            uuid: body.charger_uuid,
             password: body.charger_password,
         }
     }
@@ -635,7 +635,7 @@ pub(crate) mod tests {
         let user_uuid = get_test_uuid(&mail).unwrap().to_string();
         assert_eq!(body.user_id, user_uuid);
 
-        let uuid = uuid::Uuid::from_str(&body.device_uuid).unwrap();
+        let uuid = uuid::Uuid::from_str(&body.charger_uuid).unwrap();
         let pool = test_connection_pool();
         let mut conn = pool.get().unwrap();
         let keys: Vec<WgKey> = wg_keys::wg_keys
