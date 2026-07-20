@@ -232,7 +232,7 @@ impl Default for GlobalSearchRateLimiter {
 impl GlobalSearchRateLimiter {
     pub fn new() -> Self {
         Self(RateLimiter::keyed(Quota::per_minute(
-            NonZeroU32::new(1).unwrap(),
+            NonZeroU32::new(20).unwrap(),
         )))
     }
 
