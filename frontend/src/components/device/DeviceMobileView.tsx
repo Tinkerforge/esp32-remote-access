@@ -155,6 +155,10 @@ export function DeviceMobileView({
 
     const groupedDeviceIds = new Set(grouped.flatMap((g) => g.devices.map((d) => d.id)));
     const ungroupedDevices = devices.filter((d) => d.id !== "" && !groupedDeviceIds.has(d.id));
+    // Standalone local-only devices (id === "") are surfaced in their own
+    // collapsible section at the top so they remain reachable when the user
+    // has toggled the bundled-by-groups view on.
+    const localDevices = devices.filter((d) => d.id === "");
 
     const renderSection = (groupKey: string, name: string, groupDevices: StateDevice[]) => {
         const expanded = expandedGroups.has(groupKey);
@@ -241,6 +245,7 @@ export function DeviceMobileView({
                 variant="mobile"
             />
             {renderSortControls()}
+            {localDevices.length > 0 && renderSection("__local__", t("local_devices"), localDevices)}
             {grouped.map((g) => renderSection(g.id, g.name, g.devices))}
             {ungroupedDevices.length > 0 && renderSection("__ungrouped__", t("no_group"), ungroupedDevices)}
         </Container>

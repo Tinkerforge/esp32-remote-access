@@ -154,6 +154,7 @@ export const de ={
         "set_as_default_replaces": "Dies ersetzt \"{{name}}\" als Standardgruppe.",
         "set_default_failed": "Standardgruppe konnte nicht gesetzt werden: {{error}}",
         "no_group": "Keine Gruppe",
+        "local_devices": "Lokale Geräte",
         "group_by_toggle": "Geräte nach Gruppe anordnen",
         "group_by_on": "Gruppiert",
         "group_by_off": "Flach"

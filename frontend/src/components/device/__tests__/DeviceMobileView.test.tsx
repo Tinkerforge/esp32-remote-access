@@ -211,4 +211,46 @@ describe('DeviceMobileView', () => {
     expect(strong).not.toBeNull();
     expect(strong!.classList.contains('text-truncate')).toBe(true);
   });
+
+  it('renders a Local devices section for local-only devices in the bundled view', () => {
+    const localOnlyDevice: StateDevice = {
+      id: '',
+      uid: 99999,
+      name: 'LAN Charger',
+      status: 'Connected',
+      note: '',
+      port: 8080,
+      valid: true,
+      last_state_change: null,
+      firmware_version: '1.0.0',
+      host: 'warp.local',
+    };
+    render(<DeviceMobileView {...defaultProps} devices={[...mockDevices, localOnlyDevice]} bundleByGroups={true} />);
+    expect(screen.getByText('local_devices')).toBeInTheDocument();
+    expect(screen.queryByText('LAN Charger')).not.toBeInTheDocument();
+  });
+
+  it('does not render a Local devices section when there are no local-only devices', () => {
+    render(<DeviceMobileView {...defaultProps} bundleByGroups={true} />);
+    expect(screen.queryByText('local_devices')).not.toBeInTheDocument();
+  });
+
+  it('expands the Local devices section on mobile and shows its devices', () => {
+    const localOnlyDevice: StateDevice = {
+      id: '',
+      uid: 99999,
+      name: 'LAN Charger',
+      status: 'Connected',
+      note: '',
+      port: 8080,
+      valid: true,
+      last_state_change: null,
+      firmware_version: '1.0.0',
+      host: 'warp.local',
+    };
+    render(<DeviceMobileView {...defaultProps} devices={[...mockDevices, localOnlyDevice]} bundleByGroups={true} />);
+    const header = screen.getByText('local_devices').closest('button') as HTMLElement;
+    fireEvent.click(header);
+    expect(screen.getByText('LAN Charger')).toBeInTheDocument();
+  });
 });
