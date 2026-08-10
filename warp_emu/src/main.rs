@@ -155,6 +155,14 @@ pub struct ManagementDataVersion2 {
     pub firmware_version: String,
     pub configured_users: Vec<ConfiguredUser>,
     pub mtu: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub internal_ips: Option<ManagementInternalIps>,
+}
+
+#[derive(Serialize)]
+pub struct ManagementInternalIps {
+    pub wg_charger_ip: String,
+    pub wg_server_ip: String,
 }
 
 #[derive(Serialize)]
@@ -317,6 +325,7 @@ impl EmuCharger {
                 name: Some("Emulated Charger".to_string()),
             }],
             mtu: Some(1420),
+            internal_ips: None,
         };
 
         let schema = ManagementSchema {

@@ -97,8 +97,6 @@ pub async fn add_with_token(
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
-
     use super::*;
     use crate::{
         routes::{
@@ -111,7 +109,6 @@ mod tests {
         tests::configure,
     };
     use actix_web::{test, App};
-    use ipnetwork::{IpNetwork, Ipv4Network};
     use rand_core::{OsRng, TryRngCore};
 
     #[actix_web::test]
@@ -134,12 +131,6 @@ mod tests {
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
@@ -185,12 +176,6 @@ mod tests {
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
@@ -235,12 +220,6 @@ mod tests {
                     .with_alphabet(bs58::Alphabet::FLICKR)
                     .into_string(),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys: keys.clone(),
