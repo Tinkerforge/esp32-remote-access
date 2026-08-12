@@ -265,12 +265,14 @@ mod tests {
     use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::prelude::*;
-    use rand_core::{OsRng, TryRngCore};
     use std::str::FromStr;
 
     use super::*;
     use crate::{
-        routes::{charger::allow_user::UserAuth, user::tests::TestUser},
+        routes::{
+            charger::allow_user::UserAuth,
+            user::tests::{random_positive_charger_id, TestUser},
+        },
         tests::{create_test_bridge_state, create_test_state},
     };
 
@@ -316,7 +318,7 @@ mod tests {
                 .await;
         }
         for _ in 0..5 {
-            let uuid = OsRng.try_next_u32().unwrap() as i32;
+            let uuid = random_positive_charger_id();
             user2.add_charger(uuid).await;
         }
 

@@ -138,11 +138,10 @@ pub async fn get_key(
 mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
-    use rand_core::{OsRng, TryRngCore};
 
     use crate::{
         middleware::jwt::JwtMiddleware,
-        routes::user::tests::TestUser,
+        routes::user::tests::{random_positive_charger_id, TestUser},
         tests::{configure, get_device_key_ids, mark_keys_as_in_use},
     };
 
@@ -151,7 +150,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = random_positive_charger_id();
         let device = user.add_charger(device_uid).await;
 
         let app = App::new()
@@ -176,7 +175,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
 
-        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = random_positive_charger_id();
         let device = user.add_charger(device_uid).await;
 
         let state = crate::tests::create_test_state(None);

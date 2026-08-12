@@ -226,12 +226,11 @@ pub mod tests {
     use base64::prelude::BASE64_STANDARD;
     use db_connector::test_connection_pool;
     use rand::distr::{Alphanumeric, SampleString};
-    use rand_core::{OsRng, TryRngCore};
 
     use crate::{
         routes::{
             charger::{add::tests::generate_random_keys, tests::TestCharger},
-            user::tests::{get_test_uuid, TestUser},
+            user::tests::{get_test_uuid, random_positive_charger_id, TestUser},
         },
         tests::configure,
     };
@@ -266,7 +265,7 @@ pub mod tests {
         let (user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = random_positive_charger_id();
         user1.login().await.to_string();
         let device = user1.add_charger(device_uid).await;
 
@@ -303,7 +302,7 @@ pub mod tests {
         let (mut user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = random_positive_charger_id();
         user1.login().await;
         let device = user1.add_charger(device_uid).await;
 
@@ -343,7 +342,7 @@ pub mod tests {
         let (user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = random_positive_charger_id();
         user1.login().await.to_string();
         let device = user1.add_charger(device_uid).await;
 
@@ -374,7 +373,7 @@ pub mod tests {
     async fn test_allow_users_non_existing() {
         let (mut user, _) = TestUser::random().await;
 
-        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = random_positive_charger_id();
         user.login().await.to_string();
         let device = user.add_charger(device_uid).await;
 
@@ -469,7 +468,7 @@ pub mod tests {
         let (user2, _) = TestUser::random().await;
         let (mut user1, _) = TestUser::random().await;
 
-        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = random_positive_charger_id();
         user1.login().await.to_string();
         let device = user1.add_charger(device_uid).await;
 

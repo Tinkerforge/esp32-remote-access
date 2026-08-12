@@ -59,6 +59,38 @@ fn zbase32_decode(input: &str) -> Option<u32> {
     Some(value)
 }
 
+/// Encode a u32 as z-base-32 (RFC 6189 / ZRTP). The do-while loop mirrors
+/// the C reference implementation so that 0 encodes to the single
+/// character `"y"`.
+#[cfg(test)]
+fn zbase32_encode(value: u32) -> String {
+    let mut result = String::new();
+    let mut remaining = value;
+    loop {
+        let index = (remaining % 32) as usize;
+        remaining /= 32;
+        result.insert(0, ZBASE32_ALPHABET[index] as char);
+        if remaining == 0 {
+            break;
+        }
+    }
+    result
+}
+
+/// Encode a charger UID using the same scheme as the frontend
+/// (`encodeUid` in `base58.ts`): z-base-32 for UIDs above the cutoff,
+/// Flickr-base58 for UIDs at or below it.
+#[cfg(test)]
+pub(crate) fn encode_charger_uid(uid: i32) -> String {
+    if uid > ZBASE32_UID_THRESHOLD as i32 {
+        zbase32_encode(uid as u32)
+    } else {
+        bs58::encode(uid.to_be_bytes())
+            .with_alphabet(bs58::Alphabet::FLICKR)
+            .into_string()
+    }
+}
+
 /// Decode a charger UID string. The frontend encodes UIDs > 257899 as
 /// z-base-32 and smaller UIDs as Flickr-base58; we mirror that here. A
 /// string that's a valid z-base-32 representation is also valid base58 (the
@@ -510,7 +542,7 @@ pub(crate) mod tests {
                 remove::tests::{remove_allowed_test_users, remove_test_device, remove_test_keys},
                 tests::TestCharger,
             },
-            user::tests::{get_test_uuid, TestUser}, // ← add import for UUID check
+            user::tests::{get_test_uuid, random_positive_charger_id, TestUser}, // ← add import for UUID check
         },
         tests::configure,
         utils::generate_random_bytes,
@@ -549,9 +581,10 @@ pub(crate) mod tests {
         let app = test::init_service(app).await;
 
         println!("Id number: {uid}");
-        let uid_str = bs58::encode(uid.to_be_bytes())
-            .with_alphabet(bs58::Alphabet::FLICKR)
-            .into_string();
+        // Mirror the frontend's `encodeUid`: z-base-32 above the cutoff,
+        // Flickr-base58 at or below it. This keeps the round-trip through
+        // `decode_charger_uid` deterministic for random UIDs.
+        let uid_str = encode_charger_uid(uid);
         println!("id: {uid_str}");
         let keys = generate_random_keys();
         let device = AddChargerSchema {
@@ -588,6 +621,9 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_valid_charger() {
+        // Use a deterministic UID at or below the cutoff so this test
+        // exercises the historical Flickr-base58 encoding path.
+        let uid: i32 = 12345;
         let (mut user, mail) = TestUser::random().await; // store mail
         let token = user.login().await;
 
@@ -599,12 +635,64 @@ pub(crate) mod tests {
 
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
-        let uid = OsRng.try_next_u32().unwrap() as i32;
         let device = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode(uid.to_be_bytes())
-                    .with_alphabet(bs58::Alphabet::FLICKR)
-                    .into_string(),
+                uid: encode_charger_uid(uid),
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                psk: String::new(),
+            },
+            keys,
+            name: String::new(),
+            note: String::new(),
+        };
+
+        let req = test::TestRequest::put()
+            .uri("/add")
+            .cookie(Cookie::new("access_token", token))
+            .set_json(device)
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        let _ = remove_test_keys(&mail);
+        remove_allowed_test_users(&cid);
+        remove_test_device(&cid);
+        println!("{resp:?}");
+        println!("{:?}", resp.response().body());
+        assert!(resp.status().is_success());
+
+        let body: AddChargerResponseSchema = test::read_body_json(resp).await;
+        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        assert_eq!(body.user_id, user_uuid);
+    }
+
+    #[actix_web::test]
+    async fn test_valid_charger_with_zbase32_uid() {
+        // Exercise the new z-base-32 path: a UID strictly above the cutoff
+        // is sent as z-base-32 (mirroring the frontend's `encodeUid`).
+        let uid: i32 = 300_000;
+        let (mut user, mail) = TestUser::random().await;
+        let token = user.login().await;
+
+        let app = App::new()
+            .configure(configure)
+            .wrap(JwtMiddleware)
+            .service(add);
+        let app = test::init_service(app).await;
+
+        let keys = generate_random_keys();
+        let cid = uuid::Uuid::new_v4().to_string();
+        let uid_str = encode_charger_uid(uid);
+        // Sanity-check: the UID > cutoff should have been z-base-32 encoded.
+        assert_eq!(zbase32_decode(&uid_str), Some(uid as u32));
+        let device = AddChargerSchema {
+            charger: ChargerSchema {
+                uid: uid_str,
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -656,9 +744,7 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let device_schema = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode(device.uid.to_be_bytes())
-                    .with_alphabet(bs58::Alphabet::FLICKR)
-                    .into_string(),
+                uid: encode_charger_uid(device.uid),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -725,9 +811,7 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let device_schema = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode(device.uid.to_be_bytes())
-                    .with_alphabet(bs58::Alphabet::FLICKR)
-                    .into_string(),
+                uid: encode_charger_uid(device.uid),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -777,9 +861,7 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let device_schema = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode(device.uid.to_be_bytes())
-                    .with_alphabet(bs58::Alphabet::FLICKR)
-                    .into_string(),
+                uid: encode_charger_uid(device.uid),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -842,9 +924,35 @@ pub(crate) mod tests {
         let keys = generate_random_keys();
         let schema = AddChargerSchema {
             charger: ChargerSchema {
-                uid: bs58::encode((OsRng.try_next_u32().unwrap() as i32).to_le_bytes())
-                    .with_alphabet(bs58::Alphabet::FLICKR)
-                    .into_string(),
+                // Use a value at or below the cutoff so this exercises the
+                // historical Flickr-base58 encoding path.
+                uid: encode_charger_uid(
+                    random_positive_charger_id() % (ZBASE32_UID_THRESHOLD as i32 + 1),
+                ),
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                psk: String::new(),
+            },
+            keys,
+            name: String::new(),
+            note: String::new(),
+        };
+
+        assert!(validate_add_charger_schema(&schema).is_ok());
+    }
+
+    #[actix_web::test]
+    async fn test_validate_add_charger_schema_with_zbase32_uid() {
+        let keys = generate_random_keys();
+        let schema = AddChargerSchema {
+            charger: ChargerSchema {
+                // UID strictly above the cutoff -> z-base-32 encoding.
+                uid: encode_charger_uid((ZBASE32_UID_THRESHOLD as i32) + 1),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -899,6 +1007,44 @@ pub(crate) mod tests {
         assert_eq!(zbase32_decode("y0"), None);
         // Characters that aren't ASCII at all are also rejected.
         assert_eq!(zbase32_decode("\u{00e9}"), None);
+    }
+
+    #[test]
+    fn zbase32_encode_matches_known_values() {
+        // The frontend's `intToZBase32` reference values, cross-checked so
+        // that `zbase32_encode` and `zbase32_decode` round-trip.
+        assert_eq!(zbase32_encode(0), "y");
+        assert_eq!(zbase32_encode(1), "b");
+        assert_eq!(zbase32_encode(31), "9");
+        assert_eq!(zbase32_encode(32), "by");
+        assert_eq!(zbase32_encode(257_899), "855m");
+        assert_eq!(zbase32_encode(257_900), "855c");
+        assert_eq!(zbase32_encode(u32::MAX), "d999999");
+    }
+
+    #[test]
+    fn zbase32_encode_decode_round_trip() {
+        // A spread of values around and above the cutoff.
+        for value in [
+            0u32,
+            1,
+            31,
+            32,
+            33,
+            ZBASE32_UID_THRESHOLD - 1,
+            ZBASE32_UID_THRESHOLD,
+            ZBASE32_UID_THRESHOLD + 1,
+            1_000_000,
+            u32::MAX - 1,
+            u32::MAX,
+        ] {
+            let encoded = zbase32_encode(value);
+            assert_eq!(
+                zbase32_decode(&encoded),
+                Some(value),
+                "z-base-32 round-trip failed for {value}: encoded as {encoded}",
+            );
+        }
     }
 
     #[test]
@@ -969,5 +1115,71 @@ pub(crate) mod tests {
         assert!(validate_charger_id("l").is_err());
         // Non-ASCII characters are rejected.
         assert!(validate_charger_id("\u{00e9}").is_err());
+    }
+
+    #[test]
+    fn encode_charger_uid_picks_zbase32_above_threshold() {
+        // UIDs strictly greater than the cutoff are encoded as z-base-32.
+        assert_eq!(encode_charger_uid(257_900), zbase32_encode(257_900));
+        assert_eq!(
+            encode_charger_uid(i32::MAX),
+            zbase32_encode(i32::MAX as u32),
+        );
+    }
+
+    #[test]
+    fn encode_charger_uid_picks_base58_at_or_below_threshold() {
+        // The boundary value and everything below it keeps the historical
+        // Flickr-base58 encoding.
+        let base58_257_899 = bs58::encode(257_899_i32.to_be_bytes())
+            .with_alphabet(bs58::Alphabet::FLICKR)
+            .into_string();
+        assert_eq!(encode_charger_uid(257_899), base58_257_899);
+        let base58_0 = bs58::encode(0_i32.to_be_bytes())
+            .with_alphabet(bs58::Alphabet::FLICKR)
+            .into_string();
+        assert_eq!(encode_charger_uid(0), base58_0);
+    }
+
+    #[test]
+    fn encode_charger_uid_round_trips_through_decode() {
+        // For the base58 branch we need UIDs whose Flickr-base58 form
+        // contains a character that's not in the z-base-32 alphabet
+        // (case-insensitively) — that is, '0', '2', 'l', or 'v' — to
+        // guarantee the round-trip through `decode_charger_uid` is
+        // unambiguous. Without that the string is also a valid zbase32
+        // string of a much larger value and the decoder picks the wrong
+        // branch.
+        for uid in [100i32, 101, 257_899] {
+            let encoded = encode_charger_uid(uid);
+            assert!(
+                encoded.chars().any(|c| matches!(c, '0' | '2' | 'l' | 'v' | 'L' | 'V')),
+                "test fixture invariant: base58 string for uid {uid} should contain a disambiguating char (0/2/l/v); got {encoded:?}",
+            );
+            assert_eq!(
+                decode_charger_uid(&encoded),
+                Some(uid),
+                "round-trip failed for uid {uid}: encoded as {encoded}",
+            );
+        }
+        // For the z-base-32 branch the decoder is unambiguous because any
+        // string that decodes to a value > the cutoff must be z-base-32.
+        for uid in [
+            ZBASE32_UID_THRESHOLD as i32 + 1,
+            1_000_000,
+            i32::MAX,
+        ] {
+            let encoded = encode_charger_uid(uid);
+            assert_eq!(
+                zbase32_decode(&encoded),
+                Some(uid as u32),
+                "test fixture invariant: z-base-32 string for uid {uid} should round-trip; got {encoded:?}",
+            );
+            assert_eq!(
+                decode_charger_uid(&encoded),
+                Some(uid),
+                "round-trip failed for uid {uid}: encoded as {encoded}",
+            );
+        }
     }
 }

@@ -222,13 +222,12 @@ pub(crate) mod tests {
     use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::test_connection_pool;
     use diesel::r2d2::{ConnectionManager, PooledConnection};
-    use rand_core::{OsRng, TryRngCore};
 
     use crate::{
         middleware::jwt::JwtMiddleware,
         routes::{
             charger::allow_user::UserAuth,
-            user::tests::{get_test_uuid, TestUser},
+            user::tests::{get_test_uuid, random_positive_charger_id, TestUser},
         },
         tests::configure,
     };
@@ -403,7 +402,7 @@ pub(crate) mod tests {
         let (mut user1, _) = TestUser::random().await;
         let email = user1.get_mail().to_owned();
         let (mut user2, _) = TestUser::random().await;
-        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = random_positive_charger_id();
         user2.login().await;
         let device = user2.add_charger(device_uid).await;
         user2
@@ -445,7 +444,7 @@ pub(crate) mod tests {
 
         let (mut user1, _) = TestUser::random().await;
         let (mut user2, _) = TestUser::random().await;
-        let device_uid = OsRng.try_next_u32().unwrap() as i32;
+        let device_uid = random_positive_charger_id();
         user2.login().await;
         let device = user2.add_charger(device_uid).await;
         let token = user1.login().await;

@@ -110,14 +110,13 @@ pub async fn remove_device_from_grouping(
 mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
-    use rand_core::{OsRng, TryRngCore};
 
     use crate::{
         routes::{
             grouping::{
                 add_device_to_grouping::AddDeviceToGroupingSchema, configure, test_helpers::*,
             },
-            user::tests::TestUser,
+            user::tests::{random_positive_charger_id, TestUser},
         },
         tests::configure as test_configure,
     };
@@ -127,7 +126,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_string();
 
-        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device_id = random_positive_charger_id();
         let device = user.add_charger(device_id).await;
         let grouping = create_test_grouping(&token, "Test Group").await;
 
@@ -176,7 +175,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_string();
 
-        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device_id = random_positive_charger_id();
         let device = user.add_charger(device_id).await;
         let grouping = create_test_grouping(&token, "Test Group").await;
 

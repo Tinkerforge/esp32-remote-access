@@ -96,7 +96,7 @@ mod tests {
     use crate::{
         routes::{
             charger::{
-                add::{tests::generate_random_keys, AddChargerResponseSchema},
+                add::{encode_charger_uid, tests::generate_random_keys, AddChargerResponseSchema},
                 remove::tests::{remove_allowed_test_users, remove_test_device, remove_test_keys},
             },
             user::tests::{get_test_uuid, TestUser},
@@ -105,10 +105,12 @@ mod tests {
     };
     use actix_web::{test, App};
     use ipnetwork::{IpNetwork, Ipv4Network};
-    use rand_core::{OsRng, TryRngCore};
 
     #[actix_web::test]
     async fn test_valid_charger() {
+        // Use a deterministic UID at or below the cutoff so this test
+        // exercises the historical Flickr-base58 encoding path.
+        let uid: i32 = 12345;
         let (mut user, mail) = TestUser::random().await; // store mail
         user.login().await;
         let auth_token = user.create_authorization_token(true).await;
@@ -118,14 +120,62 @@ mod tests {
 
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
-        let uid = OsRng.try_next_u32().unwrap() as i32;
         let device = AddChargerWithTokenSchema {
             user_id: get_test_uuid(&mail).unwrap().to_string(),
             token: auth_token.token,
             charger: ChargerSchema {
-                uid: bs58::encode(uid.to_be_bytes())
-                    .with_alphabet(bs58::Alphabet::FLICKR)
-                    .into_string(),
+                uid: encode_charger_uid(uid),
+                charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                psk: String::new(),
+            },
+            keys,
+            name: String::new(),
+            note: String::new(),
+        };
+
+        let req = test::TestRequest::put()
+            .uri("/add_with_token")
+            .set_json(device)
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        let _ = remove_test_keys(&mail);
+        remove_allowed_test_users(&cid);
+        remove_test_device(&cid);
+        println!("{resp:?}");
+        println!("{:?}", resp.response().body());
+        assert!(resp.status().is_success());
+
+        let body: AddChargerResponseSchema = test::read_body_json(resp).await;
+        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        assert_eq!(body.user_id, user_uuid);
+    }
+
+    #[actix_web::test]
+    async fn test_valid_charger_with_zbase32_uid() {
+        // Exercise the new z-base-32 path: a UID strictly above the cutoff
+        // is sent as z-base-32 (mirroring the frontend's `encodeUid`).
+        let uid: i32 = 300_000;
+        let (mut user, mail) = TestUser::random().await;
+        user.login().await;
+        let auth_token = user.create_authorization_token(true).await;
+
+        let app = App::new().configure(configure).service(add_with_token);
+        let app = test::init_service(app).await;
+
+        let keys = generate_random_keys();
+        let cid = uuid::Uuid::new_v4().to_string();
+        let device = AddChargerWithTokenSchema {
+            user_id: get_test_uuid(&mail).unwrap().to_string(),
+            token: auth_token.token,
+            charger: ChargerSchema {
+                uid: encode_charger_uid(uid),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -169,14 +219,15 @@ mod tests {
 
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
-        let uid = OsRng.try_next_u32().unwrap() as i32;
+        // Pin the UID below the cutoff so the encoding is deterministic
+        // (Flickr-base58) regardless of how the surrounding flow mutates
+        // state.
+        let uid: i32 = 7;
         let device = AddChargerWithTokenSchema {
             user_id: get_test_uuid(&mail).unwrap().to_string(),
             token: auth_token,
             charger: ChargerSchema {
-                uid: bs58::encode(uid.to_be_bytes())
-                    .with_alphabet(bs58::Alphabet::FLICKR)
-                    .into_string(),
+                uid: encode_charger_uid(uid),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
@@ -219,14 +270,15 @@ mod tests {
 
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
-        let uid = OsRng.try_next_u32().unwrap() as i32;
+        // Pin the UID below the cutoff so the encoding is deterministic
+        // (Flickr-base58) regardless of how the surrounding flow mutates
+        // state.
+        let uid: i32 = 7;
         let base_schema = |token: String| AddChargerWithTokenSchema {
             user_id: get_test_uuid(&mail).unwrap().to_string(),
             token,
             charger: ChargerSchema {
-                uid: bs58::encode(uid.to_be_bytes())
-                    .with_alphabet(bs58::Alphabet::FLICKR)
-                    .into_string(),
+                uid: encode_charger_uid(uid),
                 charger_pub: keys[0].charger_public.clone(),
                 wg_charger_ip: IpNetwork::V4(
                     Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),

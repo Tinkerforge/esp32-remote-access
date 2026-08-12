@@ -136,12 +136,11 @@ pub async fn add_device_to_grouping(
 mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
-    use rand_core::{OsRng, TryRngCore};
 
     use crate::{
         routes::{
             grouping::{configure, get_groupings::GetGroupingsResponse, test_helpers::*},
-            user::tests::TestUser,
+            user::tests::{random_positive_charger_id, TestUser},
         },
         tests::configure as test_configure,
     };
@@ -152,7 +151,7 @@ mod tests {
         let token = user.login().await.to_string();
 
         // Create a charger
-        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device_id = random_positive_charger_id();
         let device = user.add_charger(device_id).await;
 
         // Create a grouping
@@ -193,7 +192,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_string();
 
-        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device_id = random_positive_charger_id();
         let device = user.add_charger(device_id).await;
         let grouping = create_test_grouping(&token, "Test Group").await;
 
@@ -236,7 +235,7 @@ mod tests {
         let token2 = user2.login().await.to_string();
 
         // User 1 creates a charger
-        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device_id = random_positive_charger_id();
         let device = user1.add_charger(device_id).await;
 
         // User 2 creates a grouping
@@ -271,9 +270,9 @@ mod tests {
         let token = user.login().await.to_string();
 
         // Create chargers
-        let device1_id = OsRng.try_next_u32().unwrap() as i32;
+        let device1_id = random_positive_charger_id();
         let device1 = user.add_charger(device1_id).await;
-        let device2_id = OsRng.try_next_u32().unwrap() as i32;
+        let device2_id = random_positive_charger_id();
         let device2 = user.add_charger(device2_id).await;
 
         // Create grouping
@@ -330,7 +329,7 @@ mod tests {
         let (mut user, _) = TestUser::random().await;
         let token = user.login().await.to_string();
 
-        let device_id = OsRng.try_next_u32().unwrap() as i32;
+        let device_id = random_positive_charger_id();
         let device = user.add_charger(device_id).await;
         let grouping = create_test_grouping(&token, "Cascade Test").await;
 

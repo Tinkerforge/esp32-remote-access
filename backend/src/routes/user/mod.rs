@@ -211,6 +211,18 @@ pub mod tests {
         (0..len).map(|_| rng.random_range(0..255)).collect()
     }
 
+    /// Generate a random, non-negative charger UID suitable for use with
+    /// `TestUser::add_charger` and friends.
+    ///
+    /// A plain `OsRng.try_next_u32().unwrap() as i32` can produce negative
+    /// values when the high bit is set; that breaks downstream encoders
+    /// (notably the Flickr-base58 form) and the integration tests that
+    /// round-trip through `decode_charger_uid`. Mask off the sign bit so
+    /// the result is always in `[0, i32::MAX]`.
+    pub fn random_positive_charger_id() -> i32 {
+        (OsRng.try_next_u32().unwrap() & 0x7FFF_FFFF) as i32
+    }
+
     impl TestUser {
         pub async fn new(mail: &str, secret: Option<Vec<u8>>) -> Self {
             let login_salt = generate_random_bytes_len(48);
@@ -325,7 +337,7 @@ pub mod tests {
         }
 
         pub async fn add_random_charger(&mut self) -> TestCharger {
-            let id = OsRng.try_next_u32().unwrap() as i32;
+            let id = random_positive_charger_id();
             let device = self.add_charger(id).await;
 
             device
@@ -360,5 +372,44 @@ pub mod tests {
             }
             delete_user(&self.mail);
         }
+    }
+}
+
+#[cfg(test)]
+mod helper_tests {
+    use super::tests::random_positive_charger_id;
+
+    #[test]
+    fn random_positive_charger_id_is_always_non_negative() {
+        // Run the helper many times to make sure it never trips over the
+        // sign bit. The original `OsRng.try_next_u32().unwrap() as i32`
+        // had roughly a 50% chance of yielding a negative value, which
+        // breaks downstream encoders.
+        for _ in 0..10_000 {
+            let uid = random_positive_charger_id();
+            assert!(
+                uid >= 0,
+                "random_positive_charger_id() returned {uid}, expected >= 0",
+            );
+        }
+    }
+
+    #[test]
+    fn random_positive_charger_id_covers_a_reasonable_range() {
+        // We don't want every call to land on a tiny value either; verify
+        // the helper actually exercises the upper half of the i32 range
+        // (anything strictly positive will do — this just guards against
+        // a future change that, say, always returns 0).
+        let mut saw_non_zero = false;
+        for _ in 0..10_000 {
+            if random_positive_charger_id() > 0 {
+                saw_non_zero = true;
+                break;
+            }
+        }
+        assert!(
+            saw_non_zero,
+            "random_positive_charger_id() only ever returned 0",
+        );
     }
 }

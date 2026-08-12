@@ -259,9 +259,8 @@ pub(crate) mod tests {
     use diesel::r2d2::ConnectionManager;
     use ipnetwork::Ipv4Network;
     use lru::LruCache;
-    use rand_core::{OsRng, TryRngCore};
     use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
-    use routes::user::tests::{get_test_uuid, TestUser};
+    use routes::user::tests::{get_test_uuid, random_positive_charger_id, TestUser};
 
     pub struct ScopeCall<F: FnMut()> {
         pub c: F,
@@ -684,7 +683,7 @@ pub(crate) mod tests {
         let device = user.add_random_charger().await;
         let device2 = Charger {
             id: uuid::Uuid::new_v4(),
-            uid: OsRng.try_next_u32().unwrap() as i32,
+            uid: random_positive_charger_id(),
             password: String::new(),
             name: None,
             management_private: String::new(),
