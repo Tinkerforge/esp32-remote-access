@@ -5,7 +5,10 @@ use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
 
 use crate::{
-    routes::charger::add::{register_charger, AddChargerSchema, ChargerSchema},
+    routes::charger::add::{
+        register_charger, validate_charger_id as validate_charger_id_inner, AddChargerSchema,
+        ChargerSchema,
+    },
     utils::{parse_uuid, validate_auth_token},
     AppState,
 };
@@ -50,19 +53,9 @@ fn validate_wg_key(key: &str) -> Result<(), ValidationError> {
 }
 
 fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
-    let vec = match bs58::decode(id)
-        .with_alphabet(bs58::Alphabet::FLICKR)
-        .into_vec()
-    {
-        Ok(v) => v,
-        Err(_) => return Err(ValidationError::new("Data is no valid base58")),
-    };
-
-    if vec.len() > 4 {
-        return Err(ValidationError::new("Data has wrong length"));
-    }
-
-    Ok(())
+    // Delegate to the canonical implementation in `add` so the z-base-32
+    // support lives in a single place.
+    validate_charger_id_inner(id)
 }
 
 /// Add a charger using an authorization token instead of JWT authentication

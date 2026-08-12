@@ -5,7 +5,7 @@ import { Trash2, Plus, Edit2, Search } from "react-feather";
 import { showAlert } from "../Alert";
 import { fetchClient } from "../../utils";
 import { Grouping, StateDevice } from "./types";
-import * as Base58 from "base58";
+import { encodeUid } from "../../base58";
 
 interface GroupingModalProps {
     show: boolean;
@@ -287,7 +287,7 @@ export function GroupingModal({
         const query = deviceSearchQuery.toLowerCase();
         return pairableDevices.filter(device => {
             const name = device.name.toLowerCase();
-            const uid = Base58.int_to_base58(device.uid).toLowerCase();
+            const uid = encodeUid(device.uid).toLowerCase();
             return name.includes(query) || uid.includes(query);
         });
     };
@@ -466,7 +466,7 @@ export function GroupingModal({
                                                         <div>
                                                             <strong>{device.name}</strong>
                                                             <span className="text-muted ms-2">
-                                                                ({Base58.int_to_base58(device.uid)})
+                                                                ({encodeUid(device.uid)})
                                                             </span>
                                                         </div>
                                                         {noteLines.length > 0 && (

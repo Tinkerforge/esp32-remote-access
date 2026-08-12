@@ -1,4 +1,4 @@
-import * as Base58 from "base58";
+import { encodeUid } from "../base58";
 import sodium from "libsodium-wrappers";
 import { useTranslation } from "react-i18next";
 import { showAlert } from "../components/Alert";
@@ -330,7 +330,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                 this.applyFilters();
             });
         } else {
-            showAlert(t("remove_error_text", { charger_id: Base58.int_to_base58(device.uid), status: response.status, text: error }), "danger");
+            showAlert(t("remove_error_text", { charger_id: encodeUid(device.uid), status: response.status, text: error }), "danger");
         }
     }
 

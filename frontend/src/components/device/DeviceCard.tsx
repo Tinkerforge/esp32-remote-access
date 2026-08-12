@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Card, Col, Collapse, Row } from "react-bootstrap";
 import { Edit, Monitor, Trash2 } from "react-feather";
-import * as Base58 from "base58";
+import { encodeUid } from "../../base58";
 import { Circle } from "../Circle";
 import { StateDevice, Grouping, ConnectVia } from "./types";
 
@@ -178,7 +178,7 @@ export function DeviceCard({
             <Card.Body>
                 <Row>
                     <Col xs="auto"><b>{t("mobile_charger_id")}</b></Col>
-                    <Col className="text-end">{Base58.int_to_base58(device.uid)}</Col>
+                    <Col className="text-end">{encodeUid(device.uid)}</Col>
                 </Row>
                 <hr style="margin-top: 5px;margin-bottom: 5px;" />
                 <Row>

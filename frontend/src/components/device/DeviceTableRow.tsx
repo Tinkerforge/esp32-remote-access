@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Col, Collapse, Container, Row } from "react-bootstrap";
 import { Edit } from "react-feather";
-import * as Base58 from "base58";
+import { encodeUid } from "../../base58";
 import { Circle } from "../Circle";
 import { StateDevice, Grouping, ConnectVia } from "./types";
 
@@ -70,7 +70,7 @@ export function DeviceTableRow({
                 </div>
             </td>
             <td class="align-middle">
-                {Base58.int_to_base58(device.uid)}
+                {encodeUid(device.uid)}
             </td>
             <td class="align-middle text-center">
                 <div className="d-flex flex-row flex-md-wrap flex-lg-nowrap justify-content-center gap-2">

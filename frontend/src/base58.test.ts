@@ -1,8 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { encodeBase58Flickr } from './base58';
+import { encodeBase58Flickr, encodeUid, ZBASE32_UID_THRESHOLD } from './base58';
+import { intToZBase32 } from './zbase32';
 
 // Alphabet used by encodeBase58Flickr for reference:
 // '123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ'
+
+// Reference Flickr-base58 encoder used to cross-check encodeUid's output
+// against a known-good implementation.
+const BASE58_FLICKR_ALPHABET = '123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+
+function referenceIntToBase58(num: number): string {
+    let str = '';
+    let n = num;
+    while (n >= 58) {
+        str = BASE58_FLICKR_ALPHABET[n % 58] + str;
+        n = Math.floor(n / 58);
+    }
+    return BASE58_FLICKR_ALPHABET[n] + str;
+}
 
 describe('encodeBase58Flickr', () => {
   it('encodes empty input as "1"', () => {
@@ -63,5 +78,29 @@ describe('encodeBase58Flickr', () => {
     const input = new Uint8Array([0x00, 0x00, 0xff]);
     // base value 255 => '5p', two leading zeros -> prefix '11'
     expect(encodeBase58Flickr(input)).toBe('115p');
+  });
+});
+
+describe('encodeUid', () => {
+  it('uses base58 for UIDs at or below the threshold', () => {
+    expect(encodeUid(0)).toBe(referenceIntToBase58(0));
+    expect(encodeUid(1)).toBe(referenceIntToBase58(1));
+    expect(encodeUid(12345)).toBe(referenceIntToBase58(12345));
+    expect(encodeUid(ZBASE32_UID_THRESHOLD)).toBe(referenceIntToBase58(ZBASE32_UID_THRESHOLD));
+  });
+
+  it('uses z-base-32 for UIDs above the threshold', () => {
+    expect(encodeUid(ZBASE32_UID_THRESHOLD + 1)).toBe(intToZBase32(ZBASE32_UID_THRESHOLD + 1));
+    expect(encodeUid(1_000_000)).toBe(intToZBase32(1_000_000));
+  });
+
+  it('boundary: encodeUid(257899) is base58, encodeUid(257900) is z-base-32', () => {
+    expect(encodeUid(257899)).toBe(referenceIntToBase58(257899));
+    expect(encodeUid(257900)).toBe(intToZBase32(257900));
+    expect(encodeUid(257899)).not.toBe(encodeUid(257900));
+  });
+
+  it('exposes the threshold as a module constant', () => {
+    expect(ZBASE32_UID_THRESHOLD).toBe(257899);
   });
 });

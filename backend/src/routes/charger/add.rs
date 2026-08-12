@@ -38,6 +38,58 @@ use crate::{
 
 use super::get_charger_uuid;
 
+// z-base-32 alphabet from ZRTP (RFC 6189). Case-insensitive: z-base-32 has no
+// characters that are unique to either case, so we always lowercase before
+// looking up an index.
+const ZBASE32_ALPHABET: &[u8; 32] = b"ybndrfg8ejkmcpqxot1uwisza345h769";
+
+// UIDs above this value are encoded as z-base-32 instead of Flickr-base58.
+// Must stay in sync with `ZBASE32_UID_THRESHOLD` in the frontend.
+const ZBASE32_UID_THRESHOLD: u32 = 257_899;
+
+/// Decode a z-base-32 string to a u32. Returns `None` if any character is
+/// outside the z-base-32 alphabet or if the value overflows u32.
+fn zbase32_decode(input: &str) -> Option<u32> {
+    let mut value: u32 = 0;
+    for byte in input.bytes() {
+        let lower = byte.to_ascii_lowercase();
+        let index = ZBASE32_ALPHABET.iter().position(|&c| c == lower)? as u32;
+        value = value.checked_mul(32)?.checked_add(index)?;
+    }
+    Some(value)
+}
+
+/// Decode a charger UID string. The frontend encodes UIDs > 257899 as
+/// z-base-32 and smaller UIDs as Flickr-base58; we mirror that here. A
+/// string that's a valid z-base-32 representation is also valid base58 (the
+/// two alphabets overlap), so we let the decoded value disambiguate:
+///
+///   - If the input decodes to a value > 257899 in z-base-32, treat it as
+///     a z-base-32 UID.
+///   - Otherwise (including when the input is not a valid z-base-32
+///     string at all), fall back to Flickr-base58.
+///
+/// Returns `None` if neither decoding succeeds or if the Flickr-base58
+/// result does not fit in an i32.
+fn decode_charger_uid(uid_str: &str) -> Option<i32> {
+    if let Some(value) = zbase32_decode(uid_str) {
+        if value > ZBASE32_UID_THRESHOLD {
+            return Some(value as i32);
+        }
+    }
+
+    let mut uid_bytes = bs58::decode(uid_str)
+        .with_alphabet(bs58::Alphabet::FLICKR)
+        .into_vec()
+        .ok()?;
+    uid_bytes.reverse();
+    let mut device_id_bytes = [0u8; 4];
+    for (uid_byte, device_byte) in uid_bytes.into_iter().zip(device_id_bytes.iter_mut()) {
+        *device_byte = uid_byte;
+    }
+    Some(i32::from_le_bytes(device_id_bytes))
+}
+
 #[derive(Serialize, Deserialize, Clone, Validate, ToSchema, Debug)]
 pub struct Keys {
     #[schema(value_type = Vec<u32>)]
@@ -104,7 +156,17 @@ fn validate_wg_key(key: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
+pub(crate) fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
+    // Mirror `decode_charger_uid`: any UID above the z-base-32 threshold
+    // (including the encoded form itself) is accepted in z-base-32 form.
+    // Otherwise it must be a valid Flickr-base58 encoding that fits in
+    // 4 bytes.
+    if let Some(value) = zbase32_decode(id) {
+        if value > ZBASE32_UID_THRESHOLD {
+            return Ok(());
+        }
+    }
+
     let vec = match bs58::decode(id)
         .with_alphabet(bs58::Alphabet::FLICKR)
         .into_vec()
@@ -148,17 +210,8 @@ pub async fn register_charger(
     device_schema: AddChargerSchema,
     user_id: uuid::Uuid,
 ) -> actix_web::Result<AddChargerResponseSchema> {
-    // uwrapping here is safe since it got checked in the validator.
-    let mut uid_bytes = bs58::decode(&device_schema.charger.uid)
-        .with_alphabet(bs58::Alphabet::FLICKR)
-        .into_vec()
-        .unwrap();
-    uid_bytes.reverse();
-    let mut device_id_bytes = [0u8; 4];
-    for (uid_byte, device_byte) in uid_bytes.into_iter().zip(device_id_bytes.iter_mut()) {
-        *device_byte = uid_byte;
-    }
-    let device_uid = i32::from_le_bytes(device_id_bytes);
+    // unwrapping here is safe since it got checked in the validator.
+    let device_uid = decode_charger_uid(&device_schema.charger.uid).unwrap();
     let device_id;
 
     let (pub_key, password) =
@@ -807,5 +860,114 @@ pub(crate) mod tests {
         };
 
         assert!(validate_add_charger_schema(&schema).is_ok());
+    }
+
+    #[test]
+    fn zbase32_decode_matches_known_values() {
+        // 0
+        assert_eq!(zbase32_decode("y"), Some(0));
+        // 1
+        assert_eq!(zbase32_decode("b"), Some(1));
+        // 32 = 1*32 + 0
+        assert_eq!(zbase32_decode("by"), Some(32));
+        // 32^3 - 1 = 32767 = 31*32^2 + 31*32 + 31
+        assert_eq!(zbase32_decode("999"), Some(32_u32.pow(3) - 1));
+        // Threshold value (encoded as base58 by the frontend, but the decoder
+        // is purely arithmetic and doesn't care about the threshold).
+        assert_eq!(zbase32_decode("855m"), Some(257_899));
+        // 257_900 = 7*32^3 + 27*32^2 + 27*32 + 12
+        assert_eq!(zbase32_decode("855c"), Some(257_900));
+        // u32::MAX
+        assert_eq!(zbase32_decode("d999999"), Some(u32::MAX));
+    }
+
+    #[test]
+    fn zbase32_decode_is_case_insensitive() {
+        assert_eq!(zbase32_decode("Y"), Some(0));
+        assert_eq!(zbase32_decode("B"), Some(1));
+        assert_eq!(zbase32_decode("BY"), Some(32));
+        assert_eq!(zbase32_decode("d999999"), zbase32_decode("D999999"));
+    }
+
+    #[test]
+    fn zbase32_decode_rejects_invalid_characters() {
+        // '0', 'l', 'v', '2' are not in the z-base-32 alphabet.
+        assert_eq!(zbase32_decode("0"), None);
+        assert_eq!(zbase32_decode("l"), None);
+        assert_eq!(zbase32_decode("v"), None);
+        assert_eq!(zbase32_decode("2"), None);
+        assert_eq!(zbase32_decode("y0"), None);
+        // Characters that aren't ASCII at all are also rejected.
+        assert_eq!(zbase32_decode("\u{00e9}"), None);
+    }
+
+    #[test]
+    fn decode_charger_uid_picks_zbase32_above_threshold() {
+        // 257_900 is the smallest UID the frontend encodes as z-base-32.
+        assert_eq!(decode_charger_uid("855c"), Some(257_900));
+        // Larger values round-trip too.
+        assert_eq!(decode_charger_uid("d999999"), Some(u32::MAX as i32));
+    }
+
+    #[test]
+    fn decode_charger_uid_picks_base58_at_or_below_threshold() {
+        // 257_899 is the largest UID the frontend encodes as base58, so the
+        // canonical encoding is the Flickr-base58 form (using `to_be_bytes` to
+        // match the roundtrip the rest of the code performs).
+        let base58_257_899 = bs58::encode(257_899_i32.to_be_bytes())
+            .with_alphabet(bs58::Alphabet::FLICKR)
+            .into_string();
+        assert_eq!(decode_charger_uid(&base58_257_899), Some(257_899));
+        // The string "855m" decodes to 257_899 in z-base-32, but since that
+        // value is not above the threshold we treat it as Flickr-base58,
+        // which decodes to a different (still-valid) UID.
+        assert_eq!(decode_charger_uid("855m"), Some(1_379_492));
+        // UID 100 in base58 (matches what the test fixtures encode).
+        let base58_100 = bs58::encode(100_i32.to_be_bytes())
+            .with_alphabet(bs58::Alphabet::FLICKR)
+            .into_string();
+        assert_eq!(decode_charger_uid(&base58_100), Some(100));
+    }
+
+    #[test]
+    fn decode_charger_uid_rejects_garbage() {
+        // '0' is invalid in both alphabets.
+        assert_eq!(decode_charger_uid("0"), None);
+        // 'l' is invalid in both alphabets.
+        assert_eq!(decode_charger_uid("l"), None);
+        // Mixed invalid characters are caught even mid-string.
+        assert_eq!(decode_charger_uid("by0"), None);
+    }
+
+    #[test]
+    fn validate_charger_id_accepts_zbase32_above_threshold() {
+        // 257_900 in z-base-32 is "855c".
+        assert!(validate_charger_id("855c").is_ok());
+        // u32::MAX in z-base-32 is "d999999".
+        assert!(validate_charger_id("d999999").is_ok());
+    }
+
+    #[test]
+    fn validate_charger_id_accepts_base58_at_or_below_threshold() {
+        // 257_899 in base58.
+        let base58_257_899 = bs58::encode(257_899_i32.to_be_bytes())
+            .with_alphabet(bs58::Alphabet::FLICKR)
+            .into_string();
+        assert!(validate_charger_id(&base58_257_899).is_ok());
+        // 0 in base58.
+        let base58_0 = bs58::encode(0_i32.to_be_bytes())
+            .with_alphabet(bs58::Alphabet::FLICKR)
+            .into_string();
+        assert!(validate_charger_id(&base58_0).is_ok());
+    }
+
+    #[test]
+    fn validate_charger_id_rejects_invalid_input() {
+        // '0' is not in either alphabet.
+        assert!(validate_charger_id("0").is_err());
+        // 'l' is not in either alphabet.
+        assert!(validate_charger_id("l").is_err());
+        // Non-ASCII characters are rejected.
+        assert!(validate_charger_id("\u{00e9}").is_err());
     }
 }
