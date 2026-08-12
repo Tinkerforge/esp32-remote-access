@@ -1164,11 +1164,7 @@ pub(crate) mod tests {
         }
         // For the z-base-32 branch the decoder is unambiguous because any
         // string that decodes to a value > the cutoff must be z-base-32.
-        for uid in [
-            ZBASE32_UID_THRESHOLD as i32 + 1,
-            1_000_000,
-            i32::MAX,
-        ] {
+        for uid in [ZBASE32_UID_THRESHOLD as i32 + 1, 1_000_000, i32::MAX] {
             let encoded = encode_charger_uid(uid);
             assert_eq!(
                 zbase32_decode(&encoded),
