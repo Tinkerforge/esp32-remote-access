@@ -87,6 +87,7 @@ async fn main() {
             routes::auth::recovery::recovery,
             routes::auth::start_recovery::start_recovery,
             routes::auth::resend_verification::resend_verification,
+            routes::auth::service_token::service_token,
             routes::charger::add::add,
             routes::charger::allow_user::allow_user,
             routes::charger::remove::remove,

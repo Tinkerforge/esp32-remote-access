@@ -26,6 +26,7 @@ pub mod login;
 pub mod recovery;
 pub mod register;
 pub mod resend_verification;
+pub mod service_token;
 pub mod start_recovery;
 pub mod verify;
 
@@ -41,6 +42,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
         .service(jwt_refresh::jwt_refresh)
         .service(start_recovery::start_recovery)
         .service(recovery::recovery)
-        .service(login::login);
+        .service(login::login)
+        .service(service_token::service_token);
     cfg.service(scope);
 }
