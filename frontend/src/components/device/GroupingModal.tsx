@@ -357,7 +357,7 @@ export function GroupingModal({
                                             </Badge>
                                         )}
                                         <div className="text-muted small">
-                                            {grouping.device_ids.length} {t("grouping_devices").toLowerCase()}
+                                            {grouping.device_ids.length} {t("grouping_devices")}
                                         </div>
                                     </Col>
                                     <Col xs="auto" className="d-flex align-items-center">
