@@ -44,7 +44,7 @@ pub async fn service_token() -> actix_web::Result<impl Responder> {
         }
     };
 
-    Ok(HttpResponse::Ok().json(token))
+    Ok(HttpResponse::Ok().body(token))
 }
 
 #[cfg(test)]
