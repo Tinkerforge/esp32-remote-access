@@ -21,17 +21,17 @@ use actix_web::{get, HttpResponse, Responder};
 
 use crate::error::Error;
 
-const SERVICE_AUTH_TOKEN_ENV: &str = "SERVICE_AUTH_TOKEN";
+const SERVICE_AUTH_TOKEN_ENV: &str = "OPTIONAL_SERVICE_AUTH_TOKEN";
 
 /// Return the pre-shared authorization token string configured via the
-/// `SERVICE_AUTH_TOKEN` environment variable. Intended for service
+/// `OPTIONAL_SERVICE_AUTH_TOKEN` environment variable. Intended for service
 /// integrations that need a long-lived charger authorization token without
 /// going through the regular user login flow.
 #[utoipa::path(
     context_path = "/auth",
     responses(
         (status = 200, description = "Service token was returned", body = String),
-        (status = 500, description = "SERVICE_AUTH_TOKEN env var is missing"),
+        (status = 500, description = "OPTIONAL_SERVICE_AUTH_TOKEN env var is missing"),
     )
 )]
 #[get("/service_token")]
@@ -61,7 +61,7 @@ mod tests {
         // each other's values; we accept the documented unsafety of
         // set_var/remove_var for this scope.
         unsafe {
-            std::env::set_var("SERVICE_AUTH_TOKEN", expected);
+            std::env::set_var("OPTIONAL_SERVICE_AUTH_TOKEN", expected);
         }
 
         let app = App::new().service(service_token);
@@ -79,14 +79,14 @@ mod tests {
         assert_eq!(body, expected.as_bytes());
 
         unsafe {
-            std::env::remove_var("SERVICE_AUTH_TOKEN");
+            std::env::remove_var("OPTIONAL_SERVICE_AUTH_TOKEN");
         }
     }
 
     #[actix_web::test]
     async fn test_missing_env_var_returns_500() {
         unsafe {
-            std::env::remove_var("SERVICE_AUTH_TOKEN");
+            std::env::remove_var("OPTIONAL_SERVICE_AUTH_TOKEN");
         }
 
         let app = App::new().service(service_token);
@@ -100,7 +100,7 @@ mod tests {
     #[actix_web::test]
     async fn test_empty_env_var_returns_500() {
         unsafe {
-            std::env::set_var("SERVICE_AUTH_TOKEN", "");
+            std::env::set_var("OPTIONAL_SERVICE_AUTH_TOKEN", "");
         }
 
         let app = App::new().service(service_token);
@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(resp.status(), 500);
 
         unsafe {
-            std::env::remove_var("SERVICE_AUTH_TOKEN");
+            std::env::remove_var("OPTIONAL_SERVICE_AUTH_TOKEN");
         }
     }
 }
