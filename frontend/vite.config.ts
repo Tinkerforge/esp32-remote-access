@@ -69,10 +69,6 @@ export default defineConfig({
 			"translations-en": resolve(__dirname, process.env.BRAND === "seb" ? "src/locales/branding/seb_en.ts" : "src/locales/branding/warp_en.ts"),
 		}
 	},
-	// build: {
-	// 	minify: false,
-	// 	sourcemap: true,
-	// },
 	plugins: [
 		preact(),
 		wasm(),
@@ -81,6 +77,8 @@ export default defineConfig({
 		versionPlugin,
 	],
 	build: {
+		minify: false,
+		sourcemap: true,
 		rolldownOptions: {
 			checks: {
 				commonJsVariableInEsm: false,

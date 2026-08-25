@@ -71,7 +71,7 @@ async fn start_rate_limiters_reset_thread(
                 let (remove, id) = if let Some(c) = map.get(&socket.id()) {
                     drop(socket);
                     let c = c.lock().await;
-                    if c.last_seen() > Duration::from_secs(30) {
+                    if c.last_seen() > Duration::from_secs(90) {
                         (true, c.id())
                     } else {
                         (false, uuid::Uuid::nil())
