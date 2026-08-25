@@ -55,7 +55,7 @@
 
     - name: Extract keys from .env.example
       ansible.builtin.set_fact:
-        env_example_keys: "{{ env_example_content.split('\n') | select('match', '^[A-Za-z_][A-Za-z0-9_]*=') | map('regex_replace', '=.*', '') | list }}"
+        env_example_keys: "{{ env_example_content.split('\n') | select('match', '^[A-Za-z_][A-Za-z0-9_]*=') | map('regex_replace', '=.*', '') | reject('match', '^OPTIONAL') | list }}"
 
     - name: Extract keys from .env
       ansible.builtin.set_fact:
