@@ -52,7 +52,6 @@ mod tests {
     use actix_web::{test, App};
 
     use super::service_token;
-    use crate::tests::configure;
 
     #[actix_web::test]
     async fn test_returns_configured_token() {
@@ -65,17 +64,19 @@ mod tests {
             std::env::set_var("SERVICE_AUTH_TOKEN", expected);
         }
 
-        let app = App::new().configure(configure).service(service_token);
+        let app = App::new().service(service_token);
         let app = test::init_service(app).await;
 
-        let req = test::TestRequest::get()
-            .uri("/service_token")
-            .to_request();
+        let req = test::TestRequest::get().uri("/service_token").to_request();
         let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_success(), "expected 2xx, got {}", resp.status());
+        assert!(
+            resp.status().is_success(),
+            "expected 2xx, got {}",
+            resp.status()
+        );
 
-        let body: String = test::read_body_json(resp).await;
-        assert_eq!(body, expected);
+        let body = test::read_body(resp).await;
+        assert_eq!(body, expected.as_bytes());
 
         unsafe {
             std::env::remove_var("SERVICE_AUTH_TOKEN");
@@ -88,12 +89,10 @@ mod tests {
             std::env::remove_var("SERVICE_AUTH_TOKEN");
         }
 
-        let app = App::new().configure(configure).service(service_token);
+        let app = App::new().service(service_token);
         let app = test::init_service(app).await;
 
-        let req = test::TestRequest::get()
-            .uri("/service_token")
-            .to_request();
+        let req = test::TestRequest::get().uri("/service_token").to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 500);
     }
@@ -104,12 +103,10 @@ mod tests {
             std::env::set_var("SERVICE_AUTH_TOKEN", "");
         }
 
-        let app = App::new().configure(configure).service(service_token);
+        let app = App::new().service(service_token);
         let app = test::init_service(app).await;
 
-        let req = test::TestRequest::get()
-            .uri("/service_token")
-            .to_request();
+        let req = test::TestRequest::get().uri("/service_token").to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 500);
 
