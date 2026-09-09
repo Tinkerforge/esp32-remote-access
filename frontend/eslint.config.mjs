@@ -1,8 +1,9 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import globals from "globals";
-import tsParser from "@typescript-eslint/parser";
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
+
+const tsParser = tseslint.parser;
 
 
 export default defineConfig([
