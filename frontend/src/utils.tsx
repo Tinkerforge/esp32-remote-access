@@ -13,6 +13,10 @@ export function is_warp_app(): boolean {
     return /warpapp-(android|ios)/.test(navigator.userAgent);
 }
 
+export function is_seb_app(): boolean {
+    return /sebapp-(android|ios)/.test(navigator.userAgent);
+}
+
 export async function get_salt() {
     const {data, response} = await fetchClient.GET("/auth/generate_salt");
     if (response.status !== 200) {
