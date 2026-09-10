@@ -10,6 +10,7 @@ pub enum PacketType {
     Nack = 0x02,
     MetadataForChargeLog = 0x03,
     RequestChargeLogSend = 0x04,
+    RemoveUser = 0x05,
 }
 
 impl TryFrom<u8> for PacketType {
@@ -22,6 +23,7 @@ impl TryFrom<u8> for PacketType {
             0x02 => Ok(PacketType::Nack),
             0x03 => Ok(PacketType::MetadataForChargeLog),
             0x04 => Ok(PacketType::RequestChargeLogSend),
+            0x05 => Ok(PacketType::RemoveUser),
             _ => Err(anyhow::anyhow!("Invalid packet type: {}", value)),
         }
     }
@@ -80,6 +82,25 @@ impl ManagementPacketHeader {
 pub struct ManagementCommandPacket {
     pub header: ManagementPacketHeader,
     pub command: ManagementCommand,
+}
+
+/// Payload of a `PacketType::RemoveUser` packet.
+///
+/// Sent by the server to tell a connected charger to drop a specific user
+/// from its configured users list. The command is delivered opportunistically
+/// over the WireGuard management channel; if the device is offline it will
+/// catch up the next time it calls `PUT /management`.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+pub struct RemoveUserCommand {
+    pub user_uuid: u128,
+}
+
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+pub struct RemoveUserCommandPacket {
+    pub header: ManagementPacketHeader,
+    pub command: RemoveUserCommand,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Serialize)]
@@ -275,6 +296,7 @@ pub enum ManagementPacket {
     CommandPacket(ManagementCommandPacket),
     AckPacket(AckPacket),
     NackPacket(NackPacket),
+    RemoveUserPacket(RemoveUserCommandPacket),
 }
 
 impl ManagementPacket {
@@ -288,6 +310,7 @@ impl ManagementPacket {
             Self::CommandPacket(p) => &mut p.header,
             Self::AckPacket(p) => &mut p.header,
             Self::NackPacket(p) => &mut p.header,
+            Self::RemoveUserPacket(p) => &mut p.header,
         }
     }
 
@@ -312,7 +335,7 @@ impl ManagementPacket {
 ///
 /// - Packet must be at least 8 bytes (size of ManagementPacketHeader)
 /// - Magic number must be 0x1234
-/// - Protocol type (p_type) must be 0-4 (valid packet types)
+/// - Protocol type (p_type) must be 0-5 (valid packet types)
 pub fn extract_management_packet_header(
     data: &[u8],
     id: uuid::Uuid,
@@ -347,9 +370,9 @@ pub fn extract_management_packet_header(
 
     // Validate packet type
     let p_type_value = p_type as u8;
-    if p_type_value > 4 {
+    if p_type_value > 5 {
         return Err(anyhow::anyhow!(
-            "Invalid packet type for device {}: expected 0-4, got {}",
+            "Invalid packet type for device {}: expected 0-5, got {}",
             id,
             p_type_value
         ));
@@ -475,7 +498,7 @@ mod tests {
         packet.extend_from_slice(&100u16.to_ne_bytes()); // length
         packet.extend_from_slice(&42u16.to_ne_bytes()); // seq_number
         packet.push(1); // version
-        packet.push(5); // p_type - invalid (should be 0-4)
+        packet.push(6); // p_type - invalid (should be 0-5)
 
         let id = uuid::Uuid::nil();
         let result = extract_management_packet_header(&packet, id);
@@ -495,6 +518,7 @@ mod tests {
             PacketType::MetadataForChargeLog,
             PacketType::RequestChargeLogSend,
             PacketType::Nack,
+            PacketType::RemoveUser,
         ];
 
         for p_type in valid_types {

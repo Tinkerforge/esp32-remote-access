@@ -328,3 +328,30 @@ sequenceDiagram
     end
     Charger->>Charger Frontend: Indicates failure or success
 ```
+
+### Server-initiated user removal
+
+When a user is removed from a charger on the server side (either via
+`DELETE /charger/remove` or as part of `DELETE /user/delete` for a user
+that is not the last user on the charger) the server pushes a
+`RemoveUser` management command to the device so the device drops the
+user locally without waiting for the next `PUT /management` keep-alive.
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Backend
+    participant Charger
+
+    Browser->>Backend: DELETE /charger/remove {charger}<br>or DELETE /user/delete
+    Note over Backend: Delete allowed_user row and<br>the user's WG keys for this charger
+    alt charger is connected
+        Backend-->>Charger: RemoveUser management command
+        Note over Charger: Drops the user locally and<br>stops using its WireGuard keys
+        Charger->>Backend: PUT /management (new configured_users)
+        Note over Backend: Server-side state is already in<br>sync; nothing more to do
+    else charger is disconnected
+        Note over Backend: Skip the command; the next<br>PUT /management will reconcile
+    end
+    Backend-->>Browser: 200 OK
+```

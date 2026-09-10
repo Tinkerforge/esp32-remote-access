@@ -11,6 +11,7 @@ use crate::{
         charger::remove::{delete_charger, remove_charger_from_state},
         user::logout::delete_all_refresh_tokens,
     },
+    udp_server::management::prompt_charger_to_remove_user,
     utils::{get_connection, web_block_unpacked},
     AppState, BridgeState,
 };
@@ -135,6 +136,8 @@ pub async fn delete_user(
         if allowed_count == 0 {
             delete_charger(cid, &state).await?;
             remove_charger_from_state(cid, &bridge_state).await;
+        } else {
+            prompt_charger_to_remove_user(&bridge_state, cid, uid).await;
         }
     }
 

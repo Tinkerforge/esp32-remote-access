@@ -52,6 +52,10 @@ pub struct ManagementSocket<'a> {
     tcp_socket: Option<SocketHandle>,
     pcap_logger: PcapLogger,
     sender: Option<tokio::sync::oneshot::Sender<ChargeLogSendMetadata>>,
+    /// Test-only sink for plaintext packets about to be handed off to the
+    /// smoltcp UDP socket. `None` in production builds.
+    #[cfg(test)]
+    packet_capture: Option<Arc<std::sync::Mutex<Vec<Vec<u8>>>>>,
 }
 
 impl std::fmt::Debug for ManagementSocket<'_> {
@@ -113,6 +117,8 @@ impl<'a> ManagementSocket<'a> {
             tcp_socket: None,
             pcap_logger,
             sender: None,
+            #[cfg(test)]
+            packet_capture: None,
         }
     }
 
@@ -156,6 +162,13 @@ impl<'a> ManagementSocket<'a> {
         )
     }
 
+    /// Test helper: install a sink that records the plaintext bytes of every
+    /// packet handed to `send_packet`. No-op outside of test builds.
+    #[cfg(test)]
+    pub fn enable_packet_capture(&mut self, capture: Arc<std::sync::Mutex<Vec<Vec<u8>>>>) {
+        self.packet_capture = Some(capture);
+    }
+
     pub fn poll(&mut self) {
         let now = smoltcp::time::Instant::now();
         self.iface.poll(now, &mut self.device, &mut self.sockets);
@@ -189,6 +202,12 @@ impl<'a> ManagementSocket<'a> {
         self.out_sequence += 1;
 
         let bytes = packet.as_bytes();
+        #[cfg(test)]
+        if let Some(capture) = self.packet_capture.as_ref() {
+            if let Ok(mut buf) = capture.lock() {
+                buf.push(bytes.clone());
+            }
+        }
         self.encrypt_and_send_slice(&bytes);
     }
 

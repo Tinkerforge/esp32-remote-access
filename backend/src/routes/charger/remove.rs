@@ -25,6 +25,7 @@ use utoipa::ToSchema;
 use crate::{
     error::Error,
     routes::charger::user_is_allowed,
+    udp_server::management::prompt_charger_to_remove_user,
     utils::{get_connection, parse_uuid, web_block_unpacked},
     AppState, BridgeState,
 };
@@ -205,8 +206,10 @@ pub async fn remove(
         delete_charger(device_id, &state).await?;
         remove_charger_from_state(device_id, &bridge_state).await;
     } else {
-        delete_allowed_user(device_id, user_id.clone().into(), &state).await?;
-        delete_keys_for_user(device_id, user_id.into(), &state).await?;
+        let removed_user: uuid::Uuid = user_id.clone().into();
+        delete_allowed_user(device_id, removed_user, &state).await?;
+        delete_keys_for_user(device_id, removed_user, &state).await?;
+        prompt_charger_to_remove_user(&bridge_state, device_id, removed_user).await;
     }
 
     Ok(HttpResponse::Ok())
