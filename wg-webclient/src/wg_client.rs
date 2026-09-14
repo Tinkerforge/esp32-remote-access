@@ -253,7 +253,6 @@ impl WgClient {
         }
     }
 
-
     /// Creates a new Websocket object and connection that gets stored internally.
     fn start_inner_ws(&mut self, cb: js_sys::Function) {
         self.disconnect_inner_ws();

@@ -266,6 +266,10 @@ fn create_websocket_closure<Device>(
                 }
             }
             tungstenite::Message::Ping(_) => (),
+            tungstenite::Message::Close(msg) => {
+                log::info!("Websocket closed: {:?}", msg);
+                *state = WebsocketState::Disconnected;
+            }
             _ => log::error!("unhandled message: {:?}", message),
         }
     })
