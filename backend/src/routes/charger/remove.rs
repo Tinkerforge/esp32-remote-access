@@ -188,6 +188,7 @@ pub async fn remove(
     let device_id = parse_uuid(&data.charger)?;
     user_is_allowed(&state, user_id.clone().into(), device_id).await?;
 
+    prompt_charger_to_remove_user(&bridge_state, device_id, user_id.clone().into()).await;
     if is_last_user(device_id, &state).await? {
         delete_all_keys(device_id, &state).await?;
         delete_all_allowed_users(device_id, &state).await?;
@@ -209,7 +210,6 @@ pub async fn remove(
         let removed_user: uuid::Uuid = user_id.clone().into();
         delete_allowed_user(device_id, removed_user, &state).await?;
         delete_keys_for_user(device_id, removed_user, &state).await?;
-        prompt_charger_to_remove_user(&bridge_state, device_id, removed_user).await;
     }
 
     Ok(HttpResponse::Ok())

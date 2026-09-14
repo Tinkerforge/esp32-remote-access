@@ -116,6 +116,9 @@ pub async fn delete_user(
             })
             .await?;
         }
+
+        prompt_charger_to_remove_user(&bridge_state, cid, uid).await;
+
         // Check if any allowed users remain for this charger
         let allowed_count = {
             let mut conn = get_connection(&state)?;
@@ -132,12 +135,9 @@ pub async fn delete_user(
             })
             .await?
         };
-        println!("allowed_count: {allowed_count}");
         if allowed_count == 0 {
             delete_charger(cid, &state).await?;
             remove_charger_from_state(cid, &bridge_state).await;
-        } else {
-            prompt_charger_to_remove_user(&bridge_state, cid, uid).await;
         }
     }
 
