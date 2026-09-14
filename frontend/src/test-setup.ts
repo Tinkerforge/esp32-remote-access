@@ -509,6 +509,7 @@ vi.mock('./utils', () => ({
   refresh_access_token: vi.fn(),
   startVersionChecking: vi.fn(),
   is_warp_app: vi.fn(() => false),
+  is_seb_app: vi.fn(() => false),
 }));
 
 // Some files import from './utils.js' (with extension) — provide identical mock for that path
@@ -538,6 +539,7 @@ vi.mock('./utils.js', () => ({
   refresh_access_token: vi.fn(),
   startVersionChecking: vi.fn(),
   is_warp_app: vi.fn(() => false),
+  is_seb_app: vi.fn(() => false),
 }));
 
 // Assets aliases used in index.tsx
