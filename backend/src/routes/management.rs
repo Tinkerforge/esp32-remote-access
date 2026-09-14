@@ -33,10 +33,12 @@ use crate::{
     error::Error,
     rate_limit::ChargerRateLimiter,
     routes::{auth::login::FindBy, user::get_user_id},
+    udp_server::management::RemoteConnMeta,
     utils::{
         get_charger_by_uid, get_charger_from_db, get_connection, parse_uuid,
         update_charger_state_change, web_block_unpacked,
     },
+    ws_udp_bridge::open_connection,
     AppState, BridgeState,
 };
 
@@ -366,8 +368,52 @@ pub async fn management(
     };
 
     if !losing_conns.is_empty() {
-        let mut lost_conns = bridge_state.lost_connections.lock().await;
-        lost_conns.insert(charger_id, losing_conns);
+        // The management request comes in over the device's WireGuard tunnel,
+        // so the device is reachable right now. Reattach the saved user
+        // connections immediately so they survive even if the first UDP
+        // packet on this tunnel was already processed before the management
+        // request arrived (in which case `multiplex.rs`'s `Entry::Vacant`
+        // branch would not see these entries in `lost_connections`).
+        let management_sock = {
+            let map = bridge_state.device_management_map_with_id.lock().await;
+            map.get(&charger_id).cloned()
+        };
+
+        if let Some(management_sock) = management_sock {
+            log::info!(
+                "Charger {charger_id} identified via management: reattaching {} lost user connection(s).",
+                losing_conns.len()
+            );
+            let mut undiscovered_clients = bridge_state.undiscovered_clients.lock().await;
+            for (conn_no, recipient) in losing_conns.into_iter() {
+                log::info!(
+                    "Reattaching user to reconnected charger {charger_id} (conn_no={conn_no})."
+                );
+                let meta = RemoteConnMeta {
+                    charger_id,
+                    conn_no,
+                };
+                undiscovered_clients.insert(meta, recipient);
+                if let Err(_err) = open_connection(
+                    conn_no,
+                    charger_id,
+                    management_sock.clone(),
+                    bridge_state.port_discovery.clone(),
+                )
+                .await
+                {
+                    log::error!(
+                        "Failed to reopen lost connection (charger_id={charger_id}, conn_no={conn_no})."
+                    );
+                }
+            }
+        } else {
+            // The device's tunnel is not yet up; fall back to leaving the
+            // entries in `lost_connections` so `multiplex.rs` picks them up
+            // when the first UDP packet arrives.
+            let mut lost_conns = bridge_state.lost_connections.lock().await;
+            lost_conns.insert(charger_id, losing_conns);
+        }
     }
 
     let (fw_version, port, mtu) = match &data.data {
@@ -1221,6 +1267,121 @@ mod tests {
         assert!(
             id_map.contains_key(&device_uuid),
             "management request must not remove the active tunnel entry",
+        );
+    }
+
+    /// Regression test for the bug where lost user connections were not
+    /// reopened when the device reconnected.
+    ///
+    /// Sequence under test:
+    ///   1. A user connects to a charger via WebSocket. The connection is
+    ///      routed through `web_client_map` / `device_remote_conn_map`.
+    ///   2. The tunnel briefly drops and is re-established. The first UDP
+    ///      packet on the new tunnel populates `device_management_map_with_id`
+    ///      BEFORE the management request runs, meaning the `Entry::Vacant`
+    ///      branch in `multiplex.rs` already passed with empty
+    ///      `lost_connections`.
+    ///   3. The charger calls `PUT /management`. Without reattaching in the
+    ///      handler itself, the saved user connection would never be
+    ///      reopened, because nothing else consumes `lost_connections` once
+    ///      the tunnel is up.
+    ///
+    /// This test verifies that an entry in `device_remote_conn_map` whose
+    /// session has already disappeared (a common state right after a tunnel
+    /// reconnect: the old UDP source address changed, the session timed
+    /// out, etc.) is cleanly drained by the management endpoint and does
+    /// not get parked in `lost_connections`. The full happy-path reattach
+    /// (with a live WebSocket session) is covered end-to-end by the
+    /// `warp_emu` integration tests.
+    #[actix::test]
+    async fn test_management_drains_stale_device_remote_conn_entries() {
+        use crate::{udp_server::management::RemoteConnMeta, udp_server::socket::ManagementSocket};
+        use futures_util::lock::Mutex;
+        use std::sync::Arc;
+
+        let (mut user, mail) = TestUser::random().await;
+        user.login().await;
+        let device = user.add_random_charger().await;
+
+        let device_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let user_id = get_test_uuid(&mail).unwrap();
+
+        let pool = db_connector::test_connection_pool();
+        let state = crate::tests::create_test_state(Some(pool.clone()));
+        let bridge_state = crate::tests::create_test_bridge_state(Some(pool.clone()));
+        let rate_limiter = web::Data::new(crate::rate_limit::ChargerRateLimiter::new());
+
+        // Simulate the WireGuard tunnel being established.
+        let remote_addr: std::net::SocketAddr = "123.123.123.123:12345".parse().unwrap();
+        let mgmt_socket = ManagementSocket::new_for_test(device_uuid, remote_addr).await;
+        let mgmt_socket = Arc::new(Mutex::new(mgmt_socket));
+        {
+            let mut id_map = bridge_state.device_management_map_with_id.lock().await;
+            id_map.insert(device_uuid, mgmt_socket.clone());
+        }
+        {
+            let mut addr_map = bridge_state.device_management_map.lock().await;
+            addr_map.insert(remote_addr, mgmt_socket);
+        }
+
+        // A stale `device_remote_conn_map` entry with no matching
+        // `web_client_map` session must be drained and dropped, not saved
+        // into `lost_connections` (which would otherwise accumulate junk).
+        {
+            let mut conn_map = bridge_state.device_remote_conn_map.lock().await;
+            conn_map.insert(
+                RemoteConnMeta {
+                    charger_id: device_uuid,
+                    conn_no: 7,
+                },
+                remote_addr,
+            );
+        }
+
+        let app = App::new()
+            .app_data(state.clone())
+            .app_data(bridge_state.clone())
+            .app_data(rate_limiter.clone())
+            .service(management);
+        let app = test::init_service(app).await;
+
+        let data = ManagementDataVersion::V2(ManagementDataVersion2 {
+            id: device.uuid.clone(),
+            password: device.password.clone(),
+            port: 0,
+            firmware_version: "2.3.1".to_string(),
+            configured_users: vec![ConfiguredUser {
+                email: None,
+                user_id: Some(user_id.to_string()),
+                name: Some(String::new()),
+            }],
+            mtu: None,
+        });
+        let body = ManagementSchema {
+            id: None,
+            password: None,
+            data,
+        };
+        let req = test::TestRequest::put()
+            .uri("/management")
+            .append_header(("X-Forwarded-For", "123.123.123.123"))
+            .set_json(body)
+            .to_request();
+        let _resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
+
+        let conn_map = bridge_state.device_remote_conn_map.lock().await;
+        assert!(
+            !conn_map.contains_key(&RemoteConnMeta {
+                charger_id: device_uuid,
+                conn_no: 7,
+            }),
+            "stale device_remote_conn_map entry must be drained by the management request",
+        );
+
+        let lost = bridge_state.lost_connections.lock().await;
+        assert!(
+            !lost.contains_key(&device_uuid),
+            "stale entries must not accumulate in lost_connections",
         );
     }
 }
