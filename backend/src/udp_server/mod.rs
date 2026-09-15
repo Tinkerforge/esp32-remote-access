@@ -65,26 +65,7 @@ async fn start_rate_limiters_reset_thread(
                 socket.reset_rate_limiter();
             }
             for addr in to_remove.into_iter() {
-                let socket = device_map.remove(&addr).unwrap();
-                let socket = socket.lock().await;
-                let mut map = device_map_id.lock().await;
-                let (remove, id) = if let Some(c) = map.get(&socket.id()) {
-                    drop(socket);
-                    let c = c.lock().await;
-                    if c.last_seen() > Duration::from_secs(90) {
-                        (true, c.id())
-                    } else {
-                        (false, uuid::Uuid::nil())
-                    }
-                } else {
-                    (false, uuid::Uuid::nil())
-                };
-                if remove {
-                    log::info!("Charger {id} has timeouted and will be removed.");
-                    map.remove(&id);
-                    drop(map);
-                    update_charger_state_change(id, state.clone(), bridge_state.clone()).await;
-                }
+                device_map.remove(&addr);
             }
         }
         {
@@ -127,6 +108,29 @@ async fn start_rate_limiters_reset_thread(
             for ip in to_remove.into_iter().flatten() {
                 map.remove(&ip);
             }
+        }
+        {
+            let to_remove: Vec<uuid::Uuid> = {
+                let mut device_map_id = device_map_id.lock().await;
+                let mut to_remove = Vec::with_capacity(device_map_id.len());
+                for (id, socket) in device_map_id.iter() {
+                    let socket = socket.lock().await;
+                    if socket.last_seen() > Duration::from_secs(30) {
+                        to_remove.push(id.to_owned());
+                    }
+                }
+                for id in to_remove.iter() {
+                    device_map_id.remove(id);
+                }
+                to_remove
+            };
+            for id in to_remove.into_iter() {
+                log::info!("Charger {id} has timeouted and will be removed.");
+                update_charger_state_change(id, state.clone(), bridge_state.clone()).await;
+            }
+        }
+        for limiter in rate_limiters.iter() {
+            limiter.shrink();
         }
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
