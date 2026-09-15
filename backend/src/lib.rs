@@ -85,7 +85,7 @@ pub struct BridgeState<'a> {
     pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<(i32, Session)>>>,
     pub socket: Arc<UdpSocket>,
     pub state_update_clients: Mutex<HashMap<uuid::Uuid, Session>>,
-    pub device_ratelimiter: crate::rate_limit::ChargerRateLimiter,
+    pub device_ratelimiter: Arc<crate::rate_limit::ChargerRateLimiter>,
 }
 
 pub struct AppState {
@@ -355,7 +355,7 @@ pub(crate) mod tests {
             lost_connections: Mutex::new(HashMap::new()),
             socket: Arc::new(UdpSocket::from_std(std_socket).unwrap()),
             state_update_clients: Mutex::new(HashMap::new()),
-            device_ratelimiter: crate::rate_limit::ChargerRateLimiter::new(),
+            device_ratelimiter: Arc::new(crate::rate_limit::ChargerRateLimiter::new()),
         };
 
         web::Data::new(bridge_state)
@@ -378,7 +378,7 @@ pub(crate) mod tests {
             lost_connections: Mutex::new(HashMap::new()),
             socket: Arc::new(UdpSocket::from_std(std_socket).unwrap()),
             state_update_clients: Mutex::new(HashMap::new()),
-            device_ratelimiter: crate::rate_limit::ChargerRateLimiter::new(),
+            device_ratelimiter: Arc::new(crate::rate_limit::ChargerRateLimiter::new()),
         };
 
         let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> = web::Data::new(

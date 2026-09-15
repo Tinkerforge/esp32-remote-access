@@ -258,7 +258,7 @@ mod tests {
             lost_connections: Mutex::new(HashMap::new()),
             socket: Arc::new(tokio::net::UdpSocket::from_std(std_socket).unwrap()),
             state_update_clients: Mutex::new(HashMap::new()),
-            device_ratelimiter: crate::rate_limit::ChargerRateLimiter::new(),
+            device_ratelimiter: Arc::new(crate::rate_limit::ChargerRateLimiter::new()),
         };
 
         web::Data::new(bridge_state)

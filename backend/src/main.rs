@@ -40,7 +40,7 @@ use db_connector::{get_connection_pool, run_migrations};
 use futures_util::lock::Mutex;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use lru::LruCache;
-use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
+use rate_limit::{ChargerRateLimiter, LoginRateLimiter, ShrinkableRateLimiter};
 use rustls::ServerConfig;
 use rustls_pki_types::pem::PemObject;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
@@ -207,7 +207,7 @@ async fn main() -> std::io::Result<()> {
     let udp_socket = UdpSocket::bind("0.0.0.0:51820")
         .await
         .expect("Failed to bind UDP socket");
-    let device_ratelimiter = crate::rate_limit::ChargerRateLimiter::new();
+    let device_ratelimiter = Arc::new(crate::rate_limit::ChargerRateLimiter::new());
     let bridge_state = web::Data::new(BridgeState {
         pool,
         web_client_map: Mutex::new(HashMap::new()),
@@ -220,7 +220,7 @@ async fn main() -> std::io::Result<()> {
         lost_connections: Mutex::new(HashMap::new()),
         socket: Arc::new(udp_socket),
         state_update_clients: Mutex::new(HashMap::new()),
-        device_ratelimiter,
+        device_ratelimiter: device_ratelimiter.clone(),
     });
 
     let state_cpy = state.clone();
@@ -236,8 +236,21 @@ async fn main() -> std::io::Result<()> {
     );
 
     let login_ratelimiter = web::Data::new(LoginRateLimiter::new());
-    let device_ratelimiter = web::Data::new(ChargerRateLimiter::new());
+    let http_device_ratelimiter = web::Data::new(ChargerRateLimiter::new());
     let general_ratelimiter = web::Data::new(IPRateLimiter::new());
+
+    let shrinkable_rate_limiters: Vec<Arc<dyn ShrinkableRateLimiter>> = vec![
+        Arc::clone(&*login_ratelimiter) as Arc<dyn ShrinkableRateLimiter>,
+        Arc::clone(&*http_device_ratelimiter) as Arc<dyn ShrinkableRateLimiter>,
+        Arc::clone(&*general_ratelimiter) as Arc<dyn ShrinkableRateLimiter>,
+        Arc::clone(&bridge_state.device_ratelimiter) as Arc<dyn ShrinkableRateLimiter>,
+    ];
+
+    udp_server::start_server(
+        bridge_state.clone(),
+        state.clone(),
+        shrinkable_rate_limiters,
+    );
 
     let static_files_dir = std::env::var("STATIC_FILES_DIR").unwrap();
 
@@ -253,7 +266,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(cache.clone())
             .app_data(state.clone())
             .app_data(login_ratelimiter.clone())
-            .app_data(device_ratelimiter.clone())
+            .app_data(http_device_ratelimiter.clone())
             .app_data(general_ratelimiter.clone())
             .app_data(bridge_state.clone())
             .service(web::scope("/api").configure(routes::configure))

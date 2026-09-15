@@ -26,6 +26,14 @@ use governor::{
     NotUntil, Quota, RateLimiter,
 };
 
+/// Trait for rate limiters that can be shrunk by a periodic cleanup task.
+///
+/// This allows the cleanup task to drop stale entries from any keyed rate
+/// limiter without having to know its concrete key type.
+pub trait ShrinkableRateLimiter {
+    fn shrink(&self);
+}
+
 fn ip_from_req(req: &HttpRequest) -> actix_web::Result<String> {
     let ip = if let Some(ip) = req.connection_info().realip_remote_addr() {
         ip.to_string()
@@ -94,6 +102,13 @@ impl LoginRateLimiter {
     }
 }
 
+impl ShrinkableRateLimiter for LoginRateLimiter {
+    fn shrink(&self) {
+        self.0.retain_recent();
+        self.0.shrink_to_fit();
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct ChargerRateLimitKey {
     charger_id: String,
@@ -141,6 +156,13 @@ impl ChargerRateLimiter {
     pub fn check_key(&self, charger_id: String, ip: String) -> bool {
         let key = ChargerRateLimitKey { charger_id, ip };
         self.0.check_key(&key).is_ok()
+    }
+}
+
+impl ShrinkableRateLimiter for ChargerRateLimiter {
+    fn shrink(&self) {
+        self.0.retain_recent();
+        self.0.shrink_to_fit();
     }
 }
 
@@ -214,6 +236,13 @@ impl IPRateLimiter {
     }
 }
 
+impl ShrinkableRateLimiter for IPRateLimiter {
+    fn shrink(&self) {
+        self.0.retain_recent();
+        self.0.shrink_to_fit();
+    }
+}
+
 pub struct GlobalSearchRateLimiter(
     RateLimiter<
         SocketAddr,
@@ -244,6 +273,13 @@ impl GlobalSearchRateLimiter {
         } else {
             Ok(())
         }
+    }
+}
+
+impl ShrinkableRateLimiter for GlobalSearchRateLimiter {
+    fn shrink(&self) {
+        self.0.retain_recent();
+        self.0.shrink_to_fit();
     }
 }
 

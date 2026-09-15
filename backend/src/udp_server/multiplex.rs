@@ -355,9 +355,9 @@ async fn handle_charge_log<'a>(
 pub async fn run_server(
     bridge_state: web::Data<BridgeState<'static>>,
     app_state: web::Data<AppState>,
+    rate_limiter: Arc<GlobalSearchRateLimiter>,
 ) {
     let mut buf = vec![0u8; 65535];
-    let rate_limiter = Arc::new(GlobalSearchRateLimiter::new());
 
     loop {
         let rate_limiter = Arc::clone(&rate_limiter);

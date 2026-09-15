@@ -34,6 +34,7 @@ use std::{
 
 use self::socket::ManagementSocket;
 use crate::{
+    rate_limit::ShrinkableRateLimiter,
     udp_server::multiplex::run_server, utils::update_charger_state_change, AppState, BridgeState,
     DiscoveryCharger,
 };
@@ -51,6 +52,7 @@ async fn start_rate_limiters_reset_thread(
     undiscovered_devices: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     state: web::Data<AppState>,
     bridge_state: web::Data<BridgeState<'static>>,
+    rate_limiters: Vec<Arc<dyn ShrinkableRateLimiter>>,
 ) {
     loop {
         {
@@ -136,8 +138,16 @@ async fn start_rate_limiters_reset_thread(
     }
 }
 
-pub fn start_server(bridge_state: web::Data<BridgeState<'static>>, app_state: web::Data<AppState>) {
+pub fn start_server(
+    bridge_state: web::Data<BridgeState<'static>>,
+    app_state: web::Data<AppState>,
+    mut rate_limiters: Vec<Arc<dyn ShrinkableRateLimiter>>,
+) {
     log::info!("Starting Wireguard server.");
+    let global_search_rate_limiter = Arc::new(crate::rate_limit::GlobalSearchRateLimiter::new());
+    rate_limiters.push(
+        Arc::clone(&global_search_rate_limiter) as Arc<dyn ShrinkableRateLimiter>,
+    );
     actix::spawn(start_rate_limiters_reset_thread(
         bridge_state.device_management_map.clone(),
         bridge_state.device_management_map_with_id.clone(),
@@ -145,7 +155,8 @@ pub fn start_server(bridge_state: web::Data<BridgeState<'static>>, app_state: we
         bridge_state.undiscovered_devices.clone(),
         app_state.clone(),
         bridge_state.clone(),
+        rate_limiters,
     ));
 
-    actix::spawn(run_server(bridge_state, app_state));
+    actix::spawn(run_server(bridge_state, app_state, global_search_rate_limiter));
 }
