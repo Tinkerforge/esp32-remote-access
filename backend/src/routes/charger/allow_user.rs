@@ -68,31 +68,29 @@ async fn add_keys(
     uid: uuid::Uuid,
     cid: uuid::Uuid,
 ) -> actix_web::Result<()> {
+    let insert_keys: Vec<WgKey> = keys
+        .into_iter()
+        .map(|key| WgKey {
+            id: uuid::Uuid::new_v4(),
+            user_id: uid,
+            charger_id: cid,
+            charger_pub: key.charger_public,
+            web_private: key.web_private,
+            psk: key.psk,
+            web_address: key.web_address,
+            charger_address: key.charger_address,
+            connection_no: key.connection_no as i32,
+        })
+        .collect();
+
     let mut conn = get_connection(state).await?;
-    {
-        use db_connector::schema::wg_keys::dsl::*;
+    use db_connector::schema::wg_keys::dsl::*;
 
-        let insert_keys: Vec<WgKey> = keys
-            .into_iter()
-            .map(|key| WgKey {
-                id: uuid::Uuid::new_v4(),
-                user_id: uid,
-                charger_id: cid,
-                charger_pub: key.charger_public,
-                web_private: key.web_private,
-                psk: key.psk,
-                web_address: key.web_address,
-                charger_address: key.charger_address,
-                connection_no: key.connection_no as i32,
-            })
-            .collect();
-
-        diesel::insert_into(wg_keys)
-            .values(&insert_keys)
-            .execute(&mut conn)
-            .await
-            .map_err(|_| Error::InternalError)?;
-    }
+    diesel::insert_into(wg_keys)
+        .values(&insert_keys)
+        .execute(&mut conn)
+        .await
+        .map_err(|_| Error::InternalError)?;
 
     Ok(())
 }
@@ -157,10 +155,9 @@ pub async fn allow_user(
     };
     authenticate_user(allowed_uuid, &allow_user.user_auth, &state).await?;
 
-    // delete old allowed_user when existing
-    let mut conn = get_connection(&state).await?;
     let allow_user_inner = allow_user.into_inner();
     {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::allowed_users::dsl::*;
 
         diesel::delete(
@@ -173,9 +170,8 @@ pub async fn allow_user(
         .map_err(|_| Error::InternalError)?;
     }
 
-    // add new allowed_user
-    let mut conn = get_connection(&state).await?;
     {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::allowed_users::dsl::*;
 
         let u = AllowedUser {

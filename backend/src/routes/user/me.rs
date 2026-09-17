@@ -53,8 +53,8 @@ async fn me(
     let user = get_user(&state, id.clone().into()).await?;
 
     let id: uuid::Uuid = id.into();
-    let mut conn = get_connection(&state).await?;
-    let allowed_users = {
+    let allowed_users: Vec<AllowedUser> = {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::allowed_users::dsl as au;
 
         au::allowed_users
@@ -66,8 +66,8 @@ async fn me(
     };
 
     let ids: Vec<uuid::Uuid> = allowed_users.iter().map(|au| au.charger_id).collect();
-    let mut conn = get_connection(&state).await?;
-    let devices = {
+    let devices: Vec<Charger> = {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::chargers::dsl as c;
 
         c::chargers

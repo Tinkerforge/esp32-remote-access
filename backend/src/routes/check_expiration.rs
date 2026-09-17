@@ -58,10 +58,7 @@ async fn check_verification_token(
     {
         Ok(_) => true,
         Err(NotFound) => false,
-        Err(_err) => {
-            println!("Error checking verification token: {_err:?}");
-            return Err(Error::InternalError.into());
-        }
+        Err(_err) => return Err(Error::InternalError.into()),
     };
 
     Ok(valid)

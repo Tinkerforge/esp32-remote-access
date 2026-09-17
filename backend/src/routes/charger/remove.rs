@@ -116,17 +116,15 @@ pub async fn delete_keys_for_user(
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {
     let mut conn = get_connection(state).await?;
-    {
-        use db_connector::schema::wg_keys::dsl::*;
-        diesel::delete(
-            wg_keys
-                .filter(user_id.eq(uid))
-                .filter(charger_id.eq(device_id)),
-        )
-        .execute(&mut conn)
-        .await
-        .map_err(|_| Error::InternalError)?;
-    }
+    use db_connector::schema::wg_keys::dsl::*;
+    diesel::delete(
+        wg_keys
+            .filter(user_id.eq(uid))
+            .filter(charger_id.eq(device_id)),
+    )
+    .execute(&mut conn)
+    .await
+    .map_err(|_| Error::InternalError)?;
     Ok(())
 }
 
@@ -136,17 +134,15 @@ async fn delete_allowed_user(
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {
     let mut conn = get_connection(state).await?;
-    {
-        use db_connector::schema::allowed_users::dsl::*;
-        diesel::delete(
-            allowed_users
-                .filter(user_id.eq(uid))
-                .filter(charger_id.eq(device_id)),
-        )
-        .execute(&mut conn)
-        .await
-        .map_err(|_| Error::InternalError)?;
-    }
+    use db_connector::schema::allowed_users::dsl::*;
+    diesel::delete(
+        allowed_users
+            .filter(user_id.eq(uid))
+            .filter(charger_id.eq(device_id)),
+    )
+    .execute(&mut conn)
+    .await
+    .map_err(|_| Error::InternalError)?;
     Ok(())
 }
 
@@ -176,14 +172,6 @@ pub async fn remove(
         delete_all_keys(device_id, &state).await?;
         delete_all_allowed_users(device_id, &state).await?;
 
-        let mut conn = get_connection(&state).await?;
-        {
-            use db_connector::schema::chargers::dsl as chargers;
-            diesel::delete(chargers::chargers.filter(chargers::id.eq(device_id)))
-                .execute(&mut conn)
-                .await
-                .map_err(|_| Error::InternalError)?;
-        }
         delete_charger(device_id, &state).await?;
         remove_charger_from_state(device_id, &bridge_state).await;
     } else {

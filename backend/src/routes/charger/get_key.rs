@@ -79,21 +79,25 @@ pub async fn get_key(
     let user = get_user(&state, uid.into()).await?;
     let cid = parse_uuid(&web_query.cid)?;
 
-    let mut conn = get_connection(&state).await?;
+    // Fetch device keys, then compute the in-use count while holding the
+    // in-memory cache lock. Both are released before we do anything else.
     let keys_in_use_count = {
-        let keys_in_use_cache = state.keys_in_use.lock().await;
+        let device_key_ids: Vec<uuid::Uuid> = {
+            let mut conn = get_connection(&state).await?;
 
-        let device_key_ids: Vec<uuid::Uuid> = match wg_keys
-            .filter(charger_id.eq(&cid))
-            .select(WgKey::as_select())
-            .load::<WgKey>(&mut conn)
-            .await
-        {
-            Ok(keys) => keys.into_iter().map(|k| k.id).collect(),
-            Err(NotFound) => Vec::new(),
-            Err(_err) => return Err(Error::InternalError.into()),
+            match wg_keys
+                .filter(charger_id.eq(&cid))
+                .select(WgKey::as_select())
+                .load::<WgKey>(&mut conn)
+                .await
+            {
+                Ok(keys) => keys.into_iter().map(|k| k.id).collect(),
+                Err(NotFound) => Vec::new(),
+                Err(_err) => return Err(Error::InternalError.into()),
+            }
         };
 
+        let keys_in_use_cache = state.keys_in_use.lock().await;
         device_key_ids
             .into_iter()
             .filter(|key_id| keys_in_use_cache.contains(key_id))

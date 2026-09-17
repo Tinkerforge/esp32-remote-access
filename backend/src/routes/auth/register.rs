@@ -191,8 +191,6 @@ pub async fn register(
         old_email: None,
     };
 
-    let mut conn = get_connection(&state).await?;
-
     let exp = if let Some(expiration) =
         chrono::Utc::now().checked_add_days(Days::new(VERIFICATION_EXPIRATION_DAYS))
     {
@@ -218,6 +216,7 @@ pub async fn register(
 
     let verify_for_db = verify.clone();
     {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::users::dsl::*;
         use db_connector::schema::verification::dsl::*;
 

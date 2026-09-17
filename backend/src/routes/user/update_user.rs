@@ -174,32 +174,36 @@ pub async fn update_user(
 
     let uid: uuid::Uuid = uid.into();
     let user_cpy = new_user.clone();
-    let mut conn = get_connection(&state).await?;
-    match users
-        .filter(email.eq(&user_cpy.email.to_lowercase()))
-        .select(User::as_select())
-        .get_result::<User>(&mut conn)
-        .await
     {
-        Err(NotFound) => {}
-        Ok(u) => {
-            if u.id != uid {
-                return Err(Error::UserAlreadyExists.into());
+        let mut conn = get_connection(&state).await?;
+        match users
+            .filter(email.eq(&user_cpy.email.to_lowercase()))
+            .select(User::as_select())
+            .get_result::<User>(&mut conn)
+            .await
+        {
+            Err(NotFound) => {}
+            Ok(u) => {
+                if u.id != uid {
+                    return Err(Error::UserAlreadyExists.into());
+                }
             }
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-        Err(_err) => return Err(Error::InternalError.into()),
     }
 
-    let mut conn = get_connection(&state).await?;
-    let old_user: User = match users
-        .find::<uuid::Uuid>(uid)
-        .select(User::as_select())
-        .get_result::<User>(&mut conn)
-        .await
-    {
-        Ok(u) => u,
-        Err(NotFound) => return Err(Error::Unauthorized.into()),
-        Err(_err) => return Err(Error::InternalError.into()),
+    let old_user: User = {
+        let mut conn = get_connection(&state).await?;
+        match users
+            .find::<uuid::Uuid>(uid)
+            .select(User::as_select())
+            .get_result::<User>(&mut conn)
+            .await
+        {
+            Ok(u) => u,
+            Err(NotFound) => return Err(Error::Unauthorized.into()),
+            Err(_err) => return Err(Error::InternalError.into()),
+        }
     };
 
     // Only set up verification if email changed
@@ -219,31 +223,29 @@ pub async fn update_user(
         None
     };
 
-    let mut conn = get_connection(&state).await?;
-    #[cfg(not(test))]
-    let runtime_handle = tokio::runtime::Handle::current();
-
-    // Update user fields
-    match diesel::update(users.find::<uuid::Uuid>(uid))
-        .set((
-            name.eq(&new_user.name),
-            email.eq(&new_user.email.to_lowercase()),
-            delivery_email.eq(&new_user.email),
-            email_verified.eq(new_user.email == old_user.email),
-            old_email.eq(&old_user.email),
-            old_delivery_email.eq(&old_user.delivery_email),
-        ))
-        .execute(&mut conn)
-        .await
     {
-        Ok(_) => {}
-        Err(NotFound) => return Err(Error::Unauthorized.into()),
-        Err(_err) => return Err(Error::InternalError.into()),
+        let mut conn = get_connection(&state).await?;
+
+        // Update user fields
+        let updated = diesel::update(users.find::<uuid::Uuid>(uid))
+            .set((
+                name.eq(&new_user.name),
+                email.eq(&new_user.email.to_lowercase()),
+                delivery_email.eq(&new_user.email),
+                email_verified.eq(new_user.email == old_user.email),
+                old_email.eq(&old_user.email),
+                old_delivery_email.eq(&old_user.delivery_email),
+            ))
+            .execute(&mut conn)
+            .await;
+        match updated {
+            Ok(_) => {}
+            Err(NotFound) => return Err(Error::Unauthorized.into()),
+            Err(_err) => return Err(Error::InternalError.into()),
+        }
     }
 
     if let Some(exp) = exp {
-        use db_connector::schema::verification::dsl::*;
-
         let verify = db_connector::models::verification::Verification {
             id: uuid::Uuid::new_v4(),
             user: uid,
@@ -251,14 +253,19 @@ pub async fn update_user(
         };
 
         // Insert verification record
-        diesel::insert_into(verification)
-            .values(&verify)
-            .execute(&mut conn)
-            .await
-            .map_err(|_| Error::InternalError)?;
+        {
+            let mut conn = get_connection(&state).await?;
+            use db_connector::schema::verification::dsl::*;
+            diesel::insert_into(verification)
+                .values(&verify)
+                .execute(&mut conn)
+                .await
+                .map_err(|_| Error::InternalError)?;
+        }
 
         #[cfg(not(test))]
         {
+            let runtime_handle = tokio::runtime::Handle::current();
             let verification_name = new_user.name.clone();
             let verification_email = new_user.email.clone();
             let old_user_name = old_user.name.clone();

@@ -74,8 +74,12 @@ pub async fn fetch_chargers(
 
     let user = get_user(state, uid).await?;
 
-    let mut conn = get_connection(state).await?;
+    // Fetch both the allowed_users list and the matching chargers on a
+    // single connection, then release it before consulting the bridge
+    // state map (which holds a mutex).
     let devices: Vec<(Charger, AllowedUser)> = {
+        let mut conn = get_connection(state).await?;
+
         let allowed_users_list: Vec<AllowedUser> = match AllowedUser::belonging_to(&user)
             .select(AllowedUser::as_select())
             .load(&mut conn)
@@ -103,7 +107,7 @@ pub async fn fetch_chargers(
             }
         };
 
-        let devices_by_users: Vec<(Charger, AllowedUser)> = allowed_users_list
+        allowed_users_list
             .grouped_by(&devices_list)
             .into_iter()
             .zip(devices_list)
@@ -113,9 +117,7 @@ pub async fn fetch_chargers(
                     .first()
                     .map(|au| (device, au.clone()))
             })
-            .collect();
-
-        devices_by_users
+            .collect()
     };
 
     let device_map = bridge_state.device_management_map_with_id.lock().await;

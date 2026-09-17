@@ -27,8 +27,8 @@ async fn get_all_chargers_for_user(
     user_id: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<Vec<Charger>> {
-    let mut conn = get_connection(state).await?;
     let allowed_users: Vec<AllowedUser> = {
+        let mut conn = get_connection(state).await?;
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         match allowed_users::allowed_users
@@ -44,8 +44,8 @@ async fn get_all_chargers_for_user(
     };
 
     let device_ids: Vec<uuid::Uuid> = allowed_users.into_iter().map(|u| u.charger_id).collect();
-    let mut conn = get_connection(state).await?;
     let devices: Vec<Charger> = {
+        let mut conn = get_connection(state).await?;
         use db_connector::schema::chargers::dsl::*;
 
         match chargers
@@ -89,28 +89,24 @@ pub async fn delete_user(
         // Remove user from allowed_users for this charger
         {
             let mut conn = get_connection(&state).await?;
-            {
-                use db_connector::schema::allowed_users::dsl::*;
-                diesel::delete(
-                    allowed_users
-                        .filter(user_id.eq(uid))
-                        .filter(charger_id.eq(cid)),
-                )
-                .execute(&mut conn)
-                .await
-                .map_err(|_| Error::InternalError)?;
-            }
+            use db_connector::schema::allowed_users::dsl::*;
+            diesel::delete(
+                allowed_users
+                    .filter(user_id.eq(uid))
+                    .filter(charger_id.eq(cid)),
+            )
+            .execute(&mut conn)
+            .await
+            .map_err(|_| Error::InternalError)?;
         }
         // Remove user's keys for this charger
         {
             let mut conn = get_connection(&state).await?;
-            {
-                use db_connector::schema::wg_keys::dsl::*;
-                diesel::delete(wg_keys.filter(user_id.eq(uid)).filter(charger_id.eq(cid)))
-                    .execute(&mut conn)
-                    .await
-                    .map_err(|_| Error::InternalError)?;
-            }
+            use db_connector::schema::wg_keys::dsl::*;
+            diesel::delete(wg_keys.filter(user_id.eq(uid)).filter(charger_id.eq(cid)))
+                .execute(&mut conn)
+                .await
+                .map_err(|_| Error::InternalError)?;
         }
 
         prompt_charger_to_remove_user(&bridge_state, cid, uid).await;
@@ -118,15 +114,13 @@ pub async fn delete_user(
         // Check if any allowed users remain for this charger
         let allowed_count = {
             let mut conn = get_connection(&state).await?;
-            {
-                use db_connector::schema::allowed_users::dsl::*;
-                allowed_users
-                    .filter(charger_id.eq(cid))
-                    .count()
-                    .get_result::<i64>(&mut conn)
-                    .await
-                    .map_err(|_| Error::InternalError)?
-            }
+            use db_connector::schema::allowed_users::dsl::*;
+            allowed_users
+                .filter(charger_id.eq(cid))
+                .count()
+                .get_result::<i64>(&mut conn)
+                .await
+                .map_err(|_| Error::InternalError)?
         };
         if allowed_count == 0 {
             delete_charger(cid, &state).await?;
@@ -135,17 +129,14 @@ pub async fn delete_user(
     }
 
     delete_all_refresh_tokens(uid, &state).await?;
-    let mut conn = get_connection(&state).await?;
     {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::users::dsl::*;
 
         diesel::delete(users.find(uid))
             .execute(&mut conn)
             .await
-            .map_err(|e| {
-                println!("err: {e:?}");
-                Error::InternalError
-            })?;
+            .map_err(|_| Error::InternalError)?;
     }
 
     Ok(HttpResponse::Ok())

@@ -44,20 +44,22 @@ pub async fn get_login_salt(
     let mail = query.email.to_lowercase();
     rate_limiter.check(mail.clone(), &req)?;
 
-    let mut conn = get_connection(&state).await?;
-    let salt: Vec<u8> = match users
-        .filter(email.eq(&mail))
-        .select(User::as_select())
-        .get_result(&mut conn)
-        .await
-    {
-        Ok(user) => user.login_salt,
-        Err(NotFound) => cache
-            .lock()
-            .unwrap()
-            .get_or_insert(mail, generate_random_bytes)
-            .to_vec(),
-        Err(_err) => return Err(Error::InternalError.into()),
+    let salt: Vec<u8> = {
+        let mut conn = get_connection(&state).await?;
+        match users
+            .filter(email.eq(&mail))
+            .select(User::as_select())
+            .get_result(&mut conn)
+            .await
+        {
+            Ok(user) => user.login_salt,
+            Err(NotFound) => cache
+                .lock()
+                .unwrap()
+                .get_or_insert(mail, generate_random_bytes)
+                .to_vec(),
+            Err(_err) => return Err(Error::InternalError.into()),
+        }
     };
 
     Ok(HttpResponse::Ok().json(salt))

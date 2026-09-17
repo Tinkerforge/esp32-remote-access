@@ -76,16 +76,18 @@ pub async fn add_device_to_grouping(
     let user_uuid: uuid::Uuid = user_id.clone().into();
 
     // Verify user owns the grouping
-    let mut conn = get_connection(&state).await?;
-    let grouping: DeviceGrouping = match groupings::device_groupings
-        .find(grouping_uuid)
-        .select(DeviceGrouping::as_select())
-        .get_result::<DeviceGrouping>(&mut conn)
-        .await
-    {
-        Ok(g) => g,
-        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
-        Err(_err) => return Err(Error::InternalError.into()),
+    let grouping: DeviceGrouping = {
+        let mut conn = get_connection(&state).await?;
+        match groupings::device_groupings
+            .find(grouping_uuid)
+            .select(DeviceGrouping::as_select())
+            .get_result::<DeviceGrouping>(&mut conn)
+            .await
+        {
+            Ok(g) => g,
+            Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+            Err(_err) => return Err(Error::InternalError.into()),
+        }
     };
 
     // Verify ownership of grouping
@@ -93,12 +95,14 @@ pub async fn add_device_to_grouping(
         return Err(Error::Unauthorized.into());
     }
 
-    // Verify user has access to the charger
+    // Verify user has access to the charger. `user_is_allowed` acquires its
+    // own connection, so we explicitly drop the one above before crossing
+    // this await boundary.
     user_is_allowed(&state, user_uuid, device_uuid).await?;
 
     // Add the device to the grouping
-    let mut conn = get_connection(&state).await?;
     let member: DeviceGroupingMember = {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::device_grouping_members::dsl as members;
 
         let new_member = DeviceGroupingMember {

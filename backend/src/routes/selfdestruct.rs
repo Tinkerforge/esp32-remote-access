@@ -60,8 +60,8 @@ pub async fn selfdestruct(
     // funtion does also the rate limiting
     let device = get_charger(payload.0, &state, &rate_limiter, &req).await?;
 
-    let mut conn = get_connection(&state).await?;
     {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         match diesel::delete(
@@ -75,8 +75,8 @@ pub async fn selfdestruct(
         }
     }
 
-    let mut conn = get_connection(&state).await?;
     {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::wg_keys::dsl as wg_keys;
 
         match diesel::delete(wg_keys::wg_keys.filter(wg_keys::charger_id.eq(device.id)))
@@ -88,8 +88,8 @@ pub async fn selfdestruct(
         }
     }
 
-    let mut conn = get_connection(&state).await?;
     {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::chargers::dsl::*;
 
         match diesel::delete(chargers.filter(id.eq(device.id)))

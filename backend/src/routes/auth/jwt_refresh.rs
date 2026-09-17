@@ -49,8 +49,8 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
         return Err(ErrorUnauthorized("Session expired"));
     }
 
-    let mut conn = get_connection(state).await?;
     let refresh_token: RefreshToken = {
+        let mut conn = get_connection(state).await?;
         use db_connector::schema::refresh_tokens::dsl::*;
 
         match refresh_tokens.find(&token_id).get_result(&mut conn).await {
@@ -60,25 +60,23 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
         }
     };
 
-    // Only delete the token after we've confirmed it exists and is valid
+    // Only delete the token after we've confirmed it exists and is valid.
+    // `delete_refresh_token` acquires its own connection internally, so we
+    // explicitly drop the lookup connection above before crossing this
+    // await boundary.
     delete_refresh_token(token_id, state).await?;
 
     let mut conn = get_connection(state).await?;
-    let user: User = {
-        use db_connector::schema::users::dsl::*;
+    use db_connector::schema::users::dsl::*;
 
-        match users
-            .find(refresh_token.user_id)
-            .get_result(&mut conn)
-            .await
-        {
-            Ok(user) => user,
-            Err(NotFound) => return Err(Error::UserDoesNotExist.into()),
-            Err(_err) => {
-                println!("here3");
-                return Err(Error::InternalError.into());
-            }
-        }
+    let user: User = match users
+        .find(refresh_token.user_id)
+        .get_result(&mut conn)
+        .await
+    {
+        Ok(user) => user,
+        Err(NotFound) => return Err(Error::UserDoesNotExist.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
     };
 
     Ok(user)
@@ -90,16 +88,14 @@ pub async fn delete_refresh_token(
 ) -> actix_web::Result<()> {
     let mut conn = get_connection(state).await?;
 
-    {
-        use db_connector::schema::refresh_tokens::dsl::*;
+    use db_connector::schema::refresh_tokens::dsl::*;
 
-        match diesel::delete(refresh_tokens.find(token_id))
-            .execute(&mut conn)
-            .await
-        {
-            Ok(_) => {}
-            Err(_err) => return Err(Error::InternalError.into()),
-        }
+    match diesel::delete(refresh_tokens.find(token_id))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => {}
+        Err(_err) => return Err(Error::InternalError.into()),
     }
     Ok(())
 }

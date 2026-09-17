@@ -266,15 +266,17 @@ async fn start_ws(
         return Err(Error::WgKeyAlreadyInUse.into());
     }
 
-    let mut conn = get_connection(&state).await?;
-    let keys: WgKey = match wg_keys::wg_keys
-        .filter(wg_keys::id.eq(&key_uuid))
-        .select(WgKey::as_select())
-        .get_result::<WgKey>(&mut conn)
-        .await
-    {
-        Ok(keys) => keys,
-        Err(_err) => return Err(Error::WgKeysDoNotExist.into()),
+    let keys: WgKey = {
+        let mut conn = get_connection(&state).await?;
+        match wg_keys::wg_keys
+            .filter(wg_keys::id.eq(&key_uuid))
+            .select(WgKey::as_select())
+            .get_result::<WgKey>(&mut conn)
+            .await
+        {
+            Ok(keys) => keys,
+            Err(_err) => return Err(Error::WgKeysDoNotExist.into()),
+        }
     };
 
     let user_id: uuid::Uuid = uid.into();

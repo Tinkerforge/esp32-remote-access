@@ -99,19 +99,21 @@ pub async fn resend_verification(
 
     rate_limiter.check(data.email.to_lowercase(), &req)?;
 
-    let mut conn = get_connection(&state).await?;
     let user_email = data.email.to_lowercase();
 
     // Load user
-    let db_user: User = match u_dsl::users
-        .filter(u_dsl::email.eq(&user_email))
-        .select(User::as_select())
-        .get_result(&mut conn)
-        .await
-    {
-        Ok(u) => u,
-        Err(diesel::result::Error::NotFound) => return Err(Error::UserDoesNotExist.into()),
-        Err(_) => return Err(Error::InternalError.into()),
+    let db_user: User = {
+        let mut conn = get_connection(&state).await?;
+        match u_dsl::users
+            .filter(u_dsl::email.eq(&user_email))
+            .select(User::as_select())
+            .get_result(&mut conn)
+            .await
+        {
+            Ok(u) => u,
+            Err(diesel::result::Error::NotFound) => return Err(Error::UserDoesNotExist.into()),
+            Err(_) => return Err(Error::InternalError.into()),
+        }
     };
 
     if db_user.email_verified {
@@ -119,11 +121,9 @@ pub async fn resend_verification(
         return Ok(HttpResponse::Ok());
     }
 
-    let mut conn = get_connection(&state).await?;
-
-    // (Re)create verification token (delete old first if present)
     let user_id = db_user.id;
     let verify: Verification = {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::verification::dsl::*;
         // remove old tokens
         let _ = diesel::delete(verification.filter(user.eq(user_id)))

@@ -42,8 +42,8 @@ pub async fn charger_info(
 ) -> actix_web::Result<impl Responder> {
     let device_id = parse_uuid(charger.charger.as_str())?;
 
-    let mut conn = get_connection(&state).await?;
     let device: AllowedUser = {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         let user: uuid::Uuid = user.into();
@@ -60,8 +60,8 @@ pub async fn charger_info(
         }
     };
 
-    let mut conn = get_connection(&state).await?;
     let (port, firmware_version, mtu): (i32, String, Option<i32>) = {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::chargers::dsl::*;
 
         match chargers

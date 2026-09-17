@@ -138,23 +138,22 @@ async fn update_configured_users(
             };
 
             if let Some(name) = user.name.clone() {
-                // Update name of charger for each user
+                // Update name of charger for each user. The handle is scoped
+                // to just this query and dropped before we loop.
                 let mut conn = get_connection(state).await?;
+                use db_connector::schema::allowed_users::dsl as allowed_users;
+                match diesel::update(
+                    allowed_users::allowed_users
+                        .filter(allowed_users::user_id.eq(user_id))
+                        .filter(allowed_users::charger_id.eq(charger_id)),
+                )
+                .set(allowed_users::name.eq(name))
+                .execute(&mut conn)
+                .await
                 {
-                    use db_connector::schema::allowed_users::dsl as allowed_users;
-                    match diesel::update(
-                        allowed_users::allowed_users
-                            .filter(allowed_users::user_id.eq(user_id))
-                            .filter(allowed_users::charger_id.eq(charger_id)),
-                    )
-                    .set(allowed_users::name.eq(name))
-                    .execute(&mut conn)
-                    .await
-                    {
-                        Ok(_) => {}
-                        Err(NotFound) => {}
-                        Err(_) => return Err(Error::InternalError.into()),
-                    }
+                    Ok(_) => {}
+                    Err(NotFound) => {}
+                    Err(_) => return Err(Error::InternalError.into()),
                 }
             }
 
@@ -163,8 +162,8 @@ async fn update_configured_users(
 
         // Delete allowed users not configured on the charger
         let configured_users_cpy = configured_users.clone();
-        let mut conn = get_connection(state).await?;
         let deleted_users: Vec<uuid::Uuid> = {
+            let mut conn = get_connection(state).await?;
             use db_connector::schema::allowed_users::dsl as allowed_users;
 
             let users_to_delete: Vec<uuid::Uuid> = match allowed_users::allowed_users
@@ -196,23 +195,21 @@ async fn update_configured_users(
 
         if !deleted_users.is_empty() {
             let mut conn = get_connection(state).await?;
-            {
-                use db_connector::schema::wg_keys::dsl as wg_keys;
+            use db_connector::schema::wg_keys::dsl as wg_keys;
 
-                diesel::delete(
-                    wg_keys::wg_keys
-                        .filter(wg_keys::charger_id.eq(&charger_id))
-                        .filter(wg_keys::user_id.eq_any(deleted_users)),
-                )
-                .execute(&mut conn)
-                .await
-                .map_err(|_| Error::InternalError)?;
-            }
+            diesel::delete(
+                wg_keys::wg_keys
+                    .filter(wg_keys::charger_id.eq(&charger_id))
+                    .filter(wg_keys::user_id.eq_any(deleted_users)),
+            )
+            .execute(&mut conn)
+            .await
+            .map_err(|_| Error::InternalError)?;
         }
 
         // Get uuid of configured users on the server
-        let mut conn = get_connection(state).await?;
         let server_users: Vec<uuid::Uuid> = {
+            let mut conn = get_connection(state).await?;
             use db_connector::schema::allowed_users::dsl as allowed_users;
 
             match allowed_users::allowed_users
@@ -229,8 +226,8 @@ async fn update_configured_users(
 
         // Resolve the E-Mail for each user
         let server_users_clone = server_users.clone();
-        let mut conn = get_connection(state).await?;
         let server_users: Vec<User> = {
+            let mut conn = get_connection(state).await?;
             use db_connector::schema::users::dsl::*;
 
             match users
@@ -437,8 +434,8 @@ pub async fn management(
         }
     });
 
-    let mut conn = get_connection(&state).await?;
     {
+        let mut conn = get_connection(&state).await?;
         let result = if let Some(m) = mtu {
             diesel::update(chargers::chargers)
                 .filter(chargers::id.eq(charger_id))

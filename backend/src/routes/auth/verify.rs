@@ -55,23 +55,25 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
     use db_connector::schema::users::dsl::*;
     use db_connector::schema::verification::dsl::*;
 
-    let mut conn = get_connection(&state).await?;
-
     let verify_id = match uuid::Uuid::from_str(&ver.id) {
-        Ok(verify_id) => verify_id,
-        Err(err) => return Err(ErrorBadRequest(err)),
+    Ok(verify_id) => verify_id,
+    Err(err) => return Err(ErrorBadRequest(err)),
     };
 
-    let verify: Verification = verification
-        .filter(db_connector::schema::verification::id.eq(verify_id))
-        .select(Verification::as_select())
-        .get_result::<Verification>(&mut conn)
-        .await
-        .map_err(|err| match err {
-            diesel::result::Error::NotFound => Error::InternalError,
-            _ => Error::InternalError,
-        })
-        .map_err(|_| ErrorBadRequest("Account was already verified or does not exist"))?;
+    let verify: Verification = {
+        let mut conn = get_connection(&state).await?;
+
+        verification
+            .filter(db_connector::schema::verification::id.eq(verify_id))
+            .select(Verification::as_select())
+            .get_result::<Verification>(&mut conn)
+            .await
+            .map_err(|err| match err {
+                diesel::result::Error::NotFound => Error::InternalError,
+                _ => Error::InternalError,
+            })
+            .map_err(|_| ErrorBadRequest("Account was already verified or does not exist"))?
+    };
 
     let mut conn = get_connection(&state).await?;
 

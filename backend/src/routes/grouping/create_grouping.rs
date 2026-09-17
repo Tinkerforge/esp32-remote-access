@@ -64,6 +64,7 @@ pub async fn create_grouping(
     let name = payload.name.clone();
     let is_default = payload.is_default;
     let user_uuid: uuid::Uuid = user_id.into();
+
     let mut conn = get_connection(&state).await?;
 
     if is_default {

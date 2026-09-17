@@ -27,8 +27,8 @@ pub struct RecoverySchema {
 }
 
 async fn get_user_id(state: &web::Data<AppState>, recovery_key: Uuid) -> actix_web::Result<Uuid> {
-    let mut conn = get_connection(state).await?;
     let token: RecoveryToken = {
+        let mut conn = get_connection(state).await?;
         use db_connector::schema::recovery_tokens::dsl::*;
 
         match recovery_tokens
@@ -45,16 +45,14 @@ async fn get_user_id(state: &web::Data<AppState>, recovery_key: Uuid) -> actix_w
     };
 
     let mut conn = get_connection(state).await?;
-    {
-        use db_connector::schema::recovery_tokens::dsl::*;
+    use db_connector::schema::recovery_tokens::dsl::*;
 
-        match diesel::delete(recovery_tokens.find(recovery_key))
-            .execute(&mut conn)
-            .await
-        {
-            Ok(_) => {}
-            Err(_err) => return Err(Error::InternalError.into()),
-        }
+    match diesel::delete(recovery_tokens.find(recovery_key))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => {}
+        Err(_err) => return Err(Error::InternalError.into()),
     }
 
     Ok(token.user_id)
@@ -62,33 +60,29 @@ async fn get_user_id(state: &web::Data<AppState>, recovery_key: Uuid) -> actix_w
 
 async fn invalidate_wg_keys(state: &web::Data<AppState>, uid: Uuid) -> actix_web::Result<()> {
     let mut conn = get_connection(state).await?;
-    {
-        use db_connector::schema::wg_keys::dsl::*;
+    use db_connector::schema::wg_keys::dsl::*;
 
-        match diesel::delete(wg_keys.filter(user_id.eq(uid)))
-            .execute(&mut conn)
-            .await
-        {
-            Ok(_) => {}
-            Err(_err) => return Err(Error::InternalError.into()),
-        }
+    match diesel::delete(wg_keys.filter(user_id.eq(uid)))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => {}
+        Err(_err) => return Err(Error::InternalError.into()),
     }
     Ok(())
 }
 
 async fn invalidate_chargers(state: &web::Data<AppState>, uid: Uuid) -> actix_web::Result<()> {
     let mut conn = get_connection(state).await?;
-    {
-        use db_connector::schema::allowed_users::dsl::*;
+    use db_connector::schema::allowed_users::dsl::*;
 
-        match diesel::update(allowed_users.filter(user_id.eq(uid)))
-            .set(valid.eq(false))
-            .execute(&mut conn)
-            .await
-        {
-            Ok(_) => {}
-            Err(_err) => return Err(Error::InternalError.into()),
-        }
+    match diesel::update(allowed_users.filter(user_id.eq(uid)))
+        .set(valid.eq(false))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => {}
+        Err(_err) => return Err(Error::InternalError.into()),
     }
     Ok(())
 }
@@ -126,28 +120,26 @@ pub async fn recovery(
     };
 
     let mut conn = get_connection(&state).await?;
-    {
-        use db_connector::schema::users::dsl::*;
+    use db_connector::schema::users::dsl::*;
 
-        match diesel::update(users.find(user_id))
-            .set((
-                login_key.eq(new_hash),
-                login_salt.eq(&data.new_login_salt),
-                secret.eq(&data.new_encrypted_secret),
-                secret_nonce.eq(&data.new_secret_nonce),
-                secret_salt.eq(&data.new_secret_salt),
-                // The user proved control of the email address by clicking the
-                // link in the recovery email and submitting a new password.
-                // Verify the account so they can actually log in, even if they
-                // never completed the original email verification.
-                email_verified.eq(true),
-            ))
-            .execute(&mut conn)
-            .await
-        {
-            Ok(_) => {}
-            Err(_err) => return Err(Error::InternalError.into()),
-        }
+    match diesel::update(users.find(user_id))
+        .set((
+            login_key.eq(new_hash),
+            login_salt.eq(&data.new_login_salt),
+            secret.eq(&data.new_encrypted_secret),
+            secret_nonce.eq(&data.new_secret_nonce),
+            secret_salt.eq(&data.new_secret_salt),
+            // The user proved control of the email address by clicking the
+            // link in the recovery email and submitting a new password.
+            // Verify the account so they can actually log in, even if they
+            // never completed the original email verification.
+            email_verified.eq(true),
+        ))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => {}
+        Err(_err) => return Err(Error::InternalError.into()),
     }
 
     Ok(HttpResponse::Ok())

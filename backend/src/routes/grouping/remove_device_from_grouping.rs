@@ -64,18 +64,20 @@ pub async fn remove_device_from_grouping(
     let grouping_uuid = parse_uuid(&payload.grouping_id)?;
     let device_uuid = parse_uuid(&payload.device_id)?;
     let user_uuid: uuid::Uuid = user_id.into();
-    let mut conn = get_connection(&state).await?;
 
     // First verify the grouping exists and belongs to the user
-    let grouping: DeviceGrouping = match groupings::device_groupings
-        .find(grouping_uuid)
-        .select(DeviceGrouping::as_select())
-        .get_result::<DeviceGrouping>(&mut conn)
-        .await
-    {
-        Ok(g) => g,
-        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
-        Err(_err) => return Err(Error::InternalError.into()),
+    let grouping: DeviceGrouping = {
+        let mut conn = get_connection(&state).await?;
+        match groupings::device_groupings
+            .find(grouping_uuid)
+            .select(DeviceGrouping::as_select())
+            .get_result::<DeviceGrouping>(&mut conn)
+            .await
+        {
+            Ok(g) => g,
+            Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+            Err(_err) => return Err(Error::InternalError.into()),
+        }
     };
 
     // Verify ownership
@@ -84,6 +86,7 @@ pub async fn remove_device_from_grouping(
     }
 
     // Delete the member
+    let mut conn = get_connection(&state).await?;
     let deleted = diesel::delete(
         members::device_grouping_members
             .filter(members::grouping_id.eq(grouping_uuid))

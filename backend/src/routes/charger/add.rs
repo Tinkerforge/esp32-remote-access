@@ -305,10 +305,10 @@ async fn update_charger(
     user_id: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<(String, String)> {
-    use db_connector::schema::wg_keys::dsl as wg_keys;
-
-    let mut conn = get_connection(state).await?;
     {
+        let mut conn = get_connection(state).await?;
+        use db_connector::schema::wg_keys::dsl as wg_keys;
+
         if let Err(_err) = diesel::delete(wg_keys::wg_keys)
             .filter(wg_keys::charger_id.eq(device_id))
             .execute(&mut conn)
@@ -318,10 +318,12 @@ async fn update_charger(
         }
     }
 
+    // `generate_password` does CPU-bound argon2 work and awaits the hasher
+    // channel; we must not hold a connection across that wait.
     let (password, hash) = generate_password(&state.hasher).await?;
 
-    let mut conn = get_connection(state).await?;
     {
+        let mut conn = get_connection(state).await?;
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         if let Err(_err) = diesel::update(
@@ -337,7 +339,6 @@ async fn update_charger(
         }
     }
 
-    let mut conn = get_connection(state).await?;
     let pub_key = {
         let mut private_key = [0u8; 32];
         if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
@@ -367,6 +368,7 @@ async fn update_charger(
             mtu: None,
             last_charge_log_upload_hash: Vec::new(),
         };
+        let mut conn = get_connection(state).await?;
         diesel::update(&device)
             .set(&device)
             .execute(&mut conn)
@@ -405,9 +407,11 @@ pub async fn add_charger(
     use db_connector::schema::allowed_users::dsl as allowed_users;
     use db_connector::schema::chargers::dsl as chargers;
 
+    // Generate the password before grabbing a connection — `generate_password`
+    // does argon2 hashing and awaits the hasher channel; we don't want to
+    // hold a pool slot while that happens.
     let (password, hash) = generate_password(&state.hasher).await?;
 
-    let mut conn = get_connection(state).await?;
     let ret: (String, String) = {
         let mut private_key = [0u8; 32];
         if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
@@ -439,12 +443,6 @@ pub async fn add_charger(
             last_charge_log_upload_hash: Vec::new(),
         };
 
-        diesel::insert_into(chargers::chargers)
-            .values(&new_device)
-            .execute(&mut conn)
-            .await
-            .map_err(|_| Error::InternalError)?;
-
         let user = AllowedUser {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
@@ -454,6 +452,13 @@ pub async fn add_charger(
             note: Some(schema.note),
             name: Some(schema.name),
         };
+
+        let mut conn = get_connection(state).await?;
+        diesel::insert_into(chargers::chargers)
+            .values(&new_device)
+            .execute(&mut conn)
+            .await
+            .map_err(|_| Error::InternalError)?;
 
         diesel::insert_into(allowed_users::allowed_users)
             .values(user)
@@ -474,7 +479,6 @@ async fn add_wg_key(
     state: &web::Data<AppState>,
 ) -> Result<(), actix_web::Error> {
     use db_connector::schema::wg_keys::dsl::*;
-    let mut conn = get_connection(state).await?;
 
     let keys = WgKey {
         id: uuid::Uuid::new_v4(),
@@ -488,6 +492,7 @@ async fn add_wg_key(
         connection_no: keys.connection_no as i32,
     };
 
+    let mut conn = get_connection(state).await?;
     diesel::insert_into(wg_keys)
         .values(&keys)
         .execute(&mut conn)

@@ -55,20 +55,18 @@ pub async fn update_note(
     let cid = parse_uuid(&schema.charger_id)?;
 
     let mut conn = get_connection(&state).await?;
-    {
-        use db_connector::schema::allowed_users::dsl::*;
+    use db_connector::schema::allowed_users::dsl::*;
 
-        match diesel::update(allowed_users)
-            .filter(charger_id.eq(cid))
-            .filter(user_id.eq(uuid::Uuid::from(uid)))
-            .set(note.eq(&schema.note))
-            .execute(&mut conn)
-            .await
-        {
-            Ok(_) => {}
-            Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
-            Err(_err) => return Err(Error::InternalError.into()),
-        }
+    match diesel::update(allowed_users)
+        .filter(charger_id.eq(cid))
+        .filter(user_id.eq(uuid::Uuid::from(uid)))
+        .set(note.eq(&schema.note))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => {}
+        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
     }
 
     Ok(HttpResponse::Ok())

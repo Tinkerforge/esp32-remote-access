@@ -70,22 +70,24 @@ pub async fn edit_grouping(
     let new_name = payload.name.clone();
     let new_is_default = payload.is_default;
     let user_uuid: uuid::Uuid = user_id.into();
-    let mut conn = get_connection(&state).await?;
 
     if new_name.is_none() && new_is_default.is_none() {
         return Err(Error::InvalidPayload.into());
     }
 
     // First verify the grouping exists and belongs to the user
-    let grouping: DeviceGrouping = match groupings::device_groupings
-        .find(grouping_uuid)
-        .select(DeviceGrouping::as_select())
-        .get_result::<DeviceGrouping>(&mut conn)
-        .await
-    {
-        Ok(g) => g,
-        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
-        Err(_err) => return Err(Error::InternalError.into()),
+    let grouping: DeviceGrouping = {
+        let mut conn = get_connection(&state).await?;
+        match groupings::device_groupings
+            .find(grouping_uuid)
+            .select(DeviceGrouping::as_select())
+            .get_result::<DeviceGrouping>(&mut conn)
+            .await
+        {
+            Ok(g) => g,
+            Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+            Err(_err) => return Err(Error::InternalError.into()),
+        }
     };
 
     // Verify ownership
@@ -95,6 +97,7 @@ pub async fn edit_grouping(
 
     let promoting_to_default = new_is_default == Some(true) && !grouping.is_default;
     if promoting_to_default {
+        let mut conn = get_connection(&state).await?;
         diesel::update(groupings::device_groupings)
             .filter(groupings::user_id.eq(user_uuid))
             .filter(groupings::is_default.eq(true))
@@ -108,6 +111,7 @@ pub async fn edit_grouping(
     // Apply the update. Exactly one of the two fields is guaranteed to
     // be present thanks to the early return above, but handling both
     // keeps the path open for callers that want to update both at once.
+    let mut conn = get_connection(&state).await?;
     let updated_grouping: DeviceGrouping = match (new_name.as_ref(), new_is_default) {
         (Some(name), Some(is_default)) => {
             diesel::update(groupings::device_groupings.find(grouping_uuid))

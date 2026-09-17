@@ -182,7 +182,6 @@ pub async fn create_refresh_token(
     user_id: uuid::Uuid,
 ) -> actix_web::Result<String> {
     let token_id = uuid::Uuid::new_v4();
-    let mut conn = get_connection(state).await?;
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
@@ -197,7 +196,11 @@ pub async fn create_refresh_token(
         exp,
         sub: token_id.to_string(),
     };
+
+    // Insert the refresh token and release the connection before doing the
+    // JWT signing work, which doesn't need a database handle.
     {
+        let mut conn = get_connection(state).await?;
         use db_connector::schema::refresh_tokens::dsl as refresh_tokens;
 
         let token = RefreshToken {

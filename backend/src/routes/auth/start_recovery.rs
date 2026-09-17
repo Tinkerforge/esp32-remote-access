@@ -126,8 +126,8 @@ pub async fn start_recovery(
         created: chrono::Utc::now().timestamp(),
     };
 
-    let mut conn = get_connection(&state).await?;
     {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::recovery_tokens::dsl::*;
 
         match diesel::insert_into(recovery_tokens)

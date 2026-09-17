@@ -61,25 +61,32 @@ pub async fn get_groupings(
     use db_connector::schema::device_groupings::dsl as groupings;
 
     let user_uuid: uuid::Uuid = user_id.into();
-    let mut conn = get_connection(&state).await?;
 
     // Get all groupings for the user
-    let user_groupings: Vec<DeviceGrouping> = groupings::device_groupings
-        .filter(groupings::user_id.eq(user_uuid))
-        .select(DeviceGrouping::as_select())
-        .load(&mut conn)
-        .await
-        .map_err(|_| Error::InternalError)?;
-
-    // For each grouping, get its members
-    let mut result = Vec::new();
-    for grouping in user_groupings {
-        let grouping_members: Vec<DeviceGroupingMember> = members::device_grouping_members
-            .filter(members::grouping_id.eq(grouping.id))
-            .select(DeviceGroupingMember::as_select())
+    let user_groupings: Vec<DeviceGrouping> = {
+        let mut conn = get_connection(&state).await?;
+        groupings::device_groupings
+            .filter(groupings::user_id.eq(user_uuid))
+            .select(DeviceGrouping::as_select())
             .load(&mut conn)
             .await
-            .map_err(|_| Error::InternalError)?;
+            .map_err(|_| Error::InternalError)?
+    };
+
+    // For each grouping, get its members on a fresh connection. The
+    // loop runs `N+1` queries, and serializing them on a single handle
+    // would hold a pool slot through every iteration.
+    let mut result = Vec::new();
+    for grouping in user_groupings {
+        let grouping_members: Vec<DeviceGroupingMember> = {
+            let mut conn = get_connection(&state).await?;
+            members::device_grouping_members
+                .filter(members::grouping_id.eq(grouping.id))
+                .select(DeviceGroupingMember::as_select())
+                .load(&mut conn)
+                .await
+                .map_err(|_| Error::InternalError)?
+        };
 
         result.push(GroupingInfo {
             id: grouping.id.to_string(),

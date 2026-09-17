@@ -176,20 +176,25 @@ async fn create_tunn<'a>(
         }
     };
 
-    let mut conn = state.pool.get().await?;
-    let devices: Vec<Charger> = match &selector {
-        ChargerSelector::Ids(ids) => {
-            chargers::chargers
-                .filter(chargers::id.eq_any(ids))
-                .select(Charger::as_select())
-                .load(&mut conn)
-                .await?
-        }
-        ChargerSelector::All => {
-            chargers::chargers
-                .select(Charger::as_select())
-                .load(&mut conn)
-                .await?
+    // Load the candidate chargers and immediately release the pool slot.
+    // Everything below this point is CPU-heavy noise key work that has
+    // nothing to do with the database.
+    let devices: Vec<Charger> = {
+        let mut conn = state.pool.get().await?;
+        match &selector {
+            ChargerSelector::Ids(ids) => {
+                chargers::chargers
+                    .filter(chargers::id.eq_any(ids))
+                    .select(Charger::as_select())
+                    .load(&mut conn)
+                    .await?
+            }
+            ChargerSelector::All => {
+                chargers::chargers
+                    .select(Charger::as_select())
+                    .load(&mut conn)
+                    .await?
+            }
         }
     };
 
