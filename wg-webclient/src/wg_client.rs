@@ -744,7 +744,7 @@ pub mod test {
     use super::*;
     use wasm_bindgen_test::*;
 
-    pub(self) fn create_wg_client(secret: &str, peer: &str, psk: &str, url: &str) -> WgClient {
+    fn create_wg_client(secret: &str, peer: &str, psk: &str, url: &str) -> WgClient {
         WgClient::new(secret, peer, psk, url, "", "", 80, 1392, js_sys::Function::new_no_args(""), js_sys::Function::new_no_args(""))
     }
 

@@ -257,7 +257,6 @@ fn create_onmessage_closure(
                     {
                         let _ = message_socket.send_with_u8_array(d);
                     }
-                    return;
                 }
                 TunnResult::Err(e) => {
                     if let WireGuardError::InvalidPacket = e {
@@ -265,7 +264,6 @@ fn create_onmessage_closure(
                     } else {
                         log::debug!("Error: {:?}", e);
                     }
-                    return;
                 }
                 TunnResult::WriteToTunnelV4(d, _) => {
                     if pcap_logging_enabled() {
@@ -280,14 +278,12 @@ fn create_onmessage_closure(
                             drop(tun);
                             let message_socket = message_socket.upgrade().unwrap();
                             let _ = message_socket.send_with_u8_array(d);
-                            return;
                         }
                         _ => panic!("Unexpected TunnResult"),
                     }
                 }
                 _ => {
                     log::error!("Unknown TunnResult");
-                    return;
                 }
             }
         });

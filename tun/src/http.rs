@@ -238,8 +238,7 @@ impl Client {
             .client
             .get(format!(
                 "https://{}/api/charger/get_key?cid={}",
-                self.host,
-                device.to_string()
+                self.host, device
             ))
             .send()
             .await?;
