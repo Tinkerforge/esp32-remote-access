@@ -19,15 +19,12 @@
 
 use actix_web::{post, web, HttpResponse, Responder};
 use db_connector::models::device_groupings::DeviceGrouping;
-use diesel::prelude::*;
+use diesel::ExpressionMethods;
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{
-    error::Error,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
-};
+use crate::{error::Error, utils::get_connection, AppState};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct CreateGroupingSchema {
@@ -67,36 +64,30 @@ pub async fn create_grouping(
     let name = payload.name.clone();
     let is_default = payload.is_default;
     let user_uuid: uuid::Uuid = user_id.into();
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
 
-    let grouping = web_block_unpacked(move || {
-        if is_default {
-            if let Err(_err) = diesel::update(groupings::device_groupings)
-                .filter(groupings::user_id.eq(user_uuid))
-                .filter(groupings::is_default.eq(true))
-                .set(groupings::is_default.eq(false))
-                .execute(&mut conn)
-            {
-                return Err(Error::InternalError);
-            }
-        }
+    if is_default {
+        diesel::update(groupings::device_groupings)
+            .filter(groupings::user_id.eq(user_uuid))
+            .filter(groupings::is_default.eq(true))
+            .set(groupings::is_default.eq(false))
+            .execute(&mut conn)
+            .await
+            .map_err(|_| Error::InternalError)?;
+    }
 
-        let new_grouping = DeviceGrouping {
-            id: uuid::Uuid::new_v4(),
-            name: name.clone(),
-            user_id: user_uuid,
-            is_default,
-        };
+    let new_grouping = DeviceGrouping {
+        id: uuid::Uuid::new_v4(),
+        name: name.clone(),
+        user_id: user_uuid,
+        is_default,
+    };
 
-        match diesel::insert_into(groupings::device_groupings)
-            .values(&new_grouping)
-            .get_result::<DeviceGrouping>(&mut conn)
-        {
-            Ok(g) => Ok(g),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let grouping = diesel::insert_into(groupings::device_groupings)
+        .values(&new_grouping)
+        .get_result::<DeviceGrouping>(&mut conn)
+        .await
+        .map_err(|_| Error::InternalError)?;
 
     Ok(HttpResponse::Ok().json(CreateGroupingResponse {
         id: grouping.id.to_string(),
@@ -122,12 +113,12 @@ mod tests {
         assert!(!response.is_default);
 
         // Verify grouping exists in database
-        let db_grouping = get_grouping_from_db(&response.id);
+        let db_grouping = get_grouping_from_db(&response.id).await;
         assert!(db_grouping.is_some());
         assert_eq!(db_grouping.unwrap().name, grouping_name);
 
         // Cleanup
-        delete_test_grouping_from_db(&response.id);
+        delete_test_grouping_from_db(&response.id).await;
     }
 
     #[actix_web::test]
@@ -179,10 +170,10 @@ mod tests {
         let second: CreateGroupingResponse = test::read_body_json(resp).await;
         assert!(second.is_default);
 
-        assert!(!get_grouping_from_db(&first_id).unwrap().is_default);
-        assert!(get_grouping_from_db(&second.id).unwrap().is_default);
+        assert!(!get_grouping_from_db(&first_id).await.unwrap().is_default);
+        assert!(get_grouping_from_db(&second.id).await.unwrap().is_default);
 
-        delete_test_grouping_from_db(&first_id);
-        delete_test_grouping_from_db(&second.id);
+        delete_test_grouping_from_db(&first_id).await;
+        delete_test_grouping_from_db(&second.id).await;
     }
 }

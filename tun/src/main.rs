@@ -7,7 +7,11 @@ use reqwest_websocket::{Bytes, Message};
 use std::{env, ffi::CString};
 
 unsafe extern "C" {
-    fn tun_alloc(dev: *const std::os::raw::c_char, self_ip: *const std::os::raw::c_char, peer_ip: *const std::os::raw::c_char) -> i32;
+    fn tun_alloc(
+        dev: *const std::os::raw::c_char,
+        self_ip: *const std::os::raw::c_char,
+        peer_ip: *const std::os::raw::c_char,
+    ) -> i32;
 }
 
 #[derive(Parser)]
@@ -26,9 +30,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     List,
-    Connect {
-        device: uuid::Uuid,
-    }
+    Connect { device: uuid::Uuid },
 }
 
 #[tokio::main]
@@ -58,7 +60,6 @@ async fn main() -> anyhow::Result<()> {
         Commands::Connect { device } => device,
     };
 
-
     let (mut ws, mut tunn, ip, peer_ip) = client.connect_ws(device).await?;
 
     let mut dev = "tun%d".to_string();
@@ -66,9 +67,7 @@ async fn main() -> anyhow::Result<()> {
     let dev = CString::new(dev)?;
     let self_ip = CString::new(ip)?;
     let peer_ip = CString::new(peer_ip)?;
-    let fd = unsafe {
-        tun_alloc(dev.as_ptr(), self_ip.as_ptr(), peer_ip.as_ptr())
-    };
+    let fd = unsafe { tun_alloc(dev.as_ptr(), self_ip.as_ptr(), peer_ip.as_ptr()) };
     if fd < 0 {
         return Err(anyhow::anyhow!("Failed to allocate tun device"));
     }
@@ -92,7 +91,7 @@ async fn main() -> anyhow::Result<()> {
     log::info!("Dropped privileges");
 
     let (sender, mut receiver) = tokio::sync::mpsc::channel(100);
-    std::thread::spawn(move || {
+    tokio::task::spawn_blocking(move || {
         let mut buf = [0u8; 2048];
         loop {
             let len = unsafe { libc::read(fd, buf.as_mut_ptr() as _, buf.len()) };
@@ -159,7 +158,11 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn send_to_peer(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn: &mut boringtun::noise::Tunn) {
+async fn send_to_peer(
+    ws: &mut reqwest_websocket::WebSocket,
+    data: Vec<u8>,
+    tunn: &mut boringtun::noise::Tunn,
+) {
     let size = if data.len() + 32 >= 148 {
         data.len() + 32
     } else {
@@ -170,7 +173,7 @@ async fn send_to_peer(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn
         TunnResult::WriteToNetwork(buf) => {
             let msg = Message::Binary(Bytes::from_owner(buf.to_vec()));
             let _ = ws.send(msg).await;
-        },
+        }
         TunnResult::Done => (),
         rest => {
             log::error!("Error encapsulating data: {:?}", rest);
@@ -178,17 +181,24 @@ async fn send_to_peer(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn
     }
 }
 
-async fn send_to_tun(ws: &mut reqwest_websocket::WebSocket, data: Vec<u8>, tunn: &mut boringtun::noise::Tunn, fd: i32) {
+async fn send_to_tun(
+    ws: &mut reqwest_websocket::WebSocket,
+    data: Vec<u8>,
+    tunn: &mut boringtun::noise::Tunn,
+    fd: i32,
+) {
     let mut buf = vec![0u8; 2048];
     match tunn.decapsulate(None, &data, &mut buf) {
         TunnResult::WriteToNetwork(buf) => {
-            ws.send(Message::Binary(Bytes::from_owner(buf.to_vec()))).await.ok();
+            ws.send(Message::Binary(Bytes::from_owner(buf.to_vec())))
+                .await
+                .ok();
             let len = unsafe { libc::write(fd, buf.as_ptr() as _, buf.len()) };
             if len < 0 {
                 log::error!("Error writing to tun device");
             }
             Box::pin(send_to_tun(ws, Vec::new(), tunn, fd)).await;
-        },
+        }
         TunnResult::Done => (),
         TunnResult::WriteToTunnelV4(data, _) => {
             let mut packet = vec![0u8, 0, 8, 0];

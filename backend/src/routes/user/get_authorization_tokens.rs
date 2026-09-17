@@ -1,13 +1,12 @@
 use actix_web::{get, web, HttpResponse, Responder};
 use db_connector::models::authorization_tokens::AuthorizationToken;
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    error::Error,
-    models::response_auth_token::ResponseAuthorizationToken,
-    utils::{get_connection, web_block_unpacked},
+    error::Error, models::response_auth_token::ResponseAuthorizationToken, utils::get_connection,
     AppState,
 };
 
@@ -30,21 +29,18 @@ pub async fn get_authorization_tokens(
     state: web::Data<AppState>,
     user_id: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
-    let mut conn = get_connection(&state)?;
-    let user_tokens: Vec<AuthorizationToken> = web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    let user_tokens: Vec<AuthorizationToken> = {
         use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
 
         let user_id: uuid::Uuid = user_id.into();
-        match authorization_tokens::authorization_tokens
+        authorization_tokens::authorization_tokens
             .filter(authorization_tokens::user_id.eq(&user_id))
             .select(AuthorizationToken::as_select())
-            .load(&mut conn)
-        {
-            Ok(u) => Ok(u),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+            .load::<AuthorizationToken>(&mut conn)
+            .await
+            .map_err(|_| Error::InternalError)?
+    };
 
     let tokens: Vec<ResponseAuthorizationToken> = user_tokens
         .into_iter()
@@ -106,6 +102,8 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
         let mut resp: GetAuthorizationTokensResponseSchema = test::read_body_json(resp).await;
-        assert_eq!(auth_tokens.sort(), resp.tokens.sort());
+        auth_tokens.sort();
+        resp.tokens.sort();
+        assert_eq!(auth_tokens, resp.tokens);
     }
 }

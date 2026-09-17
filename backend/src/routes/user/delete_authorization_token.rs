@@ -1,11 +1,12 @@
 use actix_web::{delete, web, HttpResponse, Responder};
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid},
     AppState,
 };
 
@@ -33,21 +34,18 @@ pub async fn delete_authorization_token(
     let auth_token_id = parse_uuid(&payload.id)?;
     let user_id: uuid::Uuid = user_id.into();
 
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
-        match diesel::delete(
+        diesel::delete(
             authorization_tokens::authorization_tokens
                 .filter(authorization_tokens::id.eq(auth_token_id))
                 .filter(authorization_tokens::user_id.eq(user_id)),
         )
         .execute(&mut conn)
-        {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+        .await
+        .map_err(|_| Error::InternalError)?;
+    }
 
     Ok(HttpResponse::Ok())
 }
@@ -60,7 +58,8 @@ mod tests {
         App,
     };
     use db_connector::{models::authorization_tokens::AuthorizationToken, test_connection_pool};
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     use crate::{
         middleware::jwt::JwtMiddleware,
@@ -101,17 +100,18 @@ mod tests {
         assert_eq!(resp.status(), 200);
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        {
+        let mut conn = pool.get().await.unwrap();
+        let id = parse_uuid(&auth_token.id).unwrap();
+        let empty: Vec<AuthorizationToken> = {
             use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
 
-            let id = parse_uuid(&auth_token.id).unwrap();
-            let auth_token: Vec<AuthorizationToken> = authorization_tokens::authorization_tokens
+            authorization_tokens::authorization_tokens
                 .filter(authorization_tokens::id.eq(&id))
-                .load(&mut conn)
-                .unwrap();
+                .load::<AuthorizationToken>(&mut conn)
+                .await
+                .unwrap()
+        };
 
-            assert_eq!(auth_token, vec![]);
-        }
+        assert_eq!(empty, vec![]);
     }
 }

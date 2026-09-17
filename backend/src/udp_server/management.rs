@@ -238,11 +238,19 @@ mod tests {
     /// on it.
     fn bridge_state_without_db() -> web::Data<crate::BridgeState<'static>> {
         use db_connector::Pool;
-        use diesel::r2d2::ConnectionManager;
-        use diesel::PgConnection;
+        use diesel_async::pooled_connection::AsyncDieselConnectionManager;
+        use diesel_async::AsyncPgConnection;
 
-        let manager = ConnectionManager::<PgConnection>::new("postgres://nobody@localhost/nobody");
-        let pool = Pool::builder().max_size(1).build_unchecked(manager);
+        // A bogus connection URL so the manager never tries to actually
+        // connect; the pool only opens a real connection on `pool.get()`,
+        // which these tests never call.
+        let manager = AsyncDieselConnectionManager::<AsyncPgConnection>::new(
+            "postgres://nobody@localhost/nobody",
+        );
+        let pool: Pool = Pool::builder(manager)
+            .max_size(1)
+            .build()
+            .expect("build dummy pool");
 
         let std_socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
         std_socket.set_nonblocking(true).unwrap();

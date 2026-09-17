@@ -29,7 +29,8 @@ use actix_web::web::{self, Bytes};
 use base64::prelude::*;
 use boringtun::noise::{rate_limiter::RateLimiter, TunnResult};
 use db_connector::models::chargers::Charger;
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use futures_util::lock::Mutex;
 use ipnetwork::{IpNetwork, Ipv4Network};
 use rand_core::{OsRng, TryRngCore};
@@ -118,18 +119,22 @@ async fn create_tunn<'a>(
 ) -> anyhow::Result<(uuid::Uuid, ManagementSocket<'a>)> {
     use db_connector::schema::chargers::dsl as chargers;
 
-    let mut conn = state.pool.get()?;
-
     let ip = IpNetwork::new(addr.ip(), 32)?;
 
-    let devices: Vec<Charger> = {
+    // Decide which chargers to load based on the in-memory
+    // `undiscovered_devices` map. We collect the IDs (or note that we
+    // want *all* chargers for an unknown peer) while holding the map's
+    // lock, then release the lock before touching the DB pool so we
+    // don't hold the mutex across `.await`.
+    enum ChargerSelector {
+        Ids(Vec<uuid::Uuid>),
+        All,
+    }
+
+    let selector: ChargerSelector = {
         let map = state.undiscovered_devices.lock().await;
         if let Some(set) = map.get(&ip) {
-            let device_ids: Vec<uuid::Uuid> = set.iter().map(|c| c.id).collect();
-            chargers::chargers
-                .filter(chargers::id.eq_any(device_ids))
-                .select(Charger::as_select())
-                .load(&mut conn)?
+            ChargerSelector::Ids(set.iter().map(|c| c.id).collect())
         } else {
             let IpNetwork::V4(ip) = ip else {
                 return Err(anyhow::Error::msg(Error::UnknownPeer));
@@ -151,10 +156,7 @@ async fn create_tunn<'a>(
                     .flat_map(|(_, devices)| devices.iter().map(|d| d.id))
                     .collect();
                 log::info!("Found possible matches for ip '{subnet}: {device_ids:?}'");
-                chargers::chargers
-                    .filter(chargers::id.eq_any(device_ids))
-                    .select(Charger::as_select())
-                    .load(&mut conn)?
+                ChargerSelector::Ids(device_ids)
             } else if Ipv4Network::new(std::env::var("FORWARD_HOST")?.parse()?, 32)? == ip {
                 log::info!("Found forwarded management connection");
                 let mut device_ids: Vec<uuid::Uuid> = Vec::new();
@@ -163,19 +165,31 @@ async fn create_tunn<'a>(
                         device_ids.push(device.id);
                     }
                 }
-                chargers::chargers
-                    .filter(chargers::id.eq_any(device_ids))
-                    .select(Charger::as_select())
-                    .load(&mut conn)?
+                ChargerSelector::Ids(device_ids)
             } else {
                 if rate_limiter.check(addr).is_err() {
                     log::warn!("Rate limit exceeded for unknown peer with ip '{ip}'");
                     return Err(anyhow::Error::msg(Error::UnknownPeer));
                 }
-                chargers::chargers
-                    .select(Charger::as_select())
-                    .load(&mut conn)?
+                ChargerSelector::All
             }
+        }
+    };
+
+    let mut conn = state.pool.get().await?;
+    let devices: Vec<Charger> = match &selector {
+        ChargerSelector::Ids(ids) => {
+            chargers::chargers
+                .filter(chargers::id.eq_any(ids))
+                .select(Charger::as_select())
+                .load(&mut conn)
+                .await?
+        }
+        ChargerSelector::All => {
+            chargers::chargers
+                .select(Charger::as_select())
+                .load(&mut conn)
+                .await?
         }
     };
 

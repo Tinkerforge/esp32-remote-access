@@ -19,14 +19,15 @@
 
 use actix_web::{delete, web, HttpResponse, Responder};
 use db_connector::models::device_groupings::DeviceGrouping;
-use diesel::prelude::*;
 use diesel::result::Error::NotFound;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid},
     AppState,
 };
 
@@ -63,45 +64,39 @@ pub async fn remove_device_from_grouping(
     let grouping_uuid = parse_uuid(&payload.grouping_id)?;
     let device_uuid = parse_uuid(&payload.device_id)?;
     let user_uuid: uuid::Uuid = user_id.into();
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
 
-    web_block_unpacked(move || {
-        // First verify the grouping exists and belongs to the user
-        let grouping: DeviceGrouping = match groupings::device_groupings
-            .find(grouping_uuid)
-            .select(DeviceGrouping::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(g) => g,
-            Err(NotFound) => return Err(Error::ChargerDoesNotExist),
-            Err(_err) => return Err(Error::InternalError),
-        };
+    // First verify the grouping exists and belongs to the user
+    let grouping: DeviceGrouping = match groupings::device_groupings
+        .find(grouping_uuid)
+        .select(DeviceGrouping::as_select())
+        .get_result::<DeviceGrouping>(&mut conn)
+        .await
+    {
+        Ok(g) => g,
+        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
-        // Verify ownership
-        if grouping.user_id != user_uuid {
-            return Err(Error::Unauthorized);
-        }
+    // Verify ownership
+    if grouping.user_id != user_uuid {
+        return Err(Error::Unauthorized.into());
+    }
 
-        // Delete the member
-        let deleted = match diesel::delete(
-            members::device_grouping_members
-                .filter(members::grouping_id.eq(grouping_uuid))
-                .filter(members::charger_id.eq(device_uuid)),
-        )
-        .execute(&mut conn)
-        {
-            Ok(count) => count,
-            Err(_err) => return Err(Error::InternalError),
-        };
+    // Delete the member
+    let deleted = diesel::delete(
+        members::device_grouping_members
+            .filter(members::grouping_id.eq(grouping_uuid))
+            .filter(members::charger_id.eq(device_uuid)),
+    )
+    .execute(&mut conn)
+    .await
+    .map_err(|_| Error::InternalError)?;
 
-        // Check if any rows were deleted
-        if deleted == 0 {
-            return Err(Error::ChargerDoesNotExist);
-        }
-
-        Ok(())
-    })
-    .await?;
+    // Check if any rows were deleted
+    if deleted == 0 {
+        return Err(Error::ChargerDoesNotExist.into());
+    }
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -163,11 +158,11 @@ mod tests {
         assert!(resp.status().is_success());
 
         // Verify member is removed
-        let member_count = count_grouping_members(&grouping.id);
+        let member_count = count_grouping_members(&grouping.id).await;
         assert_eq!(member_count, 0);
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 
     #[actix_web::test]
@@ -199,6 +194,6 @@ mod tests {
         assert_eq!(resp.status().as_u16(), 400); // Bad Request (not found)
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 }

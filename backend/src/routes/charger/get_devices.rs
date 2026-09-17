@@ -22,19 +22,18 @@ use actix_web::{get, rt, web, HttpRequest, HttpResponse, Responder};
 use actix_ws::AggregatedMessage;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger};
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{
+    result::Error::NotFound, BelongingToDsl, ExpressionMethods, GroupedBy, QueryDsl,
+    SelectableHelper,
+};
+use diesel_async::RunQueryDsl as _;
 use futures_util::future::Either;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use utoipa::ToSchema;
 
-use crate::{
-    error::Error,
-    routes::user::get_user,
-    utils::{get_connection, web_block_unpacked},
-    AppState, BridgeState,
-};
+use crate::{error::Error, routes::user::get_user, utils::get_connection, AppState, BridgeState};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -75,17 +74,18 @@ pub async fn fetch_chargers(
 
     let user = get_user(state, uid).await?;
 
-    let mut conn = get_connection(state)?;
-    let devices: Vec<(Charger, AllowedUser)> = web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    let devices: Vec<(Charger, AllowedUser)> = {
         let allowed_users_list: Vec<AllowedUser> = match AllowedUser::belonging_to(&user)
             .select(AllowedUser::as_select())
             .load(&mut conn)
+            .await
         {
             Ok(d) => d,
             Err(NotFound) => Vec::new(),
             Err(err) => {
                 log::error!("Failed to load allowed users: {err}");
-                return Err(Error::InternalError);
+                return Err(Error::InternalError.into());
             }
         };
 
@@ -94,11 +94,12 @@ pub async fn fetch_chargers(
             .filter(chargers::id.eq_any(device_ids))
             .select(Charger::as_select())
             .load(&mut conn)
+            .await
         {
             Ok(v) => v,
             Err(err) => {
                 log::error!("Failed to load devices: {err}");
-                return Err(Error::InternalError);
+                return Err(Error::InternalError.into());
             }
         };
 
@@ -108,14 +109,14 @@ pub async fn fetch_chargers(
             .zip(devices_list)
             .filter_map(|(allowed_users_for_device, device)| {
                 allowed_users_for_device
+                    .as_slice()
                     .first()
                     .map(|au| (device, au.clone()))
             })
             .collect();
 
-        Ok(devices_by_users)
-    })
-    .await?;
+        devices_by_users
+    };
 
     let device_map = bridge_state.device_management_map_with_id.lock().await;
     let devices = devices
@@ -264,7 +265,8 @@ mod tests {
     use actix_web::web;
     use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::{models::users::User, test_connection_pool};
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
     use std::str::FromStr;
 
     use super::*;
@@ -285,16 +287,17 @@ mod tests {
     }
 
     /// Helper function to get the user UUID from the email address
-    fn get_user_uuid_from_email(email_addr: &str) -> uuid::Uuid {
+    async fn get_user_uuid_from_email(email_addr: &str) -> uuid::Uuid {
         use db_connector::schema::users::dsl::*;
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-
+        let mut conn = pool.get().await.unwrap();
+        let email_owned = email_addr.to_string();
         users
-            .filter(email.eq(email_addr))
+            .filter(email.eq(email_owned))
             .select(User::as_select())
-            .get_result(&mut conn)
+            .get_result::<User>(&mut conn)
+            .await
             .expect("Failed to find user")
             .id
     }
@@ -323,7 +326,7 @@ mod tests {
         }
 
         let (state, bridge_state) = get_test_state();
-        let user_id = get_user_uuid_from_email(&user1.mail);
+        let user_id = get_user_uuid_from_email(&user1.mail).await;
 
         let resp = fetch_chargers(&state, user_id, &bridge_state)
             .await
@@ -337,7 +340,7 @@ mod tests {
         user1.login().await;
 
         let (state, bridge_state) = get_test_state();
-        let user_id = get_user_uuid_from_email(&user1.mail);
+        let user_id = get_user_uuid_from_email(&user1.mail).await;
 
         let resp = fetch_chargers(&state, user_id, &bridge_state)
             .await
@@ -372,15 +375,15 @@ mod tests {
 
             let device1_uuid = uuid::Uuid::from_str(&device1.uuid).unwrap();
             let pool = test_connection_pool();
-            let mut conn = pool.get().unwrap();
-
+            let mut conn = pool.get().await.unwrap();
             diesel::delete(allowed_users.filter(charger_id.eq(device1_uuid)))
                 .execute(&mut conn)
+                .await
                 .expect("Failed to delete allowed_user entry");
         }
 
         let (state, bridge_state) = get_test_state();
-        let user_id = get_user_uuid_from_email(&user1.mail);
+        let user_id = get_user_uuid_from_email(&user1.mail).await;
 
         // This should not panic even though device1 has no allowed_users entry
         let resp = fetch_chargers(&state, user_id, &bridge_state)

@@ -1,15 +1,13 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use base64::Engine;
 use db_connector::models::authorization_tokens::AuthorizationToken;
-use diesel::prelude::*;
+use diesel_async::RunQueryDsl as _;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    error::Error,
-    models::response_auth_token::ResponseAuthorizationToken,
-    utils::{get_connection, web_block_unpacked},
+    error::Error, models::response_auth_token::ResponseAuthorizationToken, utils::get_connection,
     AppState,
 };
 
@@ -50,19 +48,16 @@ pub async fn create_authorization_token(
         last_used_at: None,
     };
 
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
 
-        match diesel::insert_into(authorization_tokens::authorization_tokens)
+        diesel::insert_into(authorization_tokens::authorization_tokens)
             .values(&auth_token)
             .execute(&mut conn)
-        {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+            .await
+            .map_err(|_| Error::InternalError)?;
+    }
 
     let response = ResponseAuthorizationToken {
         id: id.to_string(),

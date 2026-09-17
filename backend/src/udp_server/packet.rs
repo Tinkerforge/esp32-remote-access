@@ -596,7 +596,7 @@ mod tests {
         assert_eq!(parsed.data.filename, "");
         assert_eq!(parsed.data.display_name, "");
         assert_eq!(parsed.data.lang, "en");
-        assert_eq!(parsed.data.is_monthly_email, false);
+        assert!(!parsed.data.is_monthly_email);
     }
 
     #[test]
@@ -607,7 +607,7 @@ mod tests {
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
-        assert_eq!(parsed.data.is_monthly_email, true);
+        assert!(parsed.data.is_monthly_email);
     }
 
     #[test]
@@ -618,7 +618,7 @@ mod tests {
         assert!(result.is_ok());
 
         let parsed = result.unwrap();
-        assert_eq!(parsed.data.is_monthly_email, false);
+        assert!(!parsed.data.is_monthly_email);
     }
 
     #[test]
@@ -769,7 +769,7 @@ mod tests {
         let parsed = result.unwrap();
         assert_eq!(parsed.data.filename, filename);
         assert_eq!(parsed.data.display_name, display_name);
-        assert_eq!(parsed.data.is_monthly_email, true);
+        assert!(parsed.data.is_monthly_email);
     }
 
     #[test]

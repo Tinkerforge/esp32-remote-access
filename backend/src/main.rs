@@ -56,21 +56,26 @@ use udp_server::packet::{
     ManagementPacketHeader,
 };
 
-fn cleanup_thread(state: web::Data<AppState>) {
+async fn cleanup_task(state: web::Data<AppState>) {
     loop {
-        std::thread::sleep(Duration::from_secs(60));
+        tokio::time::sleep(Duration::from_secs(60)).await;
 
-        let mut conn = match get_connection(&state) {
+        let mut conn = match get_connection(&state).await {
             Ok(c) => c,
-            Err(_err) => {
-                continue;
-            }
+            Err(_err) => continue,
         };
 
-        clean_refresh_tokens(&mut conn);
-        clean_recovery_tokens(&mut conn);
-        clean_verification_tokens(&mut conn);
-        clean_devices(&mut conn);
+        if let Err(err) = async {
+            clean_refresh_tokens(&mut conn).await;
+            clean_recovery_tokens(&mut conn).await;
+            clean_verification_tokens(&mut conn).await;
+            clean_devices(&mut conn).await;
+            Ok::<_, actix_web::Error>(())
+        }
+        .await
+        {
+            log::error!("Database cleanup failed: {err}");
+        }
     }
 }
 
@@ -131,45 +136,41 @@ async fn main() -> std::io::Result<()> {
         .unwrap()
         .build();
 
-    #[cfg(not(debug_assertions))]
-    let write_logger = WriteLogger::new(
-        LevelFilter::Info,
-        log_config.clone(),
-        std::fs::File::create(format!(
-            "/logs/backend-{}.log",
-            chrono::Local::now().format("%Y-%m-%d-%H")
-        ))
-        .unwrap(),
-    );
+    // #[cfg(not(debug_assertions))]
+    // let write_logger = WriteLogger::new(
+    //     LevelFilter::Info,
+    //     log_config.clone(),
+    //     std::fs::File::create(format!(
+    //         "/logs/backend-{}.log",
+    //         chrono::Local::now().format("%Y-%m-%d-%H")
+    //     ))
+    //     .unwrap(),
+    // );
 
-    #[cfg(debug_assertions)]
     CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Debug,
+        LevelFilter::Info,
         log_config,
         TerminalMode::Mixed,
         ColorChoice::Auto,
     )])
     .unwrap();
 
-    #[cfg(not(debug_assertions))]
-    CombinedLogger::init(vec![
-        TermLogger::new(
-            LevelFilter::Info,
-            log_config,
-            TerminalMode::Mixed,
-            ColorChoice::Auto,
-        ),
-        write_logger,
-    ])
-    .unwrap();
+    // #[cfg(not(debug_assertions))]
+    // CombinedLogger::init(vec![
+    //     TermLogger::new(
+    //         LevelFilter::Info,
+    //         log_config,
+    //         TerminalMode::Mixed,
+    //         ColorChoice::Auto,
+    //     ),
+    //     write_logger,
+    // ])
+    // .unwrap();
 
     dotenvy::dotenv().ok();
 
     let pool = get_connection_pool();
-    {
-        let mut conn = pool.get().expect("Failed to get connection from pool");
-        run_migrations(&mut conn).expect("Failed to run migrations");
-    }
+    run_migrations().await.expect("Failed to run migrations");
 
     let mailer = {
         let email = std::env::var("EMAIL_USER").expect("EMAIL_USER must be set");
@@ -223,12 +224,8 @@ async fn main() -> std::io::Result<()> {
         device_ratelimiter: device_ratelimiter.clone(),
     });
 
-    let state_cpy = state.clone();
-    std::thread::spawn(move || cleanup_thread(state_cpy));
-    let bridge_state_cpy = bridge_state.clone();
-    actix::spawn(resend_thread(bridge_state_cpy));
-
-    udp_server::start_server(bridge_state.clone(), state.clone());
+    actix::spawn(cleanup_task(state.clone()));
+    actix::spawn(resend_thread(bridge_state.clone()));
 
     // Cache for random salts of non existing users
     let cache: web::Data<std::sync::Mutex<LruCache<String, Vec<u8>>>> = web::Data::new(
@@ -291,10 +288,10 @@ async fn main() -> std::io::Result<()> {
             )
     });
 
-    #[cfg(debug_assertions)]
+    // #[cfg(debug_assertions)]
     let port = "8081";
-    #[cfg(not(debug_assertions))]
-    let port = "443";
+    // #[cfg(not(debug_assertions))]
+    // let port = "443";
 
     let addr = format!("0.0.0.0:{port}");
     log::info!("running on {:?}", addr);

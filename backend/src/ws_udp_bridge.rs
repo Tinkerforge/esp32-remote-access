@@ -25,7 +25,8 @@ use actix_web::{get, rt, web, HttpRequest, HttpResponse};
 use actix_web_validator::Query;
 use actix_ws::{AggregatedMessage, Session};
 use db_connector::models::wg_keys::WgKey;
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use futures_util::future::Either;
 use futures_util::lock::Mutex;
 use futures_util::StreamExt;
@@ -42,11 +43,7 @@ use crate::udp_server::packet::{
     ManagementPacketHeader, ManagementResponseV2, PacketType,
 };
 use crate::udp_server::socket::ManagementSocket;
-use crate::{
-    error::Error,
-    utils::{get_connection, web_block_unpacked},
-    AppState, BridgeState,
-};
+use crate::{error::Error, utils::get_connection, AppState, BridgeState};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -269,20 +266,16 @@ async fn start_ws(
         return Err(Error::WgKeyAlreadyInUse.into());
     }
 
-    let mut conn = get_connection(&state)?;
-    let keys: WgKey = web_block_unpacked(move || {
-        let keys: WgKey = match wg_keys::wg_keys
-            .filter(wg_keys::id.eq(&key_uuid))
-            .select(WgKey::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(keys) => keys,
-            Err(_err) => return Err(Error::WgKeysDoNotExist),
-        };
-
-        Ok(keys)
-    })
-    .await?;
+    let mut conn = get_connection(&state).await?;
+    let keys: WgKey = match wg_keys::wg_keys
+        .filter(wg_keys::id.eq(&key_uuid))
+        .select(WgKey::as_select())
+        .get_result::<WgKey>(&mut conn)
+        .await
+    {
+        Ok(keys) => keys,
+        Err(_err) => return Err(Error::WgKeysDoNotExist.into()),
+    };
 
     let user_id: uuid::Uuid = uid.into();
     if !keys.user_id.eq(&user_id) {

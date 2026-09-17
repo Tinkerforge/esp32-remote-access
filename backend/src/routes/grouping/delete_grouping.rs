@@ -19,14 +19,15 @@
 
 use actix_web::{delete, web, HttpResponse, Responder};
 use db_connector::models::device_groupings::DeviceGrouping;
-use diesel::prelude::*;
 use diesel::result::Error::NotFound;
+use diesel::{QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid},
     AppState,
 };
 
@@ -60,32 +61,30 @@ pub async fn delete_grouping(
 
     let grouping_uuid = parse_uuid(&payload.grouping_id)?;
     let user_uuid: uuid::Uuid = user_id.into();
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
 
-    web_block_unpacked(move || {
-        // First verify the grouping exists and belongs to the user
-        let grouping: DeviceGrouping = match groupings::device_groupings
-            .find(grouping_uuid)
-            .select(DeviceGrouping::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(g) => g,
-            Err(NotFound) => return Err(Error::ChargerDoesNotExist),
-            Err(_err) => return Err(Error::InternalError),
-        };
+    // First verify the grouping exists and belongs to the user
+    let grouping: DeviceGrouping = match groupings::device_groupings
+        .find(grouping_uuid)
+        .select(DeviceGrouping::as_select())
+        .get_result::<DeviceGrouping>(&mut conn)
+        .await
+    {
+        Ok(g) => g,
+        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
-        // Verify ownership
-        if grouping.user_id != user_uuid {
-            return Err(Error::Unauthorized);
-        }
+    // Verify ownership
+    if grouping.user_id != user_uuid {
+        return Err(Error::Unauthorized.into());
+    }
 
-        // Delete the grouping (cascade will handle members)
-        match diesel::delete(groupings::device_groupings.find(grouping_uuid)).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    // Delete the grouping (cascade will handle members)
+    diesel::delete(groupings::device_groupings.find(grouping_uuid))
+        .execute(&mut conn)
+        .await
+        .map_err(|_| Error::InternalError)?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -128,7 +127,7 @@ mod tests {
         assert!(resp.status().is_success());
 
         // Verify grouping is deleted
-        let db_grouping = get_grouping_from_db(&grouping.id);
+        let db_grouping = get_grouping_from_db(&grouping.id).await;
         assert!(db_grouping.is_none());
     }
 
@@ -161,10 +160,10 @@ mod tests {
         assert_eq!(resp.status().as_u16(), 401); // Unauthorized
 
         // Verify grouping still exists
-        let db_grouping = get_grouping_from_db(&grouping.id);
+        let db_grouping = get_grouping_from_db(&grouping.id).await;
         assert!(db_grouping.is_some());
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 }

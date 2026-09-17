@@ -23,7 +23,8 @@ use argon2::password_hash::{rand_core::OsRng, SaltString};
 use askama::Template;
 use chrono::Days;
 use db_connector::models::{users::User, verification::Verification};
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
@@ -148,32 +149,26 @@ pub async fn register(
     data: Json<RegisterSchema>,
     #[cfg(not(test))] lang: crate::models::lang::Lang,
 ) -> Result<impl Responder, actix_web::Error> {
-    let mut conn = get_connection(&state)?;
-
     let user_mail = data.email.to_lowercase();
     let mail_cpy = user_mail.clone();
 
-    match web::block(move || {
+    // Check for an existing user before doing any expensive work. Hold the
+    // connection only for the duration of this query so that we don't tie
+    // up a pool slot while we await the argon2 hash below.
+    {
+        let mut conn = get_connection(&state).await?;
         use db_connector::schema::users::dsl::*;
 
         match users
             .filter(email.eq(mail_cpy))
             .select(User::as_select())
-            .get_result(&mut conn)
+            .get_result::<User>(&mut conn)
+            .await
         {
-            Ok(_) => return Err(Error::UserAlreadyExists),
-            Err(NotFound) => (),
-            Err(_err) => return Err(Error::InternalError),
+            Ok(_) => return Err(Error::UserAlreadyExists.into()),
+            Err(NotFound) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-
-        Ok(())
-    })
-    .await
-    {
-        Ok(Ok(_)) => (),
-        Ok(Err(Error::UserAlreadyExists)) => return Err(Error::UserAlreadyExists.into()),
-        Ok(Err(_)) => return Err(Error::InternalError.into()),
-        Err(_) => return Err(Error::InternalError.into()),
     }
 
     let key_hash = match hash_key(data.login_key.clone(), &state.hasher).await {
@@ -196,7 +191,7 @@ pub async fn register(
         old_email: None,
     };
 
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
 
     let exp = if let Some(expiration) =
         chrono::Utc::now().checked_add_days(Days::new(VERIFICATION_EXPIRATION_DAYS))
@@ -206,79 +201,75 @@ pub async fn register(
         return Err(Error::InternalError.into());
     };
 
-    let insert_result = match web::block(move || {
+    let verify = Verification {
+        id: uuid::Uuid::new_v4(),
+        user: user_insert.id,
+        expiration: exp,
+    };
+
+    #[cfg(not(test))]
+    let verification_email = data.email.clone();
+    #[cfg(not(test))]
+    let verification_name = user_insert.name.clone();
+    #[cfg(not(test))]
+    let verification_state = state.clone();
+    #[cfg(not(test))]
+    let verification_lang: String = lang.into();
+
+    let verify_for_db = verify.clone();
+    {
         use db_connector::schema::users::dsl::*;
         use db_connector::schema::verification::dsl::*;
 
-        let verify = Verification {
-            id: uuid::Uuid::new_v4(),
-            user: user_insert.id,
-            expiration: exp,
-        };
-
-        // same as above
-        #[allow(unused)]
-        let mail = user_insert.email.clone();
-
-        let user_insert_result = diesel::insert_into(users)
+        diesel::insert_into(users)
             .values(&user_insert)
-            .execute(&mut conn);
-        match diesel::insert_into(verification)
-            .values(&verify)
             .execute(&mut conn)
-        {
-            Ok(_) => (),
-            Err(err) => return Err(err),
-        }
-
-        // maybe add mechanism to automatically retry?
-        #[cfg(not(test))]
-        std::thread::spawn(move || {
-            log::info!(
-                "Sending verification email to '{}' for user '{}'",
-                data.email,
-                user_insert.name
-            );
-            match send_verification_mail(
-                user_insert.name.clone(),
-                verify,
-                data.email.clone(),
-                state.clone(),
-                lang.into(),
-            ) {
-                Ok(()) => {
-                    log::info!("Verification email sent successfully to '{}'", data.email);
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to send verification email to '{}' for user '{}': {:?}",
-                        data.email,
-                        user_insert.name,
-                        e
-                    );
-                }
-            }
-        });
-
-        user_insert_result
-    })
-    .await
-    {
-        Ok(result) => result,
-        Err(_err) => return Err(Error::InternalError.into()),
-    };
-
-    match insert_result {
-        Ok(_) => (),
-        Err(_err) => return Err(Error::InternalError.into()),
+            .await
+            .map_err(|_| Error::InternalError)?;
+        diesel::insert_into(verification)
+            .values(&verify_for_db)
+            .execute(&mut conn)
+            .await
+            .map_err(|_| Error::InternalError)?;
     }
+
+    #[cfg(not(test))]
+    drop(tokio::task::spawn_blocking(move || {
+        log::info!(
+            "Sending verification email to '{}' for user '{}'",
+            verification_email,
+            verification_name
+        );
+        match send_verification_mail(
+            verification_name.clone(),
+            verify,
+            verification_email.clone(),
+            verification_state,
+            verification_lang,
+        ) {
+            Ok(()) => {
+                log::info!(
+                    "Verification email sent successfully to '{}'",
+                    verification_email
+                );
+            }
+            Err(e) => {
+                log::error!(
+                    "Failed to send verification email to '{}' for user '{}': {:?}",
+                    verification_email,
+                    verification_name,
+                    e
+                );
+            }
+        }
+    }));
 
     Ok(HttpResponse::Created())
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::{defer, tests::configure, utils::generate_random_bytes};
+    use crate::{defer_async, tests::configure, utils::generate_random_bytes};
     use actix_web::{http::header::ContentType, test, App};
     use db_connector::test_connection_pool;
     use rand::RngExt;
@@ -314,53 +305,63 @@ pub(crate) mod tests {
         login_key
     }
 
-    pub fn delete_user(mail: &str) {
+    pub async fn delete_user(mail: &str) {
         use db_connector::schema::allowed_users::dsl as allowed_users;
         use db_connector::schema::refresh_tokens::dsl::*;
         use db_connector::schema::users::dsl::*;
         use db_connector::schema::verification::dsl::*;
         use db_connector::schema::wg_keys::dsl as wg_keys;
-        use diesel::prelude::*;
+        use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+        use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.expect("Failed to get db connection");
         let mail = mail.to_lowercase();
-        let u: User = if let Ok(u) = users
+        let u: User = match users
             .filter(email.eq(mail.clone()))
             .select(User::as_select())
             .get_result(&mut conn)
+            .await
         {
-            u
-        } else {
-            return;
+            Ok(u) => u,
+            Err(_) => return,
         };
 
         diesel::delete(refresh_tokens.filter(user_id.eq(u.id)))
             .execute(&mut conn)
+            .await
             .expect("Error deleting sessions");
         diesel::delete(verification.filter(user.eq(u.id)))
             .execute(&mut conn)
+            .await
             .expect("Error deleting verification");
         diesel::delete(wg_keys::wg_keys.filter(wg_keys::user_id.eq(u.id)))
             .execute(&mut conn)
+            .await
             .expect("Error deleting wg keys");
         diesel::delete(allowed_users::allowed_users.filter(allowed_users::user_id.eq(u.id)))
             .execute(&mut conn)
+            .await
             .expect("Error deleting allowed user object");
         diesel::delete(users.filter(email.eq(mail.to_lowercase())))
             .execute(&mut conn)
+            .await
             .expect("Error deleting test user");
     }
 
-    fn user_exists(mail: &str) -> bool {
+    async fn user_exists(mail: &str) -> bool {
         use db_connector::schema::users::dsl::*;
-        use diesel::prelude::*;
+        use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+        use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
         let pool = db_connector::test_connection_pool();
+        let mut conn = pool.get().await.expect("Failed to get db connection");
+        let mail_owned = mail.to_string();
         match users
-            .filter(email.eq(mail))
+            .filter(email.eq(mail_owned))
             .select(User::as_select())
-            .get_result(&mut pool.get().unwrap())
+            .get_result::<User>(&mut conn)
+            .await
         {
             Ok(_) => true,
             Err(NotFound) => false,
@@ -405,7 +406,7 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert!(!user_exists(mail));
+        assert!(!user_exists(mail).await);
     }
 
     #[actix_web::test]
@@ -432,7 +433,7 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert!(!user_exists(mail));
+        assert!(!user_exists(mail).await);
     }
 
     #[actix_web::test]
@@ -459,8 +460,8 @@ pub(crate) mod tests {
         println!("{}", resp.status());
 
         assert!(resp.status().is_success());
-        assert!(user_exists(mail));
-        delete_user("valid_request@test.invalid");
+        assert!(user_exists(mail).await);
+        delete_user("valid_request@test.invalid").await;
     }
 
     #[actix_web::test]
@@ -468,6 +469,10 @@ pub(crate) mod tests {
         let app = App::new().configure(configure).service(register);
         let app = test::init_service(app).await;
         let mail = "existing_user@test.invalid".to_string();
+        defer_async!({
+            let inner_mail = mail.clone();
+            async move { delete_user(&inner_mail).await }
+        });
         let user = RegisterSchema {
             name: "Test".to_string(),
             email: mail.to_string(),
@@ -485,7 +490,6 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
         println!("{}", resp.status());
         assert!(resp.status().is_success());
-        defer!(delete_user(mail.as_str()));
 
         let req = test::TestRequest::post()
             .uri("/register")
@@ -496,23 +500,21 @@ pub(crate) mod tests {
         assert_eq!(resp.status().as_u16(), 409); // Conflict - user already exists
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        {
-            use db_connector::schema::users::dsl::*;
-            use diesel::prelude::*;
+        let mut conn = pool.get().await.unwrap();
+        let mail = mail.to_lowercase();
+        use db_connector::schema::users::dsl::*;
+        use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+        use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
-            let mail = mail.to_lowercase();
-            if let Ok(u) = users
-                .filter(email.eq(mail.clone()))
-                .select(User::as_select())
-                .load(&mut conn)
-            {
-                if u.len() > 1 {
-                    panic!("User was created twice");
-                }
-            } else {
-                panic!("User not found");
-            };
+        let u: Vec<User> = users
+            .filter(email.eq(mail))
+            .select(User::as_select())
+            .load(&mut conn)
+            .await
+            .expect("load users");
+
+        if u.len() > 1 {
+            panic!("User was created twice");
         }
     }
 }

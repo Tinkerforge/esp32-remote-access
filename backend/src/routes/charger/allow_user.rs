@@ -20,7 +20,8 @@
 use actix_web::{error::ErrorBadRequest, put, web, HttpRequest, HttpResponse, Responder};
 use base64::Engine;
 use db_connector::models::{allowed_users::AllowedUser, wg_keys::WgKey};
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -31,9 +32,7 @@ use crate::{
         auth::login::{validate_password, FindBy},
         user::get_user_id,
     },
-    utils::{
-        get_charger_from_db, get_connection, parse_uuid, validate_auth_token, web_block_unpacked,
-    },
+    utils::{get_charger_from_db, get_connection, parse_uuid, validate_auth_token},
     AppState,
 };
 
@@ -69,8 +68,8 @@ async fn add_keys(
     uid: uuid::Uuid,
     cid: uuid::Uuid,
 ) -> actix_web::Result<()> {
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    {
         use db_connector::schema::wg_keys::dsl::*;
 
         let insert_keys: Vec<WgKey> = keys
@@ -88,15 +87,12 @@ async fn add_keys(
             })
             .collect();
 
-        match diesel::insert_into(wg_keys)
+        diesel::insert_into(wg_keys)
             .values(&insert_keys)
             .execute(&mut conn)
-        {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+            .await
+            .map_err(|_| Error::InternalError)?;
+    }
 
     Ok(())
 }
@@ -108,12 +104,11 @@ async fn authenticate_user(
 ) -> actix_web::Result<()> {
     match auth {
         UserAuth::LoginKey(key) => {
-            let conn = get_connection(state)?;
             let key = match base64::engine::general_purpose::STANDARD.decode(key) {
                 Ok(v) => v,
                 Err(_) => return Err(ErrorBadRequest("login_key is wrong base64")),
             };
-            let _ = validate_password(&key, FindBy::Uuid(uid), conn, &state.hasher).await?;
+            let _ = validate_password(&key, FindBy::Uuid(uid), state).await?;
         }
         UserAuth::AuthToken(token) => {
             validate_auth_token(token.to_owned(), uid, state).await?;
@@ -163,28 +158,24 @@ pub async fn allow_user(
     authenticate_user(allowed_uuid, &allow_user.user_auth, &state).await?;
 
     // delete old allowed_user when existing
-    let mut conn = get_connection(&state)?;
-    let allow_user = allow_user.clone();
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    let allow_user_inner = allow_user.into_inner();
+    {
         use db_connector::schema::allowed_users::dsl::*;
 
-        match diesel::delete(
+        diesel::delete(
             allowed_users
                 .filter(user_id.eq(allowed_uuid))
                 .filter(charger_id.eq(cid)),
         )
         .execute(&mut conn)
-        {
-            Ok(_) => Ok(()),
-            Err(_) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+        .await
+        .map_err(|_| Error::InternalError)?;
+    }
 
     // add new allowed_user
-    let mut conn = get_connection(&state)?;
-    let allow_user = allow_user.clone();
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         use db_connector::schema::allowed_users::dsl::*;
 
         let u = AllowedUser {
@@ -193,21 +184,18 @@ pub async fn allow_user(
             charger_id: cid,
             charger_uid: device.uid,
             valid: true,
-            name: Some(allow_user.charger_name),
-            note: Some(allow_user.note),
+            name: Some(allow_user_inner.charger_name.clone()),
+            note: Some(allow_user_inner.note.clone()),
         };
 
-        match diesel::insert_into(allowed_users)
+        diesel::insert_into(allowed_users)
             .values(u)
             .execute(&mut conn)
-        {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+            .await
+            .map_err(|_| Error::InternalError)?;
+    }
 
-    match add_keys(&state, allow_user.wg_keys, allowed_uuid, cid).await {
+    match add_keys(&state, allow_user_inner.wg_keys.clone(), allowed_uuid, cid).await {
         Ok(_) => (),
         Err(_err) => {}
     }
@@ -225,6 +213,8 @@ pub mod tests {
     use actix_web::{test, App};
     use base64::prelude::BASE64_STANDARD;
     use db_connector::test_connection_pool;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
     use rand::distr::{Alphanumeric, SampleString};
 
     use crate::{
@@ -293,7 +283,7 @@ pub mod tests {
         let body: AllowUserResponse = test::read_body_json(resp).await;
         assert_eq!(
             body.user_id,
-            get_test_uuid(&user2.mail).unwrap().to_string()
+            get_test_uuid(&user2.mail).await.unwrap().to_string()
         );
     }
 
@@ -333,7 +323,7 @@ pub mod tests {
         let body: AllowUserResponse = test::read_body_json(resp).await;
         assert_eq!(
             body.user_id,
-            get_test_uuid(&user2.mail).unwrap().to_string()
+            get_test_uuid(&user2.mail).await.unwrap().to_string()
         );
     }
 
@@ -448,19 +438,22 @@ pub mod tests {
         assert!(resp.status().is_success());
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        {
+        let mut conn = pool.get().await.unwrap();
+        let user2_uuid = get_test_uuid(&user2.mail).await.unwrap();
+        let device_uuid_parsed = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let users: Vec<AllowedUser> = {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let users: Vec<AllowedUser> = allowed_users
-                .filter(user_id.eq(get_test_uuid(&user2.mail).unwrap()))
-                .filter(charger_id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
+            allowed_users
+                .filter(user_id.eq(user2_uuid))
+                .filter(charger_id.eq(device_uuid_parsed))
                 .select(AllowedUser::as_select())
-                .load(&mut conn)
-                .unwrap();
+                .load::<AllowedUser>(&mut conn)
+                .await
+                .unwrap()
+        };
 
-            assert_eq!(users.len(), 1);
-        }
+        assert_eq!(users.len(), 1);
     }
 
     #[actix_web::test]
@@ -479,7 +472,7 @@ pub mod tests {
             charger_id: device.uuid,
             user_auth: UserAuth::LoginKey(BASE64_STANDARD.encode(user2.get_login_key().await)),
             email: None,
-            user_uuid: Some(get_test_uuid(&user2.mail).unwrap().to_string()),
+            user_uuid: Some(get_test_uuid(&user2.mail).await.unwrap().to_string()),
             charger_password: device.password,
             wg_keys: generate_random_keys(),
             charger_name: String::new(),
@@ -496,7 +489,7 @@ pub mod tests {
         let body: AllowUserResponse = test::read_body_json(resp).await;
         assert_eq!(
             body.user_id,
-            get_test_uuid(&user2.mail).unwrap().to_string()
+            get_test_uuid(&user2.mail).await.unwrap().to_string()
         );
     }
 }

@@ -26,15 +26,11 @@ pub mod info;
 pub mod remove;
 pub mod update_note;
 
-use crate::{
-    error::Error,
-    middleware::jwt::JwtMiddleware,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
-};
+use crate::{error::Error, middleware::jwt::JwtMiddleware, utils::get_connection, AppState};
 use actix_web::web;
 use db_connector::models::allowed_users::AllowedUser;
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     let scope = web::scope("/charger")
@@ -57,23 +53,21 @@ pub async fn get_charger_uuid(
     device_uid: i32,
     user_id: uuid::Uuid,
 ) -> actix_web::Result<Option<uuid::Uuid>> {
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        use db_connector::schema::allowed_users::dsl as allowed_users;
+    let mut conn = get_connection(state).await?;
+    use db_connector::schema::allowed_users::dsl as allowed_users;
 
-        let allowed_user: AllowedUser = match allowed_users::allowed_users
-            .filter(allowed_users::charger_uid.eq(device_uid))
-            .filter(allowed_users::user_id.eq(user_id))
-            .select(AllowedUser::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(u) => u,
-            Err(NotFound) => return Ok(None),
-            Err(_err) => return Err(Error::InternalError),
-        };
-        Ok(Some(allowed_user.charger_id))
-    })
-    .await
+    let allowed_user: AllowedUser = match allowed_users::allowed_users
+        .filter(allowed_users::charger_uid.eq(device_uid))
+        .filter(allowed_users::user_id.eq(user_id))
+        .select(AllowedUser::as_select())
+        .get_result::<AllowedUser>(&mut conn)
+        .await
+    {
+        Ok(u) => u,
+        Err(NotFound) => return Ok(None),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
+    Ok(Some(allowed_user.charger_id))
 }
 
 pub async fn user_is_allowed(
@@ -83,22 +77,18 @@ pub async fn user_is_allowed(
 ) -> Result<(), actix_web::Error> {
     use db_connector::schema::allowed_users::dsl::*;
 
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        let _allowed_user: AllowedUser = match allowed_users
-            .filter(user_id.eq(uid))
-            .filter(charger_id.eq(cid))
-            .select(AllowedUser::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(u) => u,
-            Err(NotFound) => return Err(Error::Unauthorized),
-            Err(_err) => return Err(Error::InternalError),
-        };
-
-        Ok(())
-    })
-    .await?;
+    let mut conn = get_connection(state).await?;
+    let _allowed_user: AllowedUser = match allowed_users
+        .filter(user_id.eq(uid))
+        .filter(charger_id.eq(cid))
+        .select(AllowedUser::as_select())
+        .get_result::<AllowedUser>(&mut conn)
+        .await
+    {
+        Ok(u) => u,
+        Err(NotFound) => return Err(Error::Unauthorized.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
     Ok(())
 }

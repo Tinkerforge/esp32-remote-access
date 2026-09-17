@@ -34,9 +34,8 @@ use std::{
 
 use self::socket::ManagementSocket;
 use crate::{
-    rate_limit::ShrinkableRateLimiter,
-    udp_server::multiplex::run_server, utils::update_charger_state_change, AppState, BridgeState,
-    DiscoveryCharger,
+    rate_limit::ShrinkableRateLimiter, udp_server::multiplex::run_server,
+    utils::update_charger_state_change, AppState, BridgeState, DiscoveryCharger,
 };
 use actix_web::web;
 use ipnetwork::IpNetwork;
@@ -69,6 +68,7 @@ async fn start_rate_limiters_reset_thread(
             for addr in to_remove.into_iter() {
                 device_map.remove(&addr);
             }
+            device_map.shrink_to_fit();
         }
         {
             let mut map = discovery_map.lock().await;
@@ -81,6 +81,7 @@ async fn start_rate_limiters_reset_thread(
             for cmd in to_remove.iter() {
                 map.remove(cmd);
             }
+            map.shrink_to_fit();
         }
         {
             let mut map = undiscovered_devices.lock().await;
@@ -100,6 +101,10 @@ async fn start_rate_limiters_reset_thread(
                     for c in to_remove.iter().flatten() {
                         devices.remove(c);
                     }
+                    // Drop any buckets the cleared entries no longer need so
+                    // the set's capacity tracks the live entries instead of
+                    // the all-time high-water mark.
+                    devices.shrink_to_fit();
                     if devices.is_empty() {
                         Some(ip.to_owned())
                     } else {
@@ -110,6 +115,7 @@ async fn start_rate_limiters_reset_thread(
             for ip in to_remove.into_iter().flatten() {
                 map.remove(&ip);
             }
+            map.shrink_to_fit();
         }
         {
             let to_remove: Vec<uuid::Uuid> = {
@@ -134,6 +140,31 @@ async fn start_rate_limiters_reset_thread(
         for limiter in rate_limiters.iter() {
             limiter.shrink();
         }
+        // Periodically shrink the connection-tracking maps so their bucket
+        // capacity tracks the live entries instead of the all-time
+        // high-water mark. These maps are drained on every request by
+        // multiplex/management/ws_udp_bridge but never compacted, so under
+        // stress the buckets linger even after the entries are gone.
+        {
+            let mut map = bridge_state.web_client_map.lock().await;
+            map.shrink_to_fit();
+        }
+        {
+            let mut map = bridge_state.undiscovered_clients.lock().await;
+            map.shrink_to_fit();
+        }
+        {
+            let mut map = bridge_state.device_remote_conn_map.lock().await;
+            map.shrink_to_fit();
+        }
+        {
+            let mut map = bridge_state.lost_connections.lock().await;
+            map.shrink_to_fit();
+        }
+        {
+            let mut map = bridge_state.state_update_clients.lock().await;
+            map.shrink_to_fit();
+        }
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }
@@ -145,9 +176,7 @@ pub fn start_server(
 ) {
     log::info!("Starting Wireguard server.");
     let global_search_rate_limiter = Arc::new(crate::rate_limit::GlobalSearchRateLimiter::new());
-    rate_limiters.push(
-        Arc::clone(&global_search_rate_limiter) as Arc<dyn ShrinkableRateLimiter>,
-    );
+    rate_limiters.push(Arc::clone(&global_search_rate_limiter) as Arc<dyn ShrinkableRateLimiter>);
     actix::spawn(start_rate_limiters_reset_thread(
         bridge_state.device_management_map.clone(),
         bridge_state.device_management_map_with_id.clone(),
@@ -158,5 +187,9 @@ pub fn start_server(
         rate_limiters,
     ));
 
-    actix::spawn(run_server(bridge_state, app_state, global_search_rate_limiter));
+    actix::spawn(run_server(
+        bridge_state,
+        app_state,
+        global_search_rate_limiter,
+    ));
 }

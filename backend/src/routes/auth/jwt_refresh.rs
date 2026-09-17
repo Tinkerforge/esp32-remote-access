@@ -5,16 +5,13 @@ use actix_web::{
 };
 use chrono::{TimeDelta, Utc};
 use db_connector::models::{refresh_tokens::RefreshToken, users::User};
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, QueryDsl};
+use diesel_async::RunQueryDsl as _;
 use jsonwebtoken::{decode, DecodingKey, Validation};
 
 use crate::{
-    error::Error,
-    middleware::get_token,
-    models::token_claims::TokenClaims,
-    routes::auth::login::create_refresh_token,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
+    error::Error, middleware::get_token, models::token_claims::TokenClaims,
+    routes::auth::login::create_refresh_token, utils::get_connection, AppState,
 };
 
 pub fn extract_token(token: String, jwt_secret: &str) -> actix_web::Result<(uuid::Uuid, usize)> {
@@ -52,35 +49,37 @@ async fn validate_token(req: &HttpRequest) -> actix_web::Result<User> {
         return Err(ErrorUnauthorized("Session expired"));
     }
 
-    let mut conn = get_connection(state)?;
-    let refresh_token: RefreshToken = web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    let refresh_token: RefreshToken = {
         use db_connector::schema::refresh_tokens::dsl::*;
 
-        match refresh_tokens.find(&token_id).get_result(&mut conn) {
-            Ok(session) => Ok(session),
-            Err(NotFound) => Err(Error::SessionDoesNotExist),
-            Err(_err) => Err(Error::InternalError),
+        match refresh_tokens.find(&token_id).get_result(&mut conn).await {
+            Ok(session) => session,
+            Err(NotFound) => return Err(Error::SessionDoesNotExist.into()),
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    };
 
     // Only delete the token after we've confirmed it exists and is valid
     delete_refresh_token(token_id, state).await?;
 
-    let mut conn = get_connection(state)?;
-    let user: User = web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    let user: User = {
         use db_connector::schema::users::dsl::*;
 
-        match users.find(refresh_token.user_id).get_result(&mut conn) {
-            Ok(user) => Ok(user),
-            Err(NotFound) => Err(Error::UserDoesNotExist),
+        match users
+            .find(refresh_token.user_id)
+            .get_result(&mut conn)
+            .await
+        {
+            Ok(user) => user,
+            Err(NotFound) => return Err(Error::UserDoesNotExist.into()),
             Err(_err) => {
                 println!("here3");
-                Err(Error::InternalError)
+                return Err(Error::InternalError.into());
             }
         }
-    })
-    .await?;
+    };
 
     Ok(user)
 }
@@ -89,17 +88,19 @@ pub async fn delete_refresh_token(
     token_id: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {
-    let mut conn = get_connection(state)?;
+    let mut conn = get_connection(state).await?;
 
-    web_block_unpacked(move || {
+    {
         use db_connector::schema::refresh_tokens::dsl::*;
 
-        match diesel::delete(refresh_tokens.find(token_id)).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+        match diesel::delete(refresh_tokens.find(token_id))
+            .execute(&mut conn)
+            .await
+        {
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    }
     Ok(())
 }
 

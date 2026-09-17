@@ -18,7 +18,8 @@
  */
 
 use actix_web::{delete, web, HttpResponse, Responder};
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -26,7 +27,7 @@ use crate::{
     error::Error,
     routes::charger::user_is_allowed,
     udp_server::management::prompt_charger_to_remove_user,
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid},
     AppState, BridgeState,
 };
 
@@ -41,14 +42,11 @@ pub async fn delete_all_keys(
 ) -> Result<(), actix_web::Error> {
     use db_connector::schema::wg_keys::dsl::*;
 
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        match diesel::delete(wg_keys.filter(charger_id.eq(cid))).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let mut conn = get_connection(state).await?;
+    diesel::delete(wg_keys.filter(charger_id.eq(cid)))
+        .execute(&mut conn)
+        .await
+        .map_err(|_| Error::InternalError)?;
 
     Ok(())
 }
@@ -59,14 +57,11 @@ pub async fn delete_all_allowed_users(
 ) -> Result<(), actix_web::Error> {
     use db_connector::schema::allowed_users::dsl::*;
 
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        match diesel::delete(allowed_users.filter(charger_id.eq(cid))).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let mut conn = get_connection(state).await?;
+    diesel::delete(allowed_users.filter(charger_id.eq(cid)))
+        .execute(&mut conn)
+        .await
+        .map_err(|_| Error::InternalError)?;
 
     Ok(())
 }
@@ -76,14 +71,11 @@ pub async fn delete_charger(
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {
     use db_connector::schema::chargers::dsl::*;
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        match diesel::delete(chargers.filter(id.eq(charger))).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let mut conn = get_connection(state).await?;
+    diesel::delete(chargers.filter(id.eq(charger)))
+        .execute(&mut conn)
+        .await
+        .map_err(|_| Error::InternalError)?;
 
     Ok(())
 }
@@ -103,20 +95,17 @@ pub async fn remove_charger_from_state(charger: uuid::Uuid, state: &web::Data<Br
 }
 
 async fn is_last_user(cid: uuid::Uuid, state: &web::Data<AppState>) -> actix_web::Result<bool> {
-    let mut conn = get_connection(state)?;
-    let count: i64 = web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    let count: i64 = {
         use db_connector::schema::allowed_users::dsl::*;
 
-        match allowed_users
+        allowed_users
             .filter(charger_id.eq(cid))
             .count()
             .get_result(&mut conn)
-        {
-            Ok(c) => Ok(c),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+            .await
+            .map_err(|_| Error::InternalError)?
+    };
 
     Ok(count == 1)
 }
@@ -126,21 +115,18 @@ pub async fn delete_keys_for_user(
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    {
         use db_connector::schema::wg_keys::dsl::*;
-        match diesel::delete(
+        diesel::delete(
             wg_keys
                 .filter(user_id.eq(uid))
                 .filter(charger_id.eq(device_id)),
         )
         .execute(&mut conn)
-        {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+        .await
+        .map_err(|_| Error::InternalError)?;
+    }
     Ok(())
 }
 
@@ -149,21 +135,18 @@ async fn delete_allowed_user(
     uid: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    {
         use db_connector::schema::allowed_users::dsl::*;
-        match diesel::delete(
+        diesel::delete(
             allowed_users
                 .filter(user_id.eq(uid))
                 .filter(charger_id.eq(device_id)),
         )
         .execute(&mut conn)
-        {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+        .await
+        .map_err(|_| Error::InternalError)?;
+    }
     Ok(())
 }
 
@@ -193,17 +176,14 @@ pub async fn remove(
         delete_all_keys(device_id, &state).await?;
         delete_all_allowed_users(device_id, &state).await?;
 
-        let mut conn = get_connection(&state)?;
-        web_block_unpacked(move || {
+        let mut conn = get_connection(&state).await?;
+        {
             use db_connector::schema::chargers::dsl as chargers;
-            match diesel::delete(chargers::chargers.filter(chargers::id.eq(device_id)))
+            diesel::delete(chargers::chargers.filter(chargers::id.eq(device_id)))
                 .execute(&mut conn)
-            {
-                Ok(_) => Ok(()),
-                Err(_err) => Err(Error::InternalError),
-            }
-        })
-        .await?;
+                .await
+                .map_err(|_| Error::InternalError)?;
+        }
         delete_charger(device_id, &state).await?;
         remove_charger_from_state(device_id, &bridge_state).await;
     } else {
@@ -224,7 +204,7 @@ pub(crate) mod tests {
     use actix_web::{cookie::Cookie, test, App};
     use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::test_connection_pool;
-    use diesel::r2d2::{ConnectionManager, PooledConnection};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     use crate::{
         middleware::jwt::JwtMiddleware,
@@ -235,39 +215,41 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn remove_test_keys(mail: &str) -> anyhow::Result<()> {
+    pub async fn remove_test_keys(mail: &str) -> anyhow::Result<()> {
         use db_connector::schema::wg_keys::dsl::*;
 
-        let uid = get_test_uuid(mail)?;
-
+        let uid = get_test_uuid(mail).await?;
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        diesel::delete(wg_keys.filter(user_id.eq(uid))).execute(&mut conn)?;
-
+        let mut conn = pool.get().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+        diesel::delete(wg_keys.filter(user_id.eq(uid)))
+            .execute(&mut conn)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(())
     }
 
-    pub fn remove_allowed_test_users(uuid: &str) {
+    pub async fn remove_allowed_test_users(uuid: &str) {
         use db_connector::schema::allowed_users::dsl::*;
 
         let device_id = uuid::Uuid::from_str(uuid).unwrap();
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         diesel::delete(allowed_users.filter(charger_id.eq(device_id)))
             .execute(&mut conn)
+            .await
             .unwrap();
     }
 
-    pub fn remove_test_device(device_id: &str) {
+    pub async fn remove_test_device(device_id: &str) {
         let device_id = uuid::Uuid::from_str(device_id).unwrap();
-
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         {
             use db_connector::schema::wg_keys::dsl as wg_keys;
 
             diesel::delete(wg_keys::wg_keys.filter(wg_keys::charger_id.eq(device_id)))
                 .execute(&mut conn)
+                .await
                 .unwrap();
         }
         {
@@ -277,44 +259,42 @@ pub(crate) mod tests {
                 allowed_users::allowed_users.filter(allowed_users::charger_id.eq(device_id)),
             )
             .execute(&mut conn)
+            .await
             .unwrap();
         }
         {
             use db_connector::schema::chargers::dsl as chargers;
             diesel::delete(chargers::chargers.filter(chargers::id.eq(device_id)))
                 .execute(&mut conn)
+                .await
                 .unwrap();
         }
     }
 
-    fn get_allowed_users_count(
-        charger_id: uuid::Uuid,
-        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    ) -> i64 {
+    async fn get_allowed_users_count(charger_id: uuid::Uuid) -> i64 {
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
-        let count: i64 = allowed_users::allowed_users
+        let pool = test_connection_pool();
+        let mut conn = pool.get().await.unwrap();
+        allowed_users::allowed_users
             .filter(allowed_users::charger_id.eq(charger_id))
             .count()
-            .get_result(conn)
-            .unwrap();
-
-        count
+            .get_result(&mut conn)
+            .await
+            .unwrap()
     }
 
-    fn get_wg_key_count(
-        charger_id: uuid::Uuid,
-        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    ) -> i64 {
+    async fn get_wg_key_count(charger_id: uuid::Uuid) -> i64 {
         use db_connector::schema::wg_keys::dsl as wg_keys;
 
-        let count: i64 = wg_keys::wg_keys
+        let pool = test_connection_pool();
+        let mut conn = pool.get().await.unwrap();
+        wg_keys::wg_keys
             .filter(wg_keys::charger_id.eq(charger_id))
             .count()
-            .get_result(conn)
-            .unwrap();
-
-        count
+            .get_result(&mut conn)
+            .await
+            .unwrap()
     }
 
     #[actix_web::test]
@@ -350,10 +330,8 @@ pub(crate) mod tests {
 
         let device_id = uuid::Uuid::from_str(&device.uuid).unwrap();
 
-        let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        assert_eq!(0, get_allowed_users_count(device_id, &mut conn));
-        assert_eq!(0, get_wg_key_count(device_id, &mut conn));
+        assert_eq!(0, get_allowed_users_count(device_id).await);
+        assert_eq!(0, get_wg_key_count(device_id).await);
     }
 
     #[actix_web::test]
@@ -388,10 +366,8 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        assert_eq!(1, get_allowed_users_count(device_id, &mut conn));
-        assert_eq!(5, get_wg_key_count(device_id, &mut conn));
+        assert_eq!(1, get_allowed_users_count(device_id).await);
+        assert_eq!(5, get_wg_key_count(device_id).await);
     }
 
     #[actix_web::test]
@@ -431,10 +407,8 @@ pub(crate) mod tests {
         assert!(resp.status().is_success());
 
         let device_id = uuid::Uuid::from_str(&device.uuid).unwrap();
-        let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        assert_eq!(1, get_allowed_users_count(device_id, &mut conn));
-        assert_eq!(5, get_wg_key_count(device_id, &mut conn));
+        assert_eq!(1, get_allowed_users_count(device_id).await);
+        assert_eq!(5, get_wg_key_count(device_id).await);
     }
 
     #[actix_web::test]

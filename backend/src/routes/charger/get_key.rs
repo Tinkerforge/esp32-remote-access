@@ -19,7 +19,10 @@
 
 use actix_web::{get, web, HttpResponse, Responder};
 use db_connector::models::wg_keys::WgKey;
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{
+    result::Error::NotFound, BelongingToDsl, ExpressionMethods, QueryDsl, SelectableHelper,
+};
+use diesel_async::RunQueryDsl as _;
 use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
@@ -27,7 +30,7 @@ use utoipa::{IntoParams, ToSchema};
 use crate::{
     error::Error,
     routes::user::get_user,
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid},
     AppState,
 };
 
@@ -76,22 +79,20 @@ pub async fn get_key(
     let user = get_user(&state, uid.into()).await?;
     let cid = parse_uuid(&web_query.cid)?;
 
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
     let keys_in_use_count = {
         let keys_in_use_cache = state.keys_in_use.lock().await;
 
-        let device_key_ids: Vec<uuid::Uuid> = web_block_unpacked(move || {
-            match wg_keys
-                .filter(charger_id.eq(&cid))
-                .select(WgKey::as_select())
-                .load(&mut conn)
-            {
-                Ok(keys) => Ok(keys.into_iter().map(|k| k.id).collect()),
-                Err(NotFound) => Ok(Vec::new()),
-                Err(_err) => Err(Error::InternalError),
-            }
-        })
-        .await?;
+        let device_key_ids: Vec<uuid::Uuid> = match wg_keys
+            .filter(charger_id.eq(&cid))
+            .select(WgKey::as_select())
+            .load::<WgKey>(&mut conn)
+            .await
+        {
+            Ok(keys) => keys.into_iter().map(|k| k.id).collect(),
+            Err(NotFound) => Vec::new(),
+            Err(_err) => return Err(Error::InternalError.into()),
+        };
 
         device_key_ids
             .into_iter()
@@ -103,20 +104,18 @@ pub async fn get_key(
         return Err(Error::AllKeysInUse.into());
     }
 
-    let mut conn = get_connection(&state)?;
-    let key: Option<WgKey> = web_block_unpacked(move || {
-        match WgKey::belonging_to(&user)
-            .filter(charger_id.eq(&cid))
-            .filter(id.ne_all(keys_in_use_count))
-            .select(WgKey::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(v) => Ok(Some(v)),
-            Err(NotFound) => Ok(None),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let mut conn = get_connection(&state).await?;
+    let key: Option<WgKey> = match WgKey::belonging_to(&user)
+        .filter(charger_id.eq(&cid))
+        .filter(id.ne_all(keys_in_use_count))
+        .select(WgKey::as_select())
+        .get_result::<WgKey>(&mut conn)
+        .await
+    {
+        Ok(v) => Some(v),
+        Err(NotFound) => None,
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
     if let Some(key) = key {
         let key = GetWgKeysResponseSchema {

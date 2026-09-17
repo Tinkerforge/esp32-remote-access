@@ -21,13 +21,14 @@ use crate::{
     branding,
     error::Error,
     routes::auth::VERIFICATION_EXPIRATION_DAYS,
-    utils::{get_connection, send_email, web_block_unpacked},
+    utils::{get_connection, send_email},
     AppState,
 };
 use actix_web::{error::ErrorConflict, put, web, HttpResponse, Responder};
 use askama::Template;
 use db_connector::models::users::User;
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
@@ -57,41 +58,39 @@ fn send_email_change_notification(
     lang: String,
     state: web::Data<AppState>,
 ) {
-    std::thread::spawn(move || {
-        let (body, subject) = match lang.as_str() {
-            "de" => {
-                let template = EmailChangeNotificationDe {
-                    name: name.to_string(),
-                    sender_email: state.sender_email.clone(),
-                    brand: state.brand,
-                };
-                match template.render() {
-                    Ok(body) => (body, "E-Mail-Adresse geändert"),
-                    Err(e) => {
-                        log::error!("Failed to render German email change notification template for user '{name}': {e}");
-                        return;
-                    }
+    let (body, subject) = match lang.as_str() {
+        "de" => {
+            let template = EmailChangeNotificationDe {
+                name: name.to_string(),
+                sender_email: state.sender_email.clone(),
+                brand: state.brand,
+            };
+            match template.render() {
+                Ok(body) => (body, "E-Mail-Adresse geändert"),
+                Err(e) => {
+                    log::error!("Failed to render German email change notification template for user '{name}': {e}");
+                    return;
                 }
             }
-            _ => {
-                let template = EmailChangeNotificationEn {
-                    name: name.to_string(),
-                    sender_email: state.sender_email.clone(),
-                    brand: state.brand,
-                };
-                match template.render() {
-                    Ok(body) => (body, "Email address changed"),
-                    Err(e) => {
-                        log::error!("Failed to render English email change notification template for user '{name}': {e}");
-                        return;
-                    }
+        }
+        _ => {
+            let template = EmailChangeNotificationEn {
+                name: name.to_string(),
+                sender_email: state.sender_email.clone(),
+                brand: state.brand,
+            };
+            match template.render() {
+                Ok(body) => (body, "Email address changed"),
+                Err(e) => {
+                    log::error!("Failed to render English email change notification template for user '{name}': {e}");
+                    return;
                 }
             }
-        };
+        }
+    };
 
-        log::info!("Sending email change notification to '{old_email}' for user '{name}'");
-        send_email(&old_email, subject, body, &state);
-    });
+    log::info!("Sending email change notification to '{old_email}' for user '{name}'");
+    send_email(&old_email, subject, body, &state);
 }
 
 #[allow(unused)]
@@ -102,49 +101,47 @@ fn send_verification_mail(
     state: web::Data<AppState>,
     verification_id: uuid::Uuid,
 ) {
-    std::thread::spawn(move || {
-        let (body, subject) = match lang.as_str() {
-            "de" => {
-                let template = crate::routes::auth::register::VerifyEmailDETemplate {
-                    name: &name,
-                    link: &format!(
-                        "{}/api/auth/verify?id={}",
-                        state.frontend_url, verification_id
-                    ),
-                    brand: state.brand,
-                };
-                match template.render() {
-                    Ok(body) => (body, "E-Mail-Adresse bestätigen"),
-                    Err(e) => {
-                        log::error!(
+    let (body, subject) = match lang.as_str() {
+        "de" => {
+            let template = crate::routes::auth::register::VerifyEmailDETemplate {
+                name: &name,
+                link: &format!(
+                    "{}/api/auth/verify?id={}",
+                    state.frontend_url, verification_id
+                ),
+                brand: state.brand,
+            };
+            match template.render() {
+                Ok(body) => (body, "E-Mail-Adresse bestätigen"),
+                Err(e) => {
+                    log::error!(
                             "Failed to render German verification email template for user '{name}': {e}"
                         );
-                        return;
-                    }
+                    return;
                 }
             }
-            _ => {
-                let template = crate::routes::auth::register::VerifyEmailENTemplate {
-                    name: &name,
-                    link: &format!(
-                        "{}/api/auth/verify?id={}",
-                        state.frontend_url, verification_id
-                    ),
-                    brand: state.brand,
-                };
-                match template.render() {
-                    Ok(body) => (body, "Verify email address"),
-                    Err(e) => {
-                        log::error!("Failed to render English verification email template for user '{name}': {e}");
-                        return;
-                    }
+        }
+        _ => {
+            let template = crate::routes::auth::register::VerifyEmailENTemplate {
+                name: &name,
+                link: &format!(
+                    "{}/api/auth/verify?id={}",
+                    state.frontend_url, verification_id
+                ),
+                brand: state.brand,
+            };
+            match template.render() {
+                Ok(body) => (body, "Verify email address"),
+                Err(e) => {
+                    log::error!("Failed to render English verification email template for user '{name}': {e}");
+                    return;
                 }
             }
-        };
+        }
+    };
 
-        log::info!("Sending verification email to '{email}' for user '{name}'");
-        send_email(&email, subject, body, &state);
-    });
+    log::info!("Sending verification email to '{email}' for user '{name}'");
+    send_email(&email, subject, body, &state);
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Validate, Clone)]
@@ -177,41 +174,34 @@ pub async fn update_user(
 
     let uid: uuid::Uuid = uid.into();
     let user_cpy = new_user.clone();
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
-        match users
-            .filter(email.eq(&user_cpy.email.to_lowercase()))
-            .select(User::as_select())
-            .get_result(&mut conn) as Result<User, diesel::result::Error>
-        {
-            Err(NotFound) => (),
-            Ok(u) => {
-                if u.id != uid {
-                    return Err(Error::UserAlreadyExists);
-                }
+    let mut conn = get_connection(&state).await?;
+    match users
+        .filter(email.eq(&user_cpy.email.to_lowercase()))
+        .select(User::as_select())
+        .get_result::<User>(&mut conn)
+        .await
+    {
+        Err(NotFound) => {}
+        Ok(u) => {
+            if u.id != uid {
+                return Err(Error::UserAlreadyExists.into());
             }
-            Err(_err) => return Err(Error::InternalError),
         }
+        Err(_err) => return Err(Error::InternalError.into()),
+    }
 
-        Ok(())
-    })
-    .await?;
+    let mut conn = get_connection(&state).await?;
+    let old_user: User = match users
+        .find::<uuid::Uuid>(uid)
+        .select(User::as_select())
+        .get_result::<User>(&mut conn)
+        .await
+    {
+        Ok(u) => u,
+        Err(NotFound) => return Err(Error::Unauthorized.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
-    let mut conn = get_connection(&state)?;
-    let old_user: User = web_block_unpacked(move || {
-        match users
-            .find::<uuid::Uuid>(uid)
-            .select(User::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(u) => Ok(u),
-            Err(NotFound) => Err(Error::Unauthorized),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
-
-    let mut conn = get_connection(&state)?;
     // Only set up verification if email changed
     let exp = if new_user.email != old_user.email {
         if old_user.old_email.is_some() {
@@ -229,60 +219,75 @@ pub async fn update_user(
         None
     };
 
-    web_block_unpacked(move || {
-        // Update user fields
-        match diesel::update(users.find::<uuid::Uuid>(uid))
-            .set((
-                name.eq(&new_user.name),
-                email.eq(&new_user.email.to_lowercase()),
-                delivery_email.eq(&new_user.email),
-                email_verified.eq(new_user.email == old_user.email),
-                old_email.eq(&old_user.email),
-                old_delivery_email.eq(&old_user.delivery_email),
-            ))
+    let mut conn = get_connection(&state).await?;
+    #[cfg(not(test))]
+    let runtime_handle = tokio::runtime::Handle::current();
+
+    // Update user fields
+    match diesel::update(users.find::<uuid::Uuid>(uid))
+        .set((
+            name.eq(&new_user.name),
+            email.eq(&new_user.email.to_lowercase()),
+            delivery_email.eq(&new_user.email),
+            email_verified.eq(new_user.email == old_user.email),
+            old_email.eq(&old_user.email),
+            old_delivery_email.eq(&old_user.delivery_email),
+        ))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => {}
+        Err(NotFound) => return Err(Error::Unauthorized.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    }
+
+    if let Some(exp) = exp {
+        use db_connector::schema::verification::dsl::*;
+
+        let verify = db_connector::models::verification::Verification {
+            id: uuid::Uuid::new_v4(),
+            user: uid,
+            expiration: exp,
+        };
+
+        // Insert verification record
+        diesel::insert_into(verification)
+            .values(&verify)
             .execute(&mut conn)
+            .await
+            .map_err(|_| Error::InternalError)?;
+
+        #[cfg(not(test))]
         {
-            Ok(_) => (),
-            Err(NotFound) => return Err(Error::Unauthorized),
-            Err(_err) => return Err(Error::InternalError),
-        }
+            let verification_name = new_user.name.clone();
+            let verification_email = new_user.email.clone();
+            let old_user_name = old_user.name.clone();
+            let old_user_email = old_user
+                .delivery_email
+                .clone()
+                .unwrap_or_else(|| old_user.email.clone());
+            let verification_state = state.clone();
+            let notification_state = state.clone();
+            let verification_lang: String = lang.into();
+            let notification_lang = verification_lang.clone();
 
-        if let Some(exp) = exp {
-            use db_connector::schema::verification::dsl::*;
-
-            let verify = db_connector::models::verification::Verification {
-                id: uuid::Uuid::new_v4(),
-                user: uid,
-                expiration: exp,
-            };
-
-            // Insert verification record
-            match diesel::insert_into(verification)
-                .values(&verify)
-                .execute(&mut conn)
-            {
-                Ok(_) => (),
-                Err(_err) => return Err(Error::InternalError),
-            }
-
-            #[cfg(not(test))]
-            {
-                let lang: String = lang.into();
+            drop(runtime_handle.spawn_blocking(move || {
                 send_verification_mail(
-                    new_user.name.clone(),
-                    new_user.email.clone(),
-                    lang.clone(),
-                    state.clone(),
+                    verification_name,
+                    verification_email,
+                    verification_lang,
+                    verification_state,
                     verify.id,
                 );
-                let old_user_email = old_user.delivery_email.unwrap_or(old_user.email);
-                send_email_change_notification(old_user.name, old_user_email, lang, state);
-            }
+                send_email_change_notification(
+                    old_user_name,
+                    old_user_email,
+                    notification_lang,
+                    notification_state,
+                );
+            }));
         }
-
-        Ok(())
-    })
-    .await?;
+    }
 
     Ok(HttpResponse::Ok())
 }
@@ -291,7 +296,7 @@ pub async fn update_user(
 pub mod tests {
     use super::*;
     use crate::{
-        defer,
+        defer_async,
         routes::{
             auth::{
                 login::tests::verify_and_login_user,
@@ -303,6 +308,7 @@ pub mod tests {
     };
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::test_connection_pool;
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     pub async fn update_test_user(token: String, update: UpdateUserSchema) {
         let app = App::new()
@@ -323,10 +329,17 @@ pub mod tests {
     #[actix_web::test]
     async fn test_update_email() {
         let mail = "update_mail@test.invalid";
+        let mail_owned = mail.to_string();
         let key = create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!({
+            let inner_mail = mail_owned.clone();
+            async move { delete_user(&inner_mail).await }
+        });
         let update_mail = format!("t{mail}");
-        defer!(delete_user(&update_mail));
+        defer_async!({
+            let inner_mail = update_mail.clone();
+            async move { delete_user(&inner_mail).await }
+        });
 
         let app = App::new()
             .configure(configure)
@@ -334,13 +347,12 @@ pub mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let user = get_test_user(mail);
-        let mut user = user;
+        let user = get_test_user(mail).await;
         let old_user = user.clone();
-        user.email = update_mail.clone();
+        let new_email = update_mail.clone();
         let user_schema = UpdateUserSchema {
-            name: user.name,
-            email: user.email,
+            name: user.name.clone(),
+            email: new_email.clone(),
         };
 
         let (token, _) = verify_and_login_user(mail, key).await;
@@ -353,23 +365,23 @@ pub mod tests {
         assert!(resp.status().is_success());
 
         // Check that email_verified is false after email change
-        let updated_user = get_test_user(&update_mail);
+        let updated_user = get_test_user(&update_mail).await;
         assert!(!updated_user.email_verified);
         assert_eq!(old_user.email, updated_user.old_email.unwrap());
         assert_eq!(old_user.delivery_email, updated_user.old_delivery_email);
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        {
-            // Check that verification record was created
-            use db_connector::schema::verification::dsl::*;
-            let verify_record = verification
-                .filter(user.eq(updated_user.id))
-                .select(db_connector::models::verification::Verification::as_select())
-                .get_result(&mut conn)
-                .unwrap();
-            assert!(verify_record.expiration > chrono::Utc::now().naive_utc());
-        }
+        let mut conn = pool.get().await.unwrap();
+        let user_id = updated_user.id;
+        // Check that verification record was created
+        use db_connector::schema::verification::dsl as verification_dsl;
+        let verify_record = verification_dsl::verification
+            .filter(verification_dsl::user.eq(user_id))
+            .select(db_connector::models::verification::Verification::as_select())
+            .get_result::<db_connector::models::verification::Verification>(&mut conn)
+            .await
+            .unwrap();
+        assert!(verify_record.expiration > chrono::Utc::now().naive_utc());
     }
 
     #[actix_web::test]
@@ -383,7 +395,7 @@ pub mod tests {
             .wrap(crate::middleware::jwt::JwtMiddleware);
         let app = test::init_service(app).await;
 
-        let user = get_test_user(&mail);
+        let user = get_test_user(&mail).await;
         let mut user = user;
         user.email = mail2;
         let user = UpdateUserSchema {
@@ -412,7 +424,7 @@ pub mod tests {
         let app = test::init_service(app).await;
 
         // Get current user and change only name
-        let db_user = get_test_user(&mail);
+        let db_user = get_test_user(&mail).await;
         let update = UpdateUserSchema {
             name: "New Name".to_string(),
             email: db_user.email.clone(),
@@ -427,21 +439,21 @@ pub mod tests {
         assert!(resp.status().is_success());
 
         // Check that email_verified is still true
-        let updated_user = get_test_user(&mail);
+        let updated_user = get_test_user(&mail).await;
         assert!(updated_user.email_verified);
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        {
-            // Verify no verification record was created
-            use db_connector::schema::verification::dsl::*;
-            let verify_records = verification
-                .filter(user.eq(updated_user.id))
-                .select(db_connector::models::verification::Verification::as_select())
-                .load::<db_connector::models::verification::Verification>(&mut conn)
-                .unwrap();
-            assert!(verify_records.is_empty());
-        }
+        let mut conn = pool.get().await.unwrap();
+        let user_id = updated_user.id;
+        // Verify no verification record was created
+        use db_connector::schema::verification::dsl as verification_dsl;
+        let verify_records = verification_dsl::verification
+            .filter(verification_dsl::user.eq(user_id))
+            .select(db_connector::models::verification::Verification::as_select())
+            .load::<db_connector::models::verification::Verification>(&mut conn)
+            .await
+            .unwrap();
+        assert!(verify_records.is_empty());
     }
 
     #[actix_web::test]
@@ -456,14 +468,17 @@ pub mod tests {
         let app = test::init_service(app).await;
 
         // Get current user and change email first time
-        let db_user = get_test_user(&mail);
+        let db_user = get_test_user(&mail).await;
         let new_email = format!("changed_{mail}");
         let update = UpdateUserSchema {
             name: db_user.name.clone(),
             email: new_email.clone(),
         };
 
-        defer!(delete_user(&new_email));
+        defer_async!({
+            let inner_email = new_email;
+            async move { delete_user(&inner_email).await }
+        });
 
         let req = test::TestRequest::put()
             .uri("/update_user")

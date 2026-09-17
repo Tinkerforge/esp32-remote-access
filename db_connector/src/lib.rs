@@ -1,46 +1,71 @@
-use diesel::{pg::Pg, PgConnection};
+use diesel::{Connection, PgConnection};
+use diesel_async::{
+    pooled_connection::{
+        deadpool::{Pool as DieselPool, PoolBuilder},
+        AsyncDieselConnectionManager,
+    },
+    AsyncPgConnection,
+};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
 pub mod models;
 pub mod schema;
 
-#[cfg(test)]
-use diesel::migration::MigrationSource;
-
-pub type Pool = diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
+pub type Pool = DieselPool<AsyncPgConnection>;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-pub fn run_migrations(
-    connection: &mut impl MigrationHarness<Pg>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    connection.run_pending_migrations(MIGRATIONS)?;
-
+/// Run all pending Diesel migrations.
+///
+/// `diesel-async`'s `AsyncMigrationHarness` internally calls
+/// `tokio::task::block_in_place`, which panics on a current-thread tokio
+/// runtime such as the one `actix-rt` uses in debug mode. We sidestep
+/// that by opening a sync `PgConnection` on a blocking thread, where
+/// `diesel_migrations::MigrationHarness` works as a regular synchronous
+/// call.
+pub async fn run_migrations() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    tokio::task::spawn_blocking(
+        move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            let mut conn = PgConnection::establish(&url)?;
+            conn.run_pending_migrations(MIGRATIONS)?;
+            Ok(())
+        },
+    )
+    .await??;
     Ok(())
 }
 
 /**
- * Create db connection pool
+ * Create a `diesel-async` connection pool.
  */
 pub fn get_connection_pool() -> Pool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(url);
-    Pool::builder()
-        .max_size(90)
-        .test_on_check_out(true)
-        .build(manager)
-        .expect("Could not build connection pool")
+    let manager = AsyncDieselConnectionManager::<AsyncPgConnection>::new(url);
+    build_pool(manager, 90)
 }
 
 pub fn test_connection_pool() -> Pool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(url);
-    Pool::builder()
-        .test_on_check_out(true)
-        .max_size(1)
-        .build(manager)
+    let manager = AsyncDieselConnectionManager::<AsyncPgConnection>::new(url);
+
+    // Async query handles stay alive until their lexical scope ends. Tests
+    // commonly perform a query and then acquire another handle in the same
+    // handler, so a single-connection pool deadlocks instead of allowing the
+    // first handle to be released at the shadowing point.
+    build_pool(manager, 10)
+}
+
+fn build_pool(
+    manager: AsyncDieselConnectionManager<AsyncPgConnection>,
+    max_size: usize,
+) -> Pool {
+    let builder: PoolBuilder<AsyncPgConnection> = DieselPool::builder(manager);
+    builder
+        .max_size(max_size)
+        .build()
         .expect("Could not build connection pool")
 }
 
@@ -53,12 +78,19 @@ mod tests {
     //! so the test does not depend on the migration having been recorded
     //! as "applied" in `__diesel_schema_migrations`.
 
-    use super::*;
-    use diesel::prelude::*;
+    use diesel::{
+        connection::SimpleConnection, migration::MigrationSource, Connection, ExpressionMethods,
+        OptionalExtension, QueryDsl, PgConnection, RunQueryDsl,
+    };
 
-    /// Build a charger row using only the fields the data migration
-    /// actually touches (the migration only reads/updates `uid`, so
-    /// the other columns can take any values that satisfy NOT NULL).
+    use super::*;
+
+    /// `diesel-async`'s `AsyncMigrationHarness` only operates on async
+    /// connections, but several test helpers below still need a synchronous
+    /// `PgConnection` to execute the migration under test (which uses
+    /// `diesel_migrations::MigrationHarness` synchronously) and to insert
+    /// the fixture rows with `diesel` macros. We open a separate
+    /// synchronous connection for that side of the test body.
     fn insert_test_charger(
         conn: &mut PgConnection,
         charger_id: uuid::Uuid,
@@ -125,10 +157,7 @@ mod tests {
             .expect("insert test allowed_user");
     }
 
-    fn allowed_user_uid(
-        conn: &mut PgConnection,
-        allowed_id: uuid::Uuid,
-    ) -> Option<i32> {
+    fn allowed_user_uid(conn: &mut PgConnection, allowed_id: uuid::Uuid) -> Option<i32> {
         use crate::schema::allowed_users::dsl as a;
         a::allowed_users
             .filter(a::id.eq(allowed_id))
@@ -166,8 +195,7 @@ mod tests {
         use crate::schema::allowed_users::dsl as a;
         use crate::schema::chargers::dsl as c;
         // allowed_users has a FK to chargers, so delete allowed_users first.
-        let _ = diesel::delete(a::allowed_users.filter(a::charger_id.eq(charger_id)))
-            .execute(conn);
+        let _ = diesel::delete(a::allowed_users.filter(a::charger_id.eq(charger_id))).execute(conn);
         diesel::delete(c::chargers.filter(c::id.eq(charger_id)))
             .execute(conn)
             .expect("delete test charger");
@@ -178,7 +206,6 @@ mod tests {
     /// applied in `__diesel_schema_migrations` after the CI step
     /// `diesel migration run`; we only want to exercise the SQL.
     fn run_migration_sql(conn: &mut PgConnection, sql: &str) {
-        use diesel::connection::SimpleConnection;
         conn.batch_execute(sql).expect("migration SQL");
     }
 
@@ -196,7 +223,9 @@ mod tests {
         let new_idx = all
             .iter()
             .position(|m| m.name().to_string().contains(new_migration_name_substr))
-            .unwrap_or_else(|| panic!("could not find migration containing {new_migration_name_substr:?}"));
+            .unwrap_or_else(|| {
+                panic!("could not find migration containing {new_migration_name_substr:?}")
+            });
 
         // Drop test data first to avoid FK violations. Delete children
         // before their parents: device_grouping_members and allowed_users
@@ -239,7 +268,9 @@ mod tests {
         let new_idx = all
             .iter()
             .position(|m| m.name().to_string().contains(new_migration_name_substr))
-            .unwrap_or_else(|| panic!("could not find migration containing {new_migration_name_substr:?}"));
+            .unwrap_or_else(|| {
+                panic!("could not find migration containing {new_migration_name_substr:?}")
+            });
 
         // Everything from new_idx onward is currently un-applied; re-apply
         // them. This includes the new migration (whose down.sql is a
@@ -248,9 +279,8 @@ mod tests {
             .expect("re-apply post migrations");
     }
 
-    const MIGRATION_SQL: &str = include_str!(
-        "../migrations/2026-08-11-122701_reparse_misdecoded_zbase32_uids/up.sql"
-    );
+    const MIGRATION_SQL: &str =
+        include_str!("../migrations/2026-08-11-122701_reparse_misdecoded_zbase32_uids/up.sql");
 
     /// A UID whose z-base-32 string has a bs58-decoded value that fits in
     /// 32 bits. We can round-trip the original (mis-decoded) string
@@ -275,10 +305,13 @@ mod tests {
     /// rejects (the original was a pure Flickr-base58 input).
     const BASE58_INTACT_TRUE_UID: i32 = 100_000;
 
-    #[test]
-    fn reparse_misdecoded_zbase32_uids_migration() {
+    #[tokio::test]
+    async fn reparse_misdecoded_zbase32_uids_migration() {
         let pool = test_connection_pool();
-        let mut conn = pool.get().expect("connection");
+        let mut async_conn = pool.get().await.expect("connection");
+
+        let db_url = dotenvy::var("DATABASE_URL").expect("DATABASE_URL");
+        let mut conn = diesel::PgConnection::establish(&db_url).expect("sync connection");
 
         // Set up the schema as it existed just before the new migration
         // ran, so the migration's WHERE clause (`uid > 257899`) applies
@@ -303,11 +336,17 @@ mod tests {
             RECOVERABLE_MISDECODED_UID,
             "pub-a",
             "10.1.0.1/24",
-            "10.1.0.2/24",
+            "10.2.0.2/24",
             "",
         );
         let allowed_a = uuid::Uuid::new_v4();
-        insert_test_allowed_user(&mut conn, allowed_a, user_a, charger_a, RECOVERABLE_MISDECODED_UID);
+        insert_test_allowed_user(
+            &mut conn,
+            allowed_a,
+            user_a,
+            charger_a,
+            RECOVERABLE_MISDECODED_UID,
+        );
 
         let charger_b = uuid::Uuid::new_v4(); // lossy z-base-32, should remain unchanged
         insert_test_charger(
@@ -320,7 +359,13 @@ mod tests {
             "",
         );
         let allowed_b = uuid::Uuid::new_v4();
-        insert_test_allowed_user(&mut conn, allowed_b, user_b, charger_b, LOSSY_MISDECODED_UID);
+        insert_test_allowed_user(
+            &mut conn,
+            allowed_b,
+            user_b,
+            charger_b,
+            LOSSY_MISDECODED_UID,
+        );
 
         let charger_c = uuid::Uuid::new_v4(); // pure base58, should remain unchanged
         insert_test_charger(
@@ -333,7 +378,13 @@ mod tests {
             "",
         );
         let allowed_c = uuid::Uuid::new_v4();
-        insert_test_allowed_user(&mut conn, allowed_c, user_c, charger_c, BASE58_INTACT_TRUE_UID);
+        insert_test_allowed_user(
+            &mut conn,
+            allowed_c,
+            user_c,
+            charger_c,
+            BASE58_INTACT_TRUE_UID,
+        );
 
         // A charger below the threshold should be ignored entirely.
         let charger_low = uuid::Uuid::new_v4();
@@ -362,6 +413,14 @@ mod tests {
 
         // Run the migration.
         run_migration_sql(&mut conn, MIGRATION_SQL);
+
+        // Sanity check: also pin one async query so async_conn is used.
+        let _ = diesel_async::RunQueryDsl::get_result::<i64>(
+            crate::schema::chargers::table.count(),
+            &mut async_conn,
+        )
+        .await
+        .expect("async count");
 
         // Assertions.
         assert_eq!(
@@ -414,7 +473,10 @@ mod tests {
         // idempotent because once the uid is the true value, the
         // recovered string no longer differs from the stored value.)
         run_migration_sql(&mut conn, MIGRATION_SQL);
-        assert_eq!(charger_uid(&mut conn, charger_a), Some(RECOVERABLE_TRUE_UID));
+        assert_eq!(
+            charger_uid(&mut conn, charger_a),
+            Some(RECOVERABLE_TRUE_UID)
+        );
 
         // Cleanup.
         delete_test_charger(&mut conn, charger_a);

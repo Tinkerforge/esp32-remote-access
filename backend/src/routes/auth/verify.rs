@@ -26,7 +26,8 @@ use actix_web::{
     Responder,
 };
 use db_connector::models::verification::Verification;
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::Deserialize;
 use utoipa::IntoParams;
 
@@ -54,61 +55,43 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
     use db_connector::schema::users::dsl::*;
     use db_connector::schema::verification::dsl::*;
 
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
 
     let verify_id = match uuid::Uuid::from_str(&ver.id) {
         Ok(verify_id) => verify_id,
         Err(err) => return Err(ErrorBadRequest(err)),
     };
 
-    let result = match web::block(move || {
-        verification
-            .filter(db_connector::schema::verification::id.eq(verify_id))
-            .select(Verification::as_select())
-            .get_result(&mut conn)
-    })
-    .await
+    let verify: Verification = verification
+        .filter(db_connector::schema::verification::id.eq(verify_id))
+        .select(Verification::as_select())
+        .get_result::<Verification>(&mut conn)
+        .await
+        .map_err(|err| match err {
+            diesel::result::Error::NotFound => Error::InternalError,
+            _ => Error::InternalError,
+        })
+        .map_err(|_| ErrorBadRequest("Account was already verified or does not exist"))?;
+
+    let mut conn = get_connection(&state).await?;
+
+    if let Err(_err) = diesel::update(users.find(verify.user))
+        .set((
+            email_verified.eq(true),
+            old_email.eq::<Option<String>>(None),
+            old_delivery_email.eq::<Option<String>>(None),
+        ))
+        .execute(&mut conn)
+        .await
     {
-        Ok(result) => result,
-        Err(_err) => return Err(Error::InternalError.into()),
-    };
+        return Err(Error::InternalError.into());
+    }
 
-    let verify: Verification = match result {
-        Ok(verify) => verify,
-        Err(_err) => {
-            return Err(ErrorBadRequest(
-                "Account was already verified or does not exist",
-            ))
-        }
-    };
-
-    let mut conn = get_connection(&state)?;
-
-    match web::block(move || {
-        if let Err(_err) = diesel::update(users.find(verify.user))
-            .set((
-                email_verified.eq(true),
-                old_email.eq::<Option<String>>(None),
-                old_delivery_email.eq::<Option<String>>(None),
-            ))
-            .execute(&mut conn)
-        {
-            return Err(Error::InternalError);
-        }
-
-        if let Err(_err) = diesel::delete(verification.find(verify.id)).execute(&mut conn) {
-            return Err(Error::InternalError);
-        }
-
-        Ok(())
-    })
-    .await
+    if let Err(_err) = diesel::delete(verification.find(verify.id))
+        .execute(&mut conn)
+        .await
     {
-        Ok(res) => match res {
-            Ok(()) => (),
-            Err(err) => return Err(err.into()),
-        },
-        Err(_) => return Err(Error::InternalError.into()),
+        return Err(Error::InternalError.into());
     }
 
     Ok(Redirect::to(format!(
@@ -121,15 +104,11 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
 pub(crate) mod tests {
     use actix_web::{test, App};
     use db_connector::models::{users::User, verification::Verification};
-    use diesel::{
-        prelude::*,
-        r2d2::{ConnectionManager, PooledConnection},
-        result::Error::NotFound,
-        PgConnection, SelectableHelper,
-    };
+    use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::{AsyncPgConnection, RunQueryDsl as _AsyncRunQueryDsl};
 
     use crate::{
-        defer,
+        defer_async,
         routes::{
             auth::register::tests::{create_user, delete_user},
             user::{me::tests::get_test_user, tests::TestUser},
@@ -137,26 +116,30 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn fast_verify(mail: &str) {
-        use db_connector::schema::users::dsl::*;
-        use db_connector::schema::verification::dsl::verification;
-
+    pub async fn fast_verify(mail: &str) {
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        let verify = get_verify_id(&mut conn, mail);
-        diesel::delete(verification.find(verify))
-            .execute(&mut conn)
-            .unwrap();
-        diesel::update(users.filter(email.eq(mail)))
-            .set(email_verified.eq(true))
-            .execute(&mut conn)
-            .unwrap();
+        let mut conn = pool.get().await.unwrap();
+        let mail_owned = mail.to_string();
+        {
+            use db_connector::schema::users::dsl::*;
+            use db_connector::schema::verification::dsl::verification;
+
+            // Keep the lookup and updates on the same connection so this
+            // helper remains atomic and does not depend on pool capacity.
+            let verify_id = get_verify_id(&mut conn, &mail_owned).await;
+            diesel::delete(verification.find(verify_id))
+                .execute(&mut conn)
+                .await
+                .unwrap();
+            diesel::update(users.filter(email.eq(&mail_owned)))
+                .set(email_verified.eq(true))
+                .execute(&mut conn)
+                .await
+                .unwrap();
+        }
     }
 
-    fn get_verify_id(
-        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-        mail: &str,
-    ) -> uuid::Uuid {
+    async fn get_verify_id(conn: &mut AsyncPgConnection, mail: &str) -> uuid::Uuid {
         use db_connector::schema::users::dsl::{email, users};
         use db_connector::schema::verification::dsl::*;
 
@@ -166,26 +149,26 @@ pub(crate) mod tests {
             .filter(email.eq(mail))
             .select(User::as_select())
             .get_result(conn)
+            .await
             .unwrap();
         let verify: Verification = verification
             .filter(user.eq(u.id))
             .select(Verification::as_select())
             .get_result(conn)
+            .await
             .unwrap();
 
         verify.id
     }
 
-    fn check_for_verify(
-        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-        verify: &uuid::Uuid,
-    ) -> bool {
+    async fn check_for_verify(conn: &mut AsyncPgConnection, verify: &uuid::Uuid) -> bool {
         use db_connector::schema::verification::dsl::*;
 
         match verification
             .find(verify)
             .select(Verification::as_select())
-            .get_result(conn)
+            .get_result::<Verification>(conn)
+            .await
         {
             Ok(_) => true,
             Err(NotFound) => false,
@@ -197,11 +180,14 @@ pub(crate) mod tests {
     async fn test_valid_verify() {
         let mail = "valid_verify@test.invalid";
         create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!(delete_user(mail));
 
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        let verify_id = get_verify_id(&mut conn, mail);
+        let verify_id = {
+            let mut conn = pool.get().await.unwrap();
+            let mail_owned = mail.to_string();
+            get_verify_id(&mut conn, &mail_owned).await
+        };
 
         let app = App::new().configure(configure).service(super::verify);
         let app = test::init_service(app).await;
@@ -214,18 +200,22 @@ pub(crate) mod tests {
 
         println!("{}", resp.status());
         assert!(resp.status().is_redirection());
-        assert!(!check_for_verify(&mut conn, &verify_id));
+        let mut conn = pool.get().await.unwrap();
+        assert!(!check_for_verify(&mut conn, &verify_id).await);
     }
 
     #[actix_web::test]
     async fn test_invalid_verify() {
         let mail = "invalid_verify@test.invalid";
         create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!(delete_user(mail));
 
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        let verify_id = get_verify_id(&mut conn, mail);
+        let verify_id = {
+            let mut conn = pool.get().await.unwrap();
+            let mail_owned = mail.to_string();
+            get_verify_id(&mut conn, &mail_owned).await
+        };
 
         let app = App::new().configure(configure).service(super::verify);
         let app = test::init_service(app).await;
@@ -237,18 +227,22 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert!(check_for_verify(&mut conn, &verify_id));
+        let mut conn = pool.get().await.unwrap();
+        assert!(check_for_verify(&mut conn, &verify_id).await);
     }
 
     #[actix_web::test]
     async fn test_no_verify() {
         let mail = "no_verify@test.invalid";
         create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!(delete_user(mail));
 
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        let verify_id = get_verify_id(&mut conn, mail);
+        let verify_id = {
+            let mut conn = pool.get().await.unwrap();
+            let mail_owned = mail.to_string();
+            get_verify_id(&mut conn, &mail_owned).await
+        };
 
         let app = App::new().configure(configure).service(super::verify);
         let app = test::init_service(app).await;
@@ -260,14 +254,15 @@ pub(crate) mod tests {
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert!(check_for_verify(&mut conn, &verify_id));
+        let mut conn = pool.get().await.unwrap();
+        assert!(check_for_verify(&mut conn, &verify_id).await);
 
         let req = test::TestRequest::get().uri("/verify?").to_request();
 
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
-        assert!(check_for_verify(&mut conn, &verify_id));
+        assert!(check_for_verify(&mut conn, &verify_id).await);
     }
 
     #[actix_web::test]
@@ -277,31 +272,40 @@ pub(crate) mod tests {
 
         let changed_mail = format!("changed_{mail}");
         let changed_mail_cpy = changed_mail.clone();
-        defer!(delete_user(&changed_mail_cpy));
+        defer_async!({
+            let inner_mail = changed_mail_cpy;
+            async move { delete_user(&inner_mail).await }
+        });
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
         {
+            let mut conn = pool.get().await.unwrap();
+            let mail_owned = mail.clone();
+            let changed_owned = changed_mail.clone();
             use db_connector::schema::users::dsl::*;
 
-            diesel::update(users.filter(email.eq(&mail)))
+            diesel::update(users.filter(email.eq(&mail_owned)))
                 .set((
-                    old_email.eq(Some(&mail)),
-                    old_delivery_email.eq(Some(&mail)),
+                    old_email.eq(Some(&mail_owned)),
+                    old_delivery_email.eq(Some(&mail_owned)),
                     email_verified.eq(false),
-                    email.eq(&changed_mail),
-                    delivery_email.eq(&changed_mail),
+                    email.eq(&changed_owned),
+                    delivery_email.eq(&changed_owned),
                 ))
                 .execute(&mut conn)
+                .await
                 .unwrap();
         }
 
         let verify = {
+            let user_uuid = get_test_user(&changed_mail).await.id;
+            let mut conn = pool.get().await.unwrap();
             use db_connector::schema::verification::dsl::*;
 
-            let verify = Verification::new(get_test_user(&changed_mail).id);
+            let verify = Verification::new(user_uuid);
             diesel::insert_into(verification)
                 .values(&verify)
                 .execute(&mut conn)
+                .await
                 .unwrap();
             verify
         };
@@ -317,18 +321,22 @@ pub(crate) mod tests {
         assert!(resp.status().is_redirection());
 
         {
+            let mut conn = pool.get().await.unwrap();
+            let changed_owned = changed_mail.clone();
             use db_connector::schema::users::dsl::*;
 
             let u: User = users
-                .filter(email.eq(changed_mail))
+                .filter(email.eq(changed_owned))
                 .select(User::as_select())
                 .get_result(&mut conn)
+                .await
                 .unwrap();
             assert!(u.email_verified);
             assert_eq!(None, u.old_email);
             assert_eq!(None, u.old_delivery_email);
         }
 
-        assert!(!check_for_verify(&mut conn, &verify.id));
+        let mut conn = pool.get().await.unwrap();
+        assert!(!check_for_verify(&mut conn, &verify.id).await);
     }
 }

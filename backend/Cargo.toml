@@ -15,7 +15,7 @@ default = []
 pcap-logging = ["pcap-file"]
 
 [dependencies]
-actix-web = { version = "4.10.2", features = ["rustls-0_23", "compress-gzip", "compress-brotli"] }
+actix-web = { version = "4.15.0", features = ["rustls-0_23", "compress-gzip", "compress-brotli"] }
 #actix-web-validator = {git = "https://github.com/Tinkerforge/actix-web-validator", rev = "a001926b1a51ff07daa134abcc2d8855455f0604"}
 actix-web-validator = "7"
 actix = "0.13.3"
@@ -27,7 +27,8 @@ dotenvy = "0.15.7"
 db_connector = { path = "../db_connector" }
 serde = { version = "1.0.196", features = ["derive"] }
 argon2 = "0.5.3"
-diesel = { version = "2.3.9", features = ["postgres", "r2d2", "uuid", "network-address", "chrono"] }
+diesel = { version = "2.3.13", features = ["postgres", "uuid", "network-address", "chrono"] }
+diesel-async = { version = "0.7.4", default-features = false, features = ["postgres", "deadpool"] }
 uuid = { version = "1.7.0", features = ["v4"] }
 validator = { version = "0.20", features = ["derive"] }
 chrono = { version = "0.4.33", features = ["unstable-locales"] }
@@ -67,7 +68,9 @@ pcap-file = { version = "2.0.0", optional = true }
 
 [dev-dependencies]
 libsodium-sys-stable = "1.20.4"
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 
 [profile.release]
 opt-level = 3
-lto = true
+# lto = true
+debug = true

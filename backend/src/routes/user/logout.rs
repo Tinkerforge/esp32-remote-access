@@ -22,7 +22,8 @@ use actix_web::{
     get, web, HttpRequest, HttpResponse, Responder,
 };
 use db_connector::models::refresh_tokens::RefreshToken;
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, BelongingToDsl};
+use diesel_async::RunQueryDsl as _;
 use serde::Deserialize;
 use utoipa::IntoParams;
 
@@ -33,7 +34,7 @@ use crate::{
         auth::jwt_refresh::{delete_refresh_token, extract_token},
         user::get_user,
     },
-    utils::{get_connection, web_block_unpacked},
+    utils::get_connection,
     AppState,
 };
 
@@ -92,15 +93,15 @@ pub async fn delete_all_refresh_tokens(
 ) -> actix_web::Result<()> {
     let user = get_user(state, uid).await?;
 
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        match diesel::delete(RefreshToken::belonging_to(&user)).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(NotFound) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let mut conn = get_connection(state).await?;
+    match diesel::delete(RefreshToken::belonging_to(&user))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => {}
+        Err(NotFound) => {}
+        Err(_err) => return Err(Error::InternalError.into()),
+    }
 
     Ok(())
 }
@@ -113,7 +114,8 @@ mod tests {
         App,
     };
     use db_connector::{models::refresh_tokens::RefreshToken, test_connection_pool};
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     use crate::{
         middleware::jwt::JwtMiddleware,
@@ -123,18 +125,18 @@ mod tests {
 
     use super::logout;
 
-    fn get_tokens(mail: &str) -> Vec<RefreshToken> {
+    async fn get_tokens(mail: &str) -> Vec<RefreshToken> {
         use db_connector::schema::refresh_tokens::dsl::*;
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        let user = get_test_user(mail);
-        let tokens: Vec<RefreshToken> = refresh_tokens
-            .filter(user_id.eq(user.id))
+        let user = get_test_user(mail).await;
+        let uid = user.id;
+        let mut conn = pool.get().await.expect("Failed to get db connection");
+        refresh_tokens
+            .filter(user_id.eq(uid))
             .select(RefreshToken::as_select())
-            .load(&mut conn)
-            .expect("Failed to load refresh tokens");
-
-        tokens
+            .load::<RefreshToken>(&mut conn)
+            .await
+            .expect("Failed to load refresh tokens")
     }
 
     #[actix_web::test]
@@ -179,7 +181,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
 
-        assert_eq!(get_tokens(&mail).len(), 0);
+        assert_eq!(get_tokens(&mail).await.len(), 0);
     }
 
     #[actix_web::test]

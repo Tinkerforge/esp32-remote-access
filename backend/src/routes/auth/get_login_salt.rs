@@ -2,7 +2,8 @@ use std::sync::Mutex;
 
 use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use db_connector::models::users::User;
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use lru::LruCache;
 use serde::Deserialize;
 use utoipa::IntoParams;
@@ -10,7 +11,7 @@ use utoipa::IntoParams;
 use crate::{
     error::Error,
     rate_limit::LoginRateLimiter,
-    utils::{generate_random_bytes, get_connection, web_block_unpacked},
+    utils::{generate_random_bytes, get_connection},
     AppState,
 };
 
@@ -43,23 +44,21 @@ pub async fn get_login_salt(
     let mail = query.email.to_lowercase();
     rate_limiter.check(mail.clone(), &req)?;
 
-    let mut conn = get_connection(&state)?;
-    let salt: Vec<u8> = web_block_unpacked(move || {
-        match users
-            .filter(email.eq(&mail))
-            .select(User::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(user) => Ok(user.login_salt),
-            Err(NotFound) => Ok(cache
-                .lock()
-                .unwrap()
-                .get_or_insert(mail, generate_random_bytes)
-                .to_vec()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let mut conn = get_connection(&state).await?;
+    let salt: Vec<u8> = match users
+        .filter(email.eq(&mail))
+        .select(User::as_select())
+        .get_result(&mut conn)
+        .await
+    {
+        Ok(user) => user.login_salt,
+        Err(NotFound) => cache
+            .lock()
+            .unwrap()
+            .get_or_insert(mail, generate_random_bytes)
+            .to_vec(),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
     Ok(HttpResponse::Ok().json(salt))
 }
@@ -71,7 +70,8 @@ pub mod tests {
         App,
     };
     use db_connector::{models::users::User, test_connection_pool};
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     use crate::{routes::user::tests::TestUser, tests::configure};
 
@@ -110,12 +110,13 @@ pub mod tests {
         assert!(resp.status().is_success());
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         let user: User = users
             .filter(email.eq(mail))
             .select(User::as_select())
             .get_result(&mut conn)
+            .await
             .unwrap();
         let resp: Vec<u8> = test::read_body_json(resp).await;
         assert_eq!(user.login_salt, resp);

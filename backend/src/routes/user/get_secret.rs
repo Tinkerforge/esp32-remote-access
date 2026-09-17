@@ -1,14 +1,11 @@
 use actix_web::{get, web, HttpResponse, Responder};
 use db_connector::models::users::User;
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{
-    error::Error,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
-};
+use crate::{error::Error, utils::get_connection, AppState};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetSecretResponse {
@@ -36,25 +33,23 @@ pub async fn get_secret(
 ) -> actix_web::Result<impl Responder> {
     use db_connector::schema::users::dsl as users;
 
-    let mut conn = get_connection(&state)?;
-    let response: GetSecretResponse = web_block_unpacked(move || {
-        let uid: uuid::Uuid = uid.into();
-        let user: User = match users::users
-            .find(uid)
-            .select(User::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(user) => user,
-            Err(NotFound) => return Err(Error::UserDoesNotExist),
-            Err(_err) => return Err(Error::InternalError),
-        };
-        Ok(GetSecretResponse {
-            secret: user.secret,
-            secret_nonce: user.secret_nonce,
-            secret_salt: user.secret_salt,
-        })
-    })
-    .await?;
+    let mut conn = get_connection(&state).await?;
+    let uid: uuid::Uuid = uid.into();
+    let user: User = match users::users
+        .find(uid)
+        .select(User::as_select())
+        .get_result::<User>(&mut conn)
+        .await
+    {
+        Ok(user) => user,
+        Err(NotFound) => return Err(Error::UserDoesNotExist.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
+    let response = GetSecretResponse {
+        secret: user.secret,
+        secret_nonce: user.secret_nonce,
+        secret_salt: user.secret_salt,
+    };
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -76,7 +71,8 @@ pub mod tests {
         App,
     };
     use db_connector::{models::users::User, test_connection_pool};
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     pub async fn get_test_secret(access_token: &str) -> GetSecretResponse {
         let app = App::new()
@@ -115,12 +111,14 @@ pub mod tests {
         assert!(resp.status().is_success());
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
+        let mail_owned = mail.to_string();
         let user: User = users
-            .filter(email.eq(mail))
+            .filter(email.eq(mail_owned))
             .select(User::as_select())
-            .get_result(&mut conn)
-            .unwrap();
+            .get_result::<User>(&mut conn)
+            .await
+            .expect("get_result");
         let resp: GetSecretResponse = test::read_body_json(resp).await;
         assert_eq!(user.secret, resp.secret);
         assert_eq!(user.secret_salt, resp.secret_salt);
@@ -148,12 +146,14 @@ pub mod tests {
         assert!(resp.status().is_success());
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
+        let mail_owned = mail.to_string();
         let user: User = users
-            .filter(email.eq(mail))
+            .filter(email.eq(mail_owned))
             .select(User::as_select())
-            .get_result(&mut conn)
-            .unwrap();
+            .get_result::<User>(&mut conn)
+            .await
+            .expect("get_result");
         let resp: GetSecretResponse = test::read_body_json(resp).await;
         assert_eq!(user.secret, resp.secret);
         assert_eq!(user.secret_salt, resp.secret_salt);

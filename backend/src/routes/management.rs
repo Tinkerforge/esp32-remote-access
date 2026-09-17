@@ -24,7 +24,8 @@ use std::{
 
 use actix_web::{put, web, HttpRequest, HttpResponse, Responder};
 use db_connector::models::{allowed_users::AllowedUser, users::User};
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use ipnetwork::IpNetwork;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -36,7 +37,7 @@ use crate::{
     udp_server::management::RemoteConnMeta,
     utils::{
         get_charger_by_uid, get_charger_from_db, get_connection, parse_uuid,
-        update_charger_state_change, web_block_unpacked,
+        update_charger_state_change,
     },
     ws_udp_bridge::open_connection,
     AppState, BridgeState,
@@ -126,8 +127,6 @@ async fn update_configured_users(
         // Get uuids of configured users on wallbox
         let mut configured_users: Vec<uuid::Uuid> = Vec::new();
         for user in data.configured_users.iter() {
-            use db_connector::schema::allowed_users::dsl as allowed_users;
-
             let user_id = match identify_configured_user(user, state).await {
                 Some(u) => u,
                 // Users could probe if a user is configured on the charger
@@ -138,20 +137,24 @@ async fn update_configured_users(
                 }
             };
 
-            if let Some(name) = &user.name {
+            if let Some(name) = user.name.clone() {
                 // Update name of charger for each user
-                let mut conn = get_connection(state)?;
-                match diesel::update(
-                    allowed_users::allowed_users
-                        .filter(allowed_users::user_id.eq(user_id))
-                        .filter(allowed_users::charger_id.eq(charger_id)),
-                )
-                .set(allowed_users::name.eq(name))
-                .execute(&mut conn)
+                let mut conn = get_connection(state).await?;
                 {
-                    Ok(_) => (),
-                    Err(NotFound) => (),
-                    Err(_) => return Err(Error::InternalError.into()),
+                    use db_connector::schema::allowed_users::dsl as allowed_users;
+                    match diesel::update(
+                        allowed_users::allowed_users
+                            .filter(allowed_users::user_id.eq(user_id))
+                            .filter(allowed_users::charger_id.eq(charger_id)),
+                    )
+                    .set(allowed_users::name.eq(name))
+                    .execute(&mut conn)
+                    .await
+                    {
+                        Ok(_) => {}
+                        Err(NotFound) => {}
+                        Err(_) => return Err(Error::InternalError.into()),
+                    }
                 }
             }
 
@@ -160,8 +163,8 @@ async fn update_configured_users(
 
         // Delete allowed users not configured on the charger
         let configured_users_cpy = configured_users.clone();
-        let mut conn = get_connection(state)?;
-        let deleted_users = web_block_unpacked(move || {
+        let mut conn = get_connection(state).await?;
+        let deleted_users: Vec<uuid::Uuid> = {
             use db_connector::schema::allowed_users::dsl as allowed_users;
 
             let users_to_delete: Vec<uuid::Uuid> = match allowed_users::allowed_users
@@ -169,10 +172,11 @@ async fn update_configured_users(
                 .filter(allowed_users::user_id.ne_all(&configured_users_cpy))
                 .select(AllowedUser::as_select())
                 .load(&mut conn)
+                .await
             {
                 Ok(v) => v.into_iter().map(|u: AllowedUser| u.user_id).collect(),
-                Err(NotFound) => return Ok(Vec::new()),
-                Err(_err) => return Err(Error::InternalError),
+                Err(NotFound) => Vec::new(),
+                Err(_err) => return Err(Error::InternalError.into()),
             };
 
             match diesel::delete(
@@ -181,66 +185,65 @@ async fn update_configured_users(
                     .filter(allowed_users::user_id.ne_all(configured_users_cpy)),
             )
             .execute(&mut conn)
+            .await
             {
-                Ok(_) => Ok(users_to_delete),
-                Err(NotFound) => Ok(users_to_delete),
-                Err(_err) => Err(Error::InternalError),
+                Ok(_) => {}
+                Err(NotFound) => {}
+                Err(_err) => return Err(Error::InternalError.into()),
             }
-        })
-        .await?;
+            users_to_delete
+        };
 
         if !deleted_users.is_empty() {
-            let mut conn = get_connection(state)?;
-            web_block_unpacked(move || {
+            let mut conn = get_connection(state).await?;
+            {
                 use db_connector::schema::wg_keys::dsl as wg_keys;
 
-                match diesel::delete(
+                diesel::delete(
                     wg_keys::wg_keys
                         .filter(wg_keys::charger_id.eq(&charger_id))
                         .filter(wg_keys::user_id.eq_any(deleted_users)),
                 )
                 .execute(&mut conn)
-                {
-                    Ok(_) => Ok(()),
-                    Err(_err) => Err(Error::InternalError),
-                }
-            })
-            .await?;
+                .await
+                .map_err(|_| Error::InternalError)?;
+            }
         }
 
         // Get uuid of configured users on the server
-        let mut conn = get_connection(state)?;
-        let server_users: Vec<uuid::Uuid> = web_block_unpacked(move || {
+        let mut conn = get_connection(state).await?;
+        let server_users: Vec<uuid::Uuid> = {
             use db_connector::schema::allowed_users::dsl as allowed_users;
 
             match allowed_users::allowed_users
                 .filter(allowed_users::charger_id.eq(&charger_id))
                 .select(AllowedUser::as_select())
                 .load(&mut conn)
+                .await
             {
-                Ok(u) => Ok(u.into_iter().map(|u: AllowedUser| u.user_id).collect()),
-                Err(NotFound) => Ok(Vec::new()),
-                Err(_err) => Err(Error::InternalError),
+                Ok(u) => u.into_iter().map(|u: AllowedUser| u.user_id).collect(),
+                Err(NotFound) => Vec::new(),
+                Err(_err) => return Err(Error::InternalError.into()),
             }
-        })
-        .await?;
+        };
 
         // Resolve the E-Mail for each user
-        let mut conn = get_connection(state)?;
-        let server_users: Vec<User> = web_block_unpacked(move || {
+        let server_users_clone = server_users.clone();
+        let mut conn = get_connection(state).await?;
+        let server_users: Vec<User> = {
             use db_connector::schema::users::dsl::*;
 
             match users
-                .filter(id.eq_any(&server_users))
+                .filter(id.eq_any(&server_users_clone))
                 .select(User::as_select())
                 .load(&mut conn)
+                .await
             {
-                Ok(u) => Ok(u),
-                Err(NotFound) => Ok(Vec::new()),
-                Err(_err) => Err(Error::InternalError),
+                Ok(u) => u,
+                Err(NotFound) => Vec::new(),
+                Err(_err) => return Err(Error::InternalError.into()),
             }
-        })
-        .await?;
+        };
 
         // Used by the old api
         // TODO: Deprecate this
@@ -336,6 +339,10 @@ pub async fn management(
     {
         let mut map = bridge_state.undiscovered_devices.lock().await;
         let set = map.entry(ip).or_insert(HashSet::new());
+        // Drop any existing entry for this charger so the set deduplicates
+        // by id and its capacity is bounded by the number of unique chargers
+        // seen from this IP, not by request rate.
+        set.retain(|d| d.id != device.id);
         set.insert(crate::DiscoveryCharger {
             id: device.id,
             last_request: Instant::now(),
@@ -430,8 +437,8 @@ pub async fn management(
         }
     });
 
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         let result = if let Some(m) = mtu {
             diesel::update(chargers::chargers)
                 .filter(chargers::id.eq(charger_id))
@@ -442,6 +449,7 @@ pub async fn management(
                     chargers::mtu.eq(m as i32),
                 ))
                 .execute(&mut conn)
+                .await
         } else {
             diesel::update(chargers::chargers)
                 .filter(chargers::id.eq(charger_id))
@@ -451,17 +459,17 @@ pub async fn management(
                     chargers::device_type.eq(device_type),
                 ))
                 .execute(&mut conn)
+                .await
         };
 
         match result {
-            Ok(_) => Ok(()),
+            Ok(_) => {}
             Err(_err) => {
                 log::error!("Error while updating charger: {_err}");
-                Err(Error::InternalError)
+                return Err(Error::InternalError.into());
             }
         }
-    })
-    .await?;
+    }
 
     update_charger_state_change(charger_id, state, bridge_state).await;
 
@@ -496,6 +504,8 @@ mod tests {
         models::{allowed_users::AllowedUser, wg_keys::WgKey},
         test_connection_pool,
     };
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
     use rand::distr::{Alphanumeric, SampleString};
 
     use crate::{
@@ -515,7 +525,7 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
-        let user_id = get_test_uuid(&mail).unwrap();
+        let user_id = get_test_uuid(&mail).await.unwrap();
         let device_uuid_clone = device.uuid.clone();
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
             id: device.uuid,
@@ -551,12 +561,13 @@ mod tests {
         use db_connector::models::chargers::Charger as DbCharger;
         use db_connector::schema::chargers::dsl::*;
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         let db_device: DbCharger = chargers
             .filter(id.eq(uuid::Uuid::from_str(&device_uuid_clone).unwrap()))
             .select(DbCharger::as_select())
-            .get_result(&mut conn)
-            .unwrap();
+            .get_result::<DbCharger>(&mut conn)
+            .await
+            .expect("get_result");
         assert_eq!(
             db_device.device_type.as_deref(),
             Some("Tinkerforge-WARP2_Charger/2.8.0+6811d0b1")
@@ -572,7 +583,7 @@ mod tests {
         let app = App::new().configure(configure).service(management);
         let app = test::init_service(app).await;
 
-        let user_id = get_test_uuid(&mail).unwrap();
+        let user_id = get_test_uuid(&mail).await.unwrap();
         let device_uuid_clone = device.uuid.clone();
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
             id: device.uuid,
@@ -608,12 +619,13 @@ mod tests {
         use db_connector::models::chargers::Charger as DbCharger;
         use db_connector::schema::chargers::dsl::*;
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         let db_device: DbCharger = chargers
             .filter(id.eq(uuid::Uuid::from_str(&device_uuid_clone).unwrap()))
             .select(DbCharger::as_select())
-            .get_result(&mut conn)
-            .unwrap();
+            .get_result::<DbCharger>(&mut conn)
+            .await
+            .expect("get_result");
         assert_eq!(db_device.mtu, Some(1420));
         assert_eq!(db_device.webinterface_port, 8080);
         assert_eq!(db_device.firmware_version, "2.4.0");
@@ -659,7 +671,7 @@ mod tests {
 
         println!("{resp:?}");
         assert_eq!([1], *resp.configured_users);
-        let user_id = get_test_uuid(&mail).unwrap();
+        let user_id = get_test_uuid(&mail).await.unwrap();
         assert_eq!(vec![user_id.to_string()], resp.configured_users_uuids);
     }
 
@@ -746,7 +758,7 @@ mod tests {
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
                 email: None,
-                user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
+                user_id: Some(get_test_uuid(&mail).await.unwrap().to_string()),
                 name: Some(String::new()),
             }],
             mtu: None,
@@ -825,7 +837,7 @@ mod tests {
             firmware_version: "2.3.1".to_string(),
             configured_users: vec![ConfiguredUser {
                 email: None,
-                user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
+                user_id: Some(get_test_uuid(&mail).await.unwrap().to_string()),
                 name: Some(String::new()),
             }],
             mtu: None,
@@ -847,32 +859,35 @@ mod tests {
         println!("{resp:?}");
         assert_eq!([1], *resp.configured_users);
         assert_eq!(
-            vec![get_test_uuid(&mail).unwrap().to_string()],
+            vec![get_test_uuid(&mail).await.unwrap().to_string()],
             resp.configured_users_uuids
         );
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         let user_id: uuid::Uuid = {
+            let cid_str = device.uuid.clone();
             use db_connector::schema::allowed_users::dsl::*;
-
-            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
+            let cid = uuid::Uuid::from_str(&cid_str).unwrap();
             let user: AllowedUser = allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
-                .get_result(&mut conn)
+                .get_result::<AllowedUser>(&mut conn)
+                .await
                 .unwrap();
             user.user_id
         };
-        assert_eq!(get_test_uuid(&user.mail).unwrap(), user_id);
+        assert_eq!(get_test_uuid(&user.mail).await.unwrap(), user_id);
+        let user2_uuid = get_test_uuid(&user2.mail).await.unwrap();
         let wg_keys: Vec<WgKey> = {
             use db_connector::schema::wg_keys::dsl as wg_keys;
 
             wg_keys::wg_keys
-                .filter(wg_keys::user_id.eq(get_test_uuid(&user2.mail).unwrap()))
+                .filter(wg_keys::user_id.eq(user2_uuid))
                 .select(WgKey::as_select())
-                .load(&mut conn)
+                .load::<WgKey>(&mut conn)
+                .await
                 .unwrap()
         };
         assert_eq!(wg_keys.len(), 0);
@@ -896,10 +911,11 @@ mod tests {
             use db_connector::schema::allowed_users::dsl::*;
 
             let pool = test_connection_pool();
-            let mut conn = pool.get().unwrap();
-            let uuid = get_test_uuid(&mail2).unwrap();
+            let mut conn = pool.get().await.unwrap();
+            let uuid = get_test_uuid(&mail2).await.unwrap();
             diesel::delete(allowed_users.filter(user_id.eq(&uuid)))
                 .execute(&mut conn)
+                .await
                 .unwrap();
         }
 
@@ -914,12 +930,12 @@ mod tests {
             configured_users: vec![
                 ConfiguredUser {
                     email: None,
-                    user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
+                    user_id: Some(get_test_uuid(&mail).await.unwrap().to_string()),
                     name: Some(String::new()),
                 },
                 ConfiguredUser {
                     email: None,
-                    user_id: Some(get_test_uuid(&mail2).unwrap().to_string()),
+                    user_id: Some(get_test_uuid(&mail2).await.unwrap().to_string()),
                     name: Some(String::new()),
                 },
             ],
@@ -942,25 +958,29 @@ mod tests {
         println!("{resp:?}");
         assert_eq!([1, 0], *resp.configured_users);
         assert_eq!(
-            vec![get_test_uuid(&mail).unwrap().to_string(), String::new()],
+            vec![
+                get_test_uuid(&mail).await.unwrap().to_string(),
+                String::new()
+            ],
             resp.configured_users_uuids
         );
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         let user_id: uuid::Uuid = {
+            let cid_str = device.uuid.clone();
             use db_connector::schema::allowed_users::dsl::*;
-
-            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
+            let cid = uuid::Uuid::from_str(&cid_str).unwrap();
             let user: AllowedUser = allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
-                .get_result(&mut conn)
+                .get_result::<AllowedUser>(&mut conn)
+                .await
                 .unwrap();
             user.user_id
         };
-        assert_eq!(get_test_uuid(&user.mail).unwrap(), user_id);
+        assert_eq!(get_test_uuid(&user.mail).await.unwrap(), user_id);
     }
 
     #[actix::test]
@@ -993,7 +1013,7 @@ mod tests {
             configured_users: vec![
                 ConfiguredUser {
                     email: None,
-                    user_id: Some(get_test_uuid(&mail).unwrap().to_string()),
+                    user_id: Some(get_test_uuid(&mail).await.unwrap().to_string()),
                     name: Some(String::new()),
                 },
                 ConfiguredUser {
@@ -1021,25 +1041,29 @@ mod tests {
         println!("{resp:?}");
         assert_eq!([1, 0], *resp.configured_users);
         assert_eq!(
-            vec![get_test_uuid(&mail).unwrap().to_string(), String::new()],
+            vec![
+                get_test_uuid(&mail).await.unwrap().to_string(),
+                String::new()
+            ],
             resp.configured_users_uuids
         );
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         let user_id: uuid::Uuid = {
+            let cid_str = device.uuid.clone();
             use db_connector::schema::allowed_users::dsl::*;
-
-            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
+            let cid = uuid::Uuid::from_str(&cid_str).unwrap();
             let user: AllowedUser = allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
-                .get_result(&mut conn)
+                .get_result::<AllowedUser>(&mut conn)
+                .await
                 .unwrap();
             user.user_id
         };
-        assert_eq!(get_test_uuid(&user.mail).unwrap(), user_id);
+        assert_eq!(get_test_uuid(&user.mail).await.unwrap(), user_id);
     }
 
     #[actix::test]
@@ -1075,20 +1099,21 @@ mod tests {
         assert!(resp.configured_users_uuids.is_empty());
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         let user_id: uuid::Uuid = {
+            let cid_str = device.uuid.clone();
             use db_connector::schema::allowed_users::dsl::*;
-
-            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
+            let cid = uuid::Uuid::from_str(&cid_str).unwrap();
             let user: AllowedUser = allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
-                .get_result(&mut conn)
+                .get_result::<AllowedUser>(&mut conn)
+                .await
                 .unwrap();
             user.user_id
         };
-        assert_eq!(get_test_uuid(&user.mail).unwrap(), user_id);
+        assert_eq!(get_test_uuid(&user.mail).await.unwrap(), user_id);
     }
 
     #[actix_web::test]
@@ -1181,7 +1206,7 @@ mod tests {
         let device = user.add_random_charger().await;
 
         let device_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
-        let user_id = get_test_uuid(&mail).unwrap();
+        let user_id = get_test_uuid(&mail).await.unwrap();
 
         // Build the app on top of our own bridge_state so we can inspect and
         // populate it before the request runs.
@@ -1304,7 +1329,7 @@ mod tests {
         let device = user.add_random_charger().await;
 
         let device_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
-        let user_id = get_test_uuid(&mail).unwrap();
+        let user_id = get_test_uuid(&mail).await.unwrap();
 
         let pool = db_connector::test_connection_pool();
         let state = crate::tests::create_test_state(Some(pool.clone()));

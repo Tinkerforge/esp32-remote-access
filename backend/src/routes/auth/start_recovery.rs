@@ -1,7 +1,7 @@
 use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
 use db_connector::models::recovery_tokens::RecoveryToken;
-use diesel::prelude::*;
+use diesel_async::RunQueryDsl as _;
 use serde::Deserialize;
 use utoipa::IntoParams;
 use uuid::Uuid;
@@ -11,7 +11,7 @@ use crate::{
     error::Error,
     rate_limit::LoginRateLimiter,
     routes::user::{get_user, get_user_id},
-    utils::{self, get_connection, web_block_unpacked},
+    utils::{self, get_connection},
     AppState,
 };
 
@@ -126,22 +126,22 @@ pub async fn start_recovery(
         created: chrono::Utc::now().timestamp(),
     };
 
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         use db_connector::schema::recovery_tokens::dsl::*;
 
         match diesel::insert_into(recovery_tokens)
             .values(token)
             .execute(&mut conn)
+            .await
         {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    }
 
     #[cfg(not(test))]
-    std::thread::spawn(move || {
+    drop(tokio::task::spawn_blocking(move || {
         let email = if let Some(email) = user.delivery_email {
             email
         } else {
@@ -176,7 +176,7 @@ pub async fn start_recovery(
                 );
             }
         }
-    });
+    }));
 
     Ok(HttpResponse::Ok())
 }
@@ -188,7 +188,8 @@ pub mod tests {
         App,
     };
     use db_connector::{models::recovery_tokens::RecoveryToken, test_connection_pool};
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
     use uuid::Uuid;
 
     use crate::{
@@ -211,13 +212,14 @@ pub mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
 
-        let uid = get_test_uuid(mail).unwrap();
+        let uid = get_test_uuid(mail).await.unwrap();
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         let token: RecoveryToken = recovery_tokens
             .filter(user_id.eq(uid))
             .select(RecoveryToken::as_select())
             .get_result(&mut conn)
+            .await
             .unwrap();
 
         token.id
@@ -239,16 +241,18 @@ pub mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
 
-        let uid = get_test_uuid(&mail).unwrap();
+        let uid = get_test_uuid(&mail).await.unwrap();
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         let token: RecoveryToken = recovery_tokens
             .filter(user_id.eq(uid))
             .select(RecoveryToken::as_select())
             .get_result(&mut conn)
+            .await
             .unwrap();
         diesel::delete(recovery_tokens.find(token.id))
             .execute(&mut conn)
+            .await
             .unwrap();
     }
 
@@ -299,12 +303,13 @@ pub mod tests {
 
         // Clean up recovery tokens
         use db_connector::schema::recovery_tokens::dsl::*;
-        let uid = get_test_uuid(&mail).unwrap();
-        let uid2 = get_test_uuid(&mail2).unwrap();
+        let uid = get_test_uuid(&mail).await.unwrap();
+        let uid2 = get_test_uuid(&mail2).await.unwrap();
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         diesel::delete(recovery_tokens.filter(user_id.eq_any(vec![uid, uid2])))
             .execute(&mut conn)
+            .await
             .unwrap();
     }
 }

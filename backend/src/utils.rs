@@ -22,12 +22,10 @@ use std::str::FromStr;
 use actix_web::web;
 use db_connector::models::authorization_tokens::AuthorizationToken;
 use db_connector::models::chargers::Charger;
-use diesel::prelude::*;
-use diesel::{
-    r2d2::{ConnectionManager, PooledConnection},
-    result::Error::NotFound,
-    PgConnection,
-};
+use diesel::result::Error::NotFound;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::pooled_connection::deadpool::Object as PoolObject;
+use diesel_async::{AsyncPgConnection, RunQueryDsl};
 #[cfg(not(test))]
 use lettre::message::header::ContentType;
 use lettre::message::IntoBody;
@@ -37,10 +35,13 @@ use rand::RngExt;
 
 use crate::{error::Error, routes::charger::add::password_matches, AppState, BridgeState};
 
-pub fn get_connection(
-    state: &web::Data<AppState>,
-) -> actix_web::Result<PooledConnection<ConnectionManager<PgConnection>>> {
-    match state.pool.get() {
+/// Connection handle returned by [`get_connection`]. This is a `diesel-async`
+/// `deadpool::Object<AsyncPgConnection>`: it derefs to `&mut AsyncPgConnection`
+/// so callers can pass `&mut conn` directly to the async diesel query dsl.
+pub type DbConnection = PoolObject<AsyncPgConnection>;
+
+pub async fn get_connection(state: &web::Data<AppState>) -> actix_web::Result<DbConnection> {
+    match state.pool.get().await {
         Ok(conn) => Ok(conn),
         Err(err) => {
             log::error!("Failed to get database connection: {err}");
@@ -52,20 +53,6 @@ pub fn get_connection(
 pub fn generate_random_bytes() -> Vec<u8> {
     let mut rng = rand::rng();
     (0..24).map(|_| rng.random_range(0..255)).collect()
-}
-
-pub async fn web_block_unpacked<F, R>(f: F) -> Result<R, actix_web::Error>
-where
-    F: FnOnce() -> Result<R, Error> + Send + 'static,
-    R: Send + 'static,
-{
-    match web::block(f).await {
-        Ok(res) => match res {
-            Ok(v) => Ok(v),
-            Err(err) => Err(err.into()),
-        },
-        Err(_err) => Err(Error::InternalError.into()),
-    }
 }
 
 pub fn as_u8_slice<T: Sized>(p: &T) -> &[u8] {
@@ -92,21 +79,23 @@ pub async fn get_charger_by_uid(
         return Err(actix_web::error::ErrorBadRequest("Password is missing"));
     };
 
-    let mut conn = get_connection(state)?;
-    let devices: Vec<Charger> = web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    let devices: Vec<Charger> = {
         use db_connector::schema::chargers::dsl;
 
         match dsl::chargers
             .filter(dsl::uid.eq(uid))
             .select(Charger::as_select())
             .load(&mut conn)
+            .await
         {
-            Ok(c) => Ok(c),
-            Err(NotFound) => Err(Error::ChargerCredentialsWrong),
-            Err(_err) => Err(Error::InternalError),
+            Ok(c) => c,
+            Err(diesel::result::Error::NotFound) => {
+                return Err(Error::ChargerCredentialsWrong.into())
+            }
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    };
 
     for c in devices.into_iter() {
         if password_matches(&password, &c.password, &state.hasher).await? {
@@ -121,21 +110,19 @@ pub async fn get_charger_from_db(
     charger_id: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<Charger> {
-    let mut conn = get_connection(state)?;
-    let device: Charger = web_block_unpacked(move || {
-        use db_connector::schema::chargers::dsl::*;
+    let mut conn = get_connection(state).await?;
+    use db_connector::schema::chargers::dsl::*;
 
-        match chargers
-            .filter(id.eq(charger_id))
-            .select(Charger::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(c) => Ok(c),
-            Err(NotFound) => Err(Error::WrongCredentials),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let device: Charger = match chargers
+        .filter(id.eq(charger_id))
+        .select(Charger::as_select())
+        .get_result(&mut conn)
+        .await
+    {
+        Ok(c) => c,
+        Err(diesel::result::Error::NotFound) => return Err(Error::WrongCredentials.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
     Ok(device)
 }
@@ -144,21 +131,19 @@ pub async fn get_last_charge_log_upload_hash(
     charger_id: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<Vec<Option<Vec<u8>>>> {
-    let mut conn = get_connection(state)?;
-    let hashes: Vec<Option<Vec<u8>>> = web_block_unpacked(move || {
-        use db_connector::schema::chargers::dsl::*;
+    let mut conn = get_connection(state).await?;
+    use db_connector::schema::chargers::dsl::*;
 
-        match chargers
-            .filter(id.eq(charger_id))
-            .select(last_charge_log_upload_hash)
-            .get_result(&mut conn)
-        {
-            Ok(value) => Ok(value),
-            Err(NotFound) => Err(Error::ChargerDoesNotExist),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let hashes: Vec<Option<Vec<u8>>> = match chargers
+        .filter(id.eq(charger_id))
+        .select(last_charge_log_upload_hash)
+        .get_result(&mut conn)
+        .await
+    {
+        Ok(value) => value,
+        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
     Ok(hashes)
 }
@@ -168,41 +153,35 @@ pub async fn validate_auth_token(
     user_id: uuid::Uuid,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {
-    let mut conn = get_connection(state)?;
-    let token: AuthorizationToken = web_block_unpacked(move || {
-        use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
+    let mut conn = get_connection(state).await?;
+    use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
 
-        match authorization_tokens::authorization_tokens
-            .filter(authorization_tokens::user_id.eq(user_id))
-            .filter(authorization_tokens::token.eq(token))
-            .select(AuthorizationToken::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(v) => Ok(v),
-            Err(NotFound) => Err(Error::AuthorizationTokenInvalid),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let token: AuthorizationToken = match authorization_tokens::authorization_tokens
+        .filter(authorization_tokens::user_id.eq(user_id))
+        .filter(authorization_tokens::token.eq(token))
+        .select(AuthorizationToken::as_select())
+        .get_result(&mut conn)
+        .await
+    {
+        Ok(v) => v,
+        Err(NotFound) => return Err(Error::AuthorizationTokenInvalid.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
     if token.use_once && token.last_used_at.is_some() {
         return Err(Error::AuthorizationTokenAlreadyUsed.into());
     }
 
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        use db_connector::schema::authorization_tokens::dsl as authorization_tokens;
-
-        match diesel::update(authorization_tokens::authorization_tokens)
-            .filter(authorization_tokens::id.eq(token.id))
-            .set(authorization_tokens::last_used_at.eq(chrono::Utc::now().naive_utc()))
-            .execute(&mut conn)
-        {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let mut conn = get_connection(state).await?;
+    match diesel::update(authorization_tokens::authorization_tokens)
+        .filter(authorization_tokens::id.eq(token.id))
+        .set(authorization_tokens::last_used_at.eq(chrono::Utc::now().naive_utc()))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => {}
+        Err(_err) => return Err(Error::InternalError.into()),
+    }
 
     Ok(())
 }
@@ -303,26 +282,25 @@ pub async fn update_charger_state_change(
     state: web::Data<AppState>,
     bridge_state: web::Data<BridgeState<'_>>,
 ) {
-    let Ok(mut conn) = get_connection(&state) else {
+    let Ok(mut conn) = get_connection(&state).await else {
         log::error!("Failed to get database connection for updating charger state change");
         return;
     };
-    let _ = web_block_unpacked(move || {
+    {
         use db_connector::schema::chargers::dsl::*;
 
         match diesel::update(chargers)
             .filter(id.eq(charger_id))
             .set(last_state_change.eq(Some(chrono::Utc::now().naive_utc())))
             .execute(&mut conn)
+            .await
         {
-            Ok(_) => Ok(()),
+            Ok(_) => {}
             Err(_err) => {
                 log::error!("Failed to update last_state_change for charger {charger_id}: {_err}");
-                Err(Error::InternalError)
             }
         }
-    })
-    .await;
+    }
 
     // Notify connected clients about state change
     notify_state_change(charger_id, state, bridge_state).await;
@@ -338,30 +316,24 @@ async fn notify_state_change(
     use db_connector::schema::allowed_users::dsl as allowed_users;
 
     // Get users who have access to this charger
-    let Ok(mut conn) = get_connection(&state) else {
+    let Ok(mut conn) = get_connection(&state).await else {
         log::error!("Failed to get database connection for fetching allowed users");
         return;
     };
 
-    let affected_user_ids: Vec<uuid::Uuid> = match web::block(move || {
-        allowed_users::allowed_users
-            .filter(allowed_users::charger_id.eq(charger_id))
-            .select(AllowedUser::as_select())
-            .load(&mut conn)
-    })
-    .await
+    let affected_user_ids: Vec<uuid::Uuid> = match allowed_users::allowed_users
+        .filter(allowed_users::charger_id.eq(charger_id))
+        .select(AllowedUser::as_select())
+        .load(&mut conn)
+        .await
     {
-        Ok(Ok(users)) => users.into_iter().map(|u| u.user_id).collect(),
-        Ok(Err(e)) => {
+        Ok(users) => users.into_iter().map(|u| u.user_id).collect(),
+        Err(e) => {
             log::error!(
                 "Failed to fetch allowed users for charger {}: {:?}",
                 charger_id,
                 e
             );
-            return;
-        }
-        Err(e) => {
-            log::error!("Blocking error while fetching allowed users: {:?}", e);
             return;
         }
     };
@@ -418,39 +390,37 @@ pub async fn set_last_charge_log_upload_hash(
     hash: Vec<u8>,
     state: &web::Data<AppState>,
 ) -> actix_web::Result<()> {
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        use db_connector::schema::chargers::dsl::*;
+    let mut conn = get_connection(state).await?;
+    use db_connector::schema::chargers::dsl::*;
 
-        // Get current hashes
-        let mut current_hashes: Vec<Option<Vec<u8>>> = match chargers
-            .filter(id.eq(charger_id))
-            .select(last_charge_log_upload_hash)
-            .get_result(&mut conn)
-        {
-            Ok(hashes) => hashes,
-            Err(NotFound) => return Err(Error::ChargerDoesNotExist),
-            Err(_err) => return Err(Error::InternalError),
-        };
+    // Get current hashes
+    let mut current_hashes: Vec<Option<Vec<u8>>> = match chargers
+        .filter(id.eq(charger_id))
+        .select(last_charge_log_upload_hash)
+        .get_result(&mut conn)
+        .await
+    {
+        Ok(hashes) => hashes,
+        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
-        // Add new hash as Some(hash), keep only the last 5
-        current_hashes.push(Some(hash));
-        if current_hashes.len() > 5 {
-            current_hashes = current_hashes.split_off(current_hashes.len() - 5);
-        }
+    // Add new hash as Some(hash), keep only the last 5
+    current_hashes.push(Some(hash));
+    if current_hashes.len() > 5 {
+        current_hashes = current_hashes.split_off(current_hashes.len() - 5);
+    }
 
-        match diesel::update(chargers)
-            .filter(id.eq(charger_id))
-            .set(last_charge_log_upload_hash.eq(current_hashes))
-            .execute(&mut conn)
-        {
-            Ok(_) => Ok(()),
-            Err(NotFound) => Err(Error::ChargerDoesNotExist),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
-    Ok(())
+    match diesel::update(chargers)
+        .filter(id.eq(charger_id))
+        .set(last_charge_log_upload_hash.eq(current_hashes))
+        .execute(&mut conn)
+        .await
+    {
+        Ok(_) => Ok(()),
+        Err(NotFound) => Err(Error::ChargerDoesNotExist.into()),
+        Err(_err) => Err(Error::InternalError.into()),
+    }
 }
 
 #[cfg(test)]
@@ -466,7 +436,7 @@ mod tests {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
         let token = user.create_authorization_token(true).await;
-        let user_id = get_test_uuid(&mail).unwrap();
+        let user_id = get_test_uuid(&mail).await.unwrap();
         let state = create_test_state(None);
         assert!(validate_auth_token(token.token.clone(), user_id, &state)
             .await

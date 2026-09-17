@@ -18,13 +18,14 @@
  */
 
 use actix_web::{post, web, HttpResponse, Responder};
-use diesel::{prelude::*, result::Error::NotFound, ExpressionMethods};
+use diesel::{result::Error::NotFound, ExpressionMethods};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid},
     AppState,
 };
 
@@ -53,8 +54,8 @@ pub async fn update_note(
 ) -> actix_web::Result<impl Responder> {
     let cid = parse_uuid(&schema.charger_id)?;
 
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         use db_connector::schema::allowed_users::dsl::*;
 
         match diesel::update(allowed_users)
@@ -62,13 +63,13 @@ pub async fn update_note(
             .filter(user_id.eq(uuid::Uuid::from(uid)))
             .set(note.eq(&schema.note))
             .execute(&mut conn)
+            .await
         {
-            Ok(_) => Ok(()),
-            Err(NotFound) => Err(Error::ChargerDoesNotExist),
-            Err(_err) => Err(Error::InternalError),
+            Ok(_) => {}
+            Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    }
 
     Ok(HttpResponse::Ok())
 }
@@ -85,7 +86,8 @@ mod tests {
         routes::user::tests::{get_test_uuid, TestUser},
         tests::configure,
     };
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     use super::{update_note, UpdateNoteSchema};
 
@@ -118,17 +120,20 @@ mod tests {
         assert_eq!(resp.status(), 200);
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         {
-            use db_connector::schema::allowed_users::dsl::*;
-
-            let user = get_test_uuid(&user.mail).unwrap();
-            let u: AllowedUser = allowed_users
-                .filter(charger_id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
-                .filter(user_id.eq(user))
-                .select(AllowedUser::as_select())
-                .get_result(&mut conn)
-                .unwrap();
+            let device_uuid_parsed = uuid::Uuid::from_str(&device.uuid).unwrap();
+            let user_uuid = get_test_uuid(&user.mail).await.unwrap();
+            let u: AllowedUser = {
+                use db_connector::schema::allowed_users::dsl::*;
+                allowed_users
+                    .filter(charger_id.eq(device_uuid_parsed))
+                    .filter(user_id.eq(user_uuid))
+                    .select(AllowedUser::as_select())
+                    .get_result::<AllowedUser>(&mut conn)
+                    .await
+                    .unwrap()
+            };
             assert_eq!(u.note.unwrap(), "Test");
         }
     }
@@ -163,25 +168,33 @@ mod tests {
         assert_eq!(resp.status(), 200);
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         {
-            use db_connector::schema::allowed_users::dsl::*;
-
-            let user = get_test_uuid(&user.mail).unwrap();
-            let u: AllowedUser = allowed_users
-                .filter(charger_id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
-                .filter(user_id.eq(user))
-                .select(AllowedUser::as_select())
-                .get_result(&mut conn)
-                .unwrap();
+            let device_uuid_str = device.uuid.clone();
+            let device2_uuid_str = device2.uuid.clone();
+            let user_uuid = get_test_uuid(&user.mail).await.unwrap();
+            let (u, u2): (AllowedUser, AllowedUser) = {
+                use db_connector::schema::allowed_users::dsl::*;
+                let device_uuid_parsed = uuid::Uuid::from_str(&device_uuid_str).unwrap();
+                let device2_uuid_parsed = uuid::Uuid::from_str(&device2_uuid_str).unwrap();
+                let u: AllowedUser = allowed_users
+                    .filter(charger_id.eq(device_uuid_parsed))
+                    .filter(user_id.eq(user_uuid))
+                    .select(AllowedUser::as_select())
+                    .get_result(&mut conn)
+                    .await
+                    .unwrap();
+                let u2: AllowedUser = allowed_users
+                    .filter(charger_id.eq(device2_uuid_parsed))
+                    .filter(user_id.eq(user_uuid))
+                    .select(AllowedUser::as_select())
+                    .get_result(&mut conn)
+                    .await
+                    .unwrap();
+                (u, u2)
+            };
             assert_eq!(u.note.unwrap(), "Test");
-            let u: AllowedUser = allowed_users
-                .filter(charger_id.eq(uuid::Uuid::from_str(&device2.uuid).unwrap()))
-                .filter(user_id.eq(user))
-                .select(AllowedUser::as_select())
-                .get_result(&mut conn)
-                .unwrap();
-            assert_eq!(u.note.unwrap(), "");
+            assert_eq!(u2.note.unwrap(), "");
         }
     }
 }

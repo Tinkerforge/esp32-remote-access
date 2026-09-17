@@ -21,15 +21,16 @@ use actix_web::{post, web, HttpResponse, Responder};
 use db_connector::models::{
     device_grouping_members::DeviceGroupingMember, device_groupings::DeviceGrouping,
 };
-use diesel::prelude::*;
 use diesel::result::Error::NotFound;
+use diesel::{QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
     error::Error,
     routes::charger::user_is_allowed,
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid},
     AppState,
 };
 
@@ -75,33 +76,29 @@ pub async fn add_device_to_grouping(
     let user_uuid: uuid::Uuid = user_id.clone().into();
 
     // Verify user owns the grouping
-    let mut conn = get_connection(&state)?;
-    let grouping = web_block_unpacked(move || {
-        let grouping: DeviceGrouping = match groupings::device_groupings
-            .find(grouping_uuid)
-            .select(DeviceGrouping::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(g) => g,
-            Err(NotFound) => return Err(Error::ChargerDoesNotExist),
-            Err(_err) => return Err(Error::InternalError),
-        };
+    let mut conn = get_connection(&state).await?;
+    let grouping: DeviceGrouping = match groupings::device_groupings
+        .find(grouping_uuid)
+        .select(DeviceGrouping::as_select())
+        .get_result::<DeviceGrouping>(&mut conn)
+        .await
+    {
+        Ok(g) => g,
+        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
-        // Verify ownership of grouping
-        if grouping.user_id != user_uuid {
-            return Err(Error::Unauthorized);
-        }
-
-        Ok(grouping)
-    })
-    .await?;
+    // Verify ownership of grouping
+    if grouping.user_id != user_uuid {
+        return Err(Error::Unauthorized.into());
+    }
 
     // Verify user has access to the charger
     user_is_allowed(&state, user_uuid, device_uuid).await?;
 
     // Add the device to the grouping
-    let mut conn = get_connection(&state)?;
-    let member = web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    let member: DeviceGroupingMember = {
         use db_connector::schema::device_grouping_members::dsl as members;
 
         let new_member = DeviceGroupingMember {
@@ -114,16 +111,16 @@ pub async fn add_device_to_grouping(
         match diesel::insert_into(members::device_grouping_members)
             .values(&new_member)
             .get_result::<DeviceGroupingMember>(&mut conn)
+            .await
         {
-            Ok(m) => Ok(m),
+            Ok(m) => m,
             Err(diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UniqueViolation,
                 _,
-            )) => Err(Error::ChargerAlreadyExists),
-            Err(_err) => Err(Error::InternalError),
+            )) => return Err(Error::ChargerAlreadyExists.into()),
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    };
 
     Ok(HttpResponse::Ok().json(AddDeviceToGroupingResponse {
         id: member.id.to_string(),
@@ -180,11 +177,11 @@ mod tests {
         assert_eq!(response.device_id, device.uuid);
 
         // Verify member exists in database
-        let member_count = count_grouping_members(&grouping.id);
+        let member_count = count_grouping_members(&grouping.id).await;
         assert_eq!(member_count, 1);
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 
     #[actix_web::test]
@@ -224,7 +221,7 @@ mod tests {
         assert_eq!(resp.status().as_u16(), 409); // Conflict
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 
     #[actix_web::test]
@@ -261,7 +258,7 @@ mod tests {
         assert_eq!(resp.status().as_u16(), 401); // Unauthorized
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 
     #[actix_web::test]
@@ -321,7 +318,7 @@ mod tests {
         assert!(body.groupings[0].device_ids.contains(&device2.uuid));
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 
     #[actix_web::test]
@@ -351,7 +348,7 @@ mod tests {
         test::call_service(&app, req).await;
 
         // Verify member exists
-        assert_eq!(count_grouping_members(&grouping.id), 1);
+        assert_eq!(count_grouping_members(&grouping.id).await, 1);
 
         // Delete grouping
         use crate::routes::grouping::delete_grouping::DeleteGroupingSchema;
@@ -368,6 +365,6 @@ mod tests {
         assert!(resp.status().is_success());
 
         // Verify members are also deleted (cascade)
-        assert_eq!(count_grouping_members(&grouping.id), 0);
+        assert_eq!(count_grouping_members(&grouping.id).await, 0);
     }
 }

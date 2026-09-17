@@ -27,15 +27,11 @@ pub mod me;
 pub mod update_password;
 pub mod update_user;
 
-use crate::{
-    error::Error,
-    middleware::jwt::JwtMiddleware,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
-};
+use crate::{error::Error, middleware::jwt::JwtMiddleware, utils::get_connection, AppState};
 use actix_web::web::{self, ServiceConfig};
 use db_connector::models::users::User;
-use diesel::{prelude::*, result::Error::NotFound, ExpressionMethods};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 
 use super::auth::login::FindBy;
 
@@ -63,47 +59,47 @@ pub async fn get_user_id(
 ) -> Result<uuid::Uuid, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
-        let user: User = match find {
-            FindBy::Email(mail) => {
-                match users
-                    .filter(email.eq(mail))
-                    .select(User::as_select())
-                    .get_result(&mut conn)
-                {
-                    Ok(user) => user,
-                    Err(NotFound) => return Err(Error::UserDoesNotExist),
-                    Err(_err) => return Err(Error::InternalError),
-                }
+    let mut conn = get_connection(state).await?;
+    let user: User = match find {
+        FindBy::Email(mail) => {
+            match users
+                .filter(email.eq(mail))
+                .select(User::as_select())
+                .get_result(&mut conn)
+                .await
+            {
+                Ok(user) => user,
+                Err(NotFound) => return Err(Error::UserDoesNotExist.into()),
+                Err(_err) => return Err(Error::InternalError.into()),
             }
-            FindBy::Username(username) => {
-                match users
-                    .filter(name.eq(username))
-                    .select(User::as_select())
-                    .get_result(&mut conn)
-                {
-                    Ok(user) => user,
-                    Err(NotFound) => return Err(Error::UserDoesNotExist),
-                    Err(_err) => return Err(Error::InternalError),
-                }
+        }
+        FindBy::Username(username) => {
+            match users
+                .filter(name.eq(username))
+                .select(User::as_select())
+                .get_result(&mut conn)
+                .await
+            {
+                Ok(user) => user,
+                Err(NotFound) => return Err(Error::UserDoesNotExist.into()),
+                Err(_err) => return Err(Error::InternalError.into()),
             }
-            FindBy::Uuid(uuid) => {
-                match users
-                    .find(uuid)
-                    .select(User::as_select())
-                    .get_result(&mut conn)
-                {
-                    Ok(user) => user,
-                    Err(NotFound) => return Err(Error::UserDoesNotExist),
-                    Err(_err) => return Err(Error::InternalError),
-                }
+        }
+        FindBy::Uuid(uuid) => {
+            match users
+                .find(uuid)
+                .select(User::as_select())
+                .get_result(&mut conn)
+                .await
+            {
+                Ok(user) => user,
+                Err(NotFound) => return Err(Error::UserDoesNotExist.into()),
+                Err(_err) => return Err(Error::InternalError.into()),
             }
-        };
+        }
+    };
 
-        Ok(user.id)
-    })
-    .await
+    Ok(user.id)
 }
 
 /**
@@ -114,22 +110,20 @@ pub async fn get_user(
     uid: uuid::Uuid,
 ) -> Result<User, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
-    use diesel::prelude::*;
+    use diesel::{QueryDsl, SelectableHelper};
 
-    let mut conn = get_connection(state)?;
+    let mut conn = get_connection(state).await?;
 
-    web_block_unpacked(move || {
-        match users
-            .find(uid)
-            .select(User::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(u) => Ok(u),
-            Err(NotFound) => Err(crate::error::Error::UserDoesNotExist),
-            Err(_err) => Err(crate::error::Error::InternalError),
-        }
-    })
-    .await
+    match users
+        .find(uid)
+        .select(User::as_select())
+        .get_result(&mut conn)
+        .await
+    {
+        Ok(u) => Ok(u),
+        Err(NotFound) => Err(crate::error::Error::UserDoesNotExist.into()),
+        Err(_err) => Err(crate::error::Error::InternalError.into()),
+    }
 }
 
 #[cfg(test)]
@@ -137,7 +131,8 @@ pub mod tests {
     use actix_web::{http::header::ContentType, test, App};
     use argon2::{password_hash::SaltString, Argon2, Params, PasswordHasher};
     use db_connector::{models::users::User, test_connection_pool};
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
     use libsodium_sys::{
         crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES,
         crypto_secretbox_NONCEBYTES, crypto_secretbox_easy,
@@ -168,15 +163,18 @@ pub mod tests {
     use super::create_authorization_token::tests::create_test_auth_token;
 
     // Get the uuid for an test user.
-    pub fn get_test_uuid(mail: &str) -> Result<uuid::Uuid, anyhow::Error> {
+    pub async fn get_test_uuid(mail: &str) -> Result<uuid::Uuid, anyhow::Error> {
         use db_connector::schema::users::dsl::*;
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.expect("Failed to get db connection");
+        let mail_owned = mail.to_string();
         let user: User = users
-            .filter(email.eq(mail))
+            .filter(email.eq(mail_owned))
             .select(User::as_select())
-            .get_result(&mut conn)?;
+            .get_result::<User>(&mut conn)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
 
         Ok(user.id)
     }
@@ -225,6 +223,7 @@ pub mod tests {
 
     impl TestUser {
         pub async fn new(mail: &str, secret: Option<Vec<u8>>) -> Self {
+            println!("here");
             let login_salt = generate_random_bytes_len(48);
             let secret_salt = generate_random_bytes_len(48);
             let password = generate_random_bytes_len(48);
@@ -264,17 +263,20 @@ pub mod tests {
                 secret_nonce,
                 secret_salt,
             };
+            println!("A");
             let req = test::TestRequest::post()
                 .uri("/register")
                 .insert_header(ContentType::json())
                 .set_json(user)
                 .to_request();
+            println!("B");
             let resp = test::call_service(&app, req).await;
+            println!("C");
             println!("{}", resp.status());
             assert!(resp.status().is_success());
             println!("Created user");
 
-            fast_verify(mail);
+            fast_verify(mail).await;
             TestUser {
                 mail: mail.to_string(),
                 password,
@@ -303,6 +305,7 @@ pub mod tests {
         }
 
         pub async fn login(&mut self) -> &str {
+            #[allow(clippy::unnecessary_unwrap)]
             if self.access_token.is_some() {
                 return self.access_token.as_ref().unwrap();
             }
@@ -365,12 +368,28 @@ pub mod tests {
 
     impl Drop for TestUser {
         fn drop(&mut self) {
-            while let Some(device) = self.devices.pop() {
-                let _ = remove_test_keys(&self.mail);
-                remove_allowed_test_users(&device.uuid);
-                remove_test_device(&device.uuid);
-            }
-            delete_user(&self.mail);
+            let mail = self.mail.clone();
+            let devices = std::mem::take(&mut self.devices);
+
+            // Drop is synchronous, but the cleanup helpers use `diesel-async`
+            // and must be awaited. Running them on a separate runtime avoids
+            // trying to block the Actix test runtime from within itself.
+            std::thread::spawn(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("build test cleanup runtime");
+                runtime.block_on(async move {
+                    for device in devices {
+                        let _ = remove_test_keys(&mail).await;
+                        remove_allowed_test_users(&device.uuid).await;
+                        remove_test_device(&device.uuid).await;
+                    }
+                    delete_user(&mail).await;
+                });
+            })
+            .join()
+            .expect("test cleanup thread panicked");
         }
     }
 }

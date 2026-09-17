@@ -1,12 +1,13 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use db_connector::models::allowed_users::AllowedUser;
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid},
     AppState, BridgeState,
 };
 
@@ -41,8 +42,8 @@ pub async fn charger_info(
 ) -> actix_web::Result<impl Responder> {
     let device_id = parse_uuid(charger.charger.as_str())?;
 
-    let mut conn = get_connection(&state)?;
-    let device: AllowedUser = web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    let device: AllowedUser = {
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         let user: uuid::Uuid = user.into();
@@ -50,29 +51,29 @@ pub async fn charger_info(
             .filter(allowed_users::user_id.eq(user))
             .filter(allowed_users::charger_id.eq(device_id))
             .select(AllowedUser::as_select())
-            .get_result(&mut conn)
+            .get_result::<AllowedUser>(&mut conn)
+            .await
         {
-            Ok(device) => Ok(device),
-            Err(NotFound) => Err(Error::ChargerDoesNotExist),
-            Err(_) => Err(Error::InternalError),
+            Ok(device) => device,
+            Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+            Err(_) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    };
 
-    let mut conn = get_connection(&state)?;
-    let (port, firmware_version, mtu): (i32, String, Option<i32>) = web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    let (port, firmware_version, mtu): (i32, String, Option<i32>) = {
         use db_connector::schema::chargers::dsl::*;
 
         match chargers
             .filter(id.eq(device_id))
             .select((webinterface_port, firmware_version, mtu))
-            .get_result(&mut conn)
+            .get_result::<(i32, String, Option<i32>)>(&mut conn)
+            .await
         {
-            Ok((port, version, mtu_val)) => Ok((port, version, mtu_val)),
-            Err(_) => Err(Error::InternalError),
+            Ok(v) => v,
+            Err(_) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    };
 
     let map = bridge_state.device_management_map_with_id.lock().await;
     let connected = map.get(&device_id).is_some();
@@ -95,7 +96,8 @@ mod tests {
 
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::test_connection_pool;
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     use crate::{
         middleware::jwt::JwtMiddleware,
@@ -135,36 +137,38 @@ mod tests {
         let body: ChargerInfo = test::read_body_json(resp).await;
 
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
-        let user = get_test_user(&user.mail);
+        let mut conn = pool.get().await.unwrap();
+        let user = get_test_user(&user.mail).await;
+        let device_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
         let name: Option<String> = {
             use db_connector::schema::allowed_users::dsl::*;
 
-            let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
-
             allowed_users
                 .filter(user_id.eq(user.id))
-                .filter(charger_id.eq(cid))
+                .filter(charger_id.eq(device_uuid))
                 .select(name)
-                .get_result(&mut conn)
+                .get_result::<Option<String>>(&mut conn)
+                .await
                 .unwrap()
         };
         let port: i32 = {
             use db_connector::schema::chargers::dsl::*;
 
             chargers
-                .filter(id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
+                .filter(id.eq(device_uuid))
                 .select(webinterface_port)
-                .get_result(&mut conn)
+                .get_result::<i32>(&mut conn)
+                .await
                 .unwrap()
         };
         let version: String = {
             use db_connector::schema::chargers::dsl::*;
 
             chargers
-                .filter(id.eq(uuid::Uuid::from_str(&device.uuid).unwrap()))
+                .filter(id.eq(device_uuid))
                 .select(firmware_version)
-                .get_result(&mut conn)
+                .get_result::<String>(&mut conn)
+                .await
                 .unwrap()
         };
 

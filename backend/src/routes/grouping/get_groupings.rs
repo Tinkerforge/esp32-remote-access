@@ -21,15 +21,12 @@ use actix_web::{get, web, HttpResponse, Responder};
 use db_connector::models::{
     device_grouping_members::DeviceGroupingMember, device_groupings::DeviceGrouping,
 };
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{
-    error::Error,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
-};
+use crate::{error::Error, utils::get_connection, AppState};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GroupingInfo {
@@ -64,49 +61,38 @@ pub async fn get_groupings(
     use db_connector::schema::device_groupings::dsl as groupings;
 
     let user_uuid: uuid::Uuid = user_id.into();
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
 
-    let groupings_info = web_block_unpacked(move || {
-        // Get all groupings for the user
-        let user_groupings: Vec<DeviceGrouping> = match groupings::device_groupings
-            .filter(groupings::user_id.eq(user_uuid))
-            .select(DeviceGrouping::as_select())
+    // Get all groupings for the user
+    let user_groupings: Vec<DeviceGrouping> = groupings::device_groupings
+        .filter(groupings::user_id.eq(user_uuid))
+        .select(DeviceGrouping::as_select())
+        .load(&mut conn)
+        .await
+        .map_err(|_| Error::InternalError)?;
+
+    // For each grouping, get its members
+    let mut result = Vec::new();
+    for grouping in user_groupings {
+        let grouping_members: Vec<DeviceGroupingMember> = members::device_grouping_members
+            .filter(members::grouping_id.eq(grouping.id))
+            .select(DeviceGroupingMember::as_select())
             .load(&mut conn)
-        {
-            Ok(gs) => gs,
-            Err(_err) => return Err(Error::InternalError),
-        };
+            .await
+            .map_err(|_| Error::InternalError)?;
 
-        // For each grouping, get its members
-        let mut result = Vec::new();
-        for grouping in user_groupings {
-            let grouping_members: Vec<DeviceGroupingMember> = match members::device_grouping_members
-                .filter(members::grouping_id.eq(grouping.id))
-                .select(DeviceGroupingMember::as_select())
-                .load(&mut conn)
-            {
-                Ok(ms) => ms,
-                Err(_err) => return Err(Error::InternalError),
-            };
+        result.push(GroupingInfo {
+            id: grouping.id.to_string(),
+            name: grouping.name,
+            device_ids: grouping_members
+                .iter()
+                .map(|m| m.charger_id.to_string())
+                .collect(),
+            is_default: grouping.is_default,
+        });
+    }
 
-            result.push(GroupingInfo {
-                id: grouping.id.to_string(),
-                name: grouping.name,
-                device_ids: grouping_members
-                    .iter()
-                    .map(|m| m.charger_id.to_string())
-                    .collect(),
-                is_default: grouping.is_default,
-            });
-        }
-
-        Ok(result)
-    })
-    .await?;
-
-    Ok(HttpResponse::Ok().json(GetGroupingsResponse {
-        groupings: groupings_info,
-    }))
+    Ok(HttpResponse::Ok().json(GetGroupingsResponse { groupings: result }))
 }
 
 #[cfg(test)]
@@ -168,7 +154,7 @@ mod tests {
         assert_eq!(body.groupings.len(), 2);
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping1.id);
-        delete_test_grouping_from_db(&grouping2.id);
+        delete_test_grouping_from_db(&grouping1.id).await;
+        delete_test_grouping_from_db(&grouping2.id).await;
     }
 }

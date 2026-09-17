@@ -1,17 +1,14 @@
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
 use chrono::Days;
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    branding,
-    error::Error,
-    rate_limit::LoginRateLimiter,
-    routes::auth::VERIFICATION_EXPIRATION_DAYS,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
+    branding, error::Error, rate_limit::LoginRateLimiter,
+    routes::auth::VERIFICATION_EXPIRATION_DAYS, utils::get_connection, AppState,
 };
 
 use db_connector::models::{users::User, verification::Verification};
@@ -102,36 +99,36 @@ pub async fn resend_verification(
 
     rate_limiter.check(data.email.to_lowercase(), &req)?;
 
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
     let user_email = data.email.to_lowercase();
 
     // Load user
-    let db_user: User = web_block_unpacked(move || {
-        match u_dsl::users
-            .filter(u_dsl::email.eq(&user_email))
-            .select(User::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(u) => Ok(u),
-            Err(diesel::result::Error::NotFound) => Err(Error::UserDoesNotExist),
-            Err(_) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+    let db_user: User = match u_dsl::users
+        .filter(u_dsl::email.eq(&user_email))
+        .select(User::as_select())
+        .get_result(&mut conn)
+        .await
+    {
+        Ok(u) => u,
+        Err(diesel::result::Error::NotFound) => return Err(Error::UserDoesNotExist.into()),
+        Err(_) => return Err(Error::InternalError.into()),
+    };
 
     if db_user.email_verified {
         // silently return success
         return Ok(HttpResponse::Ok());
     }
 
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
 
     // (Re)create verification token (delete old first if present)
     let user_id = db_user.id;
-    web_block_unpacked(move || {
+    let verify: Verification = {
         use db_connector::schema::verification::dsl::*;
         // remove old tokens
-        let _ = diesel::delete(verification.filter(user.eq(user_id))).execute(&mut conn);
+        let _ = diesel::delete(verification.filter(user.eq(user_id)))
+            .execute(&mut conn)
+            .await;
 
         let exp = chrono::Utc::now()
             .checked_add_days(Days::new(VERIFICATION_EXPIRATION_DAYS))
@@ -145,26 +142,25 @@ pub async fn resend_verification(
         diesel::insert_into(verification)
             .values(&verify)
             .execute(&mut conn)
+            .await
             .map_err(|_| Error::InternalError)?;
-        Ok(verify)
-    })
-    .await
-    .map(|_verify| {
-        #[cfg(not(test))]
-        {
-            let user_name = db_user.name.clone();
-            let lang: String = lang.into();
-            let state_cpy = state.clone();
-            let email_cpy = data.email.clone();
-            std::thread::spawn(move || {
-                if let Err(e) =
-                    send_verification_mail(user_name, _verify, email_cpy, state_cpy, lang)
-                {
-                    log::error!("Failed to resend verification mail: {e:?}");
-                }
-            });
-        }
-    })?;
+        verify
+    };
+
+    #[cfg(not(test))]
+    {
+        let user_name = db_user.name.clone();
+        let lang: String = lang.into();
+        let state_cpy = state.clone();
+        let email_cpy = data.email.clone();
+        drop(tokio::task::spawn_blocking(move || {
+            if let Err(e) = send_verification_mail(user_name, verify, email_cpy, state_cpy, lang) {
+                log::error!("Failed to resend verification mail: {e:?}");
+            }
+        }));
+    }
+    #[cfg(test)]
+    let _ = verify;
 
     Ok(HttpResponse::Ok())
 }
@@ -192,14 +188,14 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
-        delete_user(mail);
+        delete_user(mail).await;
     }
 
     #[actix_web::test]
     async fn test_resend_verified() {
         let mail = "resend_verified@test.invalid";
         create_user(mail).await;
-        fast_verify(mail);
+        fast_verify(mail).await;
         let app = App::new().configure(configure).service(resend_verification);
         let app = test::init_service(app).await;
         let req = test::TestRequest::post()
@@ -211,7 +207,7 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
-        delete_user(mail);
+        delete_user(mail).await;
     }
 
     #[actix_web::test]
@@ -274,6 +270,6 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        delete_user(mail);
+        delete_user(mail).await;
     }
 }

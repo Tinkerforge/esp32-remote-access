@@ -20,7 +20,8 @@
 use super::*;
 use actix_web::{cookie::Cookie, test, App};
 use db_connector::{models::device_groupings::DeviceGrouping, test_connection_pool};
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
 use crate::tests::configure as test_configure;
 use create_grouping::{CreateGroupingResponse, CreateGroupingSchema};
@@ -49,44 +50,47 @@ pub async fn create_test_grouping(access_token: &str, name: &str) -> CreateGroup
 }
 
 /// Helper function to clean up test grouping from database
-pub fn delete_test_grouping_from_db(grouping_id: &str) {
+pub async fn delete_test_grouping_from_db(grouping_id: &str) {
     use db_connector::schema::device_groupings::dsl::*;
 
     let pool = test_connection_pool();
-    let mut conn = pool.get().unwrap();
+    let mut conn = pool.get().await.unwrap();
     let uuid_val = uuid::Uuid::parse_str(grouping_id).unwrap();
 
     diesel::delete(device_groupings.filter(id.eq(uuid_val)))
         .execute(&mut conn)
+        .await
         .ok();
 }
 
 /// Helper function to get grouping from database
-pub fn get_grouping_from_db(grouping_id: &str) -> Option<DeviceGrouping> {
+pub async fn get_grouping_from_db(grouping_id: &str) -> Option<DeviceGrouping> {
     use db_connector::schema::device_groupings::dsl::*;
 
     let pool = test_connection_pool();
-    let mut conn = pool.get().unwrap();
+    let mut conn = pool.get().await.unwrap();
     let uuid_val = uuid::Uuid::parse_str(grouping_id).unwrap();
 
     device_groupings
         .filter(id.eq(uuid_val))
         .select(DeviceGrouping::as_select())
-        .first(&mut conn)
+        .first::<DeviceGrouping>(&mut conn)
+        .await
         .ok()
 }
 
 /// Helper function to count grouping members
-pub fn count_grouping_members(grouping_id_str: &str) -> i64 {
+pub async fn count_grouping_members(grouping_id_str: &str) -> i64 {
     use db_connector::schema::device_grouping_members::dsl::*;
 
     let pool = test_connection_pool();
-    let mut conn = pool.get().unwrap();
+    let mut conn = pool.get().await.unwrap();
     let uuid_val = uuid::Uuid::parse_str(grouping_id_str).unwrap();
 
     device_grouping_members
         .filter(grouping_id.eq(uuid_val))
         .count()
         .get_result(&mut conn)
+        .await
         .unwrap_or(0)
 }

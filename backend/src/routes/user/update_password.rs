@@ -18,7 +18,8 @@
  */
 
 use actix_web::{put, web, HttpResponse, Responder};
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
@@ -69,12 +70,10 @@ pub async fn update_password(
 ) -> Result<impl Responder, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
-    let conn = get_connection(&state)?;
     let _ = validate_password(
         &data.old_login_key,
         FindBy::Uuid(uid.clone().into()),
-        conn,
-        &state.hasher,
+        &state,
     )
     .await?;
 
@@ -83,32 +82,20 @@ pub async fn update_password(
         Err(_err) => return Err(Error::InternalError.into()),
     };
 
-    let mut conn = get_connection(&state)?;
-    match web::block(move || {
-        match diesel::update(users.find::<uuid::Uuid>(uid.into()))
-            .set((
-                login_key.eq(new_hash),
-                secret_nonce.eq(&data.new_secret_nonce),
-                secret.eq(&data.new_encrypted_secret),
-                secret_salt.eq(&data.new_secret_salt),
-                login_salt.eq(&data.new_login_salt),
-            ))
-            .execute(&mut conn)
-        {
-            Ok(_) => (),
-            Err(_err) => return Err(Error::InternalError),
-        }
+    let mut conn = get_connection(&state).await?;
+    diesel::update(users.find::<uuid::Uuid>(uid.into()))
+        .set((
+            login_key.eq(new_hash),
+            secret_nonce.eq(&data.new_secret_nonce),
+            secret.eq(&data.new_encrypted_secret),
+            secret_salt.eq(&data.new_secret_salt),
+            login_salt.eq(&data.new_login_salt),
+        ))
+        .execute(&mut conn)
+        .await
+        .map_err(|_| Error::InternalError)?;
 
-        Ok(())
-    })
-    .await
-    {
-        Ok(res) => match res {
-            Ok(()) => Ok(HttpResponse::Ok()),
-            Err(err) => Err(err.into()),
-        },
-        Err(_err) => Err(Error::InternalError.into()),
-    }
+    Ok(HttpResponse::Ok())
 }
 
 #[cfg(test)]
@@ -125,7 +112,7 @@ mod tests {
             auth::get_login_salt::tests::get_test_login_salt,
             user::{
                 get_secret::tests::get_test_secret,
-                tests::{generate_random_bytes_len, hash_test_key, TestUser},
+                tests::{generate_random_bytes_len, get_test_uuid, hash_test_key, TestUser},
             },
         },
         tests::configure,
@@ -238,13 +225,10 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_client_error());
 
-        let pool = db_connector::test_connection_pool();
-        let conn = pool.get().unwrap();
-        let hasher = crate::hasher::HasherManager::default();
-        assert!(
-            validate_password(&new_key, FindBy::Email(mail), conn, &hasher)
-                .await
-                .is_err()
-        );
+        let state = crate::tests::create_test_state(None);
+        let uid = get_test_uuid(&mail).await.unwrap();
+        assert!(validate_password(&new_key, FindBy::Uuid(uid), &state)
+            .await
+            .is_err());
     }
 }

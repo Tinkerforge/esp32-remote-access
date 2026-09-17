@@ -5,11 +5,8 @@ use anyhow::Error;
 use askama::Template;
 use backend::utils;
 use backend::{utils::get_connection, AppState};
-use diesel::prelude::*;
-use diesel::{
-    r2d2::{ConnectionManager, PooledConnection},
-    PgConnection, QueryDsl,
-};
+use diesel::QueryDsl;
+use diesel_async::RunQueryDsl as _;
 
 #[derive(Template)]
 #[template(path = "monitoring.html")]
@@ -19,14 +16,12 @@ struct MonitoringMail<'a> {
     server_name: &'a str,
 }
 
-fn get_numbers(
-    mut conn: PooledConnection<ConnectionManager<PgConnection>>,
-) -> Result<(i64, i64), Error> {
+async fn get_numbers(conn: &mut diesel_async::AsyncPgConnection) -> Result<(i64, i64), Error> {
     use db_connector::schema::chargers::dsl::*;
     use db_connector::schema::users::dsl::*;
 
-    let num_users: i64 = users.count().get_result(&mut conn)?;
-    let num_devices: i64 = chargers.count().get_result(&mut conn)?;
+    let num_users: i64 = users.count().get_result(conn).await?;
+    let num_devices: i64 = chargers.count().get_result(conn).await?;
 
     Ok((num_users, num_devices))
 }
@@ -59,33 +54,40 @@ pub fn start_monitoring(state: web::Data<AppState>) {
         return;
     }
 
-    std::thread::spawn(move || loop {
-        match get_connection(&state) {
-            Ok(conn) => {
-                let (num_users, num_devices) = match get_numbers(conn) {
-                    Ok(v) => v,
+    actix::spawn(async move {
+        loop {
+            match get_connection(&state).await {
+                Ok(mut conn) => match get_numbers(&mut conn).await {
+                    Ok((num_users, num_devices)) => {
+                        let mail_state = state.clone();
+                        match tokio::task::spawn_blocking(move || {
+                            send_mail(&mail_state, num_users, num_devices)
+                        })
+                        .await
+                        {
+                            Ok(Ok(())) => {
+                                log::info!(
+                                    "Monitoring email sent successfully. Users: {num_users}, Chargers: {num_devices}"
+                                );
+                            }
+                            Ok(Err(err)) => {
+                                log::error!("Failed to send monitoring mail: {err}");
+                            }
+                            Err(err) => {
+                                log::error!("Monitoring mail task failed: {err}");
+                            }
+                        }
+                    }
                     Err(err) => {
                         log::error!("Failed to get monitoring statistics from database: {err}");
-                        std::thread::sleep(Duration::from_secs(60 * 60 * 24));
-                        continue;
                     }
-                };
-                match send_mail(&state, num_users, num_devices) {
-                    Ok(()) => {
-                        log::info!(
-                            "Monitoring email sent successfully. Users: {num_users}, Chargers: {num_devices}"
-                        );
-                    }
-                    Err(err) => {
-                        log::error!("Failed to send monitoring mail: {err}");
-                    }
+                },
+                Err(err) => {
+                    log::error!("Failed to get database connection for monitoring: {err:?}");
                 }
             }
-            Err(e) => {
-                log::error!("Failed to get database connection for monitoring: {e:?}");
-            }
-        }
 
-        std::thread::sleep(Duration::from_secs(60 * 60 * 24));
+            tokio::time::sleep(Duration::from_secs(60 * 60 * 24)).await;
+        }
     });
 }

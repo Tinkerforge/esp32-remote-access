@@ -19,16 +19,12 @@
 
 use actix_web::{get, web, HttpResponse, Responder};
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger};
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{
-    error::Error,
-    routes::user::get_user,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
-};
+use crate::{error::Error, routes::user::get_user, utils::get_connection, AppState};
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserInfo {
@@ -57,39 +53,30 @@ async fn me(
     let user = get_user(&state, id.clone().into()).await?;
 
     let id: uuid::Uuid = id.into();
-    let mut conn = get_connection(&state)?;
-    let allowed_users = web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    let allowed_users = {
         use db_connector::schema::allowed_users::dsl as au;
 
-        match au::allowed_users
+        au::allowed_users
             .filter(au::user_id.eq(id))
             .select(AllowedUser::as_select())
             .load::<AllowedUser>(&mut conn)
-        {
-            Ok(allowed_users) => Ok(allowed_users),
-            Err(_e) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+            .await
+            .map_err(|_| Error::InternalError)?
+    };
 
-    let mut conn = get_connection(&state)?;
-    let devices = web_block_unpacked(move || {
+    let ids: Vec<uuid::Uuid> = allowed_users.iter().map(|au| au.charger_id).collect();
+    let mut conn = get_connection(&state).await?;
+    let devices = {
         use db_connector::schema::chargers::dsl as c;
 
-        let ids = allowed_users
-            .iter()
-            .map(|au| au.charger_id)
-            .collect::<Vec<_>>();
-        match c::chargers
+        c::chargers
             .filter(c::id.eq_any(ids))
             .select(Charger::as_select())
             .load::<Charger>(&mut conn)
-        {
-            Ok(devices) => Ok(devices),
-            Err(_e) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+            .await
+            .map_err(|_| Error::InternalError)?
+    };
 
     let mut has_old_charger = false;
     for device in devices.into_iter() {
@@ -115,9 +102,10 @@ pub(crate) mod tests {
     use super::*;
     use actix_web::{cookie::Cookie, test, App};
     use db_connector::models::users::User;
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     use crate::{
-        defer,
+        defer_async,
         routes::auth::{
             login::tests::verify_and_login_user,
             register::tests::{create_user, delete_user},
@@ -125,23 +113,25 @@ pub(crate) mod tests {
         tests::configure,
     };
 
-    pub fn get_test_user(mail: &str) -> User {
+    pub async fn get_test_user(mail: &str) -> User {
         use db_connector::schema::users::dsl::*;
 
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.expect("Failed to get db connection");
+        let mail_owned = mail.to_string();
         users
-            .filter(email.eq(mail))
+            .filter(email.eq(mail_owned))
             .select(User::as_select())
-            .get_result(&mut conn)
-            .unwrap()
+            .get_result::<User>(&mut conn)
+            .await
+            .expect("get_test_user")
     }
 
     #[actix_web::test]
     async fn test_me() {
         let mail = "me@test.invalid";
         let key = create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!(delete_user(mail));
 
         let app = App::new()
             .configure(configure)
@@ -167,10 +157,10 @@ pub(crate) mod tests {
     async fn test_old_firmware_version() {
         let mail = "old_firmware@test.invalid";
         let key = create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!(delete_user(mail));
 
         // Add charger with old firmware version
-        let user = get_test_user(mail);
+        let user = get_test_user(mail).await;
         let uid = rand::random::<i32>();
         let device = TestCharger {
             uid,
@@ -178,7 +168,7 @@ pub(crate) mod tests {
             uuid: uuid::Uuid::new_v4().to_string(),
         };
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         use db_connector::models::allowed_users::AllowedUser;
         use db_connector::models::chargers::Charger;
@@ -186,6 +176,7 @@ pub(crate) mod tests {
         use db_connector::schema::chargers::dsl as c;
         use uuid::Uuid;
 
+        let user_clone = user.clone();
         // Insert test charger with old firmware
         let device_id = Uuid::new_v4();
         let test_device = Charger {
@@ -208,12 +199,13 @@ pub(crate) mod tests {
         diesel::insert_into(c::chargers)
             .values(&test_device)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         // Add allowed_user entry
         let allowed_user = AllowedUser {
             id: Uuid::new_v4(),
-            user_id: user.id,
+            user_id: user_clone.id,
             charger_id: device_id,
             charger_uid: device.uid,
             valid: true,
@@ -223,6 +215,7 @@ pub(crate) mod tests {
         diesel::insert_into(au::allowed_users)
             .values(&allowed_user)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         let app = App::new()
@@ -248,10 +241,10 @@ pub(crate) mod tests {
     async fn test_old_firmware_version_with_device_type() {
         let mail = "old_firmware_with_device_type@test.invalid";
         let key = create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!(delete_user(mail));
 
         // Add charger with old firmware version BUT with a device_type set
-        let user = get_test_user(mail);
+        let user = get_test_user(mail).await;
         let uid = rand::random::<i32>();
         let device = TestCharger {
             uid,
@@ -259,7 +252,7 @@ pub(crate) mod tests {
             uuid: uuid::Uuid::new_v4().to_string(),
         };
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         use db_connector::models::allowed_users::AllowedUser;
         use db_connector::models::chargers::Charger;
@@ -267,6 +260,7 @@ pub(crate) mod tests {
         use db_connector::schema::chargers::dsl as c;
         use uuid::Uuid;
 
+        let user_clone = user.clone();
         // Insert test charger with old firmware but device_type Some => should NOT count as old
         let device_id = Uuid::new_v4();
         let test_device = Charger {
@@ -289,12 +283,13 @@ pub(crate) mod tests {
         diesel::insert_into(c::chargers)
             .values(&test_device)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         // Add allowed_user entry
         let allowed_user = AllowedUser {
             id: Uuid::new_v4(),
-            user_id: user.id,
+            user_id: user_clone.id,
             charger_id: device_id,
             charger_uid: device.uid,
             valid: true,
@@ -304,6 +299,7 @@ pub(crate) mod tests {
         diesel::insert_into(au::allowed_users)
             .values(&allowed_user)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         let app = App::new()
@@ -331,10 +327,10 @@ pub(crate) mod tests {
     async fn test_new_firmware_version() {
         let mail = "new_firmware@test.invalid";
         let key = create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!(delete_user(mail));
 
         // Add charger with new firmware version
-        let user = get_test_user(mail);
+        let user = get_test_user(mail).await;
         let uid = rand::random::<i32>();
         let device = TestCharger {
             uid,
@@ -342,7 +338,7 @@ pub(crate) mod tests {
             uuid: uuid::Uuid::new_v4().to_string(),
         };
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         use db_connector::models::allowed_users::AllowedUser;
         use db_connector::models::chargers::Charger;
@@ -350,6 +346,7 @@ pub(crate) mod tests {
         use db_connector::schema::chargers::dsl as c;
         use uuid::Uuid;
 
+        let user_clone = user.clone();
         // Insert test charger with new firmware
         let device_id = Uuid::new_v4();
         let test_device = Charger {
@@ -372,12 +369,13 @@ pub(crate) mod tests {
         diesel::insert_into(c::chargers)
             .values(&test_device)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         // Add allowed_user entry
         let allowed_user = AllowedUser {
             id: Uuid::new_v4(),
-            user_id: user.id,
+            user_id: user_clone.id,
             charger_id: device_id,
             charger_uid: device.uid,
             valid: true,
@@ -387,6 +385,7 @@ pub(crate) mod tests {
         diesel::insert_into(au::allowed_users)
             .values(&allowed_user)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         let app = App::new()
@@ -411,10 +410,10 @@ pub(crate) mod tests {
     async fn test_invalid_firmware_version() {
         let mail = "invalid_firmware@test.invalid";
         let key = create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!(delete_user(mail));
 
         // Add charger with invalid firmware version
-        let user = get_test_user(mail);
+        let user = get_test_user(mail).await;
         let uid = rand::random::<i32>();
         let device = TestCharger {
             uid,
@@ -422,7 +421,7 @@ pub(crate) mod tests {
             uuid: uuid::Uuid::new_v4().to_string(),
         };
         let pool = db_connector::test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         use db_connector::models::allowed_users::AllowedUser;
         use db_connector::models::chargers::Charger;
@@ -430,6 +429,7 @@ pub(crate) mod tests {
         use db_connector::schema::chargers::dsl as c;
         use uuid::Uuid;
 
+        let user_clone = user.clone();
         // Insert test charger with invalid firmware version
         let device_id = Uuid::new_v4();
         let test_device = Charger {
@@ -452,12 +452,13 @@ pub(crate) mod tests {
         diesel::insert_into(c::chargers)
             .values(&test_device)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         // Add allowed_user entry
         let allowed_user = AllowedUser {
             id: Uuid::new_v4(),
-            user_id: user.id,
+            user_id: user_clone.id,
             charger_id: device_id,
             charger_uid: device.uid,
             valid: true,
@@ -467,6 +468,7 @@ pub(crate) mod tests {
         diesel::insert_into(au::allowed_users)
             .values(&allowed_user)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         let app = App::new()

@@ -19,14 +19,15 @@
 
 use actix_web::{put, web, HttpResponse, Responder};
 use db_connector::models::device_groupings::DeviceGrouping;
-use diesel::prelude::*;
 use diesel::result::Error::NotFound;
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    utils::{get_connection, parse_uuid, web_block_unpacked},
+    utils::{get_connection, parse_uuid},
     AppState,
 };
 
@@ -69,71 +70,69 @@ pub async fn edit_grouping(
     let new_name = payload.name.clone();
     let new_is_default = payload.is_default;
     let user_uuid: uuid::Uuid = user_id.into();
-    let mut conn = get_connection(&state)?;
+    let mut conn = get_connection(&state).await?;
 
     if new_name.is_none() && new_is_default.is_none() {
         return Err(Error::InvalidPayload.into());
     }
 
-    let updated_grouping = web_block_unpacked(move || {
-        // First verify the grouping exists and belongs to the user
-        let grouping: DeviceGrouping = match groupings::device_groupings
-            .find(grouping_uuid)
-            .select(DeviceGrouping::as_select())
-            .get_result(&mut conn)
-        {
-            Ok(g) => g,
-            Err(NotFound) => return Err(Error::ChargerDoesNotExist),
-            Err(_err) => return Err(Error::InternalError),
-        };
+    // First verify the grouping exists and belongs to the user
+    let grouping: DeviceGrouping = match groupings::device_groupings
+        .find(grouping_uuid)
+        .select(DeviceGrouping::as_select())
+        .get_result::<DeviceGrouping>(&mut conn)
+        .await
+    {
+        Ok(g) => g,
+        Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
+        Err(_err) => return Err(Error::InternalError.into()),
+    };
 
-        // Verify ownership
-        if grouping.user_id != user_uuid {
-            return Err(Error::Unauthorized);
+    // Verify ownership
+    if grouping.user_id != user_uuid {
+        return Err(Error::Unauthorized.into());
+    }
+
+    let promoting_to_default = new_is_default == Some(true) && !grouping.is_default;
+    if promoting_to_default {
+        diesel::update(groupings::device_groupings)
+            .filter(groupings::user_id.eq(user_uuid))
+            .filter(groupings::is_default.eq(true))
+            .filter(groupings::id.ne(grouping_uuid))
+            .set(groupings::is_default.eq(false))
+            .execute(&mut conn)
+            .await
+            .map_err(|_| Error::InternalError)?;
+    }
+
+    // Apply the update. Exactly one of the two fields is guaranteed to
+    // be present thanks to the early return above, but handling both
+    // keeps the path open for callers that want to update both at once.
+    let updated_grouping: DeviceGrouping = match (new_name.as_ref(), new_is_default) {
+        (Some(name), Some(is_default)) => {
+            diesel::update(groupings::device_groupings.find(grouping_uuid))
+                .set((
+                    groupings::name.eq(name),
+                    groupings::is_default.eq(is_default),
+                ))
+                .get_result::<DeviceGrouping>(&mut conn)
+                .await
         }
-
-        let promoting_to_default = new_is_default == Some(true) && !grouping.is_default;
-        if promoting_to_default {
-            if let Err(_err) = diesel::update(groupings::device_groupings)
-                .filter(groupings::user_id.eq(user_uuid))
-                .filter(groupings::is_default.eq(true))
-                .filter(groupings::id.ne(grouping_uuid))
-                .set(groupings::is_default.eq(false))
-                .execute(&mut conn)
-            {
-                return Err(Error::InternalError);
-            }
-        }
-
-        // Apply the update. Exactly one of the two fields is guaranteed to
-        // be present thanks to the early return above, but handling both
-        // keeps the path open for callers that want to update both at once.
-        let result = match (new_name.as_ref(), new_is_default) {
-            (Some(name), Some(is_default)) => {
-                diesel::update(groupings::device_groupings.find(grouping_uuid))
-                    .set((
-                        groupings::name.eq(name),
-                        groupings::is_default.eq(is_default),
-                    ))
-                    .get_result::<DeviceGrouping>(&mut conn)
-            }
-            (Some(name), None) => diesel::update(groupings::device_groupings.find(grouping_uuid))
+        (Some(name), None) => {
+            diesel::update(groupings::device_groupings.find(grouping_uuid))
                 .set(groupings::name.eq(name))
-                .get_result::<DeviceGrouping>(&mut conn),
-            (None, Some(is_default)) => {
-                diesel::update(groupings::device_groupings.find(grouping_uuid))
-                    .set(groupings::is_default.eq(is_default))
-                    .get_result::<DeviceGrouping>(&mut conn)
-            }
-            (None, None) => return Err(Error::InvalidPayload),
-        };
-
-        match result {
-            Ok(g) => Ok(g),
-            Err(_err) => Err(Error::InternalError),
+                .get_result::<DeviceGrouping>(&mut conn)
+                .await
         }
-    })
-    .await?;
+        (None, Some(is_default)) => {
+            diesel::update(groupings::device_groupings.find(grouping_uuid))
+                .set(groupings::is_default.eq(is_default))
+                .get_result::<DeviceGrouping>(&mut conn)
+                .await
+        }
+        (None, None) => return Err(Error::InvalidPayload.into()),
+    }
+    .map_err(|_| Error::InternalError)?;
 
     Ok(HttpResponse::Ok().json(EditGroupingResponse {
         id: updated_grouping.id.to_string(),
@@ -187,12 +186,12 @@ mod tests {
         assert_eq!(response.id, grouping.id);
 
         // Verify the name was updated in the database
-        let db_grouping = get_grouping_from_db(&grouping.id);
+        let db_grouping = get_grouping_from_db(&grouping.id).await;
         assert!(db_grouping.is_some());
         assert_eq!(db_grouping.unwrap().name, new_name);
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 
     #[actix_web::test]
@@ -227,12 +226,12 @@ mod tests {
         assert_eq!(resp.status().as_u16(), 401); // Unauthorized
 
         // Verify the name was not changed
-        let db_grouping = get_grouping_from_db(&grouping.id);
+        let db_grouping = get_grouping_from_db(&grouping.id).await;
         assert!(db_grouping.is_some());
         assert_eq!(db_grouping.unwrap().name, original_name);
 
         // Cleanup
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 
     #[actix_web::test]
@@ -286,7 +285,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status().as_u16(), 400); // InvalidPayload
 
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 
     #[actix_web::test]
@@ -319,10 +318,10 @@ mod tests {
         let response: EditGroupingResponse = test::read_body_json(resp).await;
         assert!(response.is_default);
 
-        let db_grouping = get_grouping_from_db(&grouping.id).unwrap();
+        let db_grouping = get_grouping_from_db(&grouping.id).await.unwrap();
         assert!(db_grouping.is_default);
 
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 
     #[actix_web::test]
@@ -366,11 +365,11 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        assert!(!get_grouping_from_db(&first.id).unwrap().is_default);
-        assert!(get_grouping_from_db(&second.id).unwrap().is_default);
+        assert!(!get_grouping_from_db(&first.id).await.unwrap().is_default);
+        assert!(get_grouping_from_db(&second.id).await.unwrap().is_default);
 
-        delete_test_grouping_from_db(&first.id);
-        delete_test_grouping_from_db(&second.id);
+        delete_test_grouping_from_db(&first.id).await;
+        delete_test_grouping_from_db(&second.id).await;
     }
 
     #[actix_web::test]
@@ -396,7 +395,7 @@ mod tests {
             .set_json(&promote)
             .to_request();
         assert!(test::call_service(&app, req).await.status().is_success());
-        assert!(get_grouping_from_db(&grouping.id).unwrap().is_default);
+        assert!(get_grouping_from_db(&grouping.id).await.unwrap().is_default);
 
         // Clear the default flag.
         let clear = EditGroupingSchema {
@@ -414,8 +413,8 @@ mod tests {
 
         let response: EditGroupingResponse = test::read_body_json(resp).await;
         assert!(!response.is_default);
-        assert!(!get_grouping_from_db(&grouping.id).unwrap().is_default);
+        assert!(!get_grouping_from_db(&grouping.id).await.unwrap().is_default);
 
-        delete_test_grouping_from_db(&grouping.id);
+        delete_test_grouping_from_db(&grouping.id).await;
     }
 }

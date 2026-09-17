@@ -356,7 +356,7 @@ mod tests {
         let metadata = json!({
             "charger_uuid": device.uuid,
             "password": device.password,
-            "user_uuid": crate::routes::user::tests::get_test_uuid(&user.mail)
+            "user_uuid": crate::routes::user::tests::get_test_uuid(&user.mail).await
                 .unwrap()
                 .to_string(),
             "display_name": "Test Device",
@@ -393,7 +393,7 @@ mod tests {
         let metadata = json!({
             "charger_uuid": device.uuid,
             "password": "wrongpassword",
-            "user_uuid": crate::routes::user::tests::get_test_uuid(&user.mail)
+            "user_uuid": crate::routes::user::tests::get_test_uuid(&user.mail).await
                 .unwrap()
                 .to_string(),
             "display_name": "Test Device",
@@ -429,6 +429,7 @@ mod tests {
         let app = test::init_service(app).await;
 
         let user_uuid = crate::routes::user::tests::get_test_uuid(&user.mail)
+            .await
             .unwrap()
             .to_string();
 

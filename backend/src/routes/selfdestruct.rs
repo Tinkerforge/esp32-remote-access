@@ -1,6 +1,7 @@
 use actix_web::{delete, web, HttpRequest, HttpResponse, Responder};
 use db_connector::models::chargers::Charger;
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -8,9 +9,7 @@ use crate::{
     error::Error,
     rate_limit::ChargerRateLimiter,
     routes::charger::add::password_matches,
-    utils::{
-        get_charger_by_uid, get_charger_from_db, get_connection, parse_uuid, web_block_unpacked,
-    },
+    utils::{get_charger_by_uid, get_charger_from_db, get_connection, parse_uuid},
     AppState,
 };
 
@@ -61,44 +60,46 @@ pub async fn selfdestruct(
     // funtion does also the rate limiting
     let device = get_charger(payload.0, &state, &rate_limiter, &req).await?;
 
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         match diesel::delete(
             allowed_users::allowed_users.filter(allowed_users::charger_id.eq(device.id)),
         )
         .execute(&mut conn)
+        .await
         {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    }
 
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         use db_connector::schema::wg_keys::dsl as wg_keys;
 
         match diesel::delete(wg_keys::wg_keys.filter(wg_keys::charger_id.eq(device.id)))
             .execute(&mut conn)
+            .await
         {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    }
 
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         use db_connector::schema::chargers::dsl::*;
 
-        match diesel::delete(chargers.filter(id.eq(device.id))).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+        match diesel::delete(chargers.filter(id.eq(device.id)))
+            .execute(&mut conn)
+            .await
+        {
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    }
 
     Ok(HttpResponse::Ok().body(()))
 }
@@ -115,7 +116,8 @@ mod tests {
         models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey},
         test_connection_pool,
     };
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
     use crate::{routes::user::tests::TestUser, tests::configure};
 
@@ -145,7 +147,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
         let devices: Vec<Charger> = {
@@ -154,7 +156,8 @@ mod tests {
             chargers::chargers
                 .filter(chargers::id.eq(cid))
                 .select(Charger::as_select())
-                .load(&mut conn)
+                .load::<Charger>(&mut conn)
+                .await
                 .unwrap()
         };
         assert_eq!(devices.len(), 0);
@@ -165,7 +168,8 @@ mod tests {
             allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
-                .load(&mut conn)
+                .load::<AllowedUser>(&mut conn)
+                .await
                 .unwrap()
         };
         assert_eq!(allowed_users.len(), 0);
@@ -176,7 +180,8 @@ mod tests {
             wg_keys
                 .filter(charger_id.eq(cid))
                 .select(WgKey::as_select())
-                .load(&mut conn)
+                .load::<WgKey>(&mut conn)
+                .await
                 .unwrap()
         };
         assert_eq!(wg_keys.len(), 0);
@@ -206,7 +211,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
 
         let cid = uuid::Uuid::from_str(&device.uuid).unwrap();
         let devices: Vec<Charger> = {
@@ -215,7 +220,8 @@ mod tests {
             chargers::chargers
                 .filter(chargers::id.eq(cid))
                 .select(Charger::as_select())
-                .load(&mut conn)
+                .load::<Charger>(&mut conn)
+                .await
                 .unwrap()
         };
         assert_eq!(devices.len(), 0);
@@ -226,7 +232,8 @@ mod tests {
             allowed_users
                 .filter(charger_id.eq(cid))
                 .select(AllowedUser::as_select())
-                .load(&mut conn)
+                .load::<AllowedUser>(&mut conn)
+                .await
                 .unwrap()
         };
         assert_eq!(allowed_users.len(), 0);
@@ -237,7 +244,8 @@ mod tests {
             wg_keys
                 .filter(charger_id.eq(cid))
                 .select(WgKey::as_select())
-                .load(&mut conn)
+                .load::<WgKey>(&mut conn)
+                .await
                 .unwrap()
         };
         assert_eq!(wg_keys.len(), 0);

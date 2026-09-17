@@ -22,21 +22,15 @@ use actix_web_validator::Json;
 use argon2::password_hash::PasswordHashString;
 use chrono::{Days, TimeDelta, Utc};
 use db_connector::models::{refresh_tokens::RefreshToken, users::User};
-use diesel::{
-    prelude::*,
-    r2d2::{ConnectionManager, PooledConnection},
-    result::Error::NotFound,
-};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
-    error::Error,
-    models::token_claims::TokenClaims,
-    rate_limit::LoginRateLimiter,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
+    error::Error, models::token_claims::TokenClaims, rate_limit::LoginRateLimiter,
+    utils::get_connection, AppState,
 };
 
 pub const MAX_TOKEN_AGE_MINUTES: i64 = 6;
@@ -55,35 +49,49 @@ pub enum FindBy {
     Username(String),
 }
 
+/// Look the user up using `identifier` and verify `pass` matches their stored
+/// hash. The DB lookup is performed with a freshly-acquired connection that
+/// is dropped before we await the hasher — on `actix-web`'s current-thread
+/// tokio runtime we must not hold a connection across an await on the
+/// `HasherManager` mpsc, otherwise a backlog of registrations / logins can
+/// stall the actor entirely.
 pub async fn validate_password(
     pass: &[u8],
     identifier: FindBy,
-    mut conn: PooledConnection<ConnectionManager<PgConnection>>,
-    hasher: &crate::hasher::HasherManager,
+    state: &web::Data<crate::AppState>,
 ) -> Result<uuid::Uuid, actix_web::Error> {
     use db_connector::schema::users::dsl::*;
 
-    let result = web_block_unpacked(move || match identifier {
-        FindBy::Email(mail) => Ok(users
-            .filter(email.eq(mail))
-            .select(User::as_select())
-            .get_result(&mut conn)),
-        FindBy::Uuid(uid) => Ok(users
-            .find(uid)
-            .select(User::as_select())
-            .get_result(&mut conn)),
-        FindBy::Username(username) => Ok(users
-            .filter(name.eq(username))
-            .select(User::as_select())
-            .get_result(&mut conn)),
-    })
-    .await?;
-
-    let user: User = match result {
-        Ok(data) => data,
-        Err(NotFound) => return Err(Error::WrongCredentials.into()),
-        Err(_err) => return Err(Error::InternalError.into()),
-    };
+    let user: User = {
+        let mut conn = crate::utils::get_connection(state).await?;
+        match identifier {
+            FindBy::Email(mail) => {
+                users
+                    .filter(email.eq(mail))
+                    .select(User::as_select())
+                    .get_result::<User>(&mut conn)
+                    .await
+            }
+            FindBy::Uuid(uid) => {
+                users
+                    .find(uid)
+                    .select(User::as_select())
+                    .get_result::<User>(&mut conn)
+                    .await
+            }
+            FindBy::Username(username) => {
+                users
+                    .filter(name.eq(username))
+                    .select(User::as_select())
+                    .get_result::<User>(&mut conn)
+                    .await
+            }
+        }
+    }
+    .map_err(|err| match err {
+        NotFound => Error::WrongCredentials,
+        _ => Error::InternalError,
+    })?;
 
     if !user.email_verified {
         return Err(Error::NotVerified.into());
@@ -94,7 +102,11 @@ pub async fn validate_password(
         Err(_err) => return Err(Error::InternalError.into()),
     };
 
-    match hasher.verify_password(password_hash, pass.to_vec()).await {
+    match state
+        .hasher
+        .verify_password(password_hash, pass.to_vec())
+        .await
+    {
         Ok(_) => Ok(user.id),
         Err(_err) => Err(Error::WrongCredentials.into()),
     }
@@ -117,16 +129,10 @@ pub async fn login(
     rate_limiter: web::Data<LoginRateLimiter>,
     req: HttpRequest,
 ) -> Result<impl Responder, actix_web::Error> {
-    let conn = match state.pool.get() {
-        Ok(conn) => conn,
-        Err(_err) => return Err(Error::InternalError.into()),
-    };
-
     let email = data.email.to_lowercase();
     rate_limiter.check(email.clone(), &req)?;
 
-    let uuid =
-        validate_password(&data.login_key, FindBy::Email(email), conn, &state.hasher).await?;
+    let uuid = validate_password(&data.login_key, FindBy::Email(email), &state).await?;
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
@@ -176,7 +182,7 @@ pub async fn create_refresh_token(
     user_id: uuid::Uuid,
 ) -> actix_web::Result<String> {
     let token_id = uuid::Uuid::new_v4();
-    let mut conn = get_connection(state)?;
+    let mut conn = get_connection(state).await?;
 
     let now = Utc::now();
     let iat = now.timestamp() as usize;
@@ -191,7 +197,7 @@ pub async fn create_refresh_token(
         exp,
         sub: token_id.to_string(),
     };
-    web_block_unpacked(move || {
+    {
         use db_connector::schema::refresh_tokens::dsl as refresh_tokens;
 
         let token = RefreshToken {
@@ -202,12 +208,12 @@ pub async fn create_refresh_token(
         match diesel::insert_into(refresh_tokens::refresh_tokens)
             .values(&token)
             .execute(&mut conn)
+            .await
         {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    }
 
     let token = match jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),
@@ -236,7 +242,7 @@ pub(crate) mod tests {
     use actix_web::{http::header::ContentType, test, App};
 
     use super::*;
-    use crate::defer;
+    use crate::defer_async;
     use crate::{
         routes::auth::{
             register::tests::{create_user, delete_user},
@@ -285,7 +291,7 @@ pub(crate) mod tests {
     }
 
     pub async fn verify_and_login_user(email: &str, login_key: Vec<u8>) -> (String, String) {
-        fast_verify(email);
+        fast_verify(email).await;
 
         login_user(email, login_key).await
     }
@@ -294,8 +300,8 @@ pub(crate) mod tests {
     async fn test_valid_login() {
         let mail = "login@test.invalid";
         let key = create_user(mail).await;
-        defer!(delete_user(mail));
-        fast_verify(mail);
+        defer_async!(delete_user(mail));
+        fast_verify(mail).await;
 
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;
@@ -331,7 +337,7 @@ pub(crate) mod tests {
     async fn test_unverified() {
         let mail = "unverified_login@test.invalid";
         let key = create_user(mail).await;
-        defer!(delete_user(mail));
+        defer_async!(delete_user(mail));
 
         let app = App::new().configure(configure).service(login);
         let app = test::init_service(app).await;

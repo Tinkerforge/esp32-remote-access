@@ -2,17 +2,13 @@ use std::str::FromStr;
 
 use actix_web::{error::ErrorBadRequest, post, web, HttpResponse, Responder};
 use db_connector::models::recovery_tokens::RecoveryToken;
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::{
-    error::Error,
-    routes::auth::register::hash_key,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
-};
+use crate::{error::Error, routes::auth::register::hash_key, utils::get_connection, AppState};
 
 #[derive(Deserialize, Serialize, ToSchema)]
 pub struct RecoverySchema {
@@ -31,64 +27,70 @@ pub struct RecoverySchema {
 }
 
 async fn get_user_id(state: &web::Data<AppState>, recovery_key: Uuid) -> actix_web::Result<Uuid> {
-    let mut conn = get_connection(state)?;
-    let token: RecoveryToken = web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    let token: RecoveryToken = {
         use db_connector::schema::recovery_tokens::dsl::*;
 
         match recovery_tokens
             .filter(id.eq(recovery_key))
             .select(RecoveryToken::as_select())
             .get_result(&mut conn)
+            .await
         {
-            Ok(t) => Ok(t),
+            Ok(t) => t,
             // Provide a clearer error than generic Unauthorized when the token does not exist or was already used.
-            Err(NotFound) => Err(Error::InvalidRecoveryToken),
-            Err(_err) => Err(Error::InternalError),
+            Err(NotFound) => return Err(Error::InvalidRecoveryToken.into()),
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    };
 
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    {
         use db_connector::schema::recovery_tokens::dsl::*;
 
-        match diesel::delete(recovery_tokens.find(recovery_key)).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+        match diesel::delete(recovery_tokens.find(recovery_key))
+            .execute(&mut conn)
+            .await
+        {
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    }
 
     Ok(token.user_id)
 }
 
 async fn invalidate_wg_keys(state: &web::Data<AppState>, uid: Uuid) -> actix_web::Result<()> {
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    {
         use db_connector::schema::wg_keys::dsl::*;
 
-        match diesel::delete(wg_keys.filter(user_id.eq(uid))).execute(&mut conn) {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+        match diesel::delete(wg_keys.filter(user_id.eq(uid)))
+            .execute(&mut conn)
+            .await
+        {
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await
+    }
+    Ok(())
 }
 
 async fn invalidate_chargers(state: &web::Data<AppState>, uid: Uuid) -> actix_web::Result<()> {
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    {
         use db_connector::schema::allowed_users::dsl::*;
 
         match diesel::update(allowed_users.filter(user_id.eq(uid)))
             .set(valid.eq(false))
             .execute(&mut conn)
+            .await
         {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await
+    }
+    Ok(())
 }
 
 // Recover an account
@@ -123,8 +125,8 @@ pub async fn recovery(
         Err(_err) => return Err(Error::InternalError.into()),
     };
 
-    let mut conn = get_connection(&state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(&state).await?;
+    {
         use db_connector::schema::users::dsl::*;
 
         match diesel::update(users.find(user_id))
@@ -141,12 +143,12 @@ pub async fn recovery(
                 email_verified.eq(true),
             ))
             .execute(&mut conn)
+            .await
         {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+            Ok(_) => {}
+            Err(_err) => return Err(Error::InternalError.into()),
         }
-    })
-    .await?;
+    }
 
     Ok(HttpResponse::Ok())
 }
@@ -164,7 +166,8 @@ mod tests {
         models::{allowed_users::AllowedUser, users::User, wg_keys::WgKey},
         test_connection_pool,
     };
-    use diesel::prelude::*;
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
     use libsodium_sys::{
         crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES,
         crypto_secretbox_NONCEBYTES, crypto_secretbox_easy, crypto_secretbox_open_easy,
@@ -272,11 +275,12 @@ mod tests {
 
             let uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
             let pool = test_connection_pool();
-            let mut conn = pool.get().unwrap();
+            let mut conn = pool.get().await.unwrap();
             let res: Vec<WgKey> = wg_keys
                 .filter(charger_id.eq(uuid))
                 .select(WgKey::as_select())
                 .load(&mut conn)
+                .await
                 .unwrap();
             assert_eq!(res.len(), 5);
         }
@@ -368,11 +372,12 @@ mod tests {
 
             let uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
             let pool = test_connection_pool();
-            let mut conn = pool.get().unwrap();
+            let mut conn = pool.get().await.unwrap();
             let res: Vec<WgKey> = wg_keys
                 .filter(charger_id.eq(uuid))
                 .select(WgKey::as_select())
                 .load(&mut conn)
+                .await
                 .unwrap();
             assert_eq!(res.len(), 0);
         }
@@ -380,12 +385,15 @@ mod tests {
             use db_connector::schema::allowed_users::dsl::*;
 
             let pool = test_connection_pool();
-            let mut conn = pool.get().unwrap();
+            let mail_for_conn = user.mail.clone();
+            let user_uuid = get_test_uuid(&mail_for_conn).await.unwrap();
+            let mut conn = pool.get().await.unwrap();
             let res: Vec<AllowedUser> = allowed_users
-                .filter(user_id.eq(get_test_uuid(&user.mail).unwrap()))
+                .filter(user_id.eq(user_uuid))
                 .filter(valid.eq(true))
                 .select(AllowedUser::as_select())
                 .load(&mut conn)
+                .await
                 .unwrap();
             assert_eq!(res.len(), 0);
         }
@@ -428,19 +436,21 @@ mod tests {
         // actually log in.
         let mail = "recovery_verify@test.invalid";
         let _login_key = create_user(mail).await;
-        crate::defer!(delete_user(mail));
+        crate::defer_async!(delete_user(mail));
 
         {
             use db_connector::schema::users::dsl::*;
             use db_connector::test_connection_pool;
-            use diesel::prelude::*;
+            use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
 
             let pool = test_connection_pool();
-            let mut conn = pool.get().unwrap();
+            let mut conn = pool.get().await.unwrap();
+            let mail_owned = mail.to_string();
             let u: User = users
-                .filter(email.eq(mail))
+                .filter(email.eq(mail_owned))
                 .select(User::as_select())
                 .get_result(&mut conn)
+                .await
                 .unwrap();
             assert!(!u.email_verified, "user should start out unverified");
         }
@@ -498,14 +508,16 @@ mod tests {
         {
             use db_connector::schema::users::dsl::*;
             use db_connector::test_connection_pool;
-            use diesel::prelude::*;
+            use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
 
             let pool = test_connection_pool();
-            let mut conn = pool.get().unwrap();
+            let mut conn = pool.get().await.unwrap();
+            let mail_owned = mail.to_string();
             let u: User = users
-                .filter(email.eq(mail))
+                .filter(email.eq(mail_owned))
                 .select(User::as_select())
                 .get_result(&mut conn)
+                .await
                 .unwrap();
             assert!(u.email_verified, "user should be verified after recovery");
         }

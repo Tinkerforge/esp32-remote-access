@@ -121,7 +121,7 @@ mod tests {
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
         let device = AddChargerWithTokenSchema {
-            user_id: get_test_uuid(&mail).unwrap().to_string(),
+            user_id: get_test_uuid(&mail).await.unwrap().to_string(),
             token: auth_token.token,
             charger: ChargerSchema {
                 uid: encode_charger_uid(uid),
@@ -145,15 +145,15 @@ mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        let _ = remove_test_keys(&mail);
-        remove_allowed_test_users(&cid);
-        remove_test_device(&cid);
+        let _ = remove_test_keys(&mail).await;
+        remove_allowed_test_users(&cid).await;
+        remove_test_device(&cid).await;
         println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
 
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        let user_uuid = get_test_uuid(&mail).await.unwrap().to_string();
         assert_eq!(body.user_id, user_uuid);
     }
 
@@ -172,7 +172,7 @@ mod tests {
         let keys = generate_random_keys();
         let cid = uuid::Uuid::new_v4().to_string();
         let device = AddChargerWithTokenSchema {
-            user_id: get_test_uuid(&mail).unwrap().to_string(),
+            user_id: get_test_uuid(&mail).await.unwrap().to_string(),
             token: auth_token.token,
             charger: ChargerSchema {
                 uid: encode_charger_uid(uid),
@@ -196,15 +196,15 @@ mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        let _ = remove_test_keys(&mail);
-        remove_allowed_test_users(&cid);
-        remove_test_device(&cid);
+        let _ = remove_test_keys(&mail).await;
+        remove_allowed_test_users(&cid).await;
+        remove_test_device(&cid).await;
         println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
 
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        let user_uuid = get_test_uuid(&mail).await.unwrap().to_string();
         assert_eq!(body.user_id, user_uuid);
     }
 
@@ -224,7 +224,7 @@ mod tests {
         // state.
         let uid: i32 = 7;
         let device = AddChargerWithTokenSchema {
-            user_id: get_test_uuid(&mail).unwrap().to_string(),
+            user_id: get_test_uuid(&mail).await.unwrap().to_string(),
             token: auth_token,
             charger: ChargerSchema {
                 uid: encode_charger_uid(uid),
@@ -248,9 +248,9 @@ mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        let _ = remove_test_keys(&mail);
-        remove_allowed_test_users(&cid);
-        remove_test_device(&cid);
+        let _ = remove_test_keys(&mail).await;
+        remove_allowed_test_users(&cid).await;
+        remove_test_device(&cid).await;
         println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert_eq!(resp.status(), 401);
@@ -274,8 +274,9 @@ mod tests {
         // (Flickr-base58) regardless of how the surrounding flow mutates
         // state.
         let uid: i32 = 7;
-        let base_schema = |token: String| AddChargerWithTokenSchema {
-            user_id: get_test_uuid(&mail).unwrap().to_string(),
+        let user_uuid_for_schema = get_test_uuid(&mail).await.unwrap().to_string();
+        let base_schema = move |token: String| AddChargerWithTokenSchema {
+            user_id: user_uuid_for_schema.clone(),
             token,
             charger: ChargerSchema {
                 uid: encode_charger_uid(uid),
@@ -312,8 +313,8 @@ mod tests {
         let body_str = String::from_utf8(body.to_vec()).unwrap();
         assert!(body_str.contains("Authorization token already used"));
 
-        let _ = remove_test_keys(&mail);
-        remove_allowed_test_users(&cid);
-        remove_test_device(&cid);
+        let _ = remove_test_keys(&mail).await;
+        remove_allowed_test_users(&cid).await;
+        remove_test_device(&cid).await;
     }
 }

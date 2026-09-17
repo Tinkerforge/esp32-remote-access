@@ -4,8 +4,8 @@ use argon2::password_hash::rand_core::{OsRng, RngCore};
 use base64::Engine;
 use ipnetwork::IpNetwork;
 use reqwest::cookie::Jar;
-use serde::{Deserialize, Serialize};
 use reqwest_websocket::Upgrade;
+use serde::{Deserialize, Serialize};
 use tabled::Tabled;
 
 #[derive(Serialize, Deserialize)]
@@ -46,7 +46,6 @@ impl core::fmt::Display for ChargerStatus {
         }
     }
 }
-
 
 #[derive(Serialize, Deserialize)]
 struct GetChargerSchema {
@@ -226,10 +225,22 @@ impl Client {
         Ok(())
     }
 
-    pub async fn connect_ws(&mut self, device: uuid::Uuid) -> anyhow::Result<(reqwest_websocket::WebSocket, boringtun::noise::Tunn, String, String)> {
+    pub async fn connect_ws(
+        &mut self,
+        device: uuid::Uuid,
+    ) -> anyhow::Result<(
+        reqwest_websocket::WebSocket,
+        boringtun::noise::Tunn,
+        String,
+        String,
+    )> {
         let resp = self
             .client
-            .get(format!("https://{}/api/charger/get_key?cid={}", self.host, device.to_string()))
+            .get(format!(
+                "https://{}/api/charger/get_key?cid={}",
+                self.host,
+                device.to_string()
+            ))
             .send()
             .await?;
         if resp.status() != reqwest::StatusCode::OK {
@@ -238,8 +249,7 @@ impl Client {
                 resp.status().as_str()
             ));
         }
-        let keys: GetWgKeysResponseSchema =
-            serde_json::from_str(&resp.text().await?)?;
+        let keys: GetWgKeysResponseSchema = serde_json::from_str(&resp.text().await?)?;
 
         let wg_private_str = self.decrypt(&keys.web_private)?;
         let psk_str = self.decrypt(&keys.psk)?;
@@ -254,13 +264,16 @@ impl Client {
         engine.decode_slice(&psk_str, &mut psk)?;
 
         let wg_private = boringtun::x25519::StaticSecret::from(wg_private);
-        let rate_limiter = boringtun::noise::rate_limiter::RateLimiter::new(&boringtun::x25519::PublicKey::from(&wg_private), 1024);
+        let rate_limiter = boringtun::noise::rate_limiter::RateLimiter::new(
+            &boringtun::x25519::PublicKey::from(&wg_private),
+            1024,
+        );
         let rate_limiter = Arc::new(rate_limiter);
         let rate_limiter_cpy = rate_limiter.clone();
-        std::thread::spawn(move || {
+        tokio::spawn(async move {
             loop {
                 rate_limiter_cpy.reset_count();
-                std::thread::sleep(std::time::Duration::from_secs(1));
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
         });
 
@@ -273,7 +286,9 @@ impl Client {
             Some(rate_limiter),
         );
 
-        let resp = self.client.get(format!("wss://{}/api/ws?key_id={}", self.host, keys.id))
+        let resp = self
+            .client
+            .get(format!("wss://{}/api/ws?key_id={}", self.host, keys.id))
             .upgrade()
             .send()
             .await?;
@@ -292,40 +307,48 @@ impl Client {
     }
 
     pub async fn list_devices(&mut self) -> anyhow::Result<()> {
-        let resp = self
-            .get("/api/charger/get_devices")
-            .await?;
+        let resp = self.get("/api/charger/get_devices").await?;
         if resp.status() != reqwest::StatusCode::OK {
             return Err(anyhow::anyhow!(
                 "Failed to get devices: {}",
                 resp.status().as_str()
             ));
         }
-        let devices: Vec<GetChargerSchema> =
-            serde_json::from_str(&resp.text().await?)?;
+        let devices: Vec<GetChargerSchema> = serde_json::from_str(&resp.text().await?)?;
 
         let engine = base64::prelude::BASE64_STANDARD;
-        let devices: Vec<DisplayDevices> = devices.into_iter().map(|c| {
-            if !c.valid {
-                return DisplayDevices {
+        let devices: Vec<DisplayDevices> = devices
+            .into_iter()
+            .map(|c| {
+                if !c.valid {
+                    return DisplayDevices {
+                        id: c.id,
+                        uid: c.uid,
+                        name: String::new(),
+                        note: String::new(),
+                        status: ChargerStatus::Disconnected,
+                        webinterface_port: c.port,
+                        valid: c.valid,
+                    };
+                }
+
+                let name = engine.decode(c.name).unwrap();
+                let name = self.decrypt(&name).unwrap();
+                let name = String::from_utf8(name).unwrap();
+                let note = engine.decode(c.note.unwrap_or_default()).unwrap();
+                let note = self.decrypt(&note).unwrap();
+                let note = String::from_utf8(note).unwrap();
+                DisplayDevices {
                     id: c.id,
                     uid: c.uid,
-                    name: String::new(),
-                    note: String::new(),
-                    status: ChargerStatus::Disconnected,
+                    name,
+                    note,
+                    status: c.status,
                     webinterface_port: c.port,
-                    valid: c.valid,
+                    valid: true,
                 }
-            }
-
-            let name = engine.decode(c.name).unwrap();
-            let name = self.decrypt(&name).unwrap();
-            let name = String::from_utf8(name).unwrap();
-            let note = engine.decode(c.note.unwrap_or_default()).unwrap();
-            let note = self.decrypt(&note).unwrap();
-            let note = String::from_utf8(note).unwrap();
-            DisplayDevices { id: c.id, uid: c.uid, name, note, status: c.status, webinterface_port: c.port, valid: true }
-        }).collect();
+            })
+            .collect();
 
         let table = tabled::Table::new(devices);
 
@@ -337,11 +360,7 @@ impl Client {
     fn get_pk(&self) -> anyhow::Result<[u8; 32]> {
         let mut pk = [0u8; libsodium_sys::crypto_box_PUBLICKEYBYTES as usize];
         unsafe {
-            if libsodium_sys::crypto_scalarmult_base(
-                pk.as_mut_ptr(),
-                self.secret.as_ptr(),
-            ) == -1
-            {
+            if libsodium_sys::crypto_scalarmult_base(pk.as_mut_ptr(), self.secret.as_ptr()) == -1 {
                 return Err(anyhow::anyhow!("Failed to generate keypair"));
             }
         }

@@ -1,6 +1,7 @@
 use actix_web::{post, web, Responder};
 use db_connector::models::{recovery_tokens::RecoveryToken, verification::Verification};
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl};
+use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -27,22 +28,18 @@ async fn check_recovery_token(
     state: &web::Data<AppState>,
     token: uuid::Uuid,
 ) -> actix_web::Result<bool> {
-    let mut conn = get_connection(state)?;
-    let valid = web::block(move || {
-        use db_connector::schema::recovery_tokens::dsl::*;
+    let mut conn = get_connection(state).await?;
+    use db_connector::schema::recovery_tokens::dsl::*;
 
-        let valid = match recovery_tokens
-            .filter(id.eq(token))
-            .get_result::<RecoveryToken>(&mut conn)
-        {
-            Ok(_) => true,
-            Err(NotFound) => false,
-            Err(_) => return Err(Error::InternalError),
-        };
-
-        Ok(valid)
-    })
-    .await??;
+    let valid = match recovery_tokens
+        .filter(id.eq(token))
+        .get_result::<RecoveryToken>(&mut conn)
+        .await
+    {
+        Ok(_) => true,
+        Err(NotFound) => false,
+        Err(_) => return Err(Error::InternalError.into()),
+    };
 
     Ok(valid)
 }
@@ -51,25 +48,21 @@ async fn check_verification_token(
     state: &web::Data<AppState>,
     token: uuid::Uuid,
 ) -> actix_web::Result<bool> {
-    let mut conn = get_connection(state)?;
-    let valid = web::block(move || {
-        use db_connector::schema::verification::dsl::*;
+    let mut conn = get_connection(state).await?;
+    use db_connector::schema::verification::dsl::*;
 
-        let valid = match verification
-            .filter(id.eq(token))
-            .get_result::<Verification>(&mut conn)
-        {
-            Ok(_) => true,
-            Err(NotFound) => false,
-            Err(_err) => {
-                println!("Error checking verification token: {_err:?}");
-                return Err(Error::InternalError);
-            }
-        };
-
-        Ok(valid)
-    })
-    .await??;
+    let valid = match verification
+        .filter(id.eq(token))
+        .get_result::<Verification>(&mut conn)
+        .await
+    {
+        Ok(_) => true,
+        Err(NotFound) => false,
+        Err(_err) => {
+            println!("Error checking verification token: {_err:?}");
+            return Err(Error::InternalError.into());
+        }
+    };
 
     Ok(valid)
 }
@@ -111,16 +104,17 @@ mod tests {
     use chrono::Utc;
     use db_connector::models::{recovery_tokens::RecoveryToken, verification::Verification};
     use db_connector::test_connection_pool;
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
     use uuid::Uuid;
 
     #[actix_web::test]
     async fn test_valid_recovery_token() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let user_id = get_test_uuid(&mail).unwrap();
+        let user_id = get_test_uuid(&mail).await.unwrap();
         let token_id = Uuid::new_v4();
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         let token = RecoveryToken {
             id: token_id,
             user_id,
@@ -129,6 +123,7 @@ mod tests {
         diesel::insert_into(db_connector::schema::recovery_tokens::dsl::recovery_tokens)
             .values(&token)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         let app = App::new().configure(configure).service(check_expiration);
@@ -152,6 +147,7 @@ mod tests {
                 .filter(db_connector::schema::recovery_tokens::dsl::id.eq(token_id)),
         )
         .execute(&mut conn)
+        .await
         .unwrap();
     }
 
@@ -181,10 +177,10 @@ mod tests {
     async fn test_valid_verification_token() {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
-        let user_id = get_test_uuid(&mail).unwrap();
+        let user_id = get_test_uuid(&mail).await.unwrap();
         let token_id = Uuid::new_v4();
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         let token = Verification {
             id: token_id,
             user: user_id,
@@ -193,6 +189,7 @@ mod tests {
         diesel::insert_into(db_connector::schema::verification::dsl::verification)
             .values(&token)
             .execute(&mut conn)
+            .await
             .unwrap();
 
         let app = App::new().configure(configure).service(check_expiration);

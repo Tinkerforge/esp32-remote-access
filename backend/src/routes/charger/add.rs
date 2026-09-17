@@ -21,7 +21,8 @@ use actix_web::{put, web, HttpResponse, Responder};
 use argon2::password_hash::PasswordHashString;
 use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
-use diesel::prelude::*;
+use diesel::{ExpressionMethods, QueryDsl};
+use diesel_async::RunQueryDsl as _;
 use ipnetwork::IpNetwork;
 use rand::{distr::Alphanumeric, RngExt};
 use rand_core::{OsRng, TryRngCore};
@@ -29,12 +30,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
 
-use crate::{
-    error::Error,
-    routes::auth::register::hash_key,
-    utils::{get_connection, web_block_unpacked},
-    AppState,
-};
+use crate::{error::Error, routes::auth::register::hash_key, utils::get_connection, AppState};
 
 use super::get_charger_uuid;
 
@@ -311,45 +307,42 @@ async fn update_charger(
 ) -> actix_web::Result<(String, String)> {
     use db_connector::schema::wg_keys::dsl as wg_keys;
 
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    {
         if let Err(_err) = diesel::delete(wg_keys::wg_keys)
             .filter(wg_keys::charger_id.eq(device_id))
             .execute(&mut conn)
+            .await
         {
-            return Err(Error::InternalError);
+            return Err(Error::InternalError.into());
         }
-
-        Ok(())
-    })
-    .await?;
+    }
 
     let (password, hash) = generate_password(&state.hasher).await?;
 
-    let mut conn = get_connection(state)?;
-    web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    {
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
-        match diesel::update(
+        if let Err(_err) = diesel::update(
             allowed_users::allowed_users
                 .filter(allowed_users::charger_id.eq(device_id))
                 .filter(allowed_users::user_id.eq(user_id)),
         )
         .set(allowed_users::valid.eq(true))
         .execute(&mut conn)
+        .await
         {
-            Ok(_) => Ok(()),
-            Err(_err) => Err(Error::InternalError),
+            return Err(Error::InternalError.into());
         }
-    })
-    .await?;
+    }
 
-    let mut conn = get_connection(state)?;
-    let pub_key = web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    let pub_key = {
         let mut private_key = [0u8; 32];
         if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
             log::error!("Failed to generate new private key: {error}");
-            return Err(Error::InternalError);
+            return Err(Error::InternalError.into());
         }
 
         let private_key = boringtun::x25519::StaticSecret::from(private_key);
@@ -374,12 +367,13 @@ async fn update_charger(
             mtu: None,
             last_charge_log_upload_hash: Vec::new(),
         };
-        match diesel::update(&device).set(&device).execute(&mut conn) {
-            Ok(_) => Ok(pub_key),
-            Err(_err) => Err(Error::InternalError),
-        }
-    })
-    .await?;
+        diesel::update(&device)
+            .set(&device)
+            .execute(&mut conn)
+            .await
+            .map_err(|_| Error::InternalError)?;
+        pub_key
+    };
 
     Ok((pub_key, password))
 }
@@ -413,12 +407,12 @@ pub async fn add_charger(
 
     let (password, hash) = generate_password(&state.hasher).await?;
 
-    let mut conn = get_connection(state)?;
-    let ret = web_block_unpacked(move || {
+    let mut conn = get_connection(state).await?;
+    let ret: (String, String) = {
         let mut private_key = [0u8; 32];
         if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
             log::error!("Failed to generate new private key: {error}");
-            return Err(Error::InternalError);
+            return Err(Error::InternalError.into());
         }
 
         let private_key = boringtun::x25519::StaticSecret::from(private_key);
@@ -445,13 +439,11 @@ pub async fn add_charger(
             last_charge_log_upload_hash: Vec::new(),
         };
 
-        match diesel::insert_into(chargers::chargers)
+        diesel::insert_into(chargers::chargers)
             .values(&new_device)
             .execute(&mut conn)
-        {
-            Ok(_) => (),
-            Err(_err) => return Err(Error::InternalError),
-        }
+            .await
+            .map_err(|_| Error::InternalError)?;
 
         let user = AllowedUser {
             id: uuid::Uuid::new_v4(),
@@ -463,17 +455,14 @@ pub async fn add_charger(
             name: Some(schema.name),
         };
 
-        match diesel::insert_into(allowed_users::allowed_users)
+        diesel::insert_into(allowed_users::allowed_users)
             .values(user)
             .execute(&mut conn)
-        {
-            Ok(_) => (),
-            Err(_err) => return Err(Error::InternalError),
-        }
+            .await
+            .map_err(|_| Error::InternalError)?;
 
-        Ok((pub_key, password))
-    })
-    .await?;
+        (pub_key, password)
+    };
 
     Ok(ret)
 }
@@ -485,7 +474,7 @@ async fn add_wg_key(
     state: &web::Data<AppState>,
 ) -> Result<(), actix_web::Error> {
     use db_connector::schema::wg_keys::dsl::*;
-    let mut conn = get_connection(state)?;
+    let mut conn = get_connection(state).await?;
 
     let keys = WgKey {
         id: uuid::Uuid::new_v4(),
@@ -499,22 +488,11 @@ async fn add_wg_key(
         connection_no: keys.connection_no as i32,
     };
 
-    match web::block(move || {
-        match diesel::insert_into(wg_keys).values(keys).execute(&mut conn) {
-            Ok(_) => (),
-            Err(_err) => return Err(Error::InternalError),
-        }
-
-        Ok(())
-    })
-    .await
-    {
-        Ok(res) => match res {
-            Ok(()) => (),
-            Err(err) => return Err(err.into()),
-        },
-        Err(_err) => return Err(Error::InternalError.into()),
-    }
+    diesel::insert_into(wg_keys)
+        .values(&keys)
+        .execute(&mut conn)
+        .await
+        .map_err(|_| Error::InternalError)?;
 
     Ok(())
 }
@@ -531,6 +509,7 @@ pub(crate) mod tests {
     };
     use boringtun::x25519;
     use db_connector::test_connection_pool;
+    use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
     use ipnetwork::Ipv4Network;
     use rand_core::OsRng;
 
@@ -659,15 +638,15 @@ pub(crate) mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        let _ = remove_test_keys(&mail);
-        remove_allowed_test_users(&cid);
-        remove_test_device(&cid);
+        let _ = remove_test_keys(&mail).await;
+        remove_allowed_test_users(&cid).await;
+        remove_test_device(&cid).await;
         println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
 
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        let user_uuid = get_test_uuid(&mail).await.unwrap().to_string();
         assert_eq!(body.user_id, user_uuid);
     }
 
@@ -714,22 +693,22 @@ pub(crate) mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        let _ = remove_test_keys(&mail);
-        remove_allowed_test_users(&cid);
-        remove_test_device(&cid);
+        let _ = remove_test_keys(&mail).await;
+        remove_allowed_test_users(&cid).await;
+        remove_test_device(&cid).await;
         println!("{resp:?}");
         println!("{:?}", resp.response().body());
         assert!(resp.status().is_success());
 
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        let user_uuid = get_test_uuid(&mail).await.unwrap().to_string();
         assert_eq!(body.user_id, user_uuid);
     }
 
     #[actix_web::test]
     async fn test_update_charger() {
         use db_connector::schema::wg_keys::dsl as wg_keys;
-        use diesel::prelude::*;
+        use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
 
         let (mut user, mail) = TestUser::random().await; // store mail
         let token = user.login().await.to_owned();
@@ -771,16 +750,17 @@ pub(crate) mod tests {
         assert!(resp.status().is_success());
 
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        let user_uuid = get_test_uuid(&mail).await.unwrap().to_string();
         assert_eq!(body.user_id, user_uuid);
 
         let uuid = uuid::Uuid::from_str(&body.charger_uuid).unwrap();
         let pool = test_connection_pool();
-        let mut conn = pool.get().unwrap();
+        let mut conn = pool.get().await.unwrap();
         let keys: Vec<WgKey> = wg_keys::wg_keys
             .filter(wg_keys::charger_id.eq(uuid))
             .select(WgKey::as_select())
-            .load(&mut conn)
+            .load::<WgKey>(&mut conn)
+            .await
             .unwrap();
         assert_eq!(keys.len(), 5);
     }
@@ -838,7 +818,7 @@ pub(crate) mod tests {
         assert_eq!(resp.status(), 200);
 
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-        let user_uuid = get_test_uuid(&mail).unwrap().to_string();
+        let user_uuid = get_test_uuid(&mail).await.unwrap().to_string();
         assert_eq!(body.user_id, user_uuid);
     }
 
@@ -888,7 +868,7 @@ pub(crate) mod tests {
         assert_eq!(resp.status().as_u16(), 200);
 
         let body: AddChargerResponseSchema = test::read_body_json(resp).await;
-        let user2_uuid = get_test_uuid(&user2_mail).unwrap().to_string();
+        let user2_uuid = get_test_uuid(&user2_mail).await.unwrap().to_string();
         assert_eq!(body.user_id, user2_uuid);
     }
 
