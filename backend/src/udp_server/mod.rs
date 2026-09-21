@@ -130,6 +130,7 @@ async fn start_rate_limiters_reset_thread(
                 for id in to_remove.iter() {
                     device_map_id.remove(id);
                 }
+                device_map_id.shrink_to_fit();
                 to_remove
             };
             for id in to_remove.into_iter() {
@@ -164,6 +165,10 @@ async fn start_rate_limiters_reset_thread(
         {
             let mut map = bridge_state.state_update_clients.lock().await;
             map.shrink_to_fit();
+        }
+        {
+            let mut set = state.keys_in_use.lock().await;
+            set.shrink_to_fit();
         }
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
