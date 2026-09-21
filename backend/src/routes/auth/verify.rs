@@ -56,8 +56,8 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
     use db_connector::schema::verification::dsl::*;
 
     let verify_id = match uuid::Uuid::from_str(&ver.id) {
-    Ok(verify_id) => verify_id,
-    Err(err) => return Err(ErrorBadRequest(err)),
+        Ok(verify_id) => verify_id,
+        Err(err) => return Err(ErrorBadRequest(err)),
     };
 
     let verify: Verification = {

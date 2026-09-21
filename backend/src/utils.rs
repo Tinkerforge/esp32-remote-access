@@ -320,7 +320,9 @@ async fn notify_state_change(
     state: web::Data<AppState>,
     bridge_state: web::Data<BridgeState<'_>>,
 ) {
-    use crate::routes::charger::get_devices::{ChargerStatus as Cs, GetChargerSchema, StateUpdateMessage};
+    use crate::routes::charger::get_devices::{
+        ChargerStatus as Cs, GetChargerSchema, StateUpdateMessage,
+    };
     use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::models::allowed_users::AllowedUser;
     use db_connector::schema::allowed_users::dsl as allowed_users;
@@ -361,9 +363,7 @@ async fn notify_state_change(
                 return;
             }
             Err(err) => {
-                log::error!(
-                    "Failed to fetch charger {charger_id} for state change: {err:?}"
-                );
+                log::error!("Failed to fetch charger {charger_id} for state change: {err:?}");
                 return;
             }
         };
@@ -376,9 +376,7 @@ async fn notify_state_change(
         {
             Ok(v) => v,
             Err(err) => {
-                log::error!(
-                    "Failed to fetch allowed users for charger {charger_id}: {err:?}"
-                );
+                log::error!("Failed to fetch allowed users for charger {charger_id}: {err:?}");
                 return;
             }
         };

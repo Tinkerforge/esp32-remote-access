@@ -36,14 +36,22 @@ use ipnetwork::{IpNetwork, Ipv4Network};
 use rand_core::{OsRng, TryRngCore};
 
 use crate::{
-    AppState, BridgeState, rate_limit::GlobalSearchRateLimiter, routes::{charger::user_is_allowed, send_chargelog_to_user::send_charge_log_to_user}, udp_server::{
-        management::RemoteConnMeta, packet::{
-            AckPacket, ChargeLogSendMetadata, ChargeLogSendMetadataPacket, ManagementPacket, NackPacket, NackReason, PacketType, RequestChargeLogSendPacket, extract_management_packet_header,
+    rate_limit::GlobalSearchRateLimiter,
+    routes::{charger::user_is_allowed, send_chargelog_to_user::send_charge_log_to_user},
+    udp_server::{
+        management::RemoteConnMeta,
+        packet::{
+            extract_management_packet_header, AckPacket, ChargeLogSendMetadata,
+            ChargeLogSendMetadataPacket, ManagementPacket, NackPacket, NackReason, PacketType,
+            RequestChargeLogSendPacket,
         },
-    }, utils::{
+    },
+    utils::{
         get_last_charge_log_upload_hash, set_last_charge_log_upload_hash,
         update_charger_state_change,
-    }, ws_udp_bridge::open_connection,
+    },
+    ws_udp_bridge::open_connection,
+    AppState, BridgeState,
 };
 
 use super::{
@@ -493,9 +501,9 @@ pub async fn run_server(
                                 );
                                 tokio::spawn(async move {
                                     let mut tun_sock = tunn_sock.lock().await;
-                                    let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
-                                        NackReason::Unauthorized,
-                                    ));
+                                    let nack_packet = ManagementPacket::NackPacket(
+                                        NackPacket::new(NackReason::Unauthorized),
+                                    );
                                     tun_sock.send_packet(nack_packet);
                                 });
                                 return;
