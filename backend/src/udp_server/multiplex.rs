@@ -36,22 +36,14 @@ use ipnetwork::{IpNetwork, Ipv4Network};
 use rand_core::{OsRng, TryRngCore};
 
 use crate::{
-    rate_limit::GlobalSearchRateLimiter,
-    routes::{charger::user_is_allowed, send_chargelog_to_user::send_charge_log_to_user},
-    udp_server::{
-        management::RemoteConnMeta,
-        packet::{
-            extract_management_packet_header, AckPacket, ChargeLogSendMetadata,
-            ChargeLogSendMetadataPacket, ManagementPacket, NackPacket, NackReason, PacketType,
-            RequestChargeLogSendPacket,
+    AppState, BridgeState, rate_limit::GlobalSearchRateLimiter, routes::{charger::user_is_allowed, send_chargelog_to_user::send_charge_log_to_user}, udp_server::{
+        management::RemoteConnMeta, packet::{
+            AckPacket, ChargeLogSendMetadata, ChargeLogSendMetadataPacket, ManagementPacket, NackPacket, NackReason, PacketType, RequestChargeLogSendPacket, extract_management_packet_header,
         },
-    },
-    utils::{
+    }, utils::{
         get_last_charge_log_upload_hash, set_last_charge_log_upload_hash,
         update_charger_state_change,
-    },
-    ws_udp_bridge::open_connection,
-    AppState, BridgeState,
+    }, ws_udp_bridge::open_connection,
 };
 
 use super::{
@@ -377,7 +369,6 @@ pub async fn run_server(
     rate_limiter: Arc<GlobalSearchRateLimiter>,
 ) {
     let mut buf = vec![0u8; 65535];
-
     loop {
         let rate_limiter = Arc::clone(&rate_limiter);
         if let Ok((s, addr)) = bridge_state.socket.recv_from(&mut buf).await {
@@ -385,7 +376,7 @@ pub async fn run_server(
             let app_state = app_state.clone();
             let buf = buf.clone();
 
-            actix::spawn(async move {
+            tokio::spawn(async move {
                 // Check if the packet is for port discovery
                 if try_port_discovery(&bridge_state, &buf[..s], addr)
                     .await
@@ -500,11 +491,13 @@ pub async fn run_server(
                                     id,
                                     e
                                 );
-                                let mut tun_sock = tunn_sock.lock().await;
-                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
-                                    NackReason::Unauthorized,
-                                ));
-                                tun_sock.send_packet(nack_packet);
+                                tokio::spawn(async move {
+                                    let mut tun_sock = tunn_sock.lock().await;
+                                    let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                        NackReason::Unauthorized,
+                                    ));
+                                    tun_sock.send_packet(nack_packet);
+                                });
                                 return;
                             }
 
