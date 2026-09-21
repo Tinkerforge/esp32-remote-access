@@ -136,17 +136,18 @@ async fn main() -> std::io::Result<()> {
         .unwrap()
         .build();
 
-    // #[cfg(not(debug_assertions))]
-    // let write_logger = WriteLogger::new(
-    //     LevelFilter::Info,
-    //     log_config.clone(),
-    //     std::fs::File::create(format!(
-    //         "/logs/backend-{}.log",
-    //         chrono::Local::now().format("%Y-%m-%d-%H")
-    //     ))
-    //     .unwrap(),
-    // );
+    #[cfg(not(debug_assertions))]
+    let write_logger = WriteLogger::new(
+        LevelFilter::Info,
+        log_config.clone(),
+        std::fs::File::create(format!(
+            "/logs/backend-{}.log",
+            chrono::Local::now().format("%Y-%m-%d-%H")
+        ))
+        .unwrap(),
+    );
 
+    #[cfg(debug_assertions)]
     CombinedLogger::init(vec![TermLogger::new(
         LevelFilter::Info,
         log_config,
@@ -155,17 +156,17 @@ async fn main() -> std::io::Result<()> {
     )])
     .unwrap();
 
-    // #[cfg(not(debug_assertions))]
-    // CombinedLogger::init(vec![
-    //     TermLogger::new(
-    //         LevelFilter::Info,
-    //         log_config,
-    //         TerminalMode::Mixed,
-    //         ColorChoice::Auto,
-    //     ),
-    //     write_logger,
-    // ])
-    // .unwrap();
+    #[cfg(not(debug_assertions))]
+    CombinedLogger::init(vec![
+        TermLogger::new(
+            LevelFilter::Info,
+            log_config,
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        ),
+        write_logger,
+    ])
+    .unwrap();
 
     dotenvy::dotenv().ok();
 
@@ -288,10 +289,10 @@ async fn main() -> std::io::Result<()> {
             )
     });
 
-    // #[cfg(debug_assertions)]
+    #[cfg(debug_assertions)]
     let port = "8081";
-    // #[cfg(not(debug_assertions))]
-    // let port = "443";
+    #[cfg(not(debug_assertions))]
+    let port = "443";
 
     let addr = format!("0.0.0.0:{port}");
     log::info!("running on {:?}", addr);
