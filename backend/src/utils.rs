@@ -320,61 +320,135 @@ async fn notify_state_change(
     state: web::Data<AppState>,
     bridge_state: web::Data<BridgeState<'_>>,
 ) {
-    use crate::routes::charger::get_devices::{fetch_chargers, StateUpdateMessage};
+    use crate::routes::charger::get_devices::{ChargerStatus as Cs, GetChargerSchema, StateUpdateMessage};
+    use base64::{prelude::BASE64_STANDARD, Engine};
     use db_connector::models::allowed_users::AllowedUser;
     use db_connector::schema::allowed_users::dsl as allowed_users;
+    use db_connector::schema::chargers::dsl as chargers;
 
-    // Get users who have access to this charger. Scope the connection so it
-    // is dropped before we take the `state_update_clients` mutex and before
-    // we cross the `fetch_chargers` await (which acquires its own
-    // connection).
-    let affected_user_ids: Vec<uuid::Uuid> = {
+    // Build the per-user notifications for the single charger whose state
+    // changed. We need:
+    //   * the `Charger` row (for global fields like uid, firmware, port,
+    //     last_state_change, and the fallback name),
+    //   * the `AllowedUser` rows for that charger, so each user gets their
+    //     own custom name/note/valid bit instead of someone else's.
+    //
+    // Both lookups share a single connection that is dropped before we take
+    // any of the bridge mutexes or cross an `.await` that grabs another
+    // connection.
+    struct UserNotification {
+        user_id: uuid::Uuid,
+        charger: GetChargerSchema,
+    }
+
+    let notifications: Vec<UserNotification> = {
         let Ok(mut conn) = get_connection(&state).await else {
-            log::error!("Failed to get database connection for fetching allowed users");
+            log::error!("Failed to get database connection for fetching charger state");
             return;
         };
 
-        match allowed_users::allowed_users
+        let charger: Charger = match chargers::chargers
+            .filter(chargers::id.eq(charger_id))
+            .select(Charger::as_select())
+            .get_result(&mut conn)
+            .await
+        {
+            Ok(c) => c,
+            Err(diesel::result::Error::NotFound) => {
+                log::warn!(
+                    "notify_state_change: charger {charger_id} no longer exists, skipping notification"
+                );
+                return;
+            }
+            Err(err) => {
+                log::error!(
+                    "Failed to fetch charger {charger_id} for state change: {err:?}"
+                );
+                return;
+            }
+        };
+
+        let allowed: Vec<AllowedUser> = match allowed_users::allowed_users
             .filter(allowed_users::charger_id.eq(charger_id))
             .select(AllowedUser::as_select())
             .load(&mut conn)
             .await
         {
-            Ok(users) => users.into_iter().map(|u| u.user_id).collect(),
-            Err(e) => {
+            Ok(v) => v,
+            Err(err) => {
                 log::error!(
-                    "Failed to fetch allowed users for charger {}: {:?}",
-                    charger_id,
-                    e
+                    "Failed to fetch allowed users for charger {charger_id}: {err:?}"
                 );
                 return;
             }
-        }
+        };
+
+        // Snapshot the management map once so every notification agrees on
+        // whether the device is currently connected.
+        drop(conn);
+        let device_map = bridge_state.device_management_map_with_id.lock().await;
+        let status = if device_map.contains_key(&charger.id) {
+            Cs::Connected
+        } else {
+            Cs::Disconnected
+        };
+        drop(device_map);
+
+        allowed
+            .into_iter()
+            .map(|au| {
+                let name = if let Some(name) = au.name {
+                    name
+                } else if let Some(name) = charger.name.clone() {
+                    BASE64_STANDARD.encode(name)
+                } else {
+                    String::new()
+                };
+
+                UserNotification {
+                    user_id: au.user_id,
+                    charger: GetChargerSchema {
+                        id: charger.id.to_string(),
+                        uid: charger.uid,
+                        name,
+                        note: au.note,
+                        status: status.clone(),
+                        port: charger.webinterface_port,
+                        valid: au.valid,
+                        last_state_change: charger
+                            .last_state_change
+                            .map(|ts| ts.and_utc().timestamp()),
+                        firmware_version: charger.firmware_version.clone(),
+                    },
+                }
+            })
+            .collect()
     };
 
     let sessions: Vec<(uuid::Uuid, actix_ws::Session)> = {
         let state_update_clients = bridge_state.state_update_clients.lock().await;
         state_update_clients
             .iter()
-            .filter(|(user_id, _)| affected_user_ids.contains(user_id))
+            .filter(|(user_id, _)| notifications.iter().any(|n| n.user_id == **user_id))
             .map(|(id, session)| (*id, session.clone()))
             .collect()
     };
 
+    log::debug!(
+        "notify_state_change for charger {charger_id}: notifying {} connected client(s)",
+        sessions.len()
+    );
+
     // Send messages and track failures
     let mut to_remove = Vec::new();
     for (user_id, mut session) in sessions {
-        // Fetch devices for this specific user
-        let devices = match fetch_chargers(&state, user_id, &bridge_state).await {
-            Ok(devices) => devices,
-            Err(e) => {
-                log::error!("Failed to fetch devices for user {}: {:?}", user_id, e);
-                to_remove.push(user_id);
-                continue;
-            }
+        let Some(notification) = notifications.iter().find(|n| n.user_id == user_id) else {
+            continue;
         };
 
-        let message = StateUpdateMessage::StateChange { chargers: devices };
+        let message = StateUpdateMessage::StateChange {
+            charger: notification.charger.clone(),
+        };
         let json_msg = match serde_json::to_string(&message) {
             Ok(msg) => msg,
             Err(e) => {
@@ -385,6 +459,7 @@ async fn notify_state_change(
 
         if session.text(json_msg).await.is_err() {
             to_remove.push(user_id);
+            session.close(None).await.ok();
         }
     }
 

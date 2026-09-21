@@ -61,7 +61,7 @@ pub struct GetChargerSchema {
 #[serde(tag = "type")]
 pub enum StateUpdateMessage {
     #[serde(rename = "state_change")]
-    StateChange { chargers: Vec<GetChargerSchema> },
+    StateChange { charger: GetChargerSchema },
 }
 
 pub async fn fetch_chargers(

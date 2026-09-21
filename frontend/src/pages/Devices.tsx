@@ -91,9 +91,12 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             this.stateUpdateWs.onmessage = (event) => {
                 try {
                     const message = JSON.parse(event.data);
-                    // Handle state_change message with full charger list
-                    if (message.type === 'state_change' && Array.isArray(message.chargers)) {
-                        this.processChargers(message.chargers as Device[]);
+                    // Handle state_change message with a single charger.
+                    // The backend sends `{type: 'state_change', charger: {...}}`
+                    // whenever one device transitions, so we only update that
+                    // one entry in `cloudDevices`.
+                    if (message.type === 'state_change' && message.charger && typeof message.charger === 'object') {
+                        this.processCharger(message.charger as Device);
                     }
                     // Handle initial charger list (array without type wrapper)
                     else if (Array.isArray(message)) {
@@ -150,6 +153,43 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         const merged = this.mergeDevices(stateDevices, this.state.localDevices);
         this.setSortedDevices(merged);
         this.setState({ cloudDevices: stateDevices, isLoading: false });
+    }
+
+    // Apply a single `state_change` notification from the backend: decrypt
+    // the entry, replace any existing entry with the same id in
+    // `cloudDevices`, and re-merge with local discovery data so the UI
+    // reflects the new status without rebuilding the entire list.
+    processCharger(device: Device) {
+        let name = this.decrypt_name(device.name);
+        let note = this.decryptNote(device.note);
+        if (name === undefined || note === undefined) {
+            note = i18n.t("chargers.invalid_key");
+            name = "";
+            device.valid = false;
+        }
+        const state_charger: StateDevice = {
+            id: device.id,
+            uid: Number(device.uid),
+            name,
+            note,
+            status: device.status,
+            port: device.port,
+            valid: device.valid,
+            last_state_change: device.last_state_change,
+            firmware_version: device.firmware_version,
+        };
+
+        const cloudDevices = [...this.state.cloudDevices];
+        const existingIdx = cloudDevices.findIndex(d => d.id === state_charger.id);
+        if (existingIdx >= 0) {
+            cloudDevices[existingIdx] = state_charger;
+        } else {
+            cloudDevices.push(state_charger);
+        }
+
+        const merged = this.mergeDevices(cloudDevices, this.state.localDevices);
+        this.setSortedDevices(merged);
+        this.setState({ cloudDevices, isLoading: false });
     }
 
     subscribeToLocalDiscovery() {

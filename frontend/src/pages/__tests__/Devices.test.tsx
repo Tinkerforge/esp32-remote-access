@@ -1137,22 +1137,20 @@ describe('Devices.tsx - DeviceList', () => {
 
             const wsInstance = getMockWebSocketInstances()[0];
             // Send the post-initial-list envelope that the backend uses for
-            // ongoing updates (`{type: 'state_change', chargers: [...]}`).
+            // ongoing updates (`{type: 'state_change', charger: {...}}`).
             wsInstance.simulateMessage({
               type: 'state_change',
-              chargers: [
-                {
-                  id: 'dev-state-change',
-                  uid: 42,
-                  name: 'b64name',
-                  note: 'b64note',
-                  status: 'Connected',
-                  port: 1,
-                  valid: true,
-                  last_state_change: null,
-                  firmware_version: '1.0.0',
-                },
-              ],
+              charger: {
+                id: 'dev-state-change',
+                uid: 42,
+                name: 'b64name',
+                note: 'b64note',
+                status: 'Connected',
+                port: 1,
+                valid: true,
+                last_state_change: null,
+                firmware_version: '1.0.0',
+              },
             });
 
             await waitFor(() => {
