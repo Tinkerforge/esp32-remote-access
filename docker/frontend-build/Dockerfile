@@ -1,2 +1,2 @@
-FROM node:22
+FROM node:24
 ENV BRAND=${BRAND}
