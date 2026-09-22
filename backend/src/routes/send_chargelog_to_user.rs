@@ -125,6 +125,19 @@ fn render_chargelog_email(
     Ok((body, subject))
 }
 
+fn previous_month(today: chrono::NaiveDate, lang: &str) -> Result<String, Error> {
+    let Some(last_month) = today.checked_sub_months(chrono::Months::new(1)) else {
+        return Err(Error::InternalError);
+    };
+
+    Ok(match lang {
+        "de" => last_month
+            .format_localized("%B %Y", chrono::Locale::de_DE)
+            .to_string(),
+        _ => last_month.format("%B %Y").to_string(),
+    })
+}
+
 #[utoipa::path(
     request_body = SendChargelogSchema,
     responses(
@@ -160,18 +173,7 @@ pub async fn send_chargelog(
     #[cfg(test)]
     let lang_str = String::from("en");
 
-    let Some(last_month) = chrono::Utc::now()
-        .date_naive()
-        .checked_sub_months(chrono::Months::new(1))
-    else {
-        return Err(Error::InternalError.into());
-    };
-    let month = match lang_str.as_str() {
-        "de" => last_month
-            .format_localized("%B %Y", chrono::Locale::de_DE)
-            .to_string(),
-        _ => last_month.format("%B %Y").to_string(),
-    };
+    let month = previous_month(chrono::Local::now().date_naive(), &lang_str)?;
 
     let (body, subject) = render_chargelog_email(
         &user.name,
@@ -254,22 +256,7 @@ pub async fn send_charge_log_to_user<R: IntoBody + Send + 'static>(
 
     // Use the language from the metadata packet
     let lang_str = &metadata.lang;
-    let Some(last_month) = chrono::Utc::now()
-        .date_naive()
-        .checked_sub_months(chrono::Months::new(1))
-    else {
-        log::error!("Failed to calculate last month for charge log email");
-        return Err(Error::InternalError);
-    };
-
-    log::error!("lang_str: {}", lang_str);
-
-    let month = match lang_str.as_str() {
-        "de" => last_month
-            .format_localized("%B %Y", chrono::Locale::de_DE)
-            .to_string(),
-        _ => last_month.format("%B %Y").to_string(),
-    };
+    let month = previous_month(chrono::Local::now().date_naive(), lang_str)?;
 
     // Render the email template
     let (body, subject) = render_chargelog_email(
@@ -289,8 +276,6 @@ pub async fn send_charge_log_to_user<R: IntoBody + Send + 'static>(
         Error::InternalError
     })?;
 
-    log::error!("{:?}", metadata);
-
     // Send the email with the charge log attached
     send_email_with_attachment(
         &user.email,
@@ -302,7 +287,7 @@ pub async fn send_charge_log_to_user<R: IntoBody + Send + 'static>(
     )
     .await?;
 
-    log::error!(
+    log::info!(
         "Successfully sent charge log from charger '{}' to user '{}' ({})",
         device_uuid,
         user_uuid,
@@ -318,6 +303,14 @@ mod tests {
     use crate::{routes::user::tests::TestUser, tests::configure};
     use actix_web::{test, App};
     use serde_json::{json, Value};
+
+    #[actix_web::test]
+    async fn formats_the_previous_month() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+
+        assert_eq!(previous_month(date, "en").unwrap(), "December 2025");
+        assert_eq!(previous_month(date, "de").unwrap(), "Dezember 2025");
+    }
 
     fn build_multipart_body(boundary: &str, metadata: &Value, file_bytes: &[u8]) -> Vec<u8> {
         let metadata_str = metadata.to_string();
