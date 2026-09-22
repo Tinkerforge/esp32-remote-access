@@ -75,6 +75,10 @@ jobs:
       working-directory: ./backend
       run: cargo test --verbose
 
+    - name: Run state-endpoint production-build check
+      working-directory: ./backend
+      run: cargo test --release --lib state_endpoint_is_debug_only -- --nocapture
+
     - name: Run db_connector tests
       working-directory: ./db_connector
       run: cargo test --verbose

@@ -52,3 +52,58 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(webinterface::get_webinterface);
     cfg.service(scope);
 }
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{test, web, App};
+
+    use crate::tests::{call_service, configure as configure_test_state};
+
+    /// The `/api/state` endpoint dumps the contents of the in-memory
+    /// `BridgeState` and is therefore only intended for development and
+    /// debugging. It must not be reachable in production (release) builds.
+    ///
+    /// `routes::configure` only registers the service when
+    /// `debug_assertions` is enabled, so the endpoint exists in `cargo test`
+    /// (debug) builds and is absent in `cargo test --release`
+    /// (production-like) builds. This test asserts both halves of that
+    /// contract so a regression that drops the `cfg` guard is caught no
+    /// matter which profile CI exercises.
+    #[actix_web::test]
+    async fn state_endpoint_is_debug_only() {
+        // Reuse the production route tree. In release builds the state
+        // service is not registered, so a request to `/api/state` falls
+        // through to the catch-all JWT-protected scope, which rejects it
+        // with 401. Any 2xx answer therefore proves it was actually
+        // exposed.
+        let app = App::new()
+            .service(web::scope("/api").configure(super::configure))
+            .configure(configure_test_state);
+        let app = test::init_service(app).await;
+
+        let req = test::TestRequest::get().uri("/api/state").to_request();
+        let resp = call_service(&app, req).await;
+
+        if cfg!(debug_assertions) {
+            assert!(
+                resp.status().is_success(),
+                "state endpoint must be exposed in debug builds, got {}",
+                resp.status(),
+            );
+        } else {
+            assert_ne!(
+                resp.status().as_u16(),
+                200,
+                "state endpoint must not be exposed in production (release) builds",
+            );
+            assert_eq!(
+                resp.status().as_u16(),
+                401,
+                "state endpoint must not be exposed in production (release) builds \
+                 (request must fall through to the JWT-protected catch-all scope and \
+                 be rejected as unauthorized, got {})",
+                resp.status(),
+            );
+        }
+    }
+}
