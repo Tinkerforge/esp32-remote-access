@@ -227,14 +227,51 @@ pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<Ap
 }
 
 /// Send an email with a binary attachment (chargelog)
-pub fn send_email_with_attachment<T: IntoBody>(
+pub async fn send_email_with_attachment<T: IntoBody + Send + 'static>(
     email: &str,
     subject: &str,
     body: String,
     attachment_data: T,
     attachment_filename: &str,
     state: &web::Data<AppState>,
-) {
+) -> Result<(), Error> {
+    // Reserve capacity before offloading MIME encoding and SMTP. Keep the
+    // permit inside the worker so cancellation cannot exceed the limit.
+    static MAIL_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
+    let permit = MAIL_SLOTS
+        .acquire()
+        .await
+        .map_err(|_| Error::InternalError)?;
+    let email = email.to_owned();
+    let subject = subject.to_owned();
+    let attachment_filename = attachment_filename.to_owned();
+    let state = state.clone();
+    tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        send_email_with_attachment_blocking(
+            &email,
+            &subject,
+            body,
+            attachment_data,
+            &attachment_filename,
+            &state,
+        )
+    })
+    .await
+    .map_err(|err| {
+        log::error!("Email worker failed: {err}");
+        Error::InternalError
+    })?
+}
+
+fn send_email_with_attachment_blocking<T: IntoBody>(
+    email: &str,
+    subject: &str,
+    body: String,
+    attachment_data: T,
+    attachment_filename: &str,
+    state: &web::Data<AppState>,
+) -> Result<(), Error> {
     #[cfg(not(test))]
     {
         if let Some(ref mailer) = state.mailer {
@@ -265,10 +302,14 @@ pub fn send_email_with_attachment<T: IntoBody>(
 
             match mailer.send(&email) {
                 Ok(_) => log::info!("Email with attachment sent successfully!"),
-                Err(e) => log::error!("Could not send email: {e:?}"),
+                Err(e) => {
+                    log::error!("Could not send email: {e:?}");
+                    return Err(Error::InternalError);
+                }
             }
         } else {
             log::error!("No mailer configured, email not sent");
+            return Err(Error::InternalError);
         }
     }
 
@@ -282,6 +323,7 @@ pub fn send_email_with_attachment<T: IntoBody>(
             "Test mode: Email would be sent to {email} with subject '{subject}' and attachment {attachment_filename}"
         );
     }
+    Ok(())
 }
 
 pub async fn update_charger_state_change(
@@ -455,9 +497,13 @@ async fn notify_state_change(
             }
         };
 
-        if session.text(json_msg).await.is_err() {
+        if !matches!(
+            tokio::time::timeout(std::time::Duration::from_secs(2), session.text(json_msg),).await,
+            Ok(Ok(()))
+        ) {
             to_remove.push(user_id);
-            session.close(None).await.ok();
+            let _ =
+                tokio::time::timeout(std::time::Duration::from_secs(2), session.close(None)).await;
         }
     }
 

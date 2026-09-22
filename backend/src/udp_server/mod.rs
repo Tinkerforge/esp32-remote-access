@@ -17,11 +17,13 @@
  * Boston, MA 02111-1307, USA.
  */
 
+mod admission;
 pub mod device;
 pub mod management;
 mod multiplex;
 pub mod packet;
 pub mod pcap_logger;
+mod registry;
 pub mod socket;
 
 use futures_util::lock::Mutex;
@@ -54,22 +56,7 @@ async fn start_rate_limiters_reset_thread(
     rate_limiters: Vec<Arc<dyn ShrinkableRateLimiter>>,
 ) {
     loop {
-        {
-            let mut device_map = device_map.lock().await;
-            let mut to_remove = Vec::with_capacity(device_map.len());
-            for (addr, socket) in device_map.iter() {
-                let socket = socket.lock().await;
-                if socket.last_seen() > Duration::from_secs(30) {
-                    to_remove.push(addr.to_owned());
-                    continue;
-                }
-                socket.reset_rate_limiter();
-            }
-            for addr in to_remove.into_iter() {
-                device_map.remove(&addr);
-            }
-            device_map.shrink_to_fit();
-        }
+        let expired = registry::prune(&device_map, &device_map_id).await;
         {
             let mut map = discovery_map.lock().await;
             let mut to_remove = Vec::with_capacity(map.len());
@@ -117,26 +104,9 @@ async fn start_rate_limiters_reset_thread(
             }
             map.shrink_to_fit();
         }
-        {
-            let to_remove: Vec<uuid::Uuid> = {
-                let mut device_map_id = device_map_id.lock().await;
-                let mut to_remove = Vec::with_capacity(device_map_id.len());
-                for (id, socket) in device_map_id.iter() {
-                    let socket = socket.lock().await;
-                    if socket.last_seen() > Duration::from_secs(30) {
-                        to_remove.push(id.to_owned());
-                    }
-                }
-                for id in to_remove.iter() {
-                    device_map_id.remove(id);
-                }
-                device_map_id.shrink_to_fit();
-                to_remove
-            };
-            for id in to_remove.into_iter() {
-                log::info!("Charger {id} has timeouted and will be removed.");
-                update_charger_state_change(id, state.clone(), bridge_state.clone()).await;
-            }
+        for id in expired {
+            log::info!("Charger {id} has timeouted and will be removed.");
+            update_charger_state_change(id, state.clone(), bridge_state.clone()).await;
         }
         for limiter in rate_limiters.iter() {
             limiter.shrink();

@@ -182,27 +182,21 @@ pub async fn send_chargelog(
         state.brand,
     )?;
 
-    let mut chargelog_file = chargelog.file.reopen().map_err(|err| {
-        log::error!(
-            "Failed to reopen chargelog temporary file '{}' for user '{}': {}",
-            metadata.filename,
-            user.email,
-            err
-        );
+    let chargelog_bytes = tokio::task::spawn_blocking(move || -> std::io::Result<Vec<u8>> {
+        let mut file = chargelog.file.reopen()?;
+        let mut bytes = Vec::with_capacity(chargelog.size);
+        file.read_to_end(&mut bytes)?;
+        Ok(bytes)
+    })
+    .await
+    .map_err(|err| {
+        log::error!("Charge log file worker failed: {err}");
+        Error::InternalError
+    })?
+    .map_err(|err| {
+        log::error!("Failed to read charge log file: {err}");
         Error::InternalError
     })?;
-    let mut chargelog_bytes = Vec::with_capacity(chargelog.size);
-    chargelog_file
-        .read_to_end(&mut chargelog_bytes)
-        .map_err(|err| {
-            log::error!(
-                "Failed to read chargelog temporary file '{}' for user '{}': {}",
-                metadata.filename,
-                user.email,
-                err
-            );
-            Error::InternalError
-        })?;
 
     send_email_with_attachment(
         &user.email,
@@ -211,7 +205,8 @@ pub async fn send_chargelog(
         chargelog_bytes,
         &metadata.filename,
         &state,
-    );
+    )
+    .await?;
 
     Ok(HttpResponse::Ok())
 }
@@ -230,7 +225,7 @@ pub async fn send_chargelog(
 /// # Returns
 /// * `Ok(())` if the email was sent successfully
 /// * `Err(...)` if the user is not allowed to access the charger or if any other error occurs
-pub async fn send_charge_log_to_user<R: IntoBody>(
+pub async fn send_charge_log_to_user<R: IntoBody + Send + 'static>(
     device_uuid: uuid::Uuid,
     metadata: &ChargeLogSendMetadata,
     charge_log: R,
@@ -304,7 +299,8 @@ pub async fn send_charge_log_to_user<R: IntoBody>(
         charge_log,
         &metadata.filename,
         state,
-    );
+    )
+    .await?;
 
     log::error!(
         "Successfully sent charge log from charger '{}' to user '{}' ({})",

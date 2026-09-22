@@ -61,6 +61,10 @@ impl ManagementDevice {
     pub fn decapsulate<'a>(&mut self, src: &'a [u8], dst: &'a mut [u8]) -> TunnResult<'a> {
         self.tunn.decapsulate(None, src, dst)
     }
+
+    pub fn encapsulate<'a>(&mut self, src: &[u8], dst: &'a mut [u8]) -> TunnResult<'a> {
+        self.tunn.encapsulate(src, dst)
+    }
 }
 
 impl phy::Device for ManagementDevice {

@@ -18,7 +18,7 @@
  */
 
 use std::{
-    future::poll_fn,
+    future::{poll_fn, Future},
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
     task::Poll,
@@ -48,6 +48,7 @@ pub struct ManagementSocket<'a> {
     remote_addr: SocketAddr,
     udp_socket: Arc<UdpSocket>,
     last_seen: Instant,
+    pub(super) discovery_generation: u64,
     out_sequence: u16,
     tcp_socket: Option<SocketHandle>,
     pcap_logger: PcapLogger,
@@ -113,6 +114,7 @@ impl<'a> ManagementSocket<'a> {
             remote_addr,
             udp_socket,
             last_seen: Instant::now(),
+            discovery_generation: 0,
             out_sequence: 1,
             tcp_socket: None,
             pcap_logger,
@@ -232,7 +234,25 @@ impl<'a> ManagementSocket<'a> {
         }
     }
 
+    fn send_keepalive(&mut self) -> Result<(), String> {
+        // An empty WireGuard payload is a 32-byte transport packet. Keep the
+        // buffer at BoringTun's documented minimum size for encapsulation.
+        let mut dst = [0u8; 148];
+        match self.device.encapsulate(&[], &mut dst) {
+            TunnResult::WriteToNetwork(data) => self.send_slice(data),
+            TunnResult::Done => Ok(()),
+            TunnResult::Err(err) => Err(format!("{err:?}")),
+            TunnResult::WriteToTunnelV4(_, _) | TunnResult::WriteToTunnelV6(_, _) => {
+                Err("encapsulating a keepalive returned a tunnel packet".to_string())
+            }
+        }
+    }
+
     pub fn decrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, String> {
+        let is_keepalive = matches!(
+            boringtun::noise::Tunn::parse_incoming_packet(data),
+            Ok(boringtun::noise::Packet::PacketData(_))
+        );
         let mut dst = vec![0; data.len()];
         match self.device.decapsulate(data, &mut dst) {
             TunnResult::WriteToNetwork(data) => {
@@ -260,6 +280,12 @@ impl<'a> ManagementSocket<'a> {
             }
             TunnResult::Err(err) => Err(format!("{err:?}")),
             TunnResult::Done => {
+                // BoringTun reports an authenticated empty transport packet as
+                // `Done`. Reply so a client using persistent keepalives can
+                // confirm that the management peer remains reachable.
+                if is_keepalive {
+                    self.send_keepalive()?;
+                }
                 self.last_seen = Instant::now();
                 Ok(Vec::new())
             }
@@ -268,6 +294,11 @@ impl<'a> ManagementSocket<'a> {
 
     pub fn reset_rate_limiter(&self) {
         self.rate_limiter.reset_count()
+    }
+
+    #[cfg(test)]
+    pub(super) fn expire_for_test(&mut self) {
+        self.last_seen = Instant::now() - Duration::from_secs(60);
     }
 
     pub fn last_seen(&self) -> Duration {
@@ -357,15 +388,12 @@ impl<'a> ManagementSocketTCPReceiver<'a> {
     }
 
     pub async fn handle_tcp_recv(&self) -> TCPRecvResult {
+        // Keep the lock future between polls so contention registers a wakeup
+        // on unlock instead of scheduling a busy retry loop.
+        let mut lock = Box::pin(self.0.lock());
         poll_fn(|ctx| {
-            let mut tunn_sock = match self.0.try_lock() {
-                Some(guard) => guard,
-                None => {
-                    log::error!("Failed to acquire lock on tunn_sock, will retry");
-                    ctx.waker().wake_by_ref();
-                    return Poll::Pending;
-                }
-            };
+            let mut tunn_sock = std::task::ready!(lock.as_mut().poll(ctx));
+            lock = Box::pin(self.0.lock());
 
             if let Some(socket) = tunn_sock.get_tcp_socket() {
                 socket.register_recv_waker(ctx.waker());
@@ -374,7 +402,6 @@ impl<'a> ManagementSocketTCPReceiver<'a> {
                     if socket.recv_queue() != 0 {
                         match socket.recv(|buf| (buf.len(), buf.to_vec())) {
                             Ok(data) => {
-                                ctx.waker().wake_by_ref();
                                 return Poll::Ready(TCPRecvResult::Ok(data));
                             }
                             Err(tcp::RecvError::Finished) => {
@@ -418,5 +445,58 @@ impl<'a> ManagementSocketTCPReceiver<'a> {
             }
         })
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::task::{waker_ref, ArcWake};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::task::Context;
+
+    struct WakeCounter(AtomicUsize);
+    impl ArcWake for WakeCounter {
+        fn wake_by_ref(this: &Arc<Self>) {
+            this.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[actix_web::test]
+    async fn tcp_receiver_waits_for_unlock_without_self_waking() {
+        let socket = Arc::new(Mutex::new(
+            ManagementSocket::new_for_test(
+                uuid::Uuid::new_v4(),
+                "127.0.0.1:12345".parse().unwrap(),
+            )
+            .await,
+        ));
+        let receiver = ManagementSocketTCPReceiver::new(socket.clone()).await;
+        let guard = socket.lock().await;
+        let mut receive = Box::pin(receiver.handle_tcp_recv());
+        let counter = Arc::new(WakeCounter(AtomicUsize::new(0)));
+        let waker = waker_ref(&counter);
+        let mut cx = Context::from_waker(&waker);
+        assert!(receive.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(
+            counter.0.load(Ordering::SeqCst),
+            0,
+            "receiver busy-wakes while locked"
+        );
+        drop(guard);
+        assert!(
+            counter.0.load(Ordering::SeqCst) > 0,
+            "unlock did not wake receiver"
+        );
+        assert!(receive.as_mut().poll(&mut cx).is_pending());
+        // Waiting for incoming TCP data must release the mutex for decrypt().
+        socket
+            .try_lock()
+            .expect("receiver held lock while waiting for TCP")
+            .remove_tcp_socket();
+        assert!(matches!(
+            receive.as_mut().poll(&mut cx),
+            Poll::Ready(TCPRecvResult::Err(_))
+        ));
     }
 }

@@ -17,7 +17,10 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use std::{net::SocketAddr, num::NonZeroU32};
+use std::{
+    net::{IpAddr, SocketAddr},
+    num::NonZeroU32,
+};
 
 use actix_web::{http::StatusCode, HttpRequest, HttpResponse, ResponseError};
 use governor::{
@@ -243,14 +246,15 @@ impl ShrinkableRateLimiter for IPRateLimiter {
     }
 }
 
-pub struct GlobalSearchRateLimiter(
-    RateLimiter<
-        SocketAddr,
-        dashmap::DashMap<SocketAddr, InMemoryState>,
+pub struct GlobalSearchRateLimiter {
+    per_ip: RateLimiter<
+        IpAddr,
+        dashmap::DashMap<IpAddr, InMemoryState>,
         QuantaClock,
         governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
     >,
-);
+    aggregate: governor::DefaultDirectRateLimiter,
+}
 
 impl Default for GlobalSearchRateLimiter {
     fn default() -> Self {
@@ -260,26 +264,31 @@ impl Default for GlobalSearchRateLimiter {
 
 impl GlobalSearchRateLimiter {
     pub fn new() -> Self {
-        Self(RateLimiter::keyed(Quota::per_minute(
-            NonZeroU32::new(20).unwrap(),
-        )))
+        Self {
+            per_ip: RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(20).unwrap())),
+            // Full-database searches are expensive even from distinct IPs.
+            aggregate: RateLimiter::direct(
+                Quota::per_second(NonZeroU32::new(2).unwrap())
+                    .allow_burst(NonZeroU32::new(4).unwrap()),
+            ),
+        }
     }
 
     pub fn check(&self, socket_addr: SocketAddr) -> actix_web::Result<()> {
-        if let Err(err) = self.0.check_key(&socket_addr) {
-            let now = self.0.clock().now();
-
-            Err(RateLimitError::new(err, now).into())
-        } else {
-            Ok(())
-        }
+        self.per_ip
+            .check_key(&socket_addr.ip())
+            .map_err(|err| RateLimitError::new(err, self.per_ip.clock().now()))?;
+        self.aggregate
+            .check()
+            .map_err(|err| RateLimitError::new(err, self.aggregate.clock().now()))?;
+        Ok(())
     }
 }
 
 impl ShrinkableRateLimiter for GlobalSearchRateLimiter {
     fn shrink(&self) {
-        self.0.retain_recent();
-        self.0.shrink_to_fit();
+        self.per_ip.retain_recent();
+        self.per_ip.shrink_to_fit();
     }
 }
 
@@ -290,6 +299,20 @@ mod tests {
     use crate::rate_limit::ChargerRateLimiter;
 
     use super::LoginRateLimiter;
+
+    #[actix_web::test]
+    async fn global_search_limits_distinct_ips_and_port_changes() {
+        let limiter = super::GlobalSearchRateLimiter::new();
+        for n in 1..=4 {
+            assert!(limiter
+                .check(format!("192.0.2.{n}:1000").parse().unwrap())
+                .is_ok());
+        }
+        assert!(limiter.check("192.0.2.5:1000".parse().unwrap()).is_err());
+        assert!(limiter.check("192.0.2.1:2000".parse().unwrap()).is_err());
+        // Both source ports must consume the same per-IP bucket.
+        assert_eq!(limiter.per_ip.len(), 5);
+    }
 
     #[actix_web::test]
     async fn test_login_rate_limiter() {

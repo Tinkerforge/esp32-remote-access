@@ -87,10 +87,14 @@ pub async fn remove_charger_from_state(charger: uuid::Uuid, state: &web::Data<Br
     };
 
     if let Some(socket) = socket {
-        let socket = socket.lock().await;
-        let remote_address = socket.get_remote_address();
+        let remote_address = socket.lock().await.get_remote_address();
         let mut map = state.device_management_map.lock().await;
-        let _ = map.remove(&remote_address);
+        if map
+            .get(&remote_address)
+            .is_some_and(|current| std::sync::Arc::ptr_eq(current, &socket))
+        {
+            map.remove(&remote_address);
+        }
     }
 }
 

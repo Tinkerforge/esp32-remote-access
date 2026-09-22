@@ -118,6 +118,54 @@ pub async fn try_port_discovery(
     Ok(())
 }
 
+/// Snapshot candidates without retaining map locks across a socket wait. A
+/// response or cleanup may invalidate the snapshot; recheck after acquiring
+/// the socket and keep discovery locked through the synchronous send.
+pub async fn resend_pending_connections(state: &web::Data<BridgeState<'_>>) {
+    use super::packet::{ManagementCommand, ManagementCommandId, ManagementCommandPacket};
+    let pending: Vec<_> = state.port_discovery.lock().await.keys().copied().collect();
+    for response in pending {
+        let id = uuid::Uuid::from_u128(response.charger_id);
+        let socket = state
+            .device_management_map_with_id
+            .lock()
+            .await
+            .get(&id)
+            .cloned();
+        let Some(socket_handle) = socket else {
+            continue;
+        };
+        let mut socket = socket_handle.lock().await;
+        let current = state.device_management_map_with_id.lock().await;
+        if !current
+            .get(&id)
+            .is_some_and(|entry| std::sync::Arc::ptr_eq(entry, &socket_handle))
+        {
+            continue;
+        }
+        let discovery = state.port_discovery.lock().await;
+        if !discovery.contains_key(&response) {
+            continue;
+        }
+        let command = ManagementCommand {
+            command_id: ManagementCommandId::Connect,
+            connection_no: response.connection_no,
+            connection_uuid: response.connection_uuid,
+        };
+        let header = ManagementPacketHeader {
+            magic: 0x1234,
+            length: std::mem::size_of::<ManagementCommand>() as u16,
+            seq_number: 0,
+            version: 1,
+            p_type: PacketType::ManagementCommand,
+        };
+        socket.send_packet(ManagementPacket::CommandPacket(ManagementCommandPacket {
+            header,
+            command,
+        }));
+    }
+}
+
 /// Prompt a connected charger to drop a specific user from its configured
 /// users list.
 ///
@@ -270,6 +318,107 @@ mod tests {
         };
 
         web::Data::new(bridge_state)
+    }
+
+    #[actix_web::test]
+    async fn resend_rechecks_discovery_after_waiting_for_socket() {
+        use std::{
+            future::Future,
+            task::Context,
+            time::{Duration, Instant},
+        };
+        let state = bridge_state_without_db();
+        let id = uuid::Uuid::new_v4();
+        let capture = install_capturing_socket(&state, id).await;
+        let socket = state
+            .device_management_map_with_id
+            .lock()
+            .await
+            .get(&id)
+            .cloned()
+            .unwrap();
+        let pending = ManagementResponseV2 {
+            charger_id: id.as_u128(),
+            connection_no: 1,
+            connection_uuid: 123,
+        };
+        state
+            .port_discovery
+            .lock()
+            .await
+            .insert(pending, Instant::now());
+        let guard = socket.lock().await;
+        let mut resend = Box::pin(resend_pending_connections(&state));
+        let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+        assert!(resend.as_mut().poll(&mut cx).is_pending());
+        // Simulate receipt of a discovery response while resend is suspended.
+        state
+            .port_discovery
+            .try_lock()
+            .expect("resend retained discovery lock")
+            .remove(&pending);
+        drop(guard);
+        tokio::time::timeout(Duration::from_secs(1), resend)
+            .await
+            .unwrap();
+        assert!(
+            take_captured(&capture).is_empty(),
+            "resent a completed command"
+        );
+        state
+            .port_discovery
+            .lock()
+            .await
+            .insert(pending, Instant::now());
+        resend_pending_connections(&state).await;
+        assert_eq!(take_captured(&capture).len(), 1);
+    }
+
+    #[actix_web::test]
+    async fn resend_does_not_use_a_socket_replaced_during_its_wait() {
+        use std::{future::Future, task::Context, time::Instant};
+        let state = bridge_state_without_db();
+        let id = uuid::Uuid::new_v4();
+        let capture = install_capturing_socket(&state, id).await;
+        let socket = state
+            .device_management_map_with_id
+            .lock()
+            .await
+            .get(&id)
+            .cloned()
+            .unwrap();
+        let pending = ManagementResponseV2 {
+            charger_id: id.as_u128(),
+            connection_no: 1,
+            connection_uuid: 123,
+        };
+        state
+            .port_discovery
+            .lock()
+            .await
+            .insert(pending, Instant::now());
+        let guard = socket.lock().await;
+        let mut resend = Box::pin(resend_pending_connections(&state));
+        let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+        assert!(resend.as_mut().poll(&mut cx).is_pending());
+        drop(guard);
+        let addr = "127.0.0.1:2000".parse().unwrap();
+        let replacement = ManagementSocket::new_for_test(id, addr).await;
+        super::super::registry::publish(
+            &state.device_management_map,
+            &state.device_management_map_with_id,
+            id,
+            addr,
+            replacement,
+            1,
+        )
+        .await
+        .unwrap();
+        resend.await;
+        assert!(
+            take_captured(&capture).is_empty(),
+            "resent through a superseded socket"
+        );
     }
 
     #[actix_web::test]

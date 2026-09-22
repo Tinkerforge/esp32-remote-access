@@ -388,7 +388,6 @@ pub async fn management(
                 "Charger {charger_id} identified via management: reattaching {} lost user connection(s).",
                 losing_conns.len()
             );
-            let mut undiscovered_clients = bridge_state.undiscovered_clients.lock().await;
             for (conn_no, recipient) in losing_conns.into_iter() {
                 log::info!(
                     "Reattaching user to reconnected charger {charger_id} (conn_no={conn_no})."
@@ -397,7 +396,11 @@ pub async fn management(
                     charger_id,
                     conn_no,
                 };
-                undiscovered_clients.insert(meta, recipient);
+                bridge_state
+                    .undiscovered_clients
+                    .lock()
+                    .await
+                    .insert(meta, recipient);
                 if let Err(_err) = open_connection(
                     conn_no,
                     charger_id,

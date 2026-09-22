@@ -51,11 +51,6 @@ use simplelog::{
 #[cfg(not(debug_assertions))]
 use simplelog::WriteLogger;
 
-use udp_server::packet::{
-    ManagementCommand, ManagementCommandId, ManagementCommandPacket, ManagementPacket,
-    ManagementPacketHeader,
-};
-
 async fn cleanup_task(state: web::Data<AppState>) {
     loop {
         tokio::time::sleep(Duration::from_secs(60)).await;
@@ -82,31 +77,7 @@ async fn cleanup_task(state: web::Data<AppState>) {
 async fn resend_thread(bridge_state: web::Data<BridgeState<'_>>) {
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        let undiscovered_ports = bridge_state.port_discovery.lock().await;
-        for port in undiscovered_ports.iter() {
-            let port = port.0;
-            let command = ManagementCommand {
-                command_id: ManagementCommandId::Connect,
-                connection_no: port.connection_no,
-                connection_uuid: port.connection_uuid,
-            };
-
-            let header = ManagementPacketHeader {
-                magic: 0x1234,
-                length: std::mem::size_of::<ManagementCommand>() as u16,
-                seq_number: 0,
-                version: 1,
-                p_type: udp_server::packet::PacketType::ManagementCommand,
-            };
-
-            let packet = ManagementCommandPacket { header, command };
-            let device_id = uuid::Uuid::from_u128(port.charger_id);
-            let devices = bridge_state.device_management_map_with_id.lock().await;
-            if let Some(sock) = devices.get(&device_id) {
-                let mut sock = sock.lock().await;
-                sock.send_packet(ManagementPacket::CommandPacket(packet));
-            }
-        }
+        udp_server::management::resend_pending_connections(&bridge_state).await;
     }
 }
 

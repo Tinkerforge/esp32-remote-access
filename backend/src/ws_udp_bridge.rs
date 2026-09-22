@@ -198,8 +198,14 @@ impl<'a> WebClient<'a> {
             };
 
             let packet = ManagementCommandPacket { header, command };
-            let map = self.bridge_state.device_management_map_with_id.lock().await;
-            if let Some(sock) = map.get(&self.charger_id) {
+            let sock = self
+                .bridge_state
+                .device_management_map_with_id
+                .lock()
+                .await
+                .get(&self.charger_id)
+                .cloned();
+            if let Some(sock) = sock {
                 let mut sock = sock.lock().await;
                 sock.send_packet(ManagementPacket::CommandPacket(packet));
             }
@@ -240,10 +246,13 @@ pub async fn open_connection(
     };
 
     let packet = ManagementCommandPacket { header, command };
+    // Both initial sends and resends use socket -> discovery. Registration and
+    // sending have no await between them, so cancellation cannot leave a
+    // command registered before its initial send.
     let mut sock = management_sock.lock().await;
+    let mut discovery = port_discovery.lock().await;
+    discovery.insert(response, Instant::now());
     sock.send_packet(ManagementPacket::CommandPacket(packet));
-    let mut set = port_discovery.lock().await;
-    set.insert(response, Instant::now());
 
     Ok(())
 }
@@ -357,6 +366,61 @@ async fn start_ws(
 mod tests {
     use super::*;
     use uuid::Uuid;
+
+    #[actix_web::test]
+    async fn cancelling_open_during_discovery_wait_releases_socket_without_registration() {
+        use std::{
+            future::Future,
+            task::{Context, Poll},
+        };
+        let id = Uuid::new_v4();
+        let socket = Arc::new(Mutex::new(
+            ManagementSocket::new_for_test(id, "127.0.0.1:12345".parse().unwrap()).await,
+        ));
+        let discovery = Arc::new(Mutex::new(HashMap::new()));
+        let discovery_guard = discovery.lock().await;
+        let mut open = Box::pin(open_connection(1, id, socket.clone(), discovery.clone()));
+        let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+        assert!(matches!(open.as_mut().poll(&mut cx), Poll::Pending));
+        drop(open);
+        assert!(
+            socket.try_lock().is_some(),
+            "cancelled open retained socket lock"
+        );
+        assert!(
+            discovery_guard.is_empty(),
+            "cancelled open registered a command"
+        );
+    }
+
+    #[actix_web::test]
+    async fn opening_connection_does_not_register_before_acquiring_socket() {
+        use std::{
+            future::Future,
+            task::{Context, Poll},
+        };
+        let id = Uuid::new_v4();
+        let socket = Arc::new(Mutex::new(
+            ManagementSocket::new_for_test(id, "127.0.0.1:12345".parse().unwrap()).await,
+        ));
+        let discovery = Arc::new(Mutex::new(HashMap::new()));
+        let socket_guard = socket.lock().await;
+        let mut open = Box::pin(open_connection(1, id, socket.clone(), discovery.clone()));
+        let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+        assert!(matches!(open.as_mut().poll(&mut cx), Poll::Pending));
+        assert_eq!(
+            discovery
+                .try_lock()
+                .expect("discovery locked during socket wait")
+                .len(),
+            0
+        );
+        drop(socket_guard);
+        tokio::time::timeout(Duration::from_secs(1), open)
+            .await
+            .unwrap()
+            .unwrap();
+    }
 
     #[test]
     fn test_validate_key_id_valid() {

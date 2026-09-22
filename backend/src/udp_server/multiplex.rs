@@ -18,12 +18,12 @@
  */
 
 use std::{
-    collections::hash_map::Entry,
     io::{BufWriter, Write},
     net::{IpAddr, SocketAddr},
     sync::{atomic::AtomicUsize, Arc},
+    time::Duration,
 };
-use tokio::net::UdpSocket;
+use tokio::{net::UdpSocket, sync::Semaphore};
 
 use actix_web::web::{self, Bytes};
 use base64::prelude::*;
@@ -55,6 +55,7 @@ use crate::{
 };
 
 use super::{
+    admission::{DiscoveryAdmission, DiscoveryPermit},
     management::try_port_discovery,
     socket::{ManagementSocket, ManagementSocketTCPReceiver, TCPRecvResult},
 };
@@ -111,14 +112,18 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-async fn create_tunn<'a>(
+async fn create_tunn(
     state: &web::Data<BridgeState<'_>>,
     addr: SocketAddr,
     data: &[u8],
     rate_limiter: Arc<GlobalSearchRateLimiter>,
-) -> anyhow::Result<(uuid::Uuid, ManagementSocket<'a>)> {
+    permit: Arc<DiscoveryPermit>,
+) -> anyhow::Result<(uuid::Uuid, ManagementSocket<'static>, Vec<u8>)> {
     use db_connector::schema::chargers::dsl as chargers;
 
+    if !is_handshake_initiation(data) {
+        return Err(anyhow::Error::new(Error::UnknownPeer));
+    }
     let ip = IpNetwork::new(addr.ip(), 32)?;
 
     // Decide which chargers to load based on the in-memory
@@ -168,7 +173,6 @@ async fn create_tunn<'a>(
                 ChargerSelector::Ids(device_ids)
             } else {
                 if rate_limiter.check(addr).is_err() {
-                    log::warn!("Rate limit exceeded for unknown peer with ip '{ip}'");
                     return Err(anyhow::Error::msg(Error::UnknownPeer));
                 }
                 ChargerSelector::All
@@ -179,9 +183,9 @@ async fn create_tunn<'a>(
     // Load the candidate chargers and immediately release the pool slot.
     // Everything below this point is CPU-heavy noise key work that has
     // nothing to do with the database.
-    let devices: Vec<Charger> = {
+    let devices: Vec<Charger> = tokio::time::timeout(Duration::from_secs(10), async {
         let mut conn = state.pool.get().await?;
-        match &selector {
+        let devices = match &selector {
             ChargerSelector::Ids(ids) => {
                 chargers::chargers
                     .filter(chargers::id.eq_any(ids))
@@ -195,9 +199,34 @@ async fn create_tunn<'a>(
                     .load(&mut conn)
                     .await?
             }
-        }
-    };
+        };
+        Ok::<Vec<Charger>, anyhow::Error>(devices)
+    })
+    .await??;
 
+    let data = data.to_vec();
+    let udp_socket = state.socket.clone();
+    tokio::task::spawn_blocking(move || {
+        // Keep admission reserved even if the async caller is cancelled.
+        let _permit = permit;
+        match_tunnel(devices, addr, &data, udp_socket)
+    })
+    .await?
+}
+
+fn is_handshake_initiation(data: &[u8]) -> bool {
+    matches!(
+        boringtun::noise::Tunn::parse_incoming_packet(data),
+        Ok(boringtun::noise::Packet::HandshakeInit(_))
+    )
+}
+
+fn match_tunnel(
+    devices: Vec<Charger>,
+    addr: SocketAddr,
+    data: &[u8],
+    udp_socket: Arc<UdpSocket>,
+) -> anyhow::Result<(uuid::Uuid, ManagementSocket<'static>, Vec<u8>)> {
     let mut dst = vec![0u8; data.len()];
     for device in devices.into_iter() {
         let static_private: [u8; 32] = match BASE64_STANDARD
@@ -244,12 +273,10 @@ async fn create_tunn<'a>(
             Some(rate_limiter.clone()),
         );
 
-        match tunn.decapsulate(None, data, &mut dst) {
-            TunnResult::WriteToNetwork(data) => {
-                send_data(&state.socket, addr, data);
-            }
+        let response = match tunn.decapsulate(None, data, &mut dst) {
+            TunnResult::WriteToNetwork(data) => data.to_vec(),
             _ => continue,
-        }
+        };
 
         let self_ip = if let IpAddr::V4(ip) = device.wg_server_ip.ip() {
             ip
@@ -267,7 +294,6 @@ async fn create_tunn<'a>(
             ));
         };
 
-        let udp_socket = Arc::clone(&state.socket);
         let socket = ManagementSocket::new(
             self_ip,
             peer_ip,
@@ -296,7 +322,7 @@ async fn create_tunn<'a>(
             }
         }
 
-        return Ok((device.id, socket));
+        return Ok((device.id, socket, response));
     }
 
     Err(anyhow::Error::new(Error::UnknownPeer))
@@ -376,15 +402,25 @@ pub async fn run_server(
     app_state: web::Data<AppState>,
     rate_limiter: Arc<GlobalSearchRateLimiter>,
 ) {
+    // Acquire before spawning: waiting tasks must not become an unbounded queue.
+    let packet_slots = Arc::new(Semaphore::new(1024));
+    let discovery = Arc::new(DiscoveryAdmission::new(
+        (num_cpus::get_physical() / 2).clamp(1, 4),
+    ));
     let mut buf = vec![0u8; 65535];
     loop {
         let rate_limiter = Arc::clone(&rate_limiter);
         if let Ok((s, addr)) = bridge_state.socket.recv_from(&mut buf).await {
             let bridge_state = bridge_state.clone();
             let app_state = app_state.clone();
-            let buf = buf.clone();
+            let Ok(packet_slot) = packet_slots.clone().try_acquire_owned() else {
+                continue;
+            };
+            let discovery = discovery.clone();
+            let buf = buf[..s].to_vec();
 
             tokio::spawn(async move {
+                let _packet_slot = packet_slot;
                 // Check if the packet is for port discovery
                 if try_port_discovery(&bridge_state, &buf[..s], addr)
                     .await
@@ -393,73 +429,89 @@ pub async fn run_server(
                     return;
                 }
 
-                // Check if we need to relay the packet
-                {
-                    let mut client_map = bridge_state.web_client_map.lock().await;
-                    if let Some(client) = client_map.get_mut(&addr) {
-                        let payload = Bytes::copy_from_slice(&buf[0..s]);
-                        client.binary(payload).await.ok();
-                        return;
-                    }
+                // A slow browser must not hold the global map or retain a
+                // packet task indefinitely.
+                let client = bridge_state.web_client_map.lock().await.get(&addr).cloned();
+                if let Some(mut client) = client {
+                    let _ = tokio::time::timeout(
+                        Duration::from_secs(2),
+                        client.binary(Bytes::from(buf)),
+                    )
+                    .await;
+                    return;
                 }
 
-                // Get the management socket or create a new one when it does not exist
-                let tunn_sock = {
-                    // Maybe we could release the lock when adding a new management connection and get it back later
-                    // in case it turns out that holding it causes major connection issues.
-                    let mut charger_map = bridge_state.device_management_map.lock().await;
-
-                    match charger_map.entry(addr) {
-                        Entry::Occupied(tunn) => tunn.into_mut().clone(),
-                        Entry::Vacant(v) => {
-                            let (id, tunn_data) =
-                                match create_tunn(&bridge_state, addr, &buf[..s], rate_limiter)
-                                    .await
-                                {
-                                    Ok(tunn) => tunn,
-                                    Err(_err) => {
-                                        return;
-                                    }
-                                };
-
-                            let tunn_data = Arc::new(Mutex::new(tunn_data));
-                            {
-                                let mut map =
-                                    bridge_state.device_management_map_with_id.lock().await;
-                                map.insert(id, tunn_data.clone());
-                                v.insert(tunn_data.clone());
-                                let tunn = tunn_data.clone();
-                                let mut lost_map = bridge_state.lost_connections.lock().await;
-                                let mut undiscovered_clients =
-                                    bridge_state.undiscovered_clients.lock().await;
-                                if let Some(conns) = lost_map.remove(&id) {
-                                    for (conn_no, recipient) in conns.into_iter() {
-                                        let meta = RemoteConnMeta {
-                                            charger_id: id,
-                                            conn_no,
-                                        };
-                                        undiscovered_clients.insert(meta, recipient);
-
-                                        open_connection(
-                                            conn_no,
-                                            id,
-                                            tunn.clone(),
-                                            bridge_state.port_discovery.clone(),
-                                        )
-                                        .await
-                                        .ok();
-                                    }
-                                }
+                let existing = bridge_state
+                    .device_management_map
+                    .lock()
+                    .await
+                    .get(&addr)
+                    .cloned();
+                let tunn_sock = if let Some(socket) = existing {
+                    socket
+                } else {
+                    if !is_handshake_initiation(&buf) {
+                        return;
+                    }
+                    let Some(permit) = discovery.try_acquire(addr) else {
+                        return;
+                    };
+                    let (id, socket, response) =
+                        match create_tunn(&bridge_state, addr, &buf, rate_limiter, permit.clone())
+                            .await
+                        {
+                            Ok(tunnel) => tunnel,
+                            Err(err) => {
+                                log::debug!("Tunnel discovery failed for {addr}: {err}");
+                                return;
                             }
-                            update_charger_state_change(
+                        };
+                    let Some(socket) = super::registry::publish(
+                        &bridge_state.device_management_map,
+                        &bridge_state.device_management_map_with_id,
+                        id,
+                        addr,
+                        socket,
+                        permit.generation,
+                    )
+                    .await
+                    else {
+                        // A newer handshake won, or the current tunnel is busy.
+                        // Do not send a response for an unpublished tunnel.
+                        return;
+                    };
+                    send_data(&bridge_state.socket, addr, &response);
+                    // Keep discovery admission through reconnection bookkeeping
+                    // so slow notifications cannot accumulate packet tasks.
+                    let lost = bridge_state.lost_connections.lock().await.remove(&id);
+                    if let Some(conns) = lost {
+                        for (conn_no, recipient) in conns {
+                            let meta = RemoteConnMeta {
+                                charger_id: id,
+                                conn_no,
+                            };
+                            bridge_state
+                                .undiscovered_clients
+                                .lock()
+                                .await
+                                .insert(meta, recipient);
+                            open_connection(
+                                conn_no,
                                 id,
-                                app_state.clone(),
-                                bridge_state.clone(),
+                                socket.clone(),
+                                bridge_state.port_discovery.clone(),
                             )
-                            .await;
-                            tunn_data.clone()
+                            .await
+                            .ok();
                         }
                     }
+                    let _ = tokio::time::timeout(
+                        Duration::from_secs(5),
+                        update_charger_state_change(id, app_state.clone(), bridge_state.clone()),
+                    )
+                    .await;
+                    // create_tunn has already consumed the initiation packet.
+                    return;
                 };
 
                 let (data, id) = {
@@ -558,6 +610,14 @@ pub async fn run_server(
                             return;
                         };
 
+                        let Ok(_guard) = CurrentChargeLogSendsRAII::new() else {
+                            log::error!("Too many concurrent charge log sends, rejecting new request for charger with id '{}'", id);
+                            let mut tun_sock = tunn_sock.lock().await;
+                            let nack_packet =
+                                ManagementPacket::NackPacket(NackPacket::new(NackReason::Busy));
+                            tun_sock.send_packet(nack_packet);
+                            return;
+                        };
                         let Ok(last_charge_log_upload_hashes) =
                             get_last_charge_log_upload_hash(id, &app_state).await
                         else {
@@ -600,14 +660,6 @@ pub async fn run_server(
                             }
                         }
 
-                        let Ok(_guard) = CurrentChargeLogSendsRAII::new() else {
-                            log::error!("Too many concurrent charge log sends, rejecting new request for charger with id '{}'", id);
-                            let mut tun_sock = tunn_sock.lock().await;
-                            let nack_packet =
-                                ManagementPacket::NackPacket(NackPacket::new(NackReason::Busy));
-                            tun_sock.send_packet(nack_packet);
-                            return;
-                        };
                         let (sender, receiver) = tokio::sync::oneshot::channel();
                         {
                             let mut tun_sock = tunn_sock.lock().await;
@@ -674,6 +726,231 @@ pub async fn run_server(
                     }
                 }
             });
+        } else {
+            tokio::time::sleep(Duration::from_millis(1)).await;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boringtun::{
+        noise::Tunn,
+        x25519::{PublicKey, StaticSecret},
+    };
+    use std::{
+        collections::{HashMap, HashSet},
+        sync::atomic::Ordering,
+        time::Instant,
+    };
+
+    fn peer_and_charger() -> (Tunn, Charger, Vec<u8>) {
+        let server_private = StaticSecret::from([11u8; 32]);
+        let peer_private = StaticSecret::from([22u8; 32]);
+        let server_public = PublicKey::from(&server_private);
+        let peer_public = PublicKey::from(&peer_private);
+        let psk = [33u8; 32];
+        let mut peer = Tunn::new(peer_private, server_public, Some(psk), None, 1, None);
+        let mut output = [0u8; 2048];
+        let TunnResult::WriteToNetwork(init) = peer.format_handshake_initiation(&mut output, false)
+        else {
+            panic!("expected handshake initiation");
+        };
+        let init = init.to_vec();
+        let charger = Charger {
+            id: uuid::Uuid::new_v4(),
+            uid: 1,
+            password: String::new(),
+            name: None,
+            management_private: BASE64_STANDARD.encode(server_private.to_bytes()),
+            charger_pub: BASE64_STANDARD.encode(peer_public.as_bytes()),
+            wg_charger_ip: "10.0.0.2/24".parse().unwrap(),
+            psk: BASE64_STANDARD.encode(psk),
+            wg_server_ip: "10.0.0.1/24".parse().unwrap(),
+            webinterface_port: 80,
+            firmware_version: String::new(),
+            last_state_change: None,
+            device_type: None,
+            mtu: None,
+            last_charge_log_upload_hash: vec![],
+        };
+        (peer, charger, init)
+    }
+
+    #[test]
+    fn only_handshake_initiations_admit_unknown_peers() {
+        let (_, _, init) = peer_and_charger();
+        assert!(is_handshake_initiation(&init));
+        assert!(!is_handshake_initiation(&init[..init.len() - 1]));
+        let mut reserved_bits = init.clone();
+        reserved_bits[1] = 1;
+        assert!(!is_handshake_initiation(&reserved_bits));
+        let mut transport = [0u8; 32];
+        transport[0] = 4;
+        assert!(!is_handshake_initiation(&transport));
+        assert!(!is_handshake_initiation(&[]));
+    }
+
+    #[actix_web::test]
+    async fn candidate_matching_establishes_a_working_wireguard_session() {
+        let (mut peer, charger, init) = peer_and_charger();
+        let mut wrong = charger.clone();
+        wrong.management_private = BASE64_STANDARD.encode([99u8; 32]);
+        let udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let id = charger.id;
+        let (matched_id, mut socket, response) = tokio::task::spawn_blocking(move || {
+            match_tunnel(
+                vec![wrong, charger],
+                "127.0.0.1:12345".parse().unwrap(),
+                &init,
+                udp,
+            )
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(id, matched_id);
+        let mut output = [0u8; 2048];
+        let TunnResult::WriteToNetwork(keepalive) = peer.decapsulate(None, &response, &mut output)
+        else {
+            panic!("peer could not complete handshake");
+        };
+        assert!(socket.decrypt(keepalive).unwrap().is_empty());
+    }
+
+    #[actix_web::test]
+    async fn server_replies_to_authenticated_wireguard_keepalives() {
+        let server_udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let client_udp = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let client_addr = client_udp.local_addr().unwrap();
+        let (mut peer, charger, init) = peer_and_charger();
+        let (_, mut socket, response) =
+            match_tunnel(vec![charger], client_addr, &init, server_udp.clone()).unwrap();
+
+        let mut output = [0u8; 2048];
+        let TunnResult::WriteToNetwork(keepalive) = peer.decapsulate(None, &response, &mut output)
+        else {
+            panic!("peer could not complete handshake");
+        };
+        server_udp.writable().await.unwrap();
+        socket.decrypt(keepalive).unwrap();
+
+        let mut received = [0u8; 2048];
+        let size = tokio::time::timeout(Duration::from_secs(1), client_udp.recv(&mut received))
+            .await
+            .expect("server did not reply to keepalive")
+            .unwrap();
+        assert!(matches!(
+            peer.decapsulate(None, &received[..size], &mut output),
+            TunnResult::Done
+        ));
+    }
+
+    #[actix_web::test]
+    async fn established_traffic_progresses_while_new_peer_database_lookups_stall() {
+        use diesel_async::{
+            pooled_connection::{AsyncDieselConnectionManager, ManagerConfig},
+            AsyncPgConnection,
+        };
+        let lookups = Arc::new(AtomicUsize::new(0));
+        let observed = lookups.clone();
+        let mut config = ManagerConfig::<AsyncPgConnection>::default();
+        config.custom_setup = Box::new(move |_| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            Box::pin(std::future::pending())
+        });
+        let pool = db_connector::Pool::builder(AsyncDieselConnectionManager::new_with_config(
+            "postgres://unused",
+            config,
+        ))
+        .max_size(1)
+        .build()
+        .unwrap();
+        let server_udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let server_addr = server_udp.local_addr().unwrap();
+        let client_udp = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let client_addr = client_udp.local_addr().unwrap();
+        let (mut peer, charger, init) = peer_and_charger();
+        let id = charger.id;
+        let (_, socket, response) =
+            match_tunnel(vec![charger], client_addr, &init, server_udp.clone()).unwrap();
+        let socket = Arc::new(Mutex::new(socket));
+        let bridge = web::Data::new(BridgeState {
+            pool: pool.clone(),
+            socket: server_udp,
+            web_client_map: Mutex::new(HashMap::new()),
+            undiscovered_clients: Mutex::new(HashMap::new()),
+            device_management_map: Arc::new(Mutex::new(HashMap::from([(
+                client_addr,
+                socket.clone(),
+            )]))),
+            device_management_map_with_id: Arc::new(Mutex::new(HashMap::from([(
+                id,
+                socket.clone(),
+            )]))),
+            port_discovery: Arc::new(Mutex::new(HashMap::new())),
+            device_remote_conn_map: Mutex::new(HashMap::new()),
+            undiscovered_devices: Arc::new(Mutex::new(HashMap::from([(
+                "127.0.0.1/32".parse().unwrap(),
+                HashSet::from([crate::DiscoveryCharger {
+                    id,
+                    last_request: Instant::now(),
+                }]),
+            )]))),
+            lost_connections: Mutex::new(HashMap::new()),
+            state_update_clients: Mutex::new(HashMap::new()),
+            device_ratelimiter: Arc::new(crate::rate_limit::ChargerRateLimiter::new()),
+        });
+        let state = web::Data::new(AppState {
+            pool,
+            jwt_secret: String::new(),
+            mailer: None,
+            frontend_url: String::new(),
+            sender_email: String::new(),
+            sender_name: String::new(),
+            brand: Default::default(),
+            keys_in_use: Mutex::new(HashSet::new()),
+            hasher: Default::default(),
+        });
+        let server = actix_web::rt::spawn(run_server(
+            bridge.clone(),
+            state,
+            Arc::new(GlobalSearchRateLimiter::new()),
+        ));
+        let mut reconnecting = Vec::new();
+        for _ in 0..8 {
+            let udp = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+            udp.send_to(&init, server_addr).await.unwrap();
+            reconnecting.push(udp);
+        }
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while lookups.as_ref().load(Ordering::SeqCst) == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("new peer did not reach the stalled database");
+
+        let mut output = [0u8; 2048];
+        let TunnResult::WriteToNetwork(keepalive) = peer.decapsulate(None, &response, &mut output)
+        else {
+            panic!("peer could not complete handshake");
+        };
+        let sent_at = Instant::now();
+        client_udp.send_to(keepalive, server_addr).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if socket.lock().await.last_seen() < sent_at.elapsed() {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("established device was blocked by new-peer discovery");
+        assert!(bridge.device_management_map.try_lock().is_some());
+        server.abort();
+        let _ = server.await;
     }
 }
