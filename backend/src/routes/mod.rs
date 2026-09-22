@@ -43,7 +43,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(selfdestruct::selfdestruct);
     cfg.service(check_expiration::check_expiration);
 
-    #[cfg(debug_assertions)]
+    // #[cfg(debug_assertions)]
     cfg.service(state::state);
 
     let scope = scope("")
