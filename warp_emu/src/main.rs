@@ -1,19 +1,33 @@
-
-
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 use base64::Engine;
-use log::{error, info, warn};
-use simplelog::{ColorChoice, Config, LevelFilter, TermLogger, TerminalMode};
-use boringtun::{noise::{Tunn, TunnResult}, x25519::{PublicKey, StaticSecret}};
+use base64::engine::general_purpose::STANDARD;
+use boringtun::{
+    noise::{Tunn, TunnResult},
+    x25519::{PublicKey, StaticSecret},
+};
 use clap::Parser;
 use ipnetwork::IpNetwork;
-use base64::engine::general_purpose::STANDARD;
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
-use tokio::{net::UdpSocket, task, sync::Barrier};
+use simplelog::{ColorChoice, Config, LevelFilter, TermLogger, TerminalMode};
+use tokio::{
+    net::UdpSocket,
+    sync::{Barrier, broadcast},
+    task,
+};
 
 const HOST: &str = "tf-freddy:8081";
 const WG_PORT: u16 = 51820;
+const PERSISTENT_KEEPALIVE_SECS: u16 = 10;
+const CONNECTION_RESPONSE_TIMEOUT: Duration = Duration::from_secs(120);
+const TIMER_TICK_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Parser)]
 #[command(name = "warp_emu")]
@@ -59,10 +73,7 @@ fn decode_auth_token(token_str: &str) -> Result<DecodedAuthToken, String> {
     let user_id = String::from_utf8(bytes[32..68].to_vec())
         .map_err(|e| format!("Invalid user_id encoding: {}", e))?;
 
-    Ok(DecodedAuthToken {
-        token,
-        user_id,
-    })
+    Ok(DecodedAuthToken { token, user_id })
 }
 
 #[derive(Serialize)]
@@ -105,8 +116,15 @@ fn generate_random_keys() -> Keys {
     }
 }
 
-fn generate_random_add_charger_schema(user_id: &str, token: &str, pub_key: String, psk: &[u8; 32]) -> AddChargerWithTokenSchema {
-    let uid: String = bs58::encode(rand::random::<[u8; 4]>()).with_alphabet(bs58::Alphabet::FLICKR).into_string();
+fn generate_random_add_charger_schema(
+    user_id: &str,
+    token: &str,
+    pub_key: String,
+    psk: &[u8; 32],
+) -> AddChargerWithTokenSchema {
+    let uid: String = bs58::encode(rand::random::<[u8; 4]>())
+        .with_alphabet(bs58::Alphabet::FLICKR)
+        .into_string();
 
     let charger = ChargerSchema {
         uid: uid.clone(),
@@ -187,17 +205,28 @@ struct EmuCharger {
     socket: UdpSocket,
     tun: Tunn,
     rate_limiter: Arc<boringtun::noise::rate_limiter::RateLimiter>,
+    cleanup: Arc<AtomicBool>,
 }
 
 impl EmuCharger {
-    async fn new(user_id: &str, token: &str, barrier: Arc<Barrier>) -> anyhow::Result<Self> {
+    async fn new(
+        user_id: &str,
+        token: &str,
+        barrier: Arc<Barrier>,
+        cleanup: Arc<AtomicBool>,
+    ) -> anyhow::Result<Self> {
         let priv_key: [u8; 32] = rand::random();
         let priv_key = StaticSecret::from(priv_key);
         let pub_key = PublicKey::from(&priv_key);
 
         let psk: [u8; 32] = rand::random();
 
-        let schema = generate_random_add_charger_schema(user_id, token, STANDARD.encode(pub_key.as_bytes()), &psk);
+        let schema = generate_random_add_charger_schema(
+            user_id,
+            token,
+            STANDARD.encode(pub_key.as_bytes()),
+            &psk,
+        );
 
         let client = reqwest::Client::builder().tls_sslkeylogfile(true).build()?;
 
@@ -224,7 +253,7 @@ impl EmuCharger {
             priv_key,
             management_pub,
             Some(psk),
-            Some(10), // Persistent keepalive every 10 seconds
+            Some(PERSISTENT_KEEPALIVE_SECS),
             rand::random(),
             Some(rate_limiter.clone()),
         );
@@ -237,6 +266,7 @@ impl EmuCharger {
             socket,
             tun,
             rate_limiter,
+            cleanup,
         })
     }
 
@@ -254,7 +284,7 @@ impl EmuCharger {
         match self.tun.format_handshake_initiation(&mut buf, true) {
             TunnResult::WriteToNetwork(data) => {
                 self.socket.send(data).await?;
-            },
+            }
             TunnResult::Done => {
                 // Nothing to send
             }
@@ -335,11 +365,85 @@ impl EmuCharger {
         let body = response.json::<ManagementResponseSchema>().await?;
         Ok(body)
     }
+
+    /// Keep the WireGuard tunnel alive until the peer has been silent for two
+    /// minutes. `Tunn::update_timers` emits the configured persistent
+    /// keepalive packets, so it must be called even while the socket is idle.
+    async fn maintain_management_connection(
+        &mut self,
+        broadcast_rx: &mut broadcast::Receiver<()>,
+    ) -> bool {
+        let mut timer_tick = tokio::time::interval(TIMER_TICK_INTERVAL);
+        timer_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        timer_tick.tick().await;
+
+        let mut recv_buf = [0u8; 2048];
+        let mut send_buf = [0u8; 2048];
+        let mut last_response = Instant::now();
+
+        loop {
+            tokio::select! {
+                _ = broadcast_rx.recv() => return false,
+                _ = timer_tick.tick() => {
+                    match self.tun.update_timers(&mut send_buf) {
+                        TunnResult::WriteToNetwork(data) => {
+                            if let Err(e) = self.socket.send(data).await {
+                                warn!("Failed to send WireGuard keepalive: {}", e);
+                            }
+                        }
+                        TunnResult::Done => {}
+                        TunnResult::Err(e) => {
+                            warn!("WireGuard timer error: {:?}", e);
+                        }
+                        TunnResult::WriteToTunnelV4(_, _) | TunnResult::WriteToTunnelV6(_, _) => {
+                            warn!("WireGuard timer unexpectedly produced a tunnel packet");
+                        }
+                    }
+
+                    if last_response.elapsed() >= CONNECTION_RESPONSE_TIMEOUT {
+                        info!(
+                            "Charger {} has received no WireGuard response for {} seconds",
+                            self.uuid,
+                            CONNECTION_RESPONSE_TIMEOUT.as_secs()
+                        );
+                        return true;
+                    }
+                }
+                received = self.socket.recv(&mut recv_buf) => {
+                    match received {
+                        Ok(n) => match self.tun.decapsulate(None, &recv_buf[..n], &mut send_buf) {
+                            TunnResult::WriteToNetwork(data) => {
+                                last_response = Instant::now();
+                                if let Err(e) = self.socket.send(data).await {
+                                    warn!("Failed to send WireGuard response: {}", e);
+                                }
+                            }
+                            TunnResult::Done
+                            | TunnResult::WriteToTunnelV4(_, _)
+                            | TunnResult::WriteToTunnelV6(_, _) => {
+                                // A packet that BoringTun accepted is a response from the peer,
+                                // including an empty WireGuard keepalive packet.
+                                last_response = Instant::now();
+                            }
+                            TunnResult::Err(e) => warn!("Ignoring invalid WireGuard packet: {:?}", e),
+                        },
+                        Err(e) => warn!("WireGuard socket receive error: {}", e),
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Drop for EmuCharger {
-
     fn drop(&mut self) {
+        // A charger can be dropped because its polling task failed. Keep it
+        // registered in that case so the emulator continues to generate load
+        // against the server's existing devices. Cleanup is enabled explicitly
+        // by the Ctrl+C shutdown path below.
+        if !self.cleanup.load(Ordering::Acquire) {
+            return;
+        }
 
         #[derive(Serialize)]
         struct SelfdestructSchema {
@@ -353,7 +457,10 @@ impl Drop for EmuCharger {
             uuid: Some(self.uuid.clone()),
             password: self.password.clone(),
         };
-        let client = reqwest::Client::builder().tls_sslkeylogfile(true).build().unwrap();
+        let client = reqwest::Client::builder()
+            .tls_sslkeylogfile(true)
+            .build()
+            .unwrap();
         let barrier = self.barrier.clone();
         task::spawn(async move {
             let mut resp = client
@@ -362,22 +469,48 @@ impl Drop for EmuCharger {
                 .send()
                 .await;
 
-            while resp.is_err() || resp.as_ref().unwrap().status() == reqwest::StatusCode::INTERNAL_SERVER_ERROR {
+            while resp.is_err()
+                || resp.as_ref().unwrap().status() == reqwest::StatusCode::INTERNAL_SERVER_ERROR
+            {
                 if let Ok(r) = &resp {
                     warn!("Selfdestruct failed with status: {}", r.status());
                 }
 
                 tokio::time::sleep(Duration::from_millis(rand::random_range(1000..5000))).await;
                 resp = client
-                .delete(format!("https://{}/api/selfdestruct", HOST))
-                .json(&schema)
-                .send()
-                .await;
+                    .delete(format!("https://{}/api/selfdestruct", HOST))
+                    .json(&schema)
+                    .send()
+                    .await;
             }
 
             barrier.wait().await;
         });
+    }
+}
 
+/// Keep attempting the management connection until it succeeds or shutdown is requested.
+async fn retry_management_connection(
+    charger: &mut EmuCharger,
+    target_host: &str,
+    broadcast_rx: &mut broadcast::Receiver<()>,
+) -> bool {
+    loop {
+        match charger.start_management_connection(target_host).await {
+            Ok(()) => return true,
+            Err(e) => {
+                error!(
+                    "Management connection failed: {}, self addr: {:?}; retrying",
+                    e,
+                    charger.socket.local_addr()
+                );
+
+                tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_secs(rand::random_range(1..=5))) => {}
+                    _ = broadcast_rx.recv() => return false,
+                }
+            }
+        }
     }
 }
 
@@ -393,20 +526,26 @@ async fn main() {
 
     let args = Args::parse();
     let token = decode_auth_token(&args.auth_token).unwrap();
-    let target_host = args.target_host.split(':').next().unwrap_or(&args.target_host).to_string();
-
+    let target_host = args
+        .target_host
+        .split(':')
+        .next()
+        .unwrap_or(&args.target_host)
+        .to_string();
 
     // Create all chargers and collect them
-    let mut poll_tasks= Vec::with_capacity(args.num);
+    let mut poll_tasks = Vec::with_capacity(args.num);
     let mut creation_tasks = Vec::with_capacity(args.num);
+    let cleanup = Arc::new(AtomicBool::new(false));
 
     let barrier = Arc::new(Barrier::new(args.num + 1));
     for _ in 0..args.num {
         let token = token.clone();
         let barrier = barrier.clone();
+        let cleanup = cleanup.clone();
 
         creation_tasks.push(task::spawn(async move {
-            let charger = EmuCharger::new(&token.user_id, &token.token, barrier).await;
+            let charger = EmuCharger::new(&token.user_id, &token.token, barrier, cleanup).await;
             let charger = match charger {
                 Ok(c) => c,
                 Err(e) => {
@@ -431,67 +570,57 @@ async fn main() {
                     error!("Management request failed: {}", e);
                 }
 
-                // Start WireGuard management connection
-                if let Err(e) = charger.start_management_connection(&target_host).await {
-                    error!("1 Management connection failed: {}, self addr: {}", e, charger.socket.local_addr().unwrap());
+                // Start WireGuard management connection, retrying after failures.
+                if !retry_management_connection(&mut charger, &target_host, &mut broadcast_rx).await
+                {
                     return;
                 }
 
-                // Polling loop
-                loop {
-                    let sleep_secs = rand::random_range(5..=30);
-                    tokio::select! {
-                        _ = tokio::time::sleep(Duration::from_secs(sleep_secs)) => {
-                            log::info!("Charger {} sending keepalive...", charger.uuid);
-
-                            // Make a management request
-                            if let Err(e) = charger.management_request().await {
-                                error!("Management request failed: {}", e);
-                            }
-                            // Start WireGuard management connection
-                            if let Err(e) = charger.start_management_connection(&target_host).await {
-                                error!("2 Management connection failed: {}, self addr: {}", e, charger.socket.local_addr().unwrap());
-                                return;
-                            }
-                            // Send keepalive
-                            // match charger.tun.format_handshake_initiation(&mut buf, false) {
-                            //     TunnResult::WriteToNetwork(data) => {
-                            //         if let Err(e) = charger.socket.send(data).await {
-                            //             eprintln!("Failed to send keepalive: {}", e);
-                            //         }
-                            //     },
-                            //     TunnResult::Done => {
-                            //         // Nothing to send
-                            //     }
-                            //     other => {
-                            //         eprintln!("Unexpected result from format_handshake_initiation: {:?}", other);
-                            //     }
-                            // }
-                        }
-                        _ = broadcast_rx.recv() => {
-                            // Received shutdown signal
-                            break;
-                        }
+                // Keep the established tunnel open. Only re-identify and reconnect after
+                // two minutes without an authenticated response from the peer.
+                while charger
+                    .maintain_management_connection(&mut broadcast_rx)
+                    .await
+                {
+                    info!(
+                        "Charger {} reconnecting through management endpoint",
+                        charger.uuid
+                    );
+                    if let Err(e) = charger.management_request().await {
+                        error!("Management request before reconnect failed: {}", e);
+                    }
+                    if !retry_management_connection(&mut charger, &target_host, &mut broadcast_rx)
+                        .await
+                    {
+                        return;
                     }
                 }
             }));
         }
     }
 
-    info!("Created {} chargers, starting keepalive polling...", poll_tasks.len());
+    info!(
+        "Created {} chargers, starting keepalive polling...",
+        poll_tasks.len()
+    );
 
     info!("Waiting for SIGINT (Ctrl+C) to cleanup...");
 
     // Wait for SIGINT
-    tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Failed to listen for Ctrl+C");
 
     // Spawn a task to force quit on second Ctrl+C
     tokio::spawn(async {
-        tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to listen for Ctrl+C");
         warn!("Force quitting...");
         std::process::exit(1);
     });
 
+    cleanup.store(true, Ordering::Release);
     let _ = broadcast.send(());
 
     // Cleanup: drop all chargers and wait for selfdestruct to complete
