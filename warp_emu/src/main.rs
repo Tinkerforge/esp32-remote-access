@@ -296,42 +296,6 @@ impl EmuCharger {
             }
         }
 
-        // Wait for handshake response with timeout
-        let mut recv_buf = [0u8; 2048];
-        let handshake_timeout = Duration::from_secs(5);
-
-        loop {
-            match tokio::time::timeout(handshake_timeout, self.socket.recv(&mut recv_buf)).await {
-                Ok(Ok(n)) => {
-                    match self.tun.decapsulate(None, &recv_buf[..n], &mut buf) {
-                        TunnResult::WriteToNetwork(data) => {
-                            // Send response (typically the handshake response)
-                            self.socket.send(data).await?;
-                            break;
-                        }
-                        TunnResult::Done => {
-                            // Handshake complete or keepalive received
-                            if self.tun.time_since_last_handshake().is_some() {
-                                break;
-                            }
-                        }
-                        TunnResult::Err(e) => {
-                            return Err(anyhow::anyhow!("WireGuard error: {:?}", e));
-                        }
-                        TunnResult::WriteToTunnelV4(_, _) | TunnResult::WriteToTunnelV6(_, _) => {
-                            // Received encapsulated data - handshake is complete
-                            break;
-                        }
-                    }
-                }
-                Ok(Err(e)) => {
-                    return Err(anyhow::anyhow!("Socket receive error: {}", e));
-                }
-                Err(_) => {
-                    return Err(anyhow::anyhow!("Handshake timeout"));
-                }
-            }
-        }
         Ok(())
     }
 
