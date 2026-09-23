@@ -16,4 +16,5 @@ pub struct AllowedUser {
     pub valid: bool,
     pub name: Option<String>,
     pub note: Option<String>,
+    pub added_at: Option<chrono::NaiveDateTime>,
 }

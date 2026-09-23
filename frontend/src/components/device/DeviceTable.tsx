@@ -36,6 +36,7 @@ const renderColgroup = () => (
         <col class="charger-col-uid" />
         <col class="charger-col-actions" />
         <col class="charger-col-state-change" />
+        <col class="charger-col-added-at" />
         <col class="charger-col-note" />
         <col class="charger-col-firmware" />
     </colgroup>
@@ -129,6 +130,12 @@ export function DeviceTable({
                         </Col>
                     </Row>
                 </th>
+                <th onClick={() => onSort("added_at")} style={{ width: "180px" }}>
+                    <Row className="flex-nowrap g-0">
+                        <Col>{t("added_at")}</Col>
+                        <Col xs="auto">{getIcon("added_at")}</Col>
+                    </Row>
+                </th>
                 <th onClick={() => onSort("note")} style={{ width: "50%" }}>
                     <Row className="flex-nowrap g-0">
                         <Col>
@@ -214,7 +221,7 @@ export function DeviceTable({
                 aria-expanded={expanded}
                 style={{ cursor: "pointer", background: expanded ? "#e9ecef" : "#ced4da" }}
             >
-                <td colSpan={7} class="align-middle">
+                <td colSpan={8} class="align-middle">
                     <Row className="flex-nowrap align-items-center g-0">
                         <Col xs="auto" className="me-2">
                             {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}

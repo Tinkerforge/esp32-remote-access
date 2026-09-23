@@ -459,6 +459,7 @@ async fn notify_state_change(
                             .last_state_change
                             .map(|ts| ts.and_utc().timestamp()),
                         firmware_version: charger.firmware_version.clone(),
+                        added_at: au.added_at.map(|ts| ts.and_utc().timestamp()),
                     },
                 }
             })

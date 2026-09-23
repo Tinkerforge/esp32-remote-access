@@ -12,6 +12,7 @@ const mockDevice: StateDevice = {
   port: 8080,
   valid: true,
   last_state_change: 1640995200,
+  added_at: 1640995200,
   firmware_version: '1.0.0',
 };
 
@@ -55,6 +56,12 @@ describe('DeviceCard', () => {
     render(<DeviceCard {...defaultProps} />);
     expect(screen.getByText('formatted date')).toBeInTheDocument();
     expect(defaultProps.formatLastStateChange).toHaveBeenCalled();
+  });
+
+  it('displays when the device was added to the account', () => {
+    render(<DeviceCard {...defaultProps} />);
+    expect(screen.getByText('added_at')).toBeInTheDocument();
+    expect(screen.getByText(new Date(1640995200 * 1000).toLocaleString())).toBeInTheDocument();
   });
 
   it('displays firmware version', () => {

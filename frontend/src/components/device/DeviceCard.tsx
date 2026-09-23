@@ -5,6 +5,7 @@ import { Edit, Monitor, Trash2 } from "react-feather";
 import { encodeUid } from "../../base58";
 import { Circle } from "../Circle";
 import { StateDevice, Grouping, ConnectVia } from "./types";
+import { formatAddedAt } from "./formatAddedAt";
 
 interface DeviceCardProps {
     device: StateDevice;
@@ -184,6 +185,11 @@ export function DeviceCard({
                 <Row>
                     <Col xs="auto"><b>{t("last_state_change")}</b></Col>
                     <Col className="text-end">{formatLastStateChange(t, device.last_state_change)}</Col>
+                </Row>
+                <hr style="margin-top: 5px;margin-bottom: 5px;" />
+                <Row>
+                    <Col xs="auto"><b>{t("added_at")}</b></Col>
+                    <Col className="text-end">{formatAddedAt(device.added_at)}</Col>
                 </Row>
                 <hr style="margin-top: 5px;margin-bottom: 5px;" />
                 <Row>

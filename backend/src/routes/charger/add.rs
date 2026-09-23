@@ -451,6 +451,7 @@ pub async fn add_charger(
             valid: true,
             note: Some(schema.note),
             name: Some(schema.name),
+            added_at: Some(chrono::Utc::now().naive_utc()),
         };
 
         let mut conn = get_connection(state).await?;
@@ -712,12 +713,26 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_update_charger() {
+        use db_connector::schema::allowed_users::dsl as allowed_users;
         use db_connector::schema::wg_keys::dsl as wg_keys;
         use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
 
         let (mut user, mail) = TestUser::random().await; // store mail
         let token = user.login().await.to_owned();
         let device = user.add_random_charger().await;
+        let device_id = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let user_id = get_test_uuid(&mail).await.unwrap();
+        let pool = test_connection_pool();
+        let mut conn = pool.get().await.unwrap();
+        let original_added_at: Option<chrono::NaiveDateTime> = allowed_users::allowed_users
+            .filter(allowed_users::charger_id.eq(device_id))
+            .filter(allowed_users::user_id.eq(user_id))
+            .select(allowed_users::added_at)
+            .first(&mut conn)
+            .await
+            .unwrap();
+        assert!(original_added_at.is_some());
+        drop(conn);
 
         let app = App::new()
             .configure(configure)
@@ -761,6 +776,14 @@ pub(crate) mod tests {
         let uuid = uuid::Uuid::from_str(&body.charger_uuid).unwrap();
         let pool = test_connection_pool();
         let mut conn = pool.get().await.unwrap();
+        let added_at: Option<chrono::NaiveDateTime> = allowed_users::allowed_users
+            .filter(allowed_users::charger_id.eq(uuid))
+            .filter(allowed_users::user_id.eq(user_id))
+            .select(allowed_users::added_at)
+            .first(&mut conn)
+            .await
+            .unwrap();
+        assert_eq!(added_at, original_added_at);
         let keys: Vec<WgKey> = wg_keys::wg_keys
             .filter(wg_keys::charger_id.eq(uuid))
             .select(WgKey::as_select())

@@ -82,6 +82,8 @@ export function DeviceMobileView({
                 return i18n.t("chargers.note");
             case "last_state_change":
                 return i18n.t("chargers.last_state_change");
+            case "added_at":
+                return i18n.t("chargers.added_at");
             case "firmware_version":
                 return i18n.t("chargers.firmware_version");
             default:
@@ -97,6 +99,7 @@ export function DeviceMobileView({
                     <Dropdown.Item onClick={() => onMobileSort("uid")}>{t("charger_id")}</Dropdown.Item>
                     <Dropdown.Item onClick={() => onMobileSort("status")}>{t("status")}</Dropdown.Item>
                     <Dropdown.Item onClick={() => onMobileSort("last_state_change")}>{t("last_state_change")}</Dropdown.Item>
+                    <Dropdown.Item onClick={() => onMobileSort("added_at")}>{t("added_at")}</Dropdown.Item>
                     <Dropdown.Item onClick={() => onMobileSort("note")}>{t("note")}</Dropdown.Item>
                     <Dropdown.Item onClick={() => onMobileSort("firmware_version")}>{t("firmware_version")}</Dropdown.Item>
                 </DropdownButton>

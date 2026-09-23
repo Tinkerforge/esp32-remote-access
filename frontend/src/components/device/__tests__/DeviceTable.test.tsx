@@ -13,6 +13,7 @@ const mockDevices: StateDevice[] = [
     port: 8080,
     valid: true,
     last_state_change: 1640995200,
+    added_at: 1640995200,
     firmware_version: '1.0.0',
   },
   {
@@ -24,6 +25,7 @@ const mockDevices: StateDevice[] = [
     port: 8081,
     valid: false,
     last_state_change: null,
+    added_at: null,
     firmware_version: '1.0.0',
   },
 ];
@@ -69,6 +71,7 @@ describe('DeviceTable', () => {
     expect(screen.getByText('charger_name')).toBeInTheDocument();
     expect(screen.getByText('charger_id')).toBeInTheDocument();
     expect(screen.getByText('last_state_change')).toBeInTheDocument();
+    expect(screen.getByText('added_at')).toBeInTheDocument();
     expect(screen.getByText('note')).toBeInTheDocument();
     expect(screen.getByText('firmware_version')).toBeInTheDocument();
   });
@@ -119,6 +122,13 @@ describe('DeviceTable', () => {
     expect(thElement).not.toBeNull();
     fireEvent.click(thElement as HTMLElement);
     expect(defaultProps.onSort).toHaveBeenCalledWith('last_state_change');
+  });
+
+  it('sorts by the time a device was added', () => {
+    render(<DeviceTable {...defaultProps} />);
+    fireEvent.click(screen.getByText('added_at').closest('th') as HTMLElement);
+    expect(defaultProps.onSort).toHaveBeenCalledWith('added_at');
+    expect(screen.getByText(new Date(1640995200 * 1000).toLocaleString())).toBeInTheDocument();
   });
 
   it('calls onSort for note column when clicked', () => {
@@ -173,7 +183,7 @@ describe('DeviceTable', () => {
     render(<DeviceTable {...defaultProps} />);
     expect(defaultProps.formatLastStateChange).toHaveBeenCalled();
     expect(screen.getByText('formatted date')).toBeInTheDocument();
-    expect(screen.getByText('-')).toBeInTheDocument();
+    expect(screen.getAllByText('-')).toHaveLength(2);
   });
 
   // --- Bundled-by-groups view ---
@@ -225,14 +235,15 @@ describe('DeviceTable', () => {
   it('renders a colgroup that locks column widths', () => {
     const { container } = render(<DeviceTable {...defaultProps} />);
     const cols = container.querySelectorAll('colgroup col');
-    expect(cols.length).toBe(7);
+    expect(cols.length).toBe(8);
     expect(cols[0].className).toContain('charger-col-status');
     expect(cols[1].className).toContain('charger-col-name');
     expect(cols[2].className).toContain('charger-col-uid');
     expect(cols[3].className).toContain('charger-col-actions');
     expect(cols[4].className).toContain('charger-col-state-change');
-    expect(cols[5].className).toContain('charger-col-note');
-    expect(cols[6].className).toContain('charger-col-firmware');
+    expect(cols[5].className).toContain('charger-col-added-at');
+    expect(cols[6].className).toContain('charger-col-note');
+    expect(cols[7].className).toContain('charger-col-firmware');
     const table = container.querySelector('table');
     expect(table?.classList.contains('charger-table')).toBe(true);
   });
@@ -240,13 +251,14 @@ describe('DeviceTable', () => {
   it('locks each <th> width with an inline style as a fallback', () => {
     const { container } = render(<DeviceTable {...defaultProps} />);
     const ths = Array.from(container.querySelectorAll('thead th'));
-    expect(ths).toHaveLength(7);
+    expect(ths).toHaveLength(8);
     expect((ths[0] as HTMLElement).style.width).toBe('60px');
     expect((ths[1] as HTMLElement).style.width).toBe('auto');
     expect((ths[2] as HTMLElement).style.width).toBe('110px');
     expect((ths[3] as HTMLElement).style.width).toBe('220px');
     expect((ths[4] as HTMLElement).style.width).toBe('160px');
-    expect((ths[5] as HTMLElement).style.width).toBe('50%');
-    expect((ths[6] as HTMLElement).style.width).toBe('130px');
+    expect((ths[5] as HTMLElement).style.width).toBe('180px');
+    expect((ths[6] as HTMLElement).style.width).toBe('50%');
+    expect((ths[7] as HTMLElement).style.width).toBe('130px');
   });
 });

@@ -211,6 +211,7 @@ pub(crate) mod tests {
             valid: true,
             note: None,
             name: None,
+            added_at: None,
         };
         diesel::insert_into(au::allowed_users)
             .values(&allowed_user)
@@ -295,6 +296,7 @@ pub(crate) mod tests {
             valid: true,
             note: None,
             name: None,
+            added_at: None,
         };
         diesel::insert_into(au::allowed_users)
             .values(&allowed_user)
@@ -381,6 +383,7 @@ pub(crate) mod tests {
             valid: true,
             note: None,
             name: None,
+            added_at: None,
         };
         diesel::insert_into(au::allowed_users)
             .values(&allowed_user)
@@ -464,6 +467,7 @@ pub(crate) mod tests {
             valid: true,
             note: None,
             name: None,
+            added_at: None,
         };
         diesel::insert_into(au::allowed_users)
             .values(&allowed_user)

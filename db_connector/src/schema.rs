@@ -9,6 +9,7 @@ diesel::table! {
         note -> Nullable<Varchar>,
         charger_uid -> Int4,
         charger_id -> Uuid,
+        added_at -> Nullable<Timestamp>,
     }
 }
 

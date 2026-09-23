@@ -34,6 +34,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             valid: true,
             note: "",
             last_state_change: null,
+            added_at: null,
             firmware_version: "",
         };
         this.state = {
@@ -146,6 +147,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                 port: device.port,
                 valid: device.valid,
                 last_state_change: device.last_state_change,
+                added_at: device.added_at,
                 firmware_version: device.firmware_version,
             };
             stateDevices.push(state_charger);
@@ -176,6 +178,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             port: device.port,
             valid: device.valid,
             last_state_change: device.last_state_change,
+            added_at: device.added_at,
             firmware_version: device.firmware_version,
         };
 
@@ -224,6 +227,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             port: d.port,
             valid: true,
             last_state_change: null,
+            added_at: null,
             firmware_version: d.firmwareVersion || "",
             host: d.host,
         }));
@@ -539,6 +543,14 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             let ret: number;
             const first = a[sortColumn];
             const second = b[sortColumn];
+            // Older cloud devices and local-only devices have no registration time.
+            // Keep unknown dates at the end in either sort direction.
+            if (first == null) {
+                return second == null ? 0 : 1;
+            }
+            if (second == null) {
+                return -1;
+            }
             switch (typeof first) {
                 case "string":
                     ret = first.localeCompare(second as string);
@@ -547,14 +559,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     ret = first - (second as number);
                     break;
                 default:
-                    // Handle null/undefined values (like last_state_change)
-                    if (first === null || first === undefined) {
-                        ret = second === null || second === undefined ? 0 : 1;
-                    } else if (second === null || second === undefined) {
-                        ret = -1;
-                    } else {
-                        ret = (first as number) - (second as number);
-                    }
+                    ret = (first as number) - (second as number);
                     break;
             }
             if (this.state.sortSequence === "asc") {

@@ -5,6 +5,7 @@ import { Edit } from "react-feather";
 import { encodeUid } from "../../base58";
 import { Circle } from "../Circle";
 import { StateDevice, Grouping, ConnectVia } from "./types";
+import { formatAddedAt } from "./formatAddedAt";
 
 interface DeviceTableRowProps {
     device: StateDevice;
@@ -159,6 +160,9 @@ export function DeviceTableRow({
             </td>
             <td class="align-middle">
                 {formatLastStateChange(t, device.last_state_change)}
+            </td>
+            <td class="align-middle">
+                {formatAddedAt(device.added_at)}
             </td>
             <td class="align-middle pe-0">
                 <Container fluid className="p-0">

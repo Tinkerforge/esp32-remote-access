@@ -95,6 +95,7 @@ export const en = {
         "note": "Note",
         "firmware_version": "Firmware Version",
         "last_state_change": "State Change",
+        "added_at": "Added to your account",
         "time_just_now": "Just now",
         "time_minutes_ago": "{{count}}m ago",
         "time_hours_ago": "{{count}}h ago",

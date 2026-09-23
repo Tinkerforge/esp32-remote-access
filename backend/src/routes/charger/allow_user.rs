@@ -20,7 +20,7 @@
 use actix_web::{error::ErrorBadRequest, put, web, HttpRequest, HttpResponse, Responder};
 use base64::Engine;
 use db_connector::models::{allowed_users::AllowedUser, wg_keys::WgKey};
-use diesel::{ExpressionMethods, QueryDsl};
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -156,6 +156,19 @@ pub async fn allow_user(
     authenticate_user(allowed_uuid, &allow_user.user_auth, &state).await?;
 
     let allow_user_inner = allow_user.into_inner();
+    let previous_added_at = {
+        let mut conn = get_connection(&state).await?;
+        use db_connector::schema::allowed_users::dsl::*;
+        allowed_users
+            .filter(user_id.eq(allowed_uuid))
+            .filter(charger_id.eq(cid))
+            .select(AllowedUser::as_select())
+            .first::<AllowedUser>(&mut conn)
+            .await
+            .optional()
+            .map_err(|_| Error::InternalError)?
+            .map(|existing| existing.added_at)
+    };
     {
         let mut conn = get_connection(&state).await?;
         use db_connector::schema::allowed_users::dsl::*;
@@ -182,6 +195,7 @@ pub async fn allow_user(
             valid: true,
             name: Some(allow_user_inner.charger_name.clone()),
             note: Some(allow_user_inner.note.clone()),
+            added_at: previous_added_at.unwrap_or_else(|| Some(chrono::Utc::now().naive_utc())),
         };
 
         diesel::insert_into(allowed_users)

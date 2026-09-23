@@ -7,6 +7,7 @@ export interface Device {
     port: number,
     valid: boolean,
     last_state_change?: number | null,
+    added_at?: number | null,
     firmware_version: string,
 }
 
@@ -19,6 +20,7 @@ export interface StateDevice {
     port: number,
     valid: boolean,
     last_state_change?: number | null,
+    added_at?: number | null,
     firmware_version: string,
     // Hostname/IP of the device on the local network. Set for two kinds of
     // devices, and is the sole marker that a device is reachable on the LAN:
@@ -33,7 +35,7 @@ export interface StateDevice {
     host?: string,
 }
 
-export type SortColumn = "name" | "uid" | "status" | "none" | "note" | "last_state_change" | "firmware_version";
+export type SortColumn = "name" | "uid" | "status" | "none" | "note" | "last_state_change" | "added_at" | "firmware_version";
 
 // Selects how to reach a device. `"default"` keeps the legacy behavior of
 // preferring the local network when available and falling back to the cloud.

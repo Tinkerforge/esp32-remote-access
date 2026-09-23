@@ -55,6 +55,7 @@ pub struct GetChargerSchema {
     pub(crate) valid: bool,
     pub(crate) last_state_change: Option<i64>,
     pub(crate) firmware_version: String,
+    pub(crate) added_at: Option<i64>,
 }
 
 #[derive(Serialize, Clone)]
@@ -148,6 +149,7 @@ pub async fn fetch_chargers(
                 valid: allowed_user.valid,
                 last_state_change: c.last_state_change.map(|ts| ts.and_utc().timestamp()),
                 firmware_version: c.firmware_version,
+                added_at: allowed_user.added_at.map(|ts| ts.and_utc().timestamp()),
             }
         })
         .collect::<Vec<GetChargerSchema>>();
@@ -334,6 +336,58 @@ mod tests {
             .await
             .expect("fetch_chargers failed");
         assert_eq!(resp.len(), 10);
+    }
+
+    #[actix_web::test]
+    async fn test_shared_device_has_account_specific_added_time() {
+        use db_connector::schema::allowed_users::dsl as allowed_users;
+
+        let (mut owner, _) = TestUser::random().await;
+        let (mut guest, _) = TestUser::random().await;
+        owner.login().await;
+        guest.login().await;
+        let device = owner.add_random_charger().await;
+        owner
+            .allow_user(
+                &guest.mail,
+                UserAuth::LoginKey(BASE64_STANDARD.encode(guest.get_login_key().await)),
+                &device,
+            )
+            .await;
+
+        let owner_id = get_user_uuid_from_email(&owner.mail).await;
+        let guest_id = get_user_uuid_from_email(&guest.mail).await;
+        let charger_id = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let owner_added = chrono::DateTime::from_timestamp(1_700_000_000, 0)
+            .unwrap()
+            .naive_utc();
+        let guest_added = chrono::DateTime::from_timestamp(1_710_000_000, 0)
+            .unwrap()
+            .naive_utc();
+        let pool = test_connection_pool();
+        let mut conn = pool.get().await.unwrap();
+        for (uid, added) in [(owner_id, owner_added), (guest_id, guest_added)] {
+            diesel::update(
+                allowed_users::allowed_users
+                    .filter(allowed_users::charger_id.eq(charger_id))
+                    .filter(allowed_users::user_id.eq(uid)),
+            )
+            .set(allowed_users::added_at.eq(Some(added)))
+            .execute(&mut conn)
+            .await
+            .unwrap();
+        }
+        drop(conn);
+
+        let (state, bridge_state) = get_test_state();
+        let owner_devices = fetch_chargers(&state, owner_id, &bridge_state)
+            .await
+            .unwrap();
+        let guest_devices = fetch_chargers(&state, guest_id, &bridge_state)
+            .await
+            .unwrap();
+        assert_eq!(owner_devices[0].added_at, Some(1_700_000_000));
+        assert_eq!(guest_devices[0].added_at, Some(1_710_000_000));
     }
 
     #[actix_web::test]
