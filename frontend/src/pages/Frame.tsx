@@ -16,7 +16,6 @@ import sodium from 'libsodium-wrappers';
 // Extend the Window interface to include custom properties
 declare global {
     interface Window {
-        close: () => void;
         switchTo: (hash: string) => void;
     }
 }
