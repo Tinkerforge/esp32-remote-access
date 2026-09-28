@@ -256,8 +256,10 @@ async fn handle_websocket(
             }
         }
 
-        let mut state_update_clients = bridge_state.state_update_clients.lock().await;
-        state_update_clients.remove(&user_id);
+        {
+            let mut state_update_clients = bridge_state.state_update_clients.lock().await;
+            state_update_clients.remove(&user_id);
+        }
         let _ = session.close(None).await;
     });
 

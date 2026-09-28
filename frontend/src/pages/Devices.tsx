@@ -79,9 +79,13 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
     }
 
     async connectStateUpdateWebSocket() {
-        if (!secret) {
-            await get_decrypted_secret();
-        }
+        const secretReady = (secret ? Promise.resolve() : get_decrypted_secret()).then(
+            () => true,
+            (error) => {
+                console.error('Failed to load device decryption key:', error);
+                return false;
+            },
+        );
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/charger/get_devices`;
@@ -89,7 +93,9 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         try {
             this.stateUpdateWs = new WebSocket(wsUrl);
 
-            this.stateUpdateWs.onmessage = (event) => {
+            this.stateUpdateWs.onmessage = async (event) => {
+                if (!await secretReady || !this.isMounted) return;
+
                 try {
                     const message = JSON.parse(event.data);
                     // Handle state_change message with a single charger.
