@@ -19,6 +19,8 @@
 
 use std::{
     collections::HashSet,
+    net::IpAddr,
+    sync::LazyLock,
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -44,6 +46,8 @@ use crate::{
 };
 
 use super::charger::add::password_matches;
+
+static BENCHMARK_NET: LazyLock<IpNetwork> = LazyLock::new(|| "198.18.0.0/15".parse().unwrap());
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ManagementSchema {
@@ -75,6 +79,16 @@ pub struct ManagementDataVersion2 {
     pub firmware_version: String,
     pub configured_users: Vec<ConfiguredUser>,
     pub mtu: Option<u16>,
+    #[serde(default)]
+    pub internal_ips: Option<ManagementInternalIps>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Debug)]
+pub struct ManagementInternalIps {
+    #[schema(value_type = SchemaType::String)]
+    pub wg_charger_ip: IpNetwork,
+    #[schema(value_type = SchemaType::String)]
+    pub wg_server_ip: IpNetwork,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -423,10 +437,35 @@ pub async fn management(
         }
     }
 
-    let (fw_version, port, mtu) = match &data.data {
-        ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port, None),
-        ManagementDataVersion::V2(v) => (v.firmware_version.clone(), v.port, v.mtu),
+    let (fw_version, port, mtu, internal_ips) = match &data.data {
+        ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port, None, None),
+        ManagementDataVersion::V2(v) => (
+            v.firmware_version.clone(),
+            v.port,
+            v.mtu,
+            v.internal_ips
+                .as_ref()
+                .map(|ips| (ips.wg_charger_ip, ips.wg_server_ip)),
+        ),
     };
+
+    // If the device reports its internal WireGuard addresses, both must be
+    // inside the configured benchmark net. Reject the request otherwise so a
+    // malicious or buggy charger cannot store arbitrary IPs on its row.
+    if let Some((wg_charger_ip, wg_server_ip)) = internal_ips {
+        let benchmark_net = *BENCHMARK_NET;
+        if !benchmark_net.contains(IpAddr::from(wg_charger_ip.ip()))
+            || !benchmark_net.contains(IpAddr::from(wg_server_ip.ip()))
+        {
+            log::warn!(
+                "Charger {} reported internal IPs outside of the benchmark net: charger={}, server={}",
+                charger_id,
+                wg_charger_ip,
+                wg_server_ip,
+            );
+            return Err(Error::InvalidPayload.into());
+        }
+    }
 
     let user_agent = req.headers().get("User-Agent");
     let device_type = user_agent.and_then(|h| h.to_str().ok()).and_then(|ua| {
@@ -439,27 +478,57 @@ pub async fn management(
 
     {
         let mut conn = get_connection(&state).await?;
-        let result = if let Some(m) = mtu {
-            diesel::update(chargers::chargers)
-                .filter(chargers::id.eq(charger_id))
-                .set((
-                    chargers::firmware_version.eq(fw_version),
-                    chargers::webinterface_port.eq(port as i32),
-                    chargers::device_type.eq(device_type),
-                    chargers::mtu.eq(m as i32),
-                ))
-                .execute(&mut conn)
-                .await
-        } else {
-            diesel::update(chargers::chargers)
-                .filter(chargers::id.eq(charger_id))
-                .set((
-                    chargers::firmware_version.eq(fw_version),
-                    chargers::webinterface_port.eq(port as i32),
-                    chargers::device_type.eq(device_type),
-                ))
-                .execute(&mut conn)
-                .await
+        let result = match (mtu, internal_ips) {
+            (Some(m), Some((wg_charger_ip, wg_server_ip))) => {
+                diesel::update(chargers::chargers)
+                    .filter(chargers::id.eq(charger_id))
+                    .set((
+                        chargers::firmware_version.eq(fw_version),
+                        chargers::webinterface_port.eq(port as i32),
+                        chargers::device_type.eq(device_type),
+                        chargers::mtu.eq(m as i32),
+                        chargers::wg_charger_ip.eq(wg_charger_ip),
+                        chargers::wg_server_ip.eq(wg_server_ip),
+                    ))
+                    .execute(&mut conn)
+                    .await
+            }
+            (Some(m), None) => {
+                diesel::update(chargers::chargers)
+                    .filter(chargers::id.eq(charger_id))
+                    .set((
+                        chargers::firmware_version.eq(fw_version),
+                        chargers::webinterface_port.eq(port as i32),
+                        chargers::device_type.eq(device_type),
+                        chargers::mtu.eq(m as i32),
+                    ))
+                    .execute(&mut conn)
+                    .await
+            }
+            (None, Some((wg_charger_ip, wg_server_ip))) => {
+                diesel::update(chargers::chargers)
+                    .filter(chargers::id.eq(charger_id))
+                    .set((
+                        chargers::firmware_version.eq(fw_version),
+                        chargers::webinterface_port.eq(port as i32),
+                        chargers::device_type.eq(device_type),
+                        chargers::wg_charger_ip.eq(wg_charger_ip),
+                        chargers::wg_server_ip.eq(wg_server_ip),
+                    ))
+                    .execute(&mut conn)
+                    .await
+            }
+            (None, None) => {
+                diesel::update(chargers::chargers)
+                    .filter(chargers::id.eq(charger_id))
+                    .set((
+                        chargers::firmware_version.eq(fw_version),
+                        chargers::webinterface_port.eq(port as i32),
+                        chargers::device_type.eq(device_type),
+                    ))
+                    .execute(&mut conn)
+                    .await
+            }
         };
 
         match result {
@@ -527,6 +596,8 @@ mod tests {
 
         let user_id = get_test_uuid(&mail).await.unwrap();
         let device_uuid_clone = device.uuid.clone();
+        let reported_charger_ip: IpNetwork = "198.18.0.42/32".parse().unwrap();
+        let reported_server_ip: IpNetwork = "198.18.0.1/32".parse().unwrap();
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
             id: device.uuid,
             password: device.password,
@@ -538,6 +609,10 @@ mod tests {
                 name: Some(String::new()),
             }],
             mtu: None,
+            internal_ips: Some(ManagementInternalIps {
+                wg_charger_ip: reported_charger_ip,
+                wg_server_ip: reported_server_ip,
+            }),
         });
 
         let body = ManagementSchema {
@@ -572,6 +647,82 @@ mod tests {
             db_device.device_type.as_deref(),
             Some("Tinkerforge-WARP2_Charger/2.8.0+6811d0b1")
         );
+        assert_eq!(db_device.wg_charger_ip, reported_charger_ip);
+        assert_eq!(db_device.wg_server_ip, reported_server_ip);
+    }
+
+    #[actix_web::test]
+    async fn test_management_rejects_ips_outside_benchmark_net() {
+        let (mut user, mail) = TestUser::random().await;
+        user.login().await;
+        let device = user.add_random_charger().await;
+
+        let app = App::new().configure(configure).service(management);
+        let app = test::init_service(app).await;
+
+        let user_id = get_test_uuid(&mail).await.unwrap();
+
+        // 10.0.0.0/8 is outside the benchmark net 198.18.0.0/15
+        let data = ManagementDataVersion::V2(ManagementDataVersion2 {
+            id: device.uuid.clone(),
+            password: device.password.clone(),
+            port: 0,
+            firmware_version: "2.3.1".to_string(),
+            configured_users: vec![ConfiguredUser {
+                email: None,
+                user_id: Some(user_id.to_string()),
+                name: Some(String::new()),
+            }],
+            mtu: None,
+            internal_ips: Some(ManagementInternalIps {
+                wg_charger_ip: "10.0.0.42/32".parse().unwrap(),
+                wg_server_ip: "198.18.0.1/32".parse().unwrap(),
+            }),
+        });
+
+        let body = ManagementSchema {
+            id: None,
+            password: None,
+            data,
+        };
+        let req = test::TestRequest::put()
+            .uri("/management")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .set_json(body)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status().as_u16(), 400);
+
+        // Both IPs outside the benchmark net: must also be rejected
+        let data = ManagementDataVersion::V2(ManagementDataVersion2 {
+            id: device.uuid,
+            password: device.password,
+            port: 0,
+            firmware_version: "2.3.1".to_string(),
+            configured_users: vec![ConfiguredUser {
+                email: None,
+                user_id: Some(user_id.to_string()),
+                name: Some(String::new()),
+            }],
+            mtu: None,
+            internal_ips: Some(ManagementInternalIps {
+                wg_charger_ip: "10.0.0.42/32".parse().unwrap(),
+                wg_server_ip: "10.0.0.1/32".parse().unwrap(),
+            }),
+        });
+
+        let body = ManagementSchema {
+            id: None,
+            password: None,
+            data,
+        };
+        let req = test::TestRequest::put()
+            .uri("/management")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .set_json(body)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status().as_u16(), 400);
     }
 
     #[actix_web::test]
@@ -596,6 +747,7 @@ mod tests {
                 name: Some(String::new()),
             }],
             mtu: Some(1420),
+            internal_ips: None,
         });
 
         let body = ManagementSchema {
@@ -655,6 +807,7 @@ mod tests {
                 name: Some(String::new()),
             }],
             mtu: None,
+            internal_ips: None,
         });
 
         let body = ManagementSchema {
@@ -762,6 +915,7 @@ mod tests {
                 name: Some(String::new()),
             }],
             mtu: None,
+            internal_ips: None,
         });
         let body = ManagementSchema {
             id: None,
@@ -841,6 +995,7 @@ mod tests {
                 name: Some(String::new()),
             }],
             mtu: None,
+            internal_ips: None,
         });
 
         let body = ManagementSchema {
@@ -940,6 +1095,7 @@ mod tests {
                 },
             ],
             mtu: None,
+            internal_ips: None,
         });
 
         let body = ManagementSchema {
@@ -1023,6 +1179,7 @@ mod tests {
                 },
             ],
             mtu: None,
+            internal_ips: None,
         });
 
         let body = ManagementSchema {
@@ -1156,6 +1313,7 @@ mod tests {
                     },
                 ],
                 mtu: None,
+                internal_ips: None,
             }),
         };
 
@@ -1259,6 +1417,7 @@ mod tests {
                 name: Some(String::new()),
             }],
             mtu: None,
+            internal_ips: None,
         });
         let body = ManagementSchema {
             id: None,
@@ -1381,6 +1540,7 @@ mod tests {
                 name: Some(String::new()),
             }],
             mtu: None,
+            internal_ips: None,
         });
         let body = ManagementSchema {
             id: None,
