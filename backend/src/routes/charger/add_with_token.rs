@@ -90,6 +90,8 @@ pub async fn add_with_token(
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv4Addr;
+
     use super::*;
     use crate::{
         routes::{
@@ -102,6 +104,7 @@ mod tests {
         tests::configure,
     };
     use actix_web::{test, App};
+    use ipnetwork::{IpNetwork, Ipv4Network};
 
     #[actix_web::test]
     async fn test_valid_charger() {
@@ -123,6 +126,12 @@ mod tests {
             charger: ChargerSchema {
                 uid: encode_charger_uid(uid),
                 charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
                 psk: String::new(),
             },
             keys,
@@ -168,6 +177,12 @@ mod tests {
             charger: ChargerSchema {
                 uid: encode_charger_uid(uid),
                 charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
                 psk: String::new(),
             },
             keys,
@@ -214,6 +229,12 @@ mod tests {
             charger: ChargerSchema {
                 uid: encode_charger_uid(uid),
                 charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
                 psk: String::new(),
             },
             keys,
@@ -260,6 +281,12 @@ mod tests {
             charger: ChargerSchema {
                 uid: encode_charger_uid(uid),
                 charger_pub: keys[0].charger_public.clone(),
+                wg_charger_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
+                wg_server_ip: IpNetwork::V4(
+                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
+                ),
                 psk: String::new(),
             },
             keys: keys.clone(),
