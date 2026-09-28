@@ -17,13 +17,15 @@
  * Boston, MA 02111-1307, USA.
  */
 
+use std::net::Ipv4Addr;
+
 use actix_web::{put, web, HttpResponse, Responder};
 use argon2::password_hash::PasswordHashString;
 use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
 use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl as _;
-use ipnetwork::IpNetwork;
+use ipnetwork::{IpNetwork, Ipv4Network};
 use rand::{distr::Alphanumeric, RngExt};
 use rand_core::{OsRng, TryRngCore};
 use serde::{Deserialize, Serialize};
@@ -136,10 +138,6 @@ pub struct Keys {
 pub struct ChargerSchema {
     pub uid: String,
     pub charger_pub: String,
-    #[schema(value_type = SchemaType::String)]
-    pub wg_charger_ip: IpNetwork,
-    #[schema(value_type = SchemaType::String)]
-    pub wg_server_ip: IpNetwork,
     pub psk: String,
 }
 
@@ -358,8 +356,8 @@ async fn update_charger(
             name: None,
             charger_pub: device.charger_pub,
             management_private: private_key,
-            wg_charger_ip: device.wg_charger_ip,
-            wg_server_ip: device.wg_server_ip,
+            wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
+            wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
             psk: device.psk,
             webinterface_port: 0,
             firmware_version: String::new(),
@@ -432,8 +430,8 @@ pub async fn add_charger(
             name: None,
             charger_pub: device.charger_pub.clone(),
             management_private: private_key,
-            wg_charger_ip: device.wg_charger_ip,
-            wg_server_ip: device.wg_server_ip,
+            wg_charger_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
+            wg_server_ip: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap()),
             psk: device.psk.clone(),
             webinterface_port: 0,
             firmware_version: String::new(),
@@ -505,7 +503,7 @@ async fn add_wg_key(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{mem::MaybeUninit, net::Ipv4Addr, str::FromStr};
+    use std::{mem::MaybeUninit, str::FromStr};
 
     use super::*;
     use actix_web::{
@@ -576,12 +574,6 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 uid: uid_str,
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
@@ -624,12 +616,6 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 uid: encode_charger_uid(uid),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
@@ -679,12 +665,6 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 uid: uid_str,
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
@@ -745,12 +725,6 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 uid: encode_charger_uid(device.uid),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
@@ -821,12 +795,6 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 uid: encode_charger_uid(device.uid),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
@@ -871,12 +839,6 @@ pub(crate) mod tests {
             charger: ChargerSchema {
                 uid: encode_charger_uid(device.uid),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
@@ -938,12 +900,6 @@ pub(crate) mod tests {
                     random_positive_charger_id() % (ZBASE32_UID_THRESHOLD as i32 + 1),
                 ),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
@@ -962,12 +918,6 @@ pub(crate) mod tests {
                 // UID strictly above the cutoff -> z-base-32 encoding.
                 uid: encode_charger_uid((ZBASE32_UID_THRESHOLD as i32) + 1),
                 charger_pub: keys[0].charger_public.clone(),
-                wg_charger_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
-                wg_server_ip: IpNetwork::V4(
-                    Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 0).unwrap(),
-                ),
                 psk: String::new(),
             },
             keys,
