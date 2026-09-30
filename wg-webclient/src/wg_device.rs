@@ -282,8 +282,22 @@ fn create_onmessage_closure(
                         _ => panic!("Unexpected TunnResult"),
                     }
                 }
-                _ => {
-                    log::error!("Unknown TunnResult");
+                TunnResult::WriteToTunnelV6(d, _) => {
+                    if pcap_logging_enabled() {
+                        let pcap_strong = message_pcap.upgrade().unwrap();
+                        log_pcap_data(&pcap_strong, d);
+                    }
+                    let message_vec = message_vec.upgrade().unwrap();
+                    (*message_vec.borrow_mut()).push_back(d.to_vec());
+                    let mut buf = vec![0u8; data.len() + 32];
+                    match tun.encapsulate(&data, &mut buf) {
+                        TunnResult::WriteToNetwork(d) => {
+                            drop(tun);
+                            let message_socket = message_socket.upgrade().unwrap();
+                            let _ = message_socket.send_with_u8_array(d);
+                        }
+                        _ => panic!("Unexpected TunnResult"),
+                    }
                 }
             }
         });

@@ -20,7 +20,8 @@
 use std::{cell::RefCell, collections::VecDeque, io::Read, pin::Pin, rc::{Rc, Weak}, task::Poll};
 
 use crate::{
-    hyper_stream::HyperStream, interface::Interface, interval_handle::IntervalHandle,
+    hyper_stream::HyperStream, icmp_discovery::{self, IpAddressExt},
+    interface::Interface, interval_handle::IntervalHandle,
     stream::TcpStream, websocket::Websocket, wg_device::WgTunDevice,
 };
 use base64::Engine;
@@ -32,7 +33,7 @@ use http_body_util::BodyExt;
 use hyper::{body::Bytes, client::conn::http1::{Connection, SendRequest}};
 use js_sys::Promise;
 use pcap_file::pcapng::PcapNgWriter;
-use smoltcp::wire::IpCidr;
+use smoltcp::wire::{IpAddress, IpCidr};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{CustomEvent, MessageEvent, Response};
@@ -137,6 +138,16 @@ impl Client {
         self.0.clone().disconnect_inner_ws();
     }
 
+    /// Returns `true` once the peer IP address has been resolved. Always
+    /// `true` for IPv4; for IPv6 this becomes `true` once ICMPv6 echo
+    /// discovery has returned the charger's address. Callers can use this
+    /// to know whether `start_inner_ws` is going to actually establish a
+    /// WebSocket, and retry the call if it is not yet ready.
+    #[wasm_bindgen]
+    pub fn peer_discovery_complete(&self) -> bool {
+        self.0.peer_discovery_complete()
+    }
+
     // leaks memory, for debugging only!!!
     #[wasm_bindgen]
     pub fn download_pcap_log(&self) {
@@ -161,7 +172,25 @@ struct WgClient {
     current_request: Rc<RefCell<Option<IntervalHandle<MessageEvent>>>>,
     request_queue: Rc<RefCell<VecDeque<Request>>>,
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
-    internal_peer_ip: String,
+    /// The address the wg-webclient uses as the destination for outgoing TCP
+    /// traffic to the charger.
+    ///
+    /// For IPv4 the configured `internal_peer_ip` is used directly. For IPv6
+    /// it is replaced with the address discovered via ICMPv6 echo (see
+    /// [`crate::icmp_discovery`]). The address is wrapped in an `Option` for
+    /// the IPv6 case so that we know when discovery has completed.
+    internal_peer_ip: Rc<RefCell<Option<IpAddress>>>,
+    /// Handle to the ICMP socket used for IPv6 peer discovery. `None` when
+    /// running in IPv4 mode (backwards compatibility). Kept for future use
+    /// (e.g. triggering a manual rediscovery) but the actual handle is held
+    /// inside the polling closure.
+    #[allow(dead_code)]
+    icmp_handle: Option<smoltcp::iface::SocketHandle>,
+    /// Sequence number used for the next ICMPv6 echo request. Kept here so
+    /// that the sequence counter is preserved across re-creations of the
+    /// polling closure.
+    #[allow(dead_code)]
+    icmp_seq: Rc<RefCell<u16>>,
     _polling_interval: Rc<IntervalHandle<MessageEvent>>,
     username: Rc<RefCell<String>>,
     password: Rc<RefCell<String>>,
@@ -220,17 +249,132 @@ impl WgClient {
 
         let pcap = device.get_pcap();
 
-        let ip = &internal_ip[0..internal_ip.len() - 3];
-        let ip = IpCidr::new(ip.parse().unwrap(), 24);
-        let iface = Rc::new(RefCell::new(Interface::new(device, ip)));
+        // Parse our own address (the wg-webclient's IP inside the tunnel).
+        // Supports both IPv4 and IPv6 inputs in either `<ip>` or `<ip>/<prefix>`
+        // form for backwards compatibility with the existing API which always
+        // passed a `/24` suffix.
+        let self_addr = icmp_discovery::parse_cidr_address(internal_ip)
+            .expect("Failed to parse internal_ip");
+        let prefix = icmp_discovery::default_prefix(&self_addr);
+        let cidr = IpCidr::new(self_addr, prefix);
+        let iface = Rc::new(RefCell::new(Interface::new(device, cidr)));
         let iface_cpy = Rc::downgrade(&iface);
+
+        // Parse the configured peer address. For IPv6 the value is treated as a
+        // placeholder that will be replaced once ICMPv6 echo discovery has
+        // returned a real address from the charger.
+        let parsed_peer = icmp_discovery::parse_cidr_address(internal_peer_ip)
+            .expect("Failed to parse internal_peer_ip");
+
+        // Allocate an ICMP socket only for the IPv6 path; IPv4 chargers
+        // continue to use the configured address directly.
+        let (internal_peer_ip, icmp_handle) = if parsed_peer.is_ipv6() {
+            let rx_buffer = smoltcp::socket::icmp::PacketBuffer::new(
+                vec![smoltcp::socket::icmp::PacketMetadata::EMPTY],
+                vec![0; 256],
+            );
+            let tx_buffer = smoltcp::socket::icmp::PacketBuffer::new(
+                vec![smoltcp::socket::icmp::PacketMetadata::EMPTY],
+                vec![0; 256],
+            );
+            let handle = iface.borrow_mut().set_icmp_socket(rx_buffer, tx_buffer);
+            // Bind the socket to the discovery identifier so the smoltcp
+            // stack demultiplexes incoming echo replies to it.
+            icmp_discovery::bind_discovery_socket(&mut iface.borrow_mut(), handle);
+            (Rc::new(RefCell::new(None)), Some(handle))
+        } else {
+            (Rc::new(RefCell::new(Some(parsed_peer))), None)
+        };
 
         let stream = TcpStream::new(iface.clone());
 
         let stream = Rc::new(RefCell::new(stream));
 
+        // Set up the ICMPv6 peer discovery loop. The polling interval is set
+        // up to also drive the smoltcp stack; we piggyback the ICMPv6
+        // discovery on top of it so we don't have to manage a separate timer
+        // in the wg-webclient. The discovery only runs in IPv6 mode and
+        // before the address has been discovered.
+        let internal_peer_ip_for_closure = Rc::downgrade(&internal_peer_ip);
+        let icmp_handle_for_closure = icmp_handle;
+        let icmp_seq_shared = Rc::new(RefCell::new(0u16));
+        let icmp_seq_for_closure = Rc::downgrade(&icmp_seq_shared);
+
+        let self_addr_for_closure = self_addr;
+        let parsed_peer_for_closure = parsed_peer;
+        let discovery_tick = Rc::new(RefCell::new(0u32));
+
         let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
-            iface_cpy.upgrade().unwrap().borrow_mut().poll();
+            let iface_ref = match iface_cpy.upgrade() {
+                Some(i) => i,
+                None => return,
+            };
+            iface_ref.borrow_mut().poll();
+
+            // Drive ICMPv6 peer discovery if applicable.
+            if let (Some(icmp_handle), Some(internal_peer_ip_weak), Some(seq_weak)) = (
+                icmp_handle_for_closure,
+                internal_peer_ip_for_closure.upgrade(),
+                icmp_seq_for_closure.upgrade(),
+            ) {
+                // Already discovered: nothing to do.
+                if internal_peer_ip_weak.borrow().is_some() {
+                    return;
+                }
+
+                let self_v6 = match self_addr_for_closure {
+                    IpAddress::Ipv6(a) => a,
+                    _ => return,
+                };
+                let dst_v6 = match parsed_peer_for_closure {
+                    IpAddress::Ipv6(a) => a,
+                    _ => return,
+                };
+
+                // Throttle: only attempt discovery every ~64 polls.
+                // The polling interval is 0ms (driven by setInterval), so
+                // 64 iterations is roughly tens of milliseconds; this is
+                // fast enough to converge quickly but slow enough not to
+                // flood the tunnel with echo requests.
+                let mut tick = discovery_tick.borrow_mut();
+                *tick = tick.wrapping_add(1);
+                if *tick % 64 != 0 {
+                    return;
+                }
+                drop(tick);
+
+                // Only run discovery once the WireGuard tunnel is up; before
+                // then the smoltcp stack cannot actually deliver packets.
+                if !iface_ref.borrow().is_up() {
+                    return;
+                }
+
+                // Try to receive any pending echo reply first.
+                if let Some(peer) = icmp_discovery::try_recv_peer_address(
+                    &mut iface_ref.borrow_mut(),
+                    icmp_handle,
+                ) {
+                    log::info!("Discovered peer IPv6 address via ICMPv6: {}", peer);
+                    *internal_peer_ip_weak.borrow_mut() = Some(IpAddress::Ipv6(peer));
+                    return;
+                }
+
+                // Send a fresh echo request. We do not need to wait for it:
+                // the next poll cycle will pick up the reply.
+                let mut seq = seq_weak.borrow_mut();
+                let current_seq = *seq;
+                *seq = seq.wrapping_add(1);
+                drop(seq);
+                if icmp_discovery::send_echo_request(
+                    &mut iface_ref.borrow_mut(),
+                    icmp_handle,
+                    self_v6,
+                    dst_v6,
+                    current_seq,
+                ) {
+                    log::debug!("Sent ICMPv6 echo request to {}", dst_v6);
+                }
+            }
         });
         let polling_interval = Rc::new(IntervalHandle::new(closure, 0));
 
@@ -241,7 +385,9 @@ impl WgClient {
             current_request: Rc::new(RefCell::new(None)),
             request_queue: Rc::new(RefCell::new(VecDeque::new())),
             pcap,
-            internal_peer_ip: internal_peer_ip[0..internal_peer_ip.len() - 3].to_string(),
+            internal_peer_ip,
+            icmp_handle,
+            icmp_seq: icmp_seq_shared,
             _polling_interval: polling_interval,
             username: Rc::new(RefCell::new(String::new())),
             password: Rc::new(RefCell::new(String::new())),
@@ -256,11 +402,36 @@ impl WgClient {
     /// Creates a new Websocket object and connection that gets stored internally.
     fn start_inner_ws(&mut self, cb: js_sys::Function) {
         self.disconnect_inner_ws();
+        // For IPv6 the destination address is only known after ICMPv6 peer
+        // discovery has run. The caller can detect that discovery is still
+        // pending via `peer_discovery_complete` and retry the call after a
+        // short delay; for IPv4 the address is always known up-front.
+        let Some(peer) = self.internal_peer_ip.borrow().clone() else {
+            log::debug!(
+                "Skipping websocket setup: peer address not yet discovered via ICMPv6"
+            );
+            return;
+        };
+        self.connect_websocket(peer, cb);
+    }
+
+    /// Returns `true` once ICMPv6 peer discovery has completed (always
+    /// `true` for the IPv4 path). Exposed so the JavaScript side can wait
+    /// before retrying `start_inner_ws` if the first call was a no-op due
+    /// to discovery still being in flight.
+    pub fn peer_discovery_complete(&self) -> bool {
+        self.internal_peer_ip.borrow().is_some()
+    }
+
+    /// Connect the inner WebSocket using the given peer address and store the
+    /// resulting WebSocket. Called once an IPv6 peer address has been
+    /// discovered, or directly for the IPv4 path.
+    fn connect_websocket(&mut self, peer: IpAddress, cb: js_sys::Function) {
         let mut stream = TcpStream::new(self.iface.clone());
-        let port = js_sys::Math::random() * 1000.0;
-        let port = port as u16;
-        let endpoint = smoltcp::wire::IpEndpoint::new(self.internal_peer_ip.parse().unwrap(), self.port);
-        if let Err(err) = stream.connect(endpoint, port) {
+        let out_port = js_sys::Math::random() * 1000.0;
+        let out_port = out_port as u16;
+        let endpoint = smoltcp::wire::IpEndpoint::new(peer, self.port);
+        if let Err(err) = stream.connect(endpoint, out_port) {
             log::error!("Error when connecting websocket: {}", err);
         }
         let auth_header = if !self.nonce.borrow().is_empty() {
@@ -358,7 +529,11 @@ impl WgClient {
         let request_queue = Rc::downgrade(&self.request_queue);
         let current_request = Rc::downgrade(&self.current_request);
         let self_cpy = self.clone();
-        let internal_peer_ip = self.internal_peer_ip.parse().unwrap();
+        // We cannot move the `RefCell` into the closure directly because it is
+        // not `Sync`, so we keep a `Weak` reference and re-borrow inside the
+        // closure. This way, the most up-to-date discovered address is used
+        // for every reconnect attempt.
+        let internal_peer_ip = Rc::downgrade(&self.internal_peer_ip);
 
         let port = self.port;
         Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
@@ -372,6 +547,17 @@ impl WgClient {
                 RequestState::Begin => {
                     let out_port = js_sys::Math::random() * 1000.0;
                     let out_port = out_port as u16;
+                    // The discovered address may not be available yet for the
+                    // IPv6 path; skip the connect attempt until then.
+                    let Some(internal_peer_ip) = internal_peer_ip
+                        .upgrade()
+                        .and_then(|rc| rc.borrow().clone())
+                    else {
+                        log::debug!(
+                            "Skipping connect: peer address not yet discovered via ICMPv6"
+                        );
+                        return;
+                    };
                     let endpoint = smoltcp::wire::IpEndpoint::new(internal_peer_ip, port);
 
                     // FIXME: throw exception instead of panic
