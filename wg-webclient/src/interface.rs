@@ -21,7 +21,7 @@ use rand_core::{OsRng, TryRngCore};
 use smoltcp::{
     iface::{Config, SocketHandle, SocketSet},
     phy,
-    socket::tcp::{ConnectError, ListenError, Socket},
+    socket::{icmp, tcp::{ConnectError, ListenError, Socket}},
     wire::{IpCidr, IpListenEndpoint},
 };
 
@@ -70,6 +70,22 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
 
     pub fn set_socket(&mut self, socket: Socket<'a>) -> SocketHandle {
         self.sockets.add(socket)
+    }
+
+    /// Add a new ICMP socket to the interface and return its handle.
+    /// Used for ICMPv6 peer discovery when the wg-webclient connects via IPv6.
+    pub fn set_icmp_socket(
+        &mut self,
+        rx_buffer: icmp::PacketBuffer<'a>,
+        tx_buffer: icmp::PacketBuffer<'a>,
+    ) -> SocketHandle {
+        let socket = icmp::Socket::new(rx_buffer, tx_buffer);
+        self.sockets.add(socket)
+    }
+
+    /// Get a mutable reference to the ICMP socket with the given handle.
+    pub fn get_icmp_socket_mut(&mut self, handle: SocketHandle) -> &mut icmp::Socket<'a> {
+        self.sockets.get_mut::<icmp::Socket>(handle)
     }
 
     #[inline]

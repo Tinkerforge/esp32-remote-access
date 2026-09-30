@@ -49,12 +49,29 @@ self.addEventListener("unhandledrejection", (event) => {
     self.postMessage({ unresolved: true, msg: evt });
 });
 
+function start_inner_ws_with_retry(cb: (msg: string) => void) {
+    if (!wgClient) {
+        return;
+    }
+    // For IPv6 the peer address is only available after ICMPv6 echo
+    // discovery has completed. If discovery is still in flight, retry
+    // after a short delay. For IPv4 the address is always available
+    // immediately, so the first call will succeed.
+    if (wgClient.peer_discovery_complete()) {
+        wgClient.start_inner_ws(cb);
+        return;
+    }
+    setTimeout(() => {
+        start_inner_ws_with_retry(cb);
+    }, 200);
+}
+
 self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
         switch (e.data) {
             case "connect":
                 if (wgClient) {
-                    wgClient.start_inner_ws((msg: string) => {
+                    start_inner_ws_with_retry((msg: string) => {
                         self.postMessage({
                             type: 0,
                             data: msg
