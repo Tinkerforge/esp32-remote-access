@@ -1,4 +1,5 @@
 mod hyper_stream;
+pub mod icmp_discovery;
 mod interface;
 mod interval_handle;
 mod stream;
