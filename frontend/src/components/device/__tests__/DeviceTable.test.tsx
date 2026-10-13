@@ -217,6 +217,48 @@ describe('DeviceTable', () => {
     expect(screen.getByText('Test Device 2')).toBeInTheDocument();
   });
 
+  it('renders a Local devices section for local-only devices in the bundled view', () => {
+    const localOnlyDevice: StateDevice = {
+      id: '',
+      uid: 99999,
+      name: 'LAN Charger',
+      status: 'Connected',
+      note: '',
+      port: 8080,
+      valid: true,
+      last_state_change: null,
+      firmware_version: '1.0.0',
+      host: 'warp.local',
+    };
+    render(<DeviceTable {...defaultProps} devices={[...mockDevices, localOnlyDevice]} bundleByGroups={true} />);
+    expect(screen.getByText('local_devices')).toBeInTheDocument();
+    expect(screen.queryByText('LAN Charger')).not.toBeInTheDocument();
+  });
+
+  it('does not render a Local devices section when there are no local-only devices', () => {
+    render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
+    expect(screen.queryByText('local_devices')).not.toBeInTheDocument();
+  });
+
+  it('expands the Local devices section and shows its devices', () => {
+    const localOnlyDevice: StateDevice = {
+      id: '',
+      uid: 99999,
+      name: 'LAN Charger',
+      status: 'Connected',
+      note: '',
+      port: 8080,
+      valid: true,
+      last_state_change: null,
+      firmware_version: '1.0.0',
+      host: 'warp.local',
+    };
+    render(<DeviceTable {...defaultProps} devices={[...mockDevices, localOnlyDevice]} bundleByGroups={true} />);
+    const header = screen.getByText('local_devices').closest('tr') as HTMLElement;
+    fireEvent.click(header);
+    expect(screen.getByText('LAN Charger')).toBeInTheDocument();
+  });
+
   it('keeps the flat layout when bundleByGroups is false', () => {
     render(<DeviceTable {...defaultProps} bundleByGroups={false} />);
     expect(screen.getByText('Test Device 1')).toBeInTheDocument();

@@ -210,6 +210,7 @@ export function DeviceTable({
 
     const groupedDeviceIds = new Set(grouped.flatMap((g) => g.devices.map((d) => d.id)));
     const ungroupedDevices = devices.filter((d) => d.id !== "" && !groupedDeviceIds.has(d.id));
+    const localDevices     = devices.filter((d) => d.id === "");
 
     const renderGroupSectionRows = (groupKey: string, name: string, groupDevices: StateDevice[]) => {
         const expanded = expandedGroups.has(groupKey);
@@ -267,6 +268,7 @@ export function DeviceTable({
                 {renderColgroup()}
                 {renderTableHeader()}
                 <tbody>
+                    {localDevices.length > 0 && renderGroupSectionRows("__local__", t("local_devices"), localDevices)}
                     {grouped.flatMap((g) => renderGroupSectionRows(g.id, g.name, g.devices))}
                     {ungroupedDevices.length > 0 && renderGroupSectionRows("__ungrouped__", t("no_group"), ungroupedDevices)}
                 </tbody>
