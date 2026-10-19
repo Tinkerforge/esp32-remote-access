@@ -18,8 +18,9 @@ test('charger lifecycle', async ({ page }) => {
   await page.getByRole('row', { name: 'of 5 accounts configured' }).getByRole('button').click();
   await page.getByRole('textbox', { name: 'Email address' }).click();
   await page.getByRole('textbox', { name: 'Email address' }).fill(testUser1Email);
-  await page.getByLabel('Passwordonly used for the reg').fill(testPassword1);
-  await page.getByLabel('Passwordonly used for the reg').press('Enter');
+  const registrationPassword = page.getByRole('dialog').getByLabel('Password', { exact: true });
+  await registrationPassword.fill(testPassword1);
+  await registrationPassword.press('Enter');
   await waitForPasswordChargerRegistration(page);
 
   await login(page, testUser1Email, testPassword1);

@@ -6,8 +6,12 @@ test('delete account', async ({ page }) => {
 
     await page.getByRole('link', { name: 'Account' }).click();
     await page.getByRole('button', { name: 'Delete account' }).click();
-    await page.getByPlaceholder('Password').click();
-    await page.getByPlaceholder('Password').fill(testPassword2);
-    await page.getByPlaceholder('Password').press('Enter');
-    await expect(page.getByText('LoginRegisterEmail-')).toBeVisible();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Password', { exact: true }).fill(testPassword2);
+    const deleteResponse = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === '/api/user/delete' && response.request().method() === 'DELETE'
+    );
+    await dialog.getByRole('button', { name: 'Delete account', exact: true }).click();
+    expect((await deleteResponse).status()).toBe(200);
+    await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeVisible();
 });

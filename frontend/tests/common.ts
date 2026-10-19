@@ -40,15 +40,35 @@ export const needCustomCert = process.env.NEED_CUSTOM_CERT === "true";
 
 export async function login(page: Page, email: string, password: string) {
   await page.goto(testDomain);
-  await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill(email);
-  await page.getByRole('textbox', { name: 'Email' }).press('Tab');
-  await page.getByRole('textbox', { name: 'Password' }).fill(password);
-  await page.getByRole('button', { name: 'Login' }).click();
-  await page.waitForResponse((resp) => {
-    expect(resp.status()).toBe(200);
-    return resp.url().includes("/api/auth/login")
+  const loginForm = page.getByRole('tabpanel', { name: 'Login', exact: true });
+  await loginForm.getByLabel('Email-address', { exact: true }).fill(email);
+  await loginForm.getByLabel('Password', { exact: true }).fill(password);
+  const [response] = await Promise.all([
+    page.waitForResponse((resp) =>
+      new URL(resp.url()).pathname === '/api/auth/login' && resp.request().method() === 'POST'
+    ),
+    loginForm.getByRole('button', { name: 'Login', exact: true }).click(),
+  ]);
+  expect(response.status()).toBe(200);
+  await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible();
+}
+
+export async function verifyEmail(page: Page, email: string, sentAfter: number) {
+  const inbox = await ensureMailiskConfigured().searchInbox(mailiskNameSpace, {
+    to_addr_prefix: email,
+    from_timestamp: sentAfter,
   });
+  const marker = `[${testDomain}/api/auth/verify?`;
+  const text = inbox.data.find((message) => message.text?.includes(marker))?.text;
+  if (!text) {
+    throw new Error('No verification email found for the test account');
+  }
+
+  const start = text.indexOf(marker) + 1;
+  const url = text.substring(start, text.indexOf(']', start));
+  const response = await page.goto(url);
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeVisible();
 }
 
 export async function waitForPasswordChargerRegistration(page: Page) {

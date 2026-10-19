@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { login, mailiskClient, mailiskNameSpace, testDomain, testPassword1, testPassword2, testUser1Email, testUser2, testUser2Email, testUserName2, testWallboxDomain, testWallboxUID } from './common';
+import { login, testPassword1, testPassword2, testUser1Email, testUser2Email, testUserName2, testWallboxDomain, testWallboxUID, verifyEmail } from './common';
+
+test.describe.configure({ mode: 'serial' });
 
 test('change accountname', async ({page}) => {
   test.slow();
@@ -11,28 +13,17 @@ test('change accountname', async ({page}) => {
   await expect(page.getByLabel('Email-address')).toHaveValue(testUser1Email);
   await page.getByLabel('Email-address').fill(testUser2Email);
   await page.getByLabel('Name').fill(testUserName2);
+  const sentAfter = Math.floor(Date.now() / 1000);
+  const updateResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/user/update_user' && response.request().method() === 'PUT'
+  );
   await page.getByRole('button', { name: 'Save changes' }).click();
-  await expect(page.getByLabel('Email-address')).toBeVisible();
-  await page.getByLabel('Name').click();
+  expect((await updateResponse).status(), 'The destination test email must not already belong to another account').toBe(200);
+  await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+  await expect(page.getByLabel('Email-address')).toHaveValue(testUser2Email);
   await page.getByRole('button', { name: 'Logout', exact: true }).click();
 
-  const inbox = await mailiskClient?.searchInbox(mailiskNameSpace, { to_addr_prefix:  testUser2, from_timestamp: (Date.now() / 1000) - 5 });
-  if (!inbox?.data || inbox.data.length === 0) {
-      throw new Error("No emails found in inbox");
-  }
-  const firstEmail = inbox.data[0];
-  if (!firstEmail || !firstEmail.text) {
-      throw new Error("Email data is invalid");
-  }
-  const idx = firstEmail.text.indexOf(`[${testDomain}/api/auth/verify?`) + 1;
-  if (idx === 0) {
-      throw new Error("Failed to find verification URL in email");
-  }
-  const url = firstEmail.text.substring(idx, firstEmail.text.indexOf("]", idx));
-  const response = await fetch(url);
-  if (response.status !== 200) {
-      throw new Error("Failed to verify email");
-  }
+  await verifyEmail(page, testUser2Email, sentAfter);
 
   await login(page, testUser2Email, testPassword1);
 
@@ -51,7 +42,7 @@ test('change password', async ({page}) => {
   await page.getByRole('textbox', { name: 'New password', exact: true }).fill(testPassword2);
   await page.getByRole('textbox', { name: 'Confirm new password' }).fill(testPassword2);
   await page.getByRole('dialog').getByRole('button', { name: 'Change password' }).click();
-  await expect(page.getByText('LoginRegisterEmail-')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeVisible();
 
   await login(page, testUser2Email, testPassword2);
 });
