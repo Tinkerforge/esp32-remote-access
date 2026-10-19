@@ -9,7 +9,7 @@ test('change accountname', async ({page}) => {
 
   await login(page, testUser1Email, testPassword1);
 
-  await page.getByRole('link', { name: 'Account' }).click();
+  await page.getByRole('link', { name: testUser1Email, exact: true }).click();
   await expect(page.getByLabel('Email-address')).toHaveValue(testUser1Email);
   await page.getByLabel('Email-address').fill(testUser2Email);
   await page.getByLabel('Name').fill(testUserName2);
@@ -21,13 +21,14 @@ test('change accountname', async ({page}) => {
   expect((await updateResponse).status(), 'The destination test email must not already belong to another account').toBe(200);
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
   await expect(page.getByLabel('Email-address')).toHaveValue(testUser2Email);
+  await expect(page.getByRole('link', { name: testUser2Email, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Logout', exact: true }).click();
 
   await verifyEmail(page, testUser2Email, sentAfter);
 
   await login(page, testUser2Email, testPassword1);
 
-  await page.getByRole('link', { name: 'Account' }).click();
+  await page.getByRole('link', { name: testUser2Email, exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Account information' })).toBeVisible();
 });
 
@@ -35,7 +36,7 @@ test('change password', async ({page}) => {
   test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
   await login(page, testUser2Email, testPassword1);
 
-  await page.getByRole('link', { name: 'Account' }).click();
+  await page.getByRole('link', { name: testUser2Email, exact: true }).click();
   await page.getByRole('button', { name: 'Change password' }).click();
   await page.getByLabel('Current password').click();
   await page.getByLabel('Current password').fill(testPassword1);

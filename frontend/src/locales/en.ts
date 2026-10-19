@@ -162,7 +162,6 @@ export const en = {
     },
     "navbar": {
         "home": "Home",
-        "user": "Account",
         "chargers": "Devices",
         "logout": "Logout",
         "token": "Token",

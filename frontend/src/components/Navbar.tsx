@@ -5,13 +5,14 @@ import { useTranslation } from "react-i18next";
 import { Navbar } from "react-bootstrap";
 import Median from "median-js-bridge";
 import i18n from "../i18n";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { Key, LogOut, Server, User } from "react-feather";
 import { signal } from "@preact/signals";
 import logo from "logo";
 import { showAlert } from "./Alert";
 
 export const connected = signal(false);
+const accountEmail = signal("");
 
 export async function logout(logout_all: boolean) {
         const { error } = await fetchClient.GET("/user/logout", {params: {query: {logout_all}}, credentials: "same-origin"});
@@ -37,7 +38,7 @@ export function setAppNavigation() {
             icon: "fas fa-server"
         },
         {
-            label: i18n.t("navbar.user"),
+            label: accountEmail.value ? `${i18n.t("navbar.user")} (${accountEmail.value})` : i18n.t("navbar.user"),
             url: `${FRONTEND_URL}/user`,
             icon: "fas fa-user"
         },
@@ -56,8 +57,30 @@ export function CustomNavbar() {
     const [expanded, setExpanded] = useState(false);
     const {t} = useTranslation("", {useSuspense: false, keyPrefix: "navbar"});
 
+    useEffect(() => {
+        let active = true;
+
+        const loadAccount = async () => {
+            try {
+                const { data } = await fetchClient.GET("/user/me", { credentials: "same-origin" });
+                if (active && data) {
+                    accountEmail.value = data.email;
+                }
+            } catch (error) {
+                console.warn("Failed to load account information", error);
+            }
+        };
+
+        loadAccount();
+        return () => {
+            active = false;
+            accountEmail.value = "";
+        };
+    }, []);
+
     if (Median.isNativeApp()) {
-        return setAppNavigation()
+        const viewingDevice = /^\/(?:chargers|devices)\//.test(path);
+        return connected.value || viewingDevice ? <></> : setAppNavigation();
     }
 
     return (
@@ -81,7 +104,7 @@ export function CustomNavbar() {
                         <Nav.Link className="d-flex align-items-center" onClick={() => setExpanded(false)} href="/user" active={ path === "/user"}>
                             <User />
                             <p class="ms-1 mb-0">
-                                {t("user")}
+                                {accountEmail.value}
                             </p>
                         </Nav.Link>
                     </Nav>

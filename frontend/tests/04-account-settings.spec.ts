@@ -4,7 +4,7 @@ import { login, testPassword1, testUser1Email } from './common';
 test('account information validation', async ({ page }) => {
   await login(page, testUser1Email, testPassword1);
 
-  await page.getByRole('link', { name: 'Account' }).click();
+  await page.getByRole('link', { name: testUser1Email, exact: true }).click();
 
   await expect(page.getByLabel('Name')).toBeVisible();
   await page.getByLabel('Name').clear();
@@ -19,7 +19,7 @@ test('account information validation', async ({ page }) => {
 test('password change dialog validation', async ({ page }) => {
   await login(page, testUser1Email, testPassword1);
 
-  await page.getByRole('link', { name: 'Account' }).click();
+  await page.getByRole('link', { name: testUser1Email, exact: true }).click();
   await page.getByRole('button', { name: 'Change password' }).click();
 
   await page.getByLabel('Current password').fill(testPassword1);
@@ -38,7 +38,7 @@ test('password change dialog validation', async ({ page }) => {
 test('account local settings and account action modals', async ({ page }) => {
   await login(page, testUser1Email, testPassword1);
 
-  await page.getByRole('link', { name: 'Account' }).click();
+  await page.getByRole('link', { name: testUser1Email, exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
 
   const debugSwitch = page.getByLabel('Debug mode');
