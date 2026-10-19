@@ -66,7 +66,7 @@ struct CurrentChargeLogSendsRAII;
 
 impl CurrentChargeLogSendsRAII {
     fn new() -> anyhow::Result<Self> {
-        match CURRENT_CHARGE_LOG_SENDS.fetch_update(
+        match CURRENT_CHARGE_LOG_SENDS.try_update(
             std::sync::atomic::Ordering::SeqCst,
             std::sync::atomic::Ordering::SeqCst,
             |x| {
@@ -85,7 +85,7 @@ impl CurrentChargeLogSendsRAII {
 
 impl Drop for CurrentChargeLogSendsRAII {
     fn drop(&mut self) {
-        let _ = CURRENT_CHARGE_LOG_SENDS.fetch_update(
+        let _ = CURRENT_CHARGE_LOG_SENDS.try_update(
             std::sync::atomic::Ordering::SeqCst,
             std::sync::atomic::Ordering::SeqCst,
             |x| {
