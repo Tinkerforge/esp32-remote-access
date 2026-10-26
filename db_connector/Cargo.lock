@@ -197,7 +197,6 @@ dependencies = [
  "diesel_migrations",
  "dotenvy",
  "ipnetwork",
- "log",
  "serde",
  "tokio",
  "uuid",

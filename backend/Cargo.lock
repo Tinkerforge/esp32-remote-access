@@ -83,19 +83,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-governor"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a7ffa43d3e1e92518355ffbc82c146b5f0fe24fba87f19f405270da7a7b3c1e"
-dependencies = [
- "actix-http",
- "actix-web",
- "futures",
- "governor",
- "log",
-]
-
-[[package]]
 name = "actix-http"
 version = "3.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -555,7 +542,6 @@ dependencies = [
  "actix",
  "actix-cors",
  "actix-files",
- "actix-governor",
  "actix-multipart",
  "actix-web",
  "actix-web-validator",
@@ -582,7 +568,6 @@ dependencies = [
  "log",
  "lru",
  "num_cpus",
- "openssl",
  "pcap-file",
  "rand 0.10.3",
  "rand_core 0.9.5",
@@ -593,7 +578,6 @@ dependencies = [
  "serde_json",
  "simplelog",
  "smoltcp",
- "threadpool",
  "tokio",
  "utoipa",
  "utoipa-swagger-ui",
@@ -1144,7 +1128,6 @@ dependencies = [
  "diesel_migrations",
  "dotenvy",
  "ipnetwork",
- "log",
  "serde",
  "tokio",
  "uuid",
@@ -3500,15 +3483,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
-]
-
-[[package]]
-name = "threadpool"
-version = "1.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d050e60b33d41c19108b32cea32164033a9013fe3b46cbd4457559bfbf77afaa"
-dependencies = [
- "num_cpus",
 ]
 
 [[package]]

@@ -24,7 +24,6 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 boringtun = { git = "https://github.com/Tinkerforge/boringtun.git", rev = "9ad180755a5281041dd6035a4db06b777f69f975", default-features = false }
 getrandom = { version = "0.3.4", features = ["wasm_js"] }
 rand_core = { version = "0.9.5", features = ["os_rng"] }
-anyhow = { version = "1.0.104", default-features = false}
 js-sys = "0.3.106"
 wasm-timer = "0.2.5"
 http = "1.5.0"

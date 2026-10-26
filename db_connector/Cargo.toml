@@ -14,7 +14,6 @@ diesel_migrations = { version = "2.3.2", features = ["postgres"] }
 dotenvy = "0.15.7"
 
 ipnetwork = "0.21.1"
-log = "0.4.34"
 serde = { version = "1.0.229", features = ["derive"] }
 # `tokio` is required for `tokio::task::spawn_blocking` in `run_migrations`.
 # The `rt` feature enables `spawn_blocking`; nothing else is needed because

@@ -1277,10 +1277,11 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.13.1"
-source = "git+https://github.com/passcod/reqwest.git?rev=c67a8c5a779d4315c1d6e71eebe8eb185acdbd5a#c67a8c5a779d4315c1d6e71eebe8eb185acdbd5a"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "bytes",
  "encoding_rs",
  "futures-core",
