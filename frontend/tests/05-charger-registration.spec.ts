@@ -1,20 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { login, needCustomCert, testDomain, testDomainForCharger, testPassword1, testUser1Email, testWallboxDomain, testWallboxUID, waitForPasswordChargerRegistration, waitForTokenChargerRegistration } from './common';
+import { configureChargerRelay, login, testDomain, testPassword1, testUser1Email, testWallboxDomain, testWallboxUID, waitForPasswordChargerRegistration, waitForTokenChargerRegistration } from './common';
 
 test('charger lifecycle', async ({ page }) => {
   test.slow();
   test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
 
-  await page.goto(testWallboxDomain + '/#status');
-  await page.getByRole('button', { name: 'System' }).click();
-  await page.getByRole('button', { name: 'Remote Access' }).click();
-  await page.getByRole('button', { name: 'Show' }).click();
-  await page.getByRole('textbox', { name: 'Relay server hostname or IP' }).fill(testDomainForCharger);
-  if (needCustomCert) {
-    await page.getByLabel('TLS certificate', { exact: true }).selectOption('0');
-  } else {
-    await page.getByLabel('TLS certificate', { exact: true }).selectOption('-1');
-  }
+  await configureChargerRelay(page);
   await page.getByRole('row', { name: 'of 5 accounts configured' }).getByRole('button').click();
   await page.getByRole('textbox', { name: 'Email address' }).click();
   await page.getByRole('textbox', { name: 'Email address' }).fill(testUser1Email);
@@ -51,11 +42,7 @@ test('add charger with auth token', async ({page}) => {
   await page.getByRole('button', { name: 'Create token' }).click();
   const token = await page.getByRole('textbox').nth(1).inputValue();
 
-  await page.goto(testWallboxDomain);
-  await page.getByRole('button', { name: 'System' }).click();
-  await page.getByRole('button', { name: 'Event Log' }).click();
-  await expect(page.getByPlaceholder('Loading event log...')).toContainText("Connecting to Management WireGuard peer");
-  await page.getByRole('button', { name: 'Remote Access' }).click();
+  await configureChargerRelay(page);
   await page.getByRole('row', { name: 'of 5 accounts configured' }).getByRole('button').click();
   await page.getByLabel('Authorization method').selectOption('token');
   await page.getByLabel('Authorization token').fill(token);

@@ -5,9 +5,20 @@ function getOptionalEnvVar(name: string, defaultValue: string = ""): string {
   return process.env[name] || defaultValue;
 }
 
+export function getChargerRelaySettings(domain: string, port: string = '') {
+  const url = new URL(domain);
+  return {
+    host: url.hostname,
+    // The charger's relay connection uses TLS, so its default port is 443.
+    port: port.replace(/^:/, '') || url.port || '443',
+  };
+}
+
 export const testDomain = getOptionalEnvVar('TEST_DOMAIN', 'http://localhost:3000');
 export const testPort = getOptionalEnvVar('TEST_PORT', '');
-export const testDomainForCharger = testDomain.replace(/^https?:\/\//, '').replace(testPort, '');
+const chargerRelaySettings = getChargerRelaySettings(testDomain, testPort);
+export const testDomainForCharger = chargerRelaySettings.host;
+export const testPortForCharger = chargerRelaySettings.port;
 export const testUserName1 = getOptionalEnvVar('TEST_USER_NAME1', getOptionalEnvVar('TEST_USER', 'testuser1'));
 export const testUserName2 = getOptionalEnvVar('TEST_USER_NAME2', 'testuser2');
 export const testPassword1 = getOptionalEnvVar('TEST_PASSWORD1', getOptionalEnvVar('TEST_PASSWORD', 'testpass1'));
@@ -37,6 +48,24 @@ export function ensureMailiskConfigured() {
 }
 
 export const needCustomCert = process.env.NEED_CUSTOM_CERT === "true";
+
+export async function configureChargerRelay(page: Page) {
+  await page.goto(`${testWallboxDomain}/#status`);
+  await page.getByRole('button', { name: 'System', exact: true }).click();
+  await page.getByRole('button', { name: 'Remote Access', exact: true }).click();
+  await page.getByRole('button', { name: 'Show', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Relay server hostname or IP' }).fill(testDomainForCharger);
+  await page.getByRole('spinbutton', { name: 'Relay server port', exact: true }).fill(testPortForCharger);
+  await page.getByLabel('TLS certificate', { exact: true }).selectOption(needCustomCert ? '0' : '-1');
+
+  const [response] = await Promise.all([
+    page.waitForResponse((resp) =>
+      new URL(resp.url()).pathname === '/remote_access/config_update' && resp.request().method() === 'PUT'
+    ),
+    page.getByRole('button', { name: 'Save', exact: true }).click(),
+  ]);
+  expect(response.ok()).toBe(true);
+}
 
 export async function login(page: Page, email: string, password: string) {
   await page.goto(testDomain);
@@ -106,11 +135,7 @@ export async function ensureChargerConnected(page: Page, email: string, password
   const token = await page.getByRole('textbox').nth(1).inputValue();
 
   // Register the wallbox using the token.
-  await page.goto(testWallboxDomain);
-  await page.getByRole('button', { name: 'System' }).click();
-  await page.getByRole('button', { name: 'Event Log' }).click();
-  await expect(page.getByPlaceholder('Loading event log...')).toContainText("Connecting to Management WireGuard peer");
-  await page.getByRole('button', { name: 'Remote Access' }).click();
+  await configureChargerRelay(page);
   await page.getByRole('row', { name: 'of 5 accounts configured' }).getByRole('button').click();
   await page.getByLabel('Authorization method').selectOption('token');
   await page.getByLabel('Authorization token').fill(token);
