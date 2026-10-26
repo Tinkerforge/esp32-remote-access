@@ -47,6 +47,31 @@ pub struct GetWgKeysResponseSchema {
     psk: Vec<u8>,
     #[schema(value_type = SchemaType::String)]
     web_address: IpNetwork,
+    /// Legacy ESP32 address pair for an explicitly advertised discovery token.
+    /// This is session fallback metadata; registered addresses are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ipv4_fallback: Option<Ipv4Fallback>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct Ipv4Fallback {
+    #[schema(value_type = SchemaType::String)]
+    web_address: IpNetwork,
+    #[schema(value_type = SchemaType::String)]
+    charger_address: IpNetwork,
+}
+
+fn ipv4_fallback(peer: IpNetwork, connection_no: i32) -> Option<Ipv4Fallback> {
+    // Multicast metadata advertises discovery; recognize the previous token
+    // for existing registrations, too. Concrete IPv6 services have no fallback.
+    if peer.ip() != "ff02::1".parse::<std::net::IpAddr>().unwrap() {
+        return None;
+    }
+    let slot = u8::try_from(connection_no).ok()?;
+    Some(Ipv4Fallback {
+        web_address: IpNetwork::new(std::net::Ipv4Addr::new(10, 123, slot, 3).into(), 24).unwrap(),
+        charger_address: IpNetwork::new(std::net::Ipv4Addr::new(10, 123, slot, 2).into(), 32).unwrap(),
+    })
 }
 
 #[derive(Serialize, Deserialize, IntoParams)]
@@ -122,6 +147,7 @@ pub async fn get_key(
     };
 
     if let Some(key) = key {
+        let ipv4_fallback = ipv4_fallback(key.charger_address, key.connection_no);
         let key = GetWgKeysResponseSchema {
             id: key.id.to_string(),
             charger_id: key.charger_id.to_string(),
@@ -130,6 +156,7 @@ pub async fn get_key(
             web_private: key.web_private,
             psk: key.psk,
             web_address: key.web_address,
+            ipv4_fallback,
         };
         Ok(HttpResponse::Ok().json(key))
     } else {
@@ -147,6 +174,21 @@ mod tests {
         routes::user::tests::{random_positive_charger_id, TestUser},
         tests::{configure, get_device_key_ids, mark_keys_as_in_use},
     };
+
+    #[actix_web::test]
+    async fn discovery_token_has_a_slot_specific_legacy_profile() {
+        for (peer, slot, expected) in [
+            ("ff02::1/128", 1, Some(("10.123.1.3/24", "10.123.1.2/32"))),
+            ("fe80::1/128", 1, Some(("10.123.1.3/24", "10.123.1.2/32"))),
+            ("fe80:0:0:0:0:0:0:1/64", 255, Some(("10.123.255.3/24", "10.123.255.2/32"))),
+            ("fe80::1", -1, None), ("fe80::1", 256, None),
+            ("10.123.1.2/24", 1, None), ("fd00::2/128", 1, None),
+        ] {
+            let profile = ipv4_fallback(peer.parse().unwrap(), slot);
+            assert_eq!(profile.map(|p| (p.web_address.to_string(), p.charger_address.to_string())),
+                expected.map(|(local, peer)| (local.to_owned(), peer.to_owned())));
+        }
+    }
 
     #[actix_web::test]
     async fn test_get_key() {
@@ -202,5 +244,124 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_client_error());
         assert_eq!(resp.status().as_u16(), 404);
+    }
+    /// Registration (including the token path's shared register_charger), user
+    /// addition, persistence and the keys response must never promote IPv4 to
+    /// IPv6 or replace a caller's prefix. Bare firmware registrations are /32
+    /// in INET; the firmware's local /24 configuration is independent of that.
+    #[actix_web::test]
+    async fn preserves_registered_tunnel_addresses() {
+        use super::super::add::{
+            add, encode_charger_uid, tests::generate_random_keys, AddChargerResponseSchema,
+            AddChargerSchema, ChargerSchema,
+        };
+        use super::super::{allow_user::allow_user, tests::TestCharger};
+        use crate::utils::get_charger_from_db;
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        use serde_json::json;
+
+        for (management_peer, management_local, local, peer) in [
+            ("10.123.123.2", "10.123.123.3", "10.123.1.3", "10.123.1.2"),
+            (
+                "10.123.123.2/24",
+                "10.123.123.3/24",
+                "10.123.1.3/24",
+                "10.123.1.2/32",
+            ),
+            ("fd01::2/64", "fd01::3/128", "fd00::3/64", "fd00::2/128"),
+            ("fd01::2/64", "fd01::3/128", "fd00::3/128", "fe80::1/128"),
+        ] {
+            // Destruction order ensures the owner removes the device first.
+            let (mut invited, _) = TestUser::random().await;
+            let (mut owner, _) = TestUser::random().await;
+            owner.login().await;
+            invited.login().await;
+            let state = crate::tests::create_test_state(None);
+            let app = test::init_service(
+                App::new()
+                    .configure(configure)
+                    .app_data(state.clone())
+                    .wrap(JwtMiddleware)
+                    .service(add)
+                    .service(allow_user)
+                    .service(get_key),
+            )
+            .await;
+            let uid = random_positive_charger_id();
+            let mut keys = generate_random_keys();
+            for key in &mut keys {
+                key.web_address = local.parse().unwrap();
+                key.charger_address = peer.parse().unwrap();
+            }
+            let registration = AddChargerSchema {
+                charger: ChargerSchema {
+                    uid: encode_charger_uid(uid),
+                    charger_pub: keys[0].charger_public.clone(),
+                    wg_charger_ip: management_peer.parse().unwrap(),
+                    wg_server_ip: management_local.parse().unwrap(),
+                    psk: STANDARD.encode([3; 32]),
+                },
+                keys: keys.clone(),
+                name: String::new(),
+                note: String::new(),
+            };
+            let req = test::TestRequest::put()
+                .uri("/add")
+                .cookie(Cookie::new("access_token", owner.get_access_token()))
+                .set_json(registration)
+                .to_request();
+            let added: AddChargerResponseSchema = test::call_and_read_body_json(&app, req).await;
+            owner.devices.push(TestCharger {
+                uid,
+                uuid: added.charger_uuid.clone(),
+                password: added.charger_password.clone(),
+            });
+            let charger = get_charger_from_db(added.charger_uuid.parse().unwrap(), &state)
+                .await
+                .unwrap();
+            assert_eq!(
+                charger.wg_charger_ip,
+                management_peer.parse::<IpNetwork>().unwrap()
+            );
+            assert_eq!(
+                charger.wg_server_ip,
+                management_local.parse::<IpNetwork>().unwrap()
+            );
+            let req = test::TestRequest::put()
+                .uri("/allow_user")
+                .cookie(Cookie::new("access_token", owner.get_access_token()))
+                .insert_header(("X-Forwarded-For", "127.0.0.1"))
+                .set_json(json!({
+                    "charger_id": added.charger_uuid, "charger_password": added.charger_password,
+                    "email": invited.mail, "user_uuid": null,
+                    "user_auth": { "LoginKey": STANDARD.encode(invited.get_login_key().await) },
+                    "wg_keys": keys, "charger_name": "", "note": "",
+                }))
+                .to_request();
+            let response = test::call_service(&app, req).await;
+            assert!(response.status().is_success());
+            for user in [&owner, &invited] {
+                for _ in 0..2 {
+                    // Returning a key must not migrate or rotate existing keys.
+                    let req = test::TestRequest::get()
+                        .uri(&format!("/get_key?cid={}", charger.id))
+                        .cookie(Cookie::new("access_token", user.get_access_token()))
+                        .to_request();
+                    let response: GetWgKeysResponseSchema =
+                        test::call_and_read_body_json(&app, req).await;
+                    assert_eq!(response.web_address, local.parse::<IpNetwork>().unwrap());
+                    assert_eq!(response.charger_address, peer.parse::<IpNetwork>().unwrap());
+                    let original = keys
+                        .iter()
+                        .find(|k| k.charger_public == response.charger_pub)
+                        .unwrap();
+                    let expected_fallback = ipv4_fallback(original.charger_address, original.connection_no as i32);
+                    assert_eq!(serde_json::to_value(&response.ipv4_fallback).unwrap(),
+                        serde_json::to_value(expected_fallback).unwrap());
+                    assert_eq!(response.web_private, original.web_private);
+                    assert_eq!(response.psk, original.psk);
+                }
+            }
+        }
     }
 }

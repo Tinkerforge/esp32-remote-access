@@ -1,6 +1,9 @@
 import { description, firmware_needed } from "translations-de";
 
 export const de ={
+    "wgclient": {
+        "connection_timeout": "Zeitüberschreitung beim Verbindungsaufbau. Bitte erneut verbinden.",
+    },
     "app_name": "Fernzugriff",
     "alert_default_text": "Ein Fehler ist aufgetreten!",
     "alert_default_success": "Erfolg!",

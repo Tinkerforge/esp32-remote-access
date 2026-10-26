@@ -22,7 +22,7 @@ use smoltcp::{
     iface::{Config, SocketHandle, SocketSet},
     phy,
     socket::{icmp, tcp::{ConnectError, ListenError, Socket}},
-    wire::{IpCidr, IpListenEndpoint},
+    wire::{IpAddress, IpCidr, IpListenEndpoint},
 };
 
 use crate::{utils::now, wg_device::IsUp};
@@ -88,6 +88,21 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
         self.sockets.get_mut::<icmp::Socket>(handle)
     }
 
+    pub fn add_ip_address(&mut self, address: IpCidr) {
+        self.iface.update_ip_addrs(|addresses| addresses.push(address).unwrap());
+    }
+
+    pub fn select_address_family(&mut self, peer: IpAddress) {
+        self.iface.update_ip_addrs(|addresses| addresses.retain(|address|
+            matches!((address.address(), peer),
+                (IpAddress::Ipv4(_), IpAddress::Ipv4(_)) |
+                (IpAddress::Ipv6(_), IpAddress::Ipv6(_)))));
+    }
+
+    pub fn remove_socket(&mut self, handle: SocketHandle) {
+        self.sockets.remove(handle);
+    }
+
     #[inline]
     pub fn poll(&mut self) {
         self.iface.poll(now(), &mut self.device, &mut self.sockets);
@@ -148,6 +163,10 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
         let socket = self.sockets.get_mut::<Socket>(handle);
         socket.connect(self.iface.context(), remote.into(), local.into())?;
         Ok(())
+    }
+
+    pub fn device(&self) -> &Device {
+        &self.device
     }
 
     pub fn is_up(&self) -> bool {

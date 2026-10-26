@@ -23,7 +23,7 @@ use wasm_bindgen::{closure::Closure, JsCast, JsValue};
     This is a helper struct to be able to automagically clear intervals once they are not needed anymore.
 */
 pub struct IntervalHandle<T> {
-    interval_handle: i32,
+    interval_handle: std::cell::Cell<Option<i32>>,
     _closure: Closure<dyn FnMut(T)>,
     #[cfg(debug_assertions)]
     log_drop: bool,
@@ -40,10 +40,17 @@ impl<T> IntervalHandle<T> {
             )
             .unwrap();
         Self {
-            interval_handle,
+            interval_handle: std::cell::Cell::new(Some(interval_handle)),
             _closure: f,
             #[cfg(debug_assertions)]
             log_drop: false,
+        }
+    }
+
+    pub fn cancel(&self) {
+        let global = web_sys::WorkerGlobalScope::from(JsValue::from(js_sys::global()));
+        if let Some(handle) = self.interval_handle.take() {
+            global.clear_interval_with_handle(handle);
         }
     }
 
@@ -57,9 +64,7 @@ impl<T> IntervalHandle<T> {
 
 impl<T> Drop for IntervalHandle<T> {
     fn drop(&mut self) {
-        let global = js_sys::global();
-        let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
-        global.clear_interval_with_handle(self.interval_handle);
+        self.cancel();
 
         #[cfg(debug_assertions)]
         if self.log_drop {

@@ -43,7 +43,7 @@ pub mod tests {
     };
 
     use smoltcp::{
-        iface::{Config, Interface, PollResult, SocketSet},
+        iface::{Config, Interface, SocketSet},
         phy,
         socket::tcp::{self, Socket},
         wire::{IpAddress, IpCidr},
@@ -219,13 +219,12 @@ pub mod tests {
         }
 
         let mut send = false;
-        loop {
+        for _ in 0..1000 {
             let now = js_sys::Date::now();
             let now = smoltcp::time::Instant::from_millis(now as i64);
-            let test = socket2.iface.poll(now, &mut socket2.device, &mut sock_set2);
-            if !send {
-                assert_eq!(test, PollResult::None);
-            }
+            // PollResult may report the TCP handshake state changing before
+            // application data is sent; assert the delivered data below.
+            socket2.iface.poll(now, &mut socket2.device, &mut sock_set2);
             socket1.iface.poll(now, &mut socket1.device, &mut sock_set1);
 
             let sock2 = sock_set2.get_mut::<tcp::Socket>(sock2_handle);
@@ -239,8 +238,9 @@ pub mod tests {
                 let mut buf = [0u8; 1500];
                 let len = sock1.recv_slice(&mut buf).unwrap();
                 assert_eq!(&buf[..len], b"hello world");
-                break;
+                return;
             }
         }
+        panic!("local TCP handshake/data transfer did not finish");
     }
 }
