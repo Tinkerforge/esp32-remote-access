@@ -62,7 +62,7 @@ describe('Navbar', () => {
     });
     render(<CustomNavbar />);
 
-    expect(await screen.findByRole('link', { name: 'current@example.com', exact: true })).toHaveAttribute('href', '/user');
+    expect(await screen.findByRole('link', { name: 'current@example.com' })).toHaveAttribute('href', '/user');
     expect(fetchClient.GET).toHaveBeenCalledWith('/user/me', { credentials: 'same-origin' });
   });
 

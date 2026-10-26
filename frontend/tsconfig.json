@@ -4,6 +4,7 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"noEmit": true,
+		"allowImportingTsExtensions": true,
 		"allowJs": true,
 		"checkJs": true,
 		"lib": ["WebWorker", "ES2021"],

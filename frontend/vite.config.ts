@@ -1,9 +1,9 @@
-import { defineConfig, Plugin } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 import wasm from "vite-plugin-wasm"
 import { buildSync } from "esbuild";
 import { join, resolve } from "node:path";
-import versionPlugin from './vite-plugin-version';
+import versionPlugin from './vite-plugin-version.ts';
 
 
 const appleItunesMetaPlugin: Plugin = {
@@ -62,11 +62,11 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"argon2-browser": "argon2-browser/dist/argon2-bundled.min.js",
-			"logo": resolve(__dirname, process.env.BRAND === "seb" ? "src/assets/seb_logo.png" : "src/assets/warp_logo.png"),
-			"favicon": resolve(__dirname, process.env.BRAND === "seb" ? "src/assets/seb_favicon.png" : "src/assets/warp_favicon.png"),
-			"links": resolve(__dirname, process.env.BRAND === "seb" ? "src/links/seb.ts" : "src/links/warp.ts"),
-			"translations-de": resolve(__dirname, process.env.BRAND === "seb" ? "src/locales/branding/seb_de.ts" : "src/locales/branding/warp_de.ts"),
-			"translations-en": resolve(__dirname, process.env.BRAND === "seb" ? "src/locales/branding/seb_en.ts" : "src/locales/branding/warp_en.ts"),
+			"logo": resolve(import.meta.dirname, process.env.BRAND === "seb" ? "src/assets/seb_logo.png" : "src/assets/warp_logo.png"),
+			"favicon": resolve(import.meta.dirname, process.env.BRAND === "seb" ? "src/assets/seb_favicon.png" : "src/assets/warp_favicon.png"),
+			"links": resolve(import.meta.dirname, process.env.BRAND === "seb" ? "src/links/seb.ts" : "src/links/warp.ts"),
+			"translations-de": resolve(import.meta.dirname, process.env.BRAND === "seb" ? "src/locales/branding/seb_de.ts" : "src/locales/branding/warp_de.ts"),
+			"translations-en": resolve(import.meta.dirname, process.env.BRAND === "seb" ? "src/locales/branding/seb_en.ts" : "src/locales/branding/warp_en.ts"),
 		}
 	},
 	plugins: [
