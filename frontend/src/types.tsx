@@ -52,4 +52,5 @@ export interface ChargerKeys {
     web_private: number[],
     psk: number[],
     web_address: string,
+    ipv4_fallback?: { web_address: string, charger_address: string },
 }

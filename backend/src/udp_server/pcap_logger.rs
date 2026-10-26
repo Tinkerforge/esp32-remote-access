@@ -89,7 +89,7 @@ mod enabled {
         }
 
         /// Logs a packet to the pcap file.
-        /// The packet should be raw IP data (IPv4).
+        /// The packet should be raw IP data (IPv4 or IPv6).
         pub fn log_packet(&self, data: &[u8]) {
             let mut writer_guard = self.writer.lock().unwrap();
             let writer = match writer_guard.as_mut() {
@@ -98,7 +98,7 @@ mod enabled {
             };
 
             let interface = InterfaceDescriptionBlock {
-                linktype: DataLink::IPV4,
+                linktype: DataLink::RAW,
                 snaplen: 0,
                 options: vec![],
             };

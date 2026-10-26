@@ -121,8 +121,7 @@ impl WgTunDevice {
         let onerror = Rc::new(onerror);
         socket.set_onerror(Some(onerror.as_ref().as_ref().unchecked_ref()));
 
-        let pcap = vec![];
-        let pcap = Rc::new(RefCell::new(PcapNgWriter::new(pcap).unwrap()));
+        let pcap = Rc::new(RefCell::new(new_pcap_writer()));
 
         let onmessage = create_onmessage_closure(Rc::downgrade(&socket), Rc::downgrade(&tun), Rc::downgrade(&rx), Rc::downgrade(&pcap), connect_cb);
         let onmessage = Rc::new(onmessage);
@@ -142,6 +141,16 @@ impl WgTunDevice {
             _onerror_closure: onerror,
             _onmessage_closure: onmessage,
         })
+    }
+
+    pub fn disconnect(&self) {
+        *self.socket_state.borrow_mut() = WsConnectionState::Disconnected;
+        self.socket.set_onopen(None);
+        self.socket.set_onmessage(None);
+        self.socket.set_onclose(None);
+        self.socket.set_onerror(None);
+        let _ = self.socket.close();
+        self._reset_rate_limiter_interval.cancel();
     }
 
     pub fn get_pcap(&self) -> Rc<RefCell<PcapNgWriter<Vec<u8>>>> {
@@ -174,13 +183,18 @@ fn create_onopen_closure(
     })
 }
 
-// Add the helper function for pcap logging
-fn log_pcap_data(pcap: &Rc<RefCell<PcapNgWriter<Vec<u8>>>>, data: &[u8]) {
-    let interface = InterfaceDescriptionBlock {
-        linktype: pcap_file::DataLink::IPV4,
+fn new_pcap_writer() -> PcapNgWriter<Vec<u8>> {
+    let mut writer = PcapNgWriter::new(Vec::new()).unwrap();
+    writer.write_pcapng_block(InterfaceDescriptionBlock {
+        // Medium::Ip carries both IP families without a link-layer header.
+        linktype: pcap_file::DataLink::RAW,
         snaplen: 0,
         options: vec![],
-    };
+    }).unwrap();
+    writer
+}
+
+fn log_pcap_data(pcap: &Rc<RefCell<PcapNgWriter<Vec<u8>>>>, data: &[u8]) {
     let now = wasm_timer::SystemTime::now();
 
     // wasm_timer has a bug that returns time in milliseconds
@@ -193,7 +207,6 @@ fn log_pcap_data(pcap: &Rc<RefCell<PcapNgWriter<Vec<u8>>>>, data: &[u8]) {
         options: vec![],
     };
     let mut writer = pcap.borrow_mut();
-    writer.write_pcapng_block(interface).unwrap();
     writer.write_pcapng_block(packet).unwrap();
 }
 
@@ -225,83 +238,55 @@ fn create_onmessage_closure(
         spawn_local(async move {
             let array_buffer = wasm_bindgen_futures::JsFuture::from(data.array_buffer()).await.unwrap();
             let data = js_sys::Uint8Array::new(&array_buffer).to_vec();
-            let message_tun = message_tun.upgrade().unwrap();
-            let mut tun = message_tun.borrow_mut();
-            if data.is_empty() {
-                log::error!("Empty data");
-                return;
-            }
-
-            let mut buf: Vec<u8> = vec![0u8; data.len() + 32];
-            match tun.decapsulate(None, &data, &mut buf) {
-                TunnResult::Done => (),
-                TunnResult::WriteToNetwork(d) => {
-                    let mut connected = connected.borrow_mut();
-                    if !*connected {
-                        connect_cb.call0(&JsValue::null()).ok();
-                        *connected = true;
-                    }
-                    let message_socket = message_socket.upgrade().unwrap();
-                    let _ = message_socket.send_with_u8_array(d);
-                    let mut buf = [0u8; 2048];
-
-                    /*
-                     * If the result is of type TunnResult::WriteToNetwork, should repeat the call with empty datagram,
-                     * until TunnResult::Done is returned. If batch processing packets,
-                     * it is OK to defer until last packet is processed.
-                     *
-                     * From Tunn::decapsulate.
-                     */
-                    while let TunnResult::WriteToNetwork(d) =
-                        tun.decapsulate(None, &[0u8; 0], &mut buf)
-                    {
-                        let _ = message_socket.send_with_u8_array(d);
-                    }
+            let (Some(message_tun), Some(socket), Some(queue), Some(pcap)) = (
+                message_tun.upgrade(), message_socket.upgrade(), message_vec.upgrade(), message_pcap.upgrade(),
+            ) else { return; };
+            if socket.ready_state() != WebSocket::OPEN || data.is_empty() { return; }
+            let result = receive_datagram(
+                &mut message_tun.borrow_mut(), &data,
+                |packet| {
+                    if pcap_logging_enabled() { log_pcap_data(&pcap, packet); }
+                    queue.borrow_mut().push_back(packet.to_vec());
+                },
+                |packet| { let _ = socket.send_with_u8_array(packet); },
+            );
+            match result {
+                Ok(true) if !*connected.borrow() => {
+                    *connected.borrow_mut() = true;
+                    connect_cb.call0(&JsValue::null()).ok();
                 }
-                TunnResult::Err(e) => {
-                    if let WireGuardError::InvalidPacket = e {
-                        log::debug!("Invalid packet");
-                    } else {
-                        log::debug!("Error: {:?}", e);
-                    }
-                }
-                TunnResult::WriteToTunnelV4(d, _) => {
-                    if pcap_logging_enabled() {
-                        let pcap_strong = message_pcap.upgrade().unwrap();
-                        log_pcap_data(&pcap_strong, d);
-                    }
-                    let message_vec = message_vec.upgrade().unwrap();
-                    (*message_vec.borrow_mut()).push_back(d.to_vec());
-                    let mut buf = vec![0u8; data.len() + 32];
-                    match tun.encapsulate(&data, &mut buf) {
-                        TunnResult::WriteToNetwork(d) => {
-                            drop(tun);
-                            let message_socket = message_socket.upgrade().unwrap();
-                            let _ = message_socket.send_with_u8_array(d);
-                        }
-                        _ => panic!("Unexpected TunnResult"),
-                    }
-                }
-                TunnResult::WriteToTunnelV6(d, _) => {
-                    if pcap_logging_enabled() {
-                        let pcap_strong = message_pcap.upgrade().unwrap();
-                        log_pcap_data(&pcap_strong, d);
-                    }
-                    let message_vec = message_vec.upgrade().unwrap();
-                    (*message_vec.borrow_mut()).push_back(d.to_vec());
-                    let mut buf = vec![0u8; data.len() + 32];
-                    match tun.encapsulate(&data, &mut buf) {
-                        TunnResult::WriteToNetwork(d) => {
-                            drop(tun);
-                            let message_socket = message_socket.upgrade().unwrap();
-                            let _ = message_socket.send_with_u8_array(d);
-                        }
-                        _ => panic!("Unexpected TunnResult"),
-                    }
-                }
+                Err(e) => log::debug!("WireGuard receive error: {:?}", e),
+                _ => (),
             }
         });
     })
+}
+
+/// Deliver plaintext to smoltcp. Only BoringTun's network results go back to
+/// the relay; newly generated IP replies are encrypted by WgTunPhyTxToken.
+/// After a network result, drain handshake/queued transport packets as required
+/// by BoringTun's decapsulate API.
+pub(crate) fn receive_datagram(
+    tun: &mut Tunn, data: &[u8], mut deliver: impl FnMut(&[u8]), mut send: impl FnMut(&[u8]),
+) -> Result<bool, WireGuardError> {
+    let mut buf = vec![0; (u16::MAX as usize + 32).max(data.len() + 32)];
+    let mut input = data;
+    let mut wrote_network = false;
+    loop {
+        match tun.decapsulate(None, input, &mut buf) {
+            TunnResult::Done => return Ok(wrote_network),
+            TunnResult::Err(err) => return Err(err),
+            TunnResult::WriteToNetwork(packet) => {
+                send(packet);
+                wrote_network = true;
+                input = &[];
+            }
+            TunnResult::WriteToTunnelV4(packet, _) | TunnResult::WriteToTunnelV6(packet, _) => {
+                deliver(packet);
+                return Ok(wrote_network);
+            }
+        }
+    }
 }
 
 pub trait IsUp {
@@ -310,7 +295,8 @@ pub trait IsUp {
 
 impl IsUp for WgTunDevice {
     fn is_up(&self) -> bool {
-        self.tun.borrow().time_since_last_handshake().is_some()
+        *self.socket_state.borrow() == WsConnectionState::Connected
+            && self.tun.borrow().time_since_last_handshake().is_some()
     }
 }
 
@@ -389,7 +375,7 @@ impl phy::TxToken for WgTunPhyTxToken {
         }
 
         let mut tun = self.tun.borrow_mut();
-        let mut dst_buf = vec![0u8; size + 32];
+        let mut dst_buf = vec![0u8; (size + 32).max(148)];
         match tun.encapsulate(&buf, &mut dst_buf) {
             TunnResult::Done => (),
             TunnResult::WriteToNetwork(d) => {
@@ -406,5 +392,99 @@ impl phy::TxToken for WgTunPhyTxToken {
         }
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pair() -> (Tunn, Tunn) {
+        let a = x25519::StaticSecret::from([1; 32]);
+        let b = x25519::StaticSecret::from([2; 32]);
+        let ap = x25519::PublicKey::from(&a);
+        let bp = x25519::PublicKey::from(&b);
+        (Tunn::new(a, bp, Some([3; 32]), None, 1, None),
+         Tunn::new(b, ap, Some([3; 32]), None, 2, None))
+    }
+
+    fn ip_packets() -> Vec<Vec<u8>> {
+        let mut v4 = vec![0; 20];
+        v4[0] = 0x45; v4[2..4].copy_from_slice(&20u16.to_be_bytes());
+        v4[12..16].copy_from_slice(&[10, 123, 1, 2]);
+        v4[16..20].copy_from_slice(&[10, 123, 1, 3]);
+        let mut v6 = vec![0; 40]; v6[0] = 0x60; v6[6] = 59;
+        v6[8..24].copy_from_slice(&"fd00::2".parse::<std::net::Ipv6Addr>().unwrap().octets());
+        v6[24..40].copy_from_slice(&"fd00::3".parse::<std::net::Ipv6Addr>().unwrap().octets());
+        vec![v4, v6]
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn pcap_records_both_families_on_one_raw_ip_interface() {
+        use pcap_file::pcapng::{Block, PcapNgReader};
+
+        let pcap = Rc::new(RefCell::new(new_pcap_writer()));
+        let packets = ip_packets();
+        for packet in &packets {
+            log_pcap_data(&pcap, packet);
+        }
+        let writer = pcap.borrow();
+        let mut reader = PcapNgReader::new(writer.get_ref().as_slice()).unwrap();
+        let Some(Ok(Block::InterfaceDescription(interface))) = reader.next_block() else {
+            panic!("missing capture interface");
+        };
+        assert_eq!(interface.linktype, pcap_file::DataLink::RAW);
+        for expected in packets {
+            let Some(Ok(Block::EnhancedPacket(packet))) = reader.next_block() else {
+                panic!("expected an IP packet, without an extra interface descriptor");
+            };
+            assert_eq!(packet.interface_id, 0);
+            assert_eq!(packet.original_len as usize, expected.len());
+            assert_eq!(packet.data.as_ref(), expected);
+        }
+        assert!(reader.next_block().is_none());
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn receives_both_families_without_retransmitting_encrypted_input() {
+        let (mut browser, mut peer) = pair();
+        let mut buf = [0; 2048];
+        let TunnResult::WriteToNetwork(init) = browser.format_handshake_initiation(&mut buf, false) else { panic!() };
+        let mut responses = Vec::new();
+        receive_datagram(&mut peer, init, |_| panic!("handshake is not IP"), |p| responses.push(p.to_vec())).unwrap();
+        let mut keepalives = Vec::new();
+        receive_datagram(&mut browser, &responses[0], |_| panic!(), |p| keepalives.push(p.to_vec())).unwrap();
+        receive_datagram(&mut peer, &keepalives[0], |_| panic!(), |_| panic!()).unwrap();
+        for packet in ip_packets() {
+            let TunnResult::WriteToNetwork(encrypted) = peer.encapsulate(&packet, &mut buf) else { panic!() };
+            let mut received = VecDeque::new();
+            let mut sent = Vec::new();
+            receive_datagram(&mut browser, encrypted, |p| received.push_back(p.to_vec()), |p| sent.push(p.to_vec())).unwrap();
+            assert!(sent.is_empty(), "data receipt retransmitted an encrypted datagram");
+            let token = WgTunPhyRxToken { buf: received.pop_front().unwrap() };
+            smoltcp::phy::RxToken::consume(token, |p| assert_eq!(p, packet));
+            assert!(received.is_empty());
+        }
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn drains_handshake_keepalive_and_queued_ip() {
+        let (mut browser, mut peer) = pair();
+        let packet = ip_packets().remove(1);
+        let mut buf = [0; 2048];
+        let TunnResult::WriteToNetwork(init) = browser.encapsulate(&packet, &mut buf) else { panic!() };
+        let mut responses = Vec::new();
+        receive_datagram(&mut peer, init, |_| panic!(), |p| responses.push(p.to_vec())).unwrap();
+        let mut output = Vec::new();
+        receive_datagram(&mut browser, &responses[0], |_| panic!(), |p| output.push(p.to_vec())).unwrap();
+        assert_eq!(output.len(), 2, "handshake completion must drain the queued IP packet");
+        let mut delivered = Vec::new();
+        for datagram in output {
+            receive_datagram(&mut peer, &datagram, |p| delivered.push(p.to_vec()), |_| panic!()).unwrap();
+        }
+        assert_eq!(delivered, vec![packet]);
     }
 }

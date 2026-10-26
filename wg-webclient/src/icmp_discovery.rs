@@ -17,250 +17,486 @@
  * Boston, MA 02111-1307, USA.
  */
 
-//! ICMPv6-based peer discovery for the wg-webclient.
+//! Multicast ICMPv6 discovery inside an authenticated one-peer WireGuard link.
 //!
-//! When the wg-webclient (the user/browser side of the WireGuard tunnel) is
-//! configured with an IPv6 `internal_peer_ip`, it does not necessarily know the
-//! charger's IPv6 address ahead of time. The address it received from the
-//! backend may be a "placeholder" (for example a link-local address such as
-//! `fe80::1`).
-//!
-//! To discover the actual charger IPv6 address, the wg-webclient sends an
-//! ICMPv6 echo request to the placeholder address and reads the source IPv6
-//! address of the echo reply. The charger is expected to reply to these echo
-//! requests (its smoltcp-based management stack is configured to do so) and
-//! the reply's source IP is its real IPv6 address. The wg-webclient then uses
-//! that real address as the destination for subsequent HTTP/WebSocket traffic.
-//!
-//! Backwards compatibility: if `internal_peer_ip` is an IPv4 address, the
-//! wg-webclient falls back to using the address directly. The ICMPv6
-//! discovery path is only used when the address is IPv6.
+//! Probe ff02::1 from the browser's random ULA and learn the service address
+//! from a correlated unicast echo reply. Concrete registered IPv6 services can
+//! be used directly; automatic detection retains a known IPv4 fallback. Stock
+//! IPv4 firmware does not answer these probes, so its fallback remains bounded.
 
 use smoltcp::{
     iface::SocketHandle,
     socket::icmp,
-    wire::{Icmpv6Packet, Icmpv6Repr, IpAddress, Ipv6Address},
+    time::{Duration, Instant},
+    wire::{Icmpv6Packet, Icmpv6Repr, IpAddress, IpCidr, Ipv4Address, Ipv6Address},
 };
 
 use crate::{interface::Interface, wg_device::IsUp};
 
-/// The ICMPv6 identifier used for peer discovery. The charger is configured to
-/// respond to echo requests that use this identifier (and to ignore others).
+pub const ALL_NODES_ADDRESS: Ipv6Address = Ipv6Address::new(0xff02, 0, 0, 0, 0, 0, 0, 1);
 pub const DISCOVERY_IDENT: u16 = 0x5757;
+pub const DISCOVERY_TIMEOUT: Duration = Duration::from_secs(10);
+// Legacy management may itself take ten seconds to select IPv4 before the
+// server can start this user tunnel. Leave room for that authenticated setup.
+const AUTO_DETECTION_TIMEOUT: Duration = Duration::from_secs(20);
+pub const IPV6_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+const RETRY_INTERVAL: Duration = Duration::from_millis(500);
 
-/// Bind the ICMP socket to the [`DISCOVERY_IDENT`] identifier so that the
-/// socket will receive echo replies with that identifier.
-///
-/// Must be called once after the socket is added to the interface and before
-/// the first echo request is sent.
-pub fn bind_discovery_socket<'a, Device>(
-    iface: &mut Interface<'a, Device>,
-    icmp_handle: SocketHandle,
-) where
-    Device: smoltcp::phy::Device + IsUp,
-{
-    let socket = iface.get_icmp_socket_mut(icmp_handle);
-    // Binding to the discovery identifier is what makes smoltcp demultiplex
-    // incoming echo replies to this socket. We do not worry about the
-    // result: if the socket was already bound (e.g. due to a re-entrant
-    // call from the polling closure) `bind` is a no-op.
-    let _ = socket.bind(icmp::Endpoint::Ident(DISCOVERY_IDENT));
+/// One discovery session. Only requests actually queued in this session may
+/// resolve it. The random payload also prevents replies from an old client or
+/// earlier session from satisfying a new request with the same sequence number.
+pub struct PeerDiscovery {
+    started: Instant,
+    next_request: Instant,
+    nonce: [u8; 16],
+    outstanding: Vec<u16>,
+    first_request: Option<Instant>,
+    fallback: Option<Ipv4Address>,
+    finished: bool,
+    pub failed: bool,
 }
 
-/// Build an ICMPv6 echo request and emit it via the given ICMP socket, from
-/// `src` to `dst`.
-///
-/// Returns `true` if the request was queued for transmission, `false` if the
-/// socket is not currently able to send.
-pub fn send_echo_request<'a, Device>(
-    iface: &mut Interface<'a, Device>,
-    icmp_handle: SocketHandle,
+impl PeerDiscovery {
+    pub fn new(now: Instant, nonce: [u8; 16]) -> Self {
+        Self {
+            started: now,
+            next_request: now,
+            nonce,
+            outstanding: Vec::new(),
+            first_request: None,
+            fallback: None,
+            finished: false,
+            failed: false,
+        }
+    }
+
+    pub fn with_ipv4_fallback(mut self, peer: Ipv4Address) -> Self {
+        self.fallback = Some(peer);
+        self
+    }
+
+    pub fn poll<Device: smoltcp::phy::Device + IsUp>(
+        &mut self,
+        iface: &mut Interface<'_, Device>,
+        handle: SocketHandle,
+        local: Ipv6Address,
+        now: Instant,
+    ) -> Option<IpAddress> {
+        if self.failed || self.finished {
+            return None;
+        }
+        // Prefer a validated reply already received over a simultaneous timeout.
+        if let Some(peer) =
+            try_recv_peer_address(iface, handle, local, &self.outstanding, &self.nonce)
+        {
+            self.finished = true;
+            return Some(IpAddress::Ipv6(peer));
+        }
+        let timeout = if self.fallback.is_some() { AUTO_DETECTION_TIMEOUT } else { DISCOVERY_TIMEOUT };
+        let expired = now - self.started >= timeout;
+        if self.first_request.is_some_and(|first| expired || now - first >= IPV6_PROBE_TIMEOUT) {
+            if let Some(peer) = self.fallback {
+                self.finished = true;
+                return Some(IpAddress::Ipv4(peer));
+            }
+        }
+        if expired {
+            self.failed = true;
+            return None;
+        }
+        // is_up includes the authenticated WireGuard handshake. Do not spend
+        // the probe budget while the relay is still starting the device tunnel.
+        if !iface.is_up() {
+            return None;
+        }
+        if now >= self.next_request {
+            let seq = self.outstanding.len() as u16;
+            if send_echo_request(iface, handle, local, ALL_NODES_ADDRESS, seq, &self.nonce) {
+                self.outstanding.push(seq);
+                self.first_request.get_or_insert(now);
+                self.next_request = now + RETRY_INTERVAL;
+            }
+        }
+        None
+    }
+}
+
+pub fn bind_discovery_socket<Device: smoltcp::phy::Device + IsUp>(
+    iface: &mut Interface<'_, Device>,
+    handle: SocketHandle,
+) {
+    let socket = iface.get_icmp_socket_mut(handle);
+    socket.bind(icmp::Endpoint::Ident(DISCOVERY_IDENT)).unwrap();
+    socket.set_hop_limit(Some(1));
+}
+
+pub fn send_echo_request<Device: smoltcp::phy::Device + IsUp>(
+    iface: &mut Interface<'_, Device>,
+    handle: SocketHandle,
     src: Ipv6Address,
     dst: Ipv6Address,
     seq_no: u16,
-) -> bool
-where
-    Device: smoltcp::phy::Device + IsUp,
-{
-    let socket = iface.get_icmp_socket_mut(icmp_handle);
-    if !socket.can_send() {
-        return false;
-    }
-
-    // The payload is empty; the charger only needs to respond to identify
-    // itself.
-    let icmp_repr = Icmpv6Repr::EchoRequest {
+    data: &[u8],
+) -> bool {
+    let socket = iface.get_icmp_socket_mut(handle);
+    let repr = Icmpv6Repr::EchoRequest {
         ident: DISCOVERY_IDENT,
         seq_no,
-        data: &[],
+        data,
     };
-
-    let payload = match socket.send(icmp_repr.buffer_len(), IpAddress::Ipv6(dst)) {
-        Ok(p) => p,
-        Err(_) => return false,
+    let Ok(payload) = socket.send(repr.buffer_len(), IpAddress::Ipv6(dst)) else {
+        return false;
     };
-
-    let mut icmp_packet = Icmpv6Packet::new_unchecked(payload);
-    let checksum_caps = smoltcp::phy::ChecksumCapabilities::default();
-    icmp_repr.emit(&src, &dst, &mut icmp_packet, &checksum_caps);
-
+    repr.emit(
+        &src,
+        &dst,
+        &mut Icmpv6Packet::new_unchecked(payload),
+        &Default::default(),
+    );
     true
 }
 
-/// Try to receive an ICMPv6 echo reply and return the source IPv6 address of
-/// the reply. Returns `None` if no reply is available.
-///
-/// Only replies whose ICMPv6 identifier matches `DISCOVERY_IDENT` are
-/// considered, so that stray echo replies from other clients do not confuse
-/// peer discovery.
-pub fn try_recv_peer_address<'a, Device>(
-    iface: &mut Interface<'a, Device>,
-    icmp_handle: SocketHandle,
-) -> Option<Ipv6Address>
-where
-    Device: smoltcp::phy::Device + IsUp,
-{
-    let socket = iface.get_icmp_socket_mut(icmp_handle);
-    if !socket.can_recv() {
+/// Check the checksum against the actual destination, including the IPv6 pseudo
+/// header, and correlate the identifier, sequence and payload with our requests.
+fn parse_peer_reply(
+    payload: &[u8],
+    src: Ipv6Address,
+    local: Ipv6Address,
+    outstanding: &[u16],
+    nonce: &[u8],
+) -> Option<Ipv6Address> {
+    if src.is_unspecified() || src.is_multicast() || src.is_unicast_link_local()
+        || src.is_loopback() || src.to_ipv4_mapped().is_some() || src == local {
         return None;
     }
+    let packet = Icmpv6Packet::new_checked(payload).ok()?;
+    match Icmpv6Repr::parse(&src, &local, &packet, &Default::default()).ok()? {
+        Icmpv6Repr::EchoReply {
+            ident,
+            seq_no,
+            data,
+        } if ident == DISCOVERY_IDENT && outstanding.contains(&seq_no) && data == nonce => {
+            Some(src)
+        }
+        _ => None,
+    }
+}
 
-    let (payload, addr) = socket.recv().ok()?;
-    let src = match addr {
-        IpAddress::Ipv6(a) => a,
-        _ => return None,
-    };
-
-    // We do not have a meaningful destination address at this point (the
-    // socket was bound to the unspecified endpoint), so we pass the
-    // unspecified address for parsing. The reply's source is what we care
-    // about.
-    let icmp_packet = Icmpv6Packet::new_checked(&payload).ok()?;
-    let checksum_caps = smoltcp::phy::ChecksumCapabilities::default();
-    let icmp_repr =
-        Icmpv6Repr::parse(&src, &Ipv6Address::UNSPECIFIED, &icmp_packet, &checksum_caps).ok()?;
-
-    if let Icmpv6Repr::EchoReply { ident, .. } = icmp_repr {
-        if ident == DISCOVERY_IDENT {
-            return Some(src);
+pub fn try_recv_peer_address<Device: smoltcp::phy::Device + IsUp>(
+    iface: &mut Interface<'_, Device>,
+    handle: SocketHandle,
+    local: Ipv6Address,
+    outstanding: &[u16],
+    nonce: &[u8],
+) -> Option<Ipv6Address> {
+    let socket = iface.get_icmp_socket_mut(handle);
+    while let Ok((payload, addr)) = socket.recv() {
+        if let IpAddress::Ipv6(src) = addr {
+            if let Some(peer) = parse_peer_reply(payload, src, local, outstanding, nonce) {
+                return Some(peer);
+            }
         }
     }
-
     None
 }
 
-/// Parse the IP address from a `web_address` / `charger_address` style CIDR
-/// string. Returns `None` if the input cannot be parsed.
-///
-/// The accepted formats are:
-/// - `<ip>` (no prefix length, used for backwards compatibility with the
-///   existing API which always passed a `/24` suffix that the client trimmed
-///   by removing the last three characters)
-/// - `<ip>/<prefix>`
-pub fn parse_cidr_address(s: &str) -> Option<IpAddress> {
-    if let Ok(cidr) = s.parse::<smoltcp::wire::IpCidr>() {
-        return Some(cidr.address());
+/// Preserve an explicit prefix. Bare addresses retain the historical defaults:
+/// IPv4 /24 and IPv6 /128. Never infer the tunnel family from the outer listener.
+pub fn parse_interface_cidr(s: &str) -> Option<IpCidr> {
+    if s.contains('/') {
+        return s.parse().ok();
     }
-    s.parse::<IpAddress>().ok()
-}
-
-/// Make a conservative "guess" at the prefix length to use when constructing
-/// an `IpCidr` from a bare `IpAddress`. This is only used internally for
-/// backward compatibility with the existing API that does not pass a prefix
-/// length.
-///
-/// - IPv4: `/24` (matches the previous hard-coded value)
-/// - IPv6: `/128` (single address; the peer-discovery flow only ever uses the
-///   bare address)
-pub fn default_prefix(addr: &IpAddress) -> u8 {
-    match addr {
+    let addr: IpAddress = s.parse().ok()?;
+    let prefix = match addr {
         IpAddress::Ipv4(_) => 24,
         IpAddress::Ipv6(_) => 128,
-    }
+    };
+    Some(IpCidr::new(addr, prefix))
 }
 
-/// Trait extension that exposes helpers for working with `IpAddress` values
-/// coming from the keys API.
-pub trait IpAddressExt {
-    /// Returns `Some(addr)` if this is an IPv6 address, otherwise `None`.
-    fn as_ipv6(&self) -> Option<Ipv6Address>;
-
-    /// Returns `true` if this is an IPv4 address.
-    fn is_ipv4(&self) -> bool;
-
-    /// Returns `true` if this is an IPv6 address.
-    fn is_ipv6(&self) -> bool;
-}
-
-impl IpAddressExt for IpAddress {
-    fn as_ipv6(&self) -> Option<Ipv6Address> {
-        match self {
-            IpAddress::Ipv6(a) => Some(*a),
-            _ => None,
-        }
-    }
-
-    fn is_ipv4(&self) -> bool {
-        matches!(self, IpAddress::Ipv4(_))
-    }
-
-    fn is_ipv6(&self) -> bool {
-        matches!(self, IpAddress::Ipv6(_))
-    }
+pub fn parse_cidr_address(s: &str) -> Option<IpAddress> {
+    parse_interface_cidr(s).map(|cidr| cidr.address())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn parses_v4_with_prefix() {
-        let addr = parse_cidr_address("10.0.0.5/24").unwrap();
-        assert!(addr.is_ipv4());
-        assert!(!addr.is_ipv6());
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn legacy_management_startup_does_not_consume_the_user_probe_budget() {
+        let (mut iface, handle, _, _) = test_interface();
+        let local = "fd00::3".parse().unwrap();
+        let legacy = "10.123.1.2".parse().unwrap();
+        let mut discovery = PeerDiscovery::new(Instant::from_millis(0), [7; 16]).with_ipv4_fallback(legacy);
+        // The first authenticated user probe becomes possible only after the
+        // server's management IPv4 fallback and user WireGuard handshake.
+        assert_eq!(discovery.poll(&mut iface, handle, local, Instant::from_millis(11000)), None);
+        assert!(!discovery.failed);
+        assert_eq!(discovery.poll(&mut iface, handle, local, Instant::from_millis(13999)), None);
+        assert_eq!(discovery.poll(&mut iface, handle, local, Instant::from_millis(14000)), Some(IpAddress::Ipv4(legacy)));
+        let mut no_handshake = PeerDiscovery::new(Instant::from_millis(0), [8; 16]).with_ipv4_fallback(legacy);
+        assert_eq!(no_handshake.poll(&mut iface, handle, local, Instant::from_millis(20000)), None);
+        assert!(no_handshake.failed);
     }
 
-    #[test]
-    fn parses_v4_without_prefix() {
-        // Backwards compatibility: the old API passed a `/24` suffix that the
-        // client trimmed. We still want to handle a bare IPv4 address.
-        let addr = parse_cidr_address("10.0.0.5").unwrap();
-        assert!(addr.is_ipv4());
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn ipv4_fallback_is_bounded_stops_probes_and_transmits_ipv4_tcp() {
+        use smoltcp::{socket::tcp, wire::{Ipv4Packet, IpProtocol}};
+        let (mut iface, handle, _, tx) = test_interface();
+        iface.add_ip_address("10.123.1.3/24".parse().unwrap());
+        let peer = "10.123.1.2".parse().unwrap();
+        let mut discovery = PeerDiscovery::new(Instant::from_millis(0), [7; 16]).with_ipv4_fallback(peer);
+        let local = "fd00::3".parse().unwrap();
+        for ms in (0..3000).step_by(500) {
+            assert_eq!(discovery.poll(&mut iface, handle, local, Instant::from_millis(ms)), None);
+            iface.poll();
+        }
+        let selected = discovery.poll(&mut iface, handle, local, Instant::from_millis(3000)).unwrap();
+        assert_eq!(selected, IpAddress::Ipv4(peer));
+        assert!(!discovery.failed);
+        assert_eq!(tx.lock().unwrap().len(), 6);
+        iface.remove_socket(handle);
+        iface.select_address_family(selected);
+        for ms in [3500, 10000, 20000] {
+            assert_eq!(discovery.poll(&mut iface, handle, local, Instant::from_millis(ms)), None);
+            iface.poll();
+        }
+        assert_eq!(tx.lock().unwrap().len(), 6, "selection did not cancel discovery");
+        tx.lock().unwrap().clear();
+        let tcp = tcp::Socket::new(tcp::SocketBuffer::new(vec![0; 128]), tcp::SocketBuffer::new(vec![0; 128]));
+        let tcp = iface.set_socket(tcp);
+        iface.connect((selected, 80), 10001, tcp).unwrap();
+        iface.poll();
+        let output = tx.lock().unwrap();
+        let packet = Ipv4Packet::new_checked(output.front().unwrap().as_slice()).unwrap();
+        assert_eq!(packet.next_header(), IpProtocol::Tcp);
+        assert_eq!(packet.src_addr(), "10.123.1.3".parse::<Ipv4Address>().unwrap());
+        assert_eq!(packet.dst_addr(), peer);
     }
 
-    #[test]
-    fn parses_v6_with_prefix() {
-        let addr = parse_cidr_address("fe80::1/64").unwrap();
-        assert!(addr.is_ipv6());
-        assert_eq!(addr.as_ipv6().unwrap(), Ipv6Address::new(0xfe80, 0, 0, 0, 0, 0, 0, 1));
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn only_valid_contract_reply_selects_ipv6_over_ipv4_fallback() {
+        use smoltcp::wire::{IpProtocol, Ipv6Packet, Ipv6Repr};
+        for (source, corrupt, ipv6) in [("fd00::2", false, true), ("fe80::1", false, false), ("fd00::2", true, false)] {
+            let (mut iface, handle, rx, _) = test_interface();
+            let local = "fd00::3".parse().unwrap();
+                let source = source.parse().unwrap();
+            let legacy = "10.123.1.2".parse().unwrap();
+            let nonce = [7; 16];
+            let mut discovery = PeerDiscovery::new(Instant::from_millis(0), nonce).with_ipv4_fallback(legacy);
+            discovery.poll(&mut iface, handle, local, Instant::from_millis(0));
+            let reply = Icmpv6Repr::EchoReply { ident: DISCOVERY_IDENT, seq_no: 0, data: &nonce };
+            let repr = Ipv6Repr { src_addr: source, dst_addr: local, next_header: IpProtocol::Icmpv6,
+                payload_len: reply.buffer_len(), hop_limit: 64 };
+            let mut bytes = vec![0; 40 + reply.buffer_len()];
+            let mut packet = Ipv6Packet::new_unchecked(&mut bytes);
+            repr.emit(&mut packet);
+            reply.emit(&source, &local, &mut Icmpv6Packet::new_unchecked(packet.payload_mut()), &Default::default());
+            if corrupt { bytes[42] ^= 1; }
+            rx.lock().unwrap().push_back(bytes);
+            iface.poll();
+            assert_eq!(discovery.poll(&mut iface, handle, local, Instant::from_millis(3000)),
+                Some(if ipv6 { IpAddress::Ipv6(source) } else { IpAddress::Ipv4(legacy) }));
+            assert!(!discovery.failed);
+        }
     }
 
-    #[test]
-    fn parses_v6_without_prefix() {
-        let addr = parse_cidr_address("fe80::1").unwrap();
-        assert!(addr.is_ipv6());
-        assert_eq!(addr.as_ipv6().unwrap(), Ipv6Address::new(0xfe80, 0, 0, 0, 0, 0, 0, 1));
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn preserves_prefixes_and_bare_address_defaults() {
+        for (input, expected) in [
+            ("fd00::3/64", "fd00::3/64"),
+            ("fd00::3/128", "fd00::3/128"),
+            ("10.123.1.3/24", "10.123.1.3/24"),
+            ("10.123.1.3", "10.123.1.3/24"),
+            ("fd00::3", "fd00::3/128"),
+        ] {
+            assert_eq!(parse_interface_cidr(input).unwrap().to_string(), expected);
+        }
+        for input in ["", "garbage", "fd00::3/129", "10.0.0.3/33"] {
+            assert!(parse_interface_cidr(input).is_none());
+        }
     }
 
-    #[test]
-    fn rejects_invalid_address() {
-        assert!(parse_cidr_address("not an address").is_none());
-        assert!(parse_cidr_address("").is_none());
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn reply_checksum_and_request_correlation() {
+        let local = "fd00::3".parse().unwrap();
+        let peer = "fd00::2".parse().unwrap();
+        let nonce = b"discovery-session";
+        let repr = Icmpv6Repr::EchoReply {
+            ident: DISCOVERY_IDENT,
+            seq_no: 7,
+            data: nonce,
+        };
+        let mut bytes = vec![0; repr.buffer_len()];
+        repr.emit(
+            &peer,
+            &local,
+            &mut Icmpv6Packet::new_unchecked(&mut bytes),
+            &Default::default(),
+        );
+        assert_eq!(
+            parse_peer_reply(&bytes, peer, local, &[7], nonce),
+            Some(peer)
+        );
+        assert_eq!(
+            parse_peer_reply(&bytes, peer, Ipv6Address::UNSPECIFIED, &[7], nonce),
+            None
+        );
+        assert_eq!(parse_peer_reply(&bytes, peer, local, &[8], nonce), None);
+        assert_eq!(
+            parse_peer_reply(&bytes, peer, local, &[7], b"old-session"),
+            None
+        );
+        let wrong_ident = Icmpv6Repr::EchoReply {
+            ident: DISCOVERY_IDENT + 1,
+            seq_no: 7,
+            data: nonce,
+        };
+        wrong_ident.emit(
+            &peer,
+            &local,
+            &mut Icmpv6Packet::new_unchecked(&mut bytes),
+            &Default::default(),
+        );
+        assert_eq!(parse_peer_reply(&bytes, peer, local, &[7], nonce), None);
+        repr.emit(
+            &peer,
+            &local,
+            &mut Icmpv6Packet::new_unchecked(&mut bytes),
+            &Default::default(),
+        );
+        bytes[2] ^= 1;
+        assert_eq!(parse_peer_reply(&bytes, peer, local, &[7], nonce), None);
+    }
+    fn test_interface() -> (
+        Interface<'static, crate::tests::LocalDevice>,
+        SocketHandle,
+        std::sync::Arc<std::sync::Mutex<std::collections::VecDeque<Vec<u8>>>>,
+        std::sync::Arc<std::sync::Mutex<std::collections::VecDeque<Vec<u8>>>>,
+    ) {
+        use std::collections::VecDeque;
+        use std::sync::{Arc, Mutex};
+        let rx = Arc::new(Mutex::new(VecDeque::new()));
+        let tx = Arc::new(Mutex::new(VecDeque::new()));
+        let mut iface = Interface::new(
+            crate::tests::LocalDevice::new(rx.clone(), tx.clone()),
+            "fd00::3/128".parse().unwrap(),
+        );
+        let buffer =
+            || icmp::PacketBuffer::new(vec![icmp::PacketMetadata::EMPTY; 4], vec![0; 1024]);
+        let handle = iface.set_icmp_socket(buffer(), buffer());
+        bind_discovery_socket(&mut iface, handle);
+        (iface, handle, rx, tx)
     }
 
-    #[test]
-    fn default_prefix_matches_address_family() {
-        let v4 = IpAddress::v4(10, 0, 0, 1);
-        let v6 = IpAddress::v6(0xfe80, 0, 0, 0, 0, 0, 0, 1);
-        assert_eq!(default_prefix(&v4), 24);
-        assert_eq!(default_prefix(&v6), 128);
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn receives_reply_for_concrete_local_address_and_rejects_corruption() {
+        use smoltcp::wire::{IpProtocol, Ipv6Packet, Ipv6Repr};
+        let (mut iface, handle, rx, _) = test_interface();
+        let local = "fd00::3".parse().unwrap();
+        let peer = "fd00::2".parse().unwrap();
+        let nonce = [42; 16];
+        let reply = Icmpv6Repr::EchoReply {
+            ident: DISCOVERY_IDENT,
+            seq_no: 9,
+            data: &nonce,
+        };
+        let repr = Ipv6Repr {
+            src_addr: peer,
+            dst_addr: local,
+            next_header: IpProtocol::Icmpv6,
+            payload_len: reply.buffer_len(),
+            hop_limit: 64,
+        };
+        let mut bytes = vec![0; 40 + reply.buffer_len()];
+        let mut packet = Ipv6Packet::new_unchecked(&mut bytes);
+        repr.emit(&mut packet);
+        reply.emit(
+            &peer,
+            &local,
+            &mut Icmpv6Packet::new_unchecked(packet.payload_mut()),
+            &Default::default(),
+        );
+        rx.lock().unwrap().push_back(bytes.clone());
+        iface.poll();
+        assert_eq!(
+            try_recv_peer_address(&mut iface, handle, local, &[9], &nonce),
+            Some(peer)
+        );
+        bytes[42] ^= 1;
+        rx.lock().unwrap().push_back(bytes);
+        iface.poll();
+        assert_eq!(
+            try_recv_peer_address(&mut iface, handle, local, &[9], &nonce),
+            None
+        );
     }
 
-    #[test]
-    fn as_ipv6_returns_none_for_v4() {
-        let v4 = IpAddress::v4(10, 0, 0, 1);
-        assert!(v4.as_ipv6().is_none());
-        assert!(v4.is_ipv4());
-        assert!(!v4.is_ipv6());
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn discovery_is_bounded_and_medium_ip_transmits_multicast() {
+        let (mut iface, handle, _, tx) = test_interface();
+        let mut discovery = PeerDiscovery::new(Instant::from_millis(0), [7; 16]);
+        let local = "fd00::3".parse().unwrap();
+        for milliseconds in (0..10_000).step_by(100) {
+            assert_eq!(
+                discovery.poll(
+                    &mut iface,
+                    handle,
+                    local,
+                    Instant::from_millis(milliseconds)
+                ),
+                None
+            );
+            iface.poll();
+        }
+        assert_eq!(
+            tx.lock().unwrap().len(),
+            20,
+            "Medium::Ip must emit multicast IP packets through the tunnel without a gateway route"
+        );
+        for (seq_no, bytes) in tx.lock().unwrap().iter().enumerate() {
+            let packet = smoltcp::wire::Ipv6Packet::new_checked(bytes).unwrap();
+            assert_eq!(packet.src_addr(), local);
+            assert_eq!(packet.dst_addr(), ALL_NODES_ADDRESS);
+            assert_eq!(packet.hop_limit(), 1);
+            assert_eq!(packet.next_header(), smoltcp::wire::IpProtocol::Icmpv6);
+            let echo = Icmpv6Packet::new_checked(packet.payload()).unwrap();
+            assert_eq!(
+                Icmpv6Repr::parse(&local, &ALL_NODES_ADDRESS, &echo, &Default::default()),
+                Ok(Icmpv6Repr::EchoRequest {
+                    ident: DISCOVERY_IDENT,
+                    seq_no: seq_no as u16,
+                    data: &[7; 16],
+                })
+            );
+        }
+        discovery.poll(
+            &mut iface,
+            handle,
+            local,
+            Instant::from_millis(10_000),
+        );
+        assert!(discovery.failed);
+        for milliseconds in [10_500, 20_000, 100_000] {
+            discovery.poll(
+                &mut iface,
+                handle,
+                local,
+                Instant::from_millis(milliseconds),
+            );
+            iface.poll();
+        }
+        assert_eq!(
+            tx.lock().unwrap().len(),
+            20,
+            "timed out discovery kept retrying"
+        );
     }
 }

@@ -136,6 +136,7 @@ async fn main() {
             routes::charger::info::ChargerInfoRequest,
             routes::selfdestruct::SelfdestructSchema,
             routes::charger::get_key::GetWgKeysResponseSchema,
+            routes::charger::get_key::Ipv4Fallback,
             routes::charger::add_with_token::AddChargerWithTokenSchema,
             routes::grouping::create_grouping::CreateGroupingSchema,
             routes::grouping::create_grouping::CreateGroupingResponse,

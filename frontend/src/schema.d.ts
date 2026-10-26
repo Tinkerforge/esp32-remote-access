@@ -764,6 +764,9 @@ export interface components {
             charger_id: string;
             charger_pub: string;
             id: string;
+            /** @description Legacy ESP32 address pair for an explicitly advertised discovery token.
+             *     This is session fallback metadata; registered addresses are unchanged. */
+            ipv4_fallback?: components["schemas"]["Ipv4Fallback"] | null;
             psk: number[];
             web_address: string;
             web_private: number[];
@@ -773,6 +776,10 @@ export interface components {
             id: string;
             is_default: boolean;
             name: string;
+        };
+        Ipv4Fallback: {
+            charger_address: string;
+            web_address: string;
         };
         Keys: {
             charger_address: string;

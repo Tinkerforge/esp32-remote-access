@@ -19,7 +19,7 @@
 
 use std::{
     io::{BufWriter, Write},
-    net::{IpAddr, SocketAddr},
+    net::SocketAddr,
     sync::{atomic::AtomicUsize, Arc},
     time::Duration,
 };
@@ -278,31 +278,19 @@ fn match_tunnel(
             _ => continue,
         };
 
-        let self_ip = if let IpAddr::V4(ip) = device.wg_server_ip.ip() {
-            ip
-        } else {
-            return Err(anyhow::Error::msg(
-                "Somehow a IPv6 address got into the database",
-            ));
-        };
-
-        let peer_ip = if let IpAddr::V4(ip) = device.wg_charger_ip.ip() {
-            ip
-        } else {
-            return Err(anyhow::Error::msg(
-                "Somehow a IPv6 address got into the database",
-            ));
-        };
-
-        let socket = ManagementSocket::new(
-            self_ip,
-            peer_ip,
+        // Discover random IPv6 management endpoints independently of old
+        // registration data. Registered service addresses are a legacy fallback.
+        let mut socket = ManagementSocket::new_preferred_ipv6(
+            device.wg_server_ip,
+            device.wg_charger_ip,
             addr,
             tunn,
             rate_limiter,
             udp_socket,
             device.id,
-        );
+        )
+        .map_err(anyhow::Error::msg)?;
+        socket.wait_for_handshake_confirmation(&response);
 
         #[cfg(feature = "pcap-logging")]
         {
@@ -817,6 +805,125 @@ mod tests {
             panic!("peer could not complete handshake");
         };
         assert!(socket.decrypt(keepalive).unwrap().is_empty());
+    }
+
+    #[actix_web::test]
+    async fn candidate_matching_discovers_random_ipv6_despite_stale_ipv4_registration() {
+        use crate::udp_server::peer_discovery::{
+            random_management_address, ALL_NODES_ADDRESS,
+        };
+        use smoltcp::wire::{
+            Icmpv6Packet, Icmpv6Repr, IpProtocol, Ipv6Packet, Ipv6Repr, UdpPacket,
+        };
+        let (mut peer, charger, init) = peer_and_charger();
+        assert!(charger.wg_server_ip.is_ipv4());
+        let udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        udp.writable().await.unwrap();
+        let (_, mut socket, response) =
+            match_tunnel(vec![charger], client.local_addr().unwrap(), &init, udp).unwrap();
+        let mut output = [0; 2048];
+        let TunnResult::WriteToNetwork(keepalive) = peer.decapsulate(None, &response, &mut output)
+        else {
+            panic!()
+        };
+        socket.decrypt(keepalive).unwrap();
+        socket.encrypt_and_send_slice(b"management command through preferred IPv6");
+        let mut network = [0; 2048];
+        let request = loop {
+            let size = tokio::time::timeout(Duration::from_secs(1), client.recv(&mut network))
+                .await
+                .unwrap()
+                .unwrap();
+            match peer.decapsulate(None, &network[..size], &mut output) {
+                TunnResult::Done => continue,
+                TunnResult::WriteToTunnelV6(data, _) => break data.to_vec(),
+                other => panic!("expected an IPv6 probe instead of registered IPv4: {other:?}"),
+            }
+        };
+        let packet = Ipv6Packet::new_checked(&request).unwrap();
+        let server_address = packet.src_addr();
+        let charger_address = random_management_address();
+        assert_eq!(server_address.octets()[0], 0xfd);
+        assert_eq!(packet.dst_addr(), ALL_NODES_ADDRESS);
+        let icmp = Icmpv6Packet::new_checked(packet.payload()).unwrap();
+        let Icmpv6Repr::EchoRequest {
+            ident,
+            seq_no,
+            data,
+        } = Icmpv6Repr::parse(
+            &server_address,
+            &ALL_NODES_ADDRESS,
+            &icmp,
+            &Default::default(),
+        )
+        .unwrap()
+        else {
+            panic!("expected echo request")
+        };
+        let reply = Icmpv6Repr::EchoReply {
+            ident,
+            seq_no,
+            data,
+        };
+        let mut bytes = vec![0; 40 + reply.buffer_len()];
+        let mut packet = Ipv6Packet::new_unchecked(&mut bytes);
+        Ipv6Repr {
+            src_addr: charger_address,
+            dst_addr: server_address,
+            next_header: IpProtocol::Icmpv6,
+            payload_len: reply.buffer_len(),
+            hop_limit: 64,
+        }
+        .emit(&mut packet);
+        reply.emit(
+            &charger_address,
+            &server_address,
+            &mut Icmpv6Packet::new_unchecked(packet.payload_mut()),
+            &Default::default(),
+        );
+        let TunnResult::WriteToNetwork(encrypted) = peer.encapsulate(&bytes, &mut output) else {
+            panic!()
+        };
+        assert!(socket.decrypt(encrypted).unwrap().is_empty());
+        let size = tokio::time::timeout(Duration::from_secs(1), client.recv(&mut network))
+            .await
+            .unwrap()
+            .unwrap();
+        let TunnResult::WriteToTunnelV6(bytes, _) =
+            peer.decapsulate(None, &network[..size], &mut output)
+        else {
+            panic!("command did not use IPv6")
+        };
+        let packet = Ipv6Packet::new_checked(&*bytes).unwrap();
+        assert_eq!(packet.src_addr(), server_address);
+        assert_eq!(packet.dst_addr(), charger_address);
+        let udp = UdpPacket::new_checked(packet.payload()).unwrap();
+        assert_eq!(udp.dst_port(), 12345);
+        assert_eq!(udp.payload(), b"management command through preferred IPv6");
+    }
+
+    #[actix_web::test]
+    async fn candidate_matching_accepts_registered_ipv6_management_addresses() {
+        for prefix in [64, 128] {
+            let (mut peer, mut charger, init) = peer_and_charger();
+            charger.wg_charger_ip = format!("fd00:123:ffff::2/{prefix}").parse().unwrap();
+            charger.wg_server_ip = format!("fd00:123:ffff::3/{prefix}").parse().unwrap();
+            let udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+            let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+            udp.writable().await.unwrap();
+            let id = charger.id;
+            let (matched, mut socket, response) =
+                match_tunnel(vec![charger], client.local_addr().unwrap(), &init, udp).unwrap();
+            assert_eq!(matched, id);
+            let mut output = [0; 2048];
+            let TunnResult::WriteToNetwork(keepalive) =
+                peer.decapsulate(None, &response, &mut output)
+            else {
+                panic!()
+            };
+            assert!(socket.decrypt(keepalive).unwrap().is_empty());
+        }
     }
 
     #[actix_web::test]

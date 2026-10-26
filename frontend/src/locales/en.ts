@@ -1,6 +1,9 @@
 import { description, firmware_needed } from "translations-en";
 
 export const en = {
+    "wgclient": {
+        "connection_timeout": "Connection timed out. Please reconnect.",
+    },
     "app_name": "Remote Access",
     "alert_default_text": "An Error occured!",
     "alert_default_success": "Success!",

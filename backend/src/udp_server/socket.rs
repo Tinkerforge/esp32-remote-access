@@ -18,8 +18,9 @@
  */
 
 use std::{
+    collections::VecDeque,
     future::{poll_fn, Future},
-    net::{Ipv4Addr, SocketAddr},
+    net::{IpAddr, SocketAddr},
     sync::Arc,
     task::Poll,
     time::{Duration, Instant},
@@ -28,14 +29,20 @@ use tokio::net::UdpSocket;
 
 use boringtun::noise::{rate_limiter::RateLimiter, Tunn, TunnResult};
 use futures_util::lock::Mutex;
+use ipnetwork::IpNetwork;
 use smoltcp::{
     iface::{self, Config, Interface, SocketHandle, SocketSet},
-    socket::{tcp, udp},
+    socket::{icmp, tcp, udp},
 };
 
 use crate::udp_server::packet::ChargeLogSendMetadata;
 
-use super::{device::ManagementDevice, packet::ManagementPacket, pcap_logger::PcapLogger};
+use super::{
+    device::ManagementDevice,
+    packet::ManagementPacket,
+    pcap_logger::PcapLogger,
+    peer_discovery::{random_management_address, PeerDiscovery, ALL_NODES_ADDRESS},
+};
 
 pub struct ManagementSocket<'a> {
     charger_id: uuid::Uuid,
@@ -44,7 +51,12 @@ pub struct ManagementSocket<'a> {
     iface: iface::Interface,
     device: ManagementDevice,
     rate_limiter: Arc<RateLimiter>,
-    peer_ip: Ipv4Addr,
+    local_ip: IpAddr,
+    peer_ip: IpAddr,
+    peer_discovery: Option<PeerDiscovery>,
+    registered_addresses: Option<(IpNetwork, IpNetwork)>,
+    pending_confirmation: Option<u32>,
+    pending_packets: VecDeque<Vec<u8>>,
     remote_addr: SocketAddr,
     udp_socket: Arc<UdpSocket>,
     last_seen: Instant,
@@ -69,14 +81,17 @@ impl std::fmt::Debug for ManagementSocket<'_> {
 
 impl<'a> ManagementSocket<'a> {
     pub fn new(
-        self_ip: Ipv4Addr,
-        peer_ip: Ipv4Addr,
+        self_ip: IpNetwork,
+        peer_ip: IpNetwork,
         remote_addr: SocketAddr,
         tunn: Tunn,
         rate_limiter: Arc<RateLimiter>,
         udp_socket: Arc<UdpSocket>,
         charger_id: uuid::Uuid,
-    ) -> Self {
+    ) -> Result<Self, String> {
+        if self_ip.is_ipv4() != peer_ip.is_ipv4() {
+            return Err("management tunnel addresses must have the same IP family".into());
+        }
         let pcap_logger = PcapLogger::new();
         let mut device =
             ManagementDevice::new(udp_socket.clone(), tunn, remote_addr, pcap_logger.clone());
@@ -85,10 +100,9 @@ impl<'a> ManagementSocket<'a> {
         config.random_seed = rand::random();
         let mut interface = Interface::new(config, &mut device, smoltcp::time::Instant::now());
         interface.update_ip_addrs(|ip_addrs| {
-            log::debug!("listening on ip: {self_ip}");
             let _ = ip_addrs.push(smoltcp::wire::IpCidr::new(
-                smoltcp::wire::IpAddress::Ipv4(self_ip),
-                24,
+                self_ip.ip().into(),
+                self_ip.prefix(),
             ));
         });
 
@@ -101,16 +115,21 @@ impl<'a> ManagementSocket<'a> {
         let socket = sockets.get_mut::<udp::Socket>(sock_handle);
 
         // should never be an error value since the socket was just created and the port is never 0.
-        socket.bind(12345).unwrap();
+        socket.bind((self_ip.ip(), 12345)).unwrap();
 
-        Self {
+        Ok(Self {
             charger_id,
             sock_handle,
             sockets,
             iface: interface,
             device,
             rate_limiter,
-            peer_ip,
+            local_ip: self_ip.ip(),
+            peer_ip: peer_ip.ip(),
+            peer_discovery: None,
+            registered_addresses: None,
+            pending_confirmation: None,
+            pending_packets: VecDeque::new(),
             remote_addr,
             udp_socket,
             last_seen: Instant::now(),
@@ -121,6 +140,166 @@ impl<'a> ManagementSocket<'a> {
             sender: None,
             #[cfg(test)]
             packet_capture: None,
+        })
+    }
+
+    /// Runtime management sessions choose a fresh random IPv6 address and
+    /// discover the charger through ICMPv6. Registered service addresses remain
+    /// a fallback for legacy firmware, independently of user tunnel keys.
+    pub fn new_preferred_ipv6(
+        registered_self: IpNetwork,
+        registered_peer: IpNetwork,
+        remote_addr: SocketAddr,
+        tunn: Tunn,
+        rate_limiter: Arc<RateLimiter>,
+        udp_socket: Arc<UdpSocket>,
+        charger_id: uuid::Uuid,
+    ) -> Result<Self, String> {
+        if registered_self.is_ipv4() != registered_peer.is_ipv4() {
+            return Err("management tunnel addresses must have the same IP family".into());
+        }
+        let local_address = random_management_address();
+        let local = IpNetwork::new(local_address.into(), 128).unwrap();
+        let mut socket = Self::new(
+            local,
+            IpNetwork::new(ALL_NODES_ADDRESS.into(), 128).unwrap(),
+            remote_addr,
+            tunn,
+            rate_limiter,
+            udp_socket,
+            charger_id,
+        )?;
+        socket.registered_addresses = Some((registered_self, registered_peer));
+        socket.restart_peer_discovery();
+        Ok(socket)
+    }
+
+    fn restart_peer_discovery(&mut self) {
+        let Some((registered_self, registered_peer)) = self.registered_addresses else {
+            return;
+        };
+        if let Some(discovery) = self.peer_discovery.take() {
+            self.sockets.remove(discovery.handle);
+        }
+        // Preserve an established random server address across key rotation so
+        // active TCP streams survive. A legacy fallback needs a new random ULA.
+        let local = match self.local_ip {
+            IpAddr::V6(local) if self.local_ip != registered_self.ip() => local,
+            _ => random_management_address(),
+        };
+        self.local_ip = local.into();
+        self.peer_ip = ALL_NODES_ADDRESS.into();
+        self.iface.update_ip_addrs(|addrs| {
+            addrs.clear();
+            addrs
+                .push(smoltcp::wire::IpCidr::new(local.into(), 128))
+                .unwrap();
+            // A second IPv6 source could invalidate probe checksum selection.
+            if registered_self.is_ipv4() {
+                addrs
+                    .push(smoltcp::wire::IpCidr::new(
+                        registered_self.ip().into(),
+                        registered_self.prefix(),
+                    ))
+                    .unwrap();
+            }
+        });
+        let udp = self.sockets.get_mut::<udp::Socket>(self.sock_handle);
+        udp.close();
+        udp.bind(12345).unwrap();
+        let buffer =
+            || icmp::PacketBuffer::new(vec![icmp::PacketMetadata::EMPTY; 4], vec![0; 1024]);
+        let mut icmp = icmp::Socket::new(buffer(), buffer());
+        PeerDiscovery::bind(&mut icmp);
+        let handle = self.sockets.add(icmp);
+        self.peer_discovery = Some(PeerDiscovery::new(
+            handle,
+            local,
+            registered_self.ip(),
+            registered_peer.ip(),
+            Instant::now(),
+        ));
+        log::info!("Management tunnel {}: discovering IPv6 peer from {local} via {ALL_NODES_ADDRESS}; registered address {registered_peer}", self.charger_id);
+    }
+
+    pub(super) fn wait_for_handshake_confirmation(&mut self, response: &[u8]) {
+        if matches!(
+            Tunn::parse_incoming_packet(response),
+            Ok(boringtun::noise::Packet::HandshakeResponse(_))
+        ) {
+            // The parser validated the response length; its sender index is
+            // the receiver index of the confirming encrypted data packet.
+            self.pending_confirmation =
+                Some(u32::from_le_bytes(response[4..8].try_into().unwrap()));
+        }
+    }
+
+    pub(super) fn is_discovering_peer(&self) -> bool {
+        self.peer_discovery.is_some()
+    }
+
+    fn resolve_peer(&mut self, peer: IpAddr, confirmed: bool) {
+        if let Some(discovery) = self.peer_discovery.take() {
+            self.sockets.remove(discovery.handle);
+            let local = if confirmed {
+                self.local_ip
+            } else {
+                discovery.registered_local
+            };
+            self.local_ip = local;
+            let prefix = if confirmed {
+                128
+            } else {
+                self.registered_addresses
+                    .map(|(registered_local, _)| registered_local.prefix())
+                    .unwrap_or(if local.is_ipv4() { 32 } else { 128 })
+            };
+            // The registered IPv4 alias exists only while probing legacy peers.
+            // After selection, UDP and TCP share the selected local address.
+            self.iface.update_ip_addrs(|addrs| {
+                addrs.clear();
+                addrs
+                    .push(smoltcp::wire::IpCidr::new(local.into(), prefix))
+                    .unwrap();
+            });
+            let udp = self.sockets.get_mut::<udp::Socket>(self.sock_handle);
+            udp.close();
+            udp.bind((local, 12345)).unwrap();
+        }
+        self.peer_ip = peer;
+        // Rekeying the same address preserves streams. A recreated charger
+        // interface has lost its old TCP state and may use a different ULA.
+        if let Some(socket) = self.get_tcp_socket() {
+            if socket
+                .remote_endpoint()
+                .is_some_and(|remote| remote.addr != peer.into())
+            {
+                socket.abort();
+            }
+        }
+        if confirmed {
+            log::info!(
+                "Management tunnel {}: selected peer {peer}",
+                self.charger_id
+            );
+        } else {
+            log::info!(
+                "Management tunnel {}: IPv6 probe timed out; using peer {peer}",
+                self.charger_id
+            );
+        }
+    }
+
+    fn flush_pending_packets(&mut self) {
+        if self.peer_discovery.is_some() {
+            return;
+        }
+        let socket = self.sockets.get_mut::<udp::Socket>(self.sock_handle);
+        while let Some(data) = self.pending_packets.front() {
+            if socket.send_slice(data, (self.peer_ip, 12345)).is_err() {
+                break;
+            }
+            self.pending_packets.pop_front();
         }
     }
 
@@ -136,6 +315,7 @@ impl<'a> ManagementSocket<'a> {
     #[cfg(test)]
     pub async fn new_for_test(charger_id: uuid::Uuid, remote_addr: SocketAddr) -> Self {
         use boringtun::x25519::{PublicKey, StaticSecret};
+        use std::net::Ipv4Addr;
 
         let static_private = StaticSecret::from([0u8; 32]);
         let peer_static_public = PublicKey::from([0u8; 32]);
@@ -154,14 +334,15 @@ impl<'a> ManagementSocket<'a> {
                 .expect("failed to bind test UDP socket"),
         );
         Self::new(
-            Ipv4Addr::new(0, 0, 0, 0),
-            Ipv4Addr::new(0, 0, 0, 0),
+            IpNetwork::new(Ipv4Addr::UNSPECIFIED.into(), 24).unwrap(),
+            IpNetwork::new(Ipv4Addr::UNSPECIFIED.into(), 24).unwrap(),
             remote_addr,
             tunn,
             rate_limiter,
             udp_socket,
             charger_id,
         )
+        .unwrap()
     }
 
     /// Test helper: install a sink that records the plaintext bytes of every
@@ -172,26 +353,53 @@ impl<'a> ManagementSocket<'a> {
     }
 
     pub fn poll(&mut self) {
-        let now = smoltcp::time::Instant::now();
-        self.iface.poll(now, &mut self.device, &mut self.sockets);
+        self.poll_at(Instant::now());
+    }
+
+    fn poll_at(&mut self, now: Instant) {
+        // The responder keeps its old sending session until authenticated data
+        // confirms the new receiver index. Probing earlier encrypts with stale
+        // keys when the charger has just discarded its old tunnel instance.
+        if self.pending_confirmation.is_some() {
+            return;
+        }
+        self.iface.poll(
+            smoltcp::time::Instant::now(),
+            &mut self.device,
+            &mut self.sockets,
+        );
+        if let Some(discovery) = self.peer_discovery.as_mut() {
+            if let Some((peer, confirmed)) =
+                discovery.poll(self.sockets.get_mut::<icmp::Socket>(discovery.handle), now)
+            {
+                self.resolve_peer(peer, confirmed);
+            }
+        }
+        self.flush_pending_packets();
+        self.iface.poll(
+            smoltcp::time::Instant::now(),
+            &mut self.device,
+            &mut self.sockets,
+        );
     }
 
     fn recv(&mut self) -> Option<Vec<u8>> {
         self.poll();
-        let socket = self.sockets.get_mut::<udp::Socket>(self.sock_handle);
-        if socket.can_recv() {
-            match socket.recv() {
-                Ok((data, endpoint)) => {
-                    if endpoint.endpoint.addr != self.peer_ip.into() {
-                        return None;
-                    }
-
-                    Some(data.to_vec())
+        loop {
+            let (data, peer) = {
+                let socket = self.sockets.get_mut::<udp::Socket>(self.sock_handle);
+                let (data, endpoint) = socket.recv().ok()?;
+                (data.to_vec(), IpAddr::from(endpoint.endpoint.addr))
+            };
+            if let Some(discovery) = &self.peer_discovery {
+                if discovery.accepts(peer) {
+                    // Legacy traffic may arrive during discovery, but only a
+                    // correlated echo reply selects the random IPv6 peer.
+                    return Some(data);
                 }
-                Err(_) => None,
+            } else if peer == self.peer_ip {
+                return Some(data);
             }
-        } else {
-            None
         }
     }
 
@@ -214,9 +422,12 @@ impl<'a> ManagementSocket<'a> {
     }
 
     pub fn encrypt_and_send_slice(&mut self, data: &[u8]) {
-        let socket = self.sockets.get_mut::<udp::Socket>(self.sock_handle);
-        if socket.can_send() {
-            let _ = socket.send_slice(data, (self.peer_ip, 12345));
+        // Keep commands until address selection finishes. Bound storage in the
+        // same way as the management UDP socket's 32-packet transmit queue.
+        if self.pending_packets.len() < 32 {
+            self.pending_packets.push_back(data.to_vec());
+        } else {
+            log::warn!("Management command queue is full for {}", self.charger_id);
         }
         self.poll();
     }
@@ -249,23 +460,66 @@ impl<'a> ManagementSocket<'a> {
     }
 
     pub fn decrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, String> {
-        let is_keepalive = matches!(
+        let receiver_index = match Tunn::parse_incoming_packet(data) {
+            Ok(boringtun::noise::Packet::PacketData(packet)) => Some(packet.receiver_idx),
+            _ => None,
+        };
+        let is_keepalive = receiver_index.is_some();
+        let is_handshake = matches!(
             boringtun::noise::Tunn::parse_incoming_packet(data),
-            Ok(boringtun::noise::Packet::PacketData(_))
+            Ok(boringtun::noise::Packet::HandshakeInit(_))
         );
-        let mut dst = vec![0; data.len()];
+        // Draining a handshake may emit queued IP packets larger than the
+        // handshake datagram. Reserve room for a full IP packet plus WG framing.
+        let mut dst = vec![0; (u16::MAX as usize + 32).max(data.len())];
         match self.device.decapsulate(data, &mut dst) {
             TunnResult::WriteToNetwork(data) => {
+                let authenticated_handshake = if is_handshake {
+                    match Tunn::parse_incoming_packet(data) {
+                        Ok(boringtun::noise::Packet::HandshakeResponse(_)) => {
+                            Some(u32::from_le_bytes(data[4..8].try_into().unwrap()))
+                        }
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
                 self.send_slice(data)?;
                 while let TunnResult::WriteToNetwork(data) =
                     self.device.decapsulate(&Vec::new(), &mut dst)
                 {
                     self.send_slice(data)?;
                 }
+                if let Some(index) = authenticated_handshake {
+                    if self.registered_addresses.is_some() {
+                        // A new charger may reuse its public key and UDP
+                        // endpoint while discarding its previous session keys.
+                        self.restart_peer_discovery();
+                        self.pending_confirmation = Some(index);
+                    }
+                }
                 self.last_seen = Instant::now();
                 Ok(Vec::new())
             }
-            TunnResult::WriteToTunnelV4(data, _) => {
+            TunnResult::WriteToTunnelV4(data, _) | TunnResult::WriteToTunnelV6(data, _) => {
+                if receiver_index == self.pending_confirmation {
+                    self.pending_confirmation = None;
+                }
+                // smoltcp accepts all-nodes multicast even without a local
+                // IPv6 address. Do not let an IPv4-only profile emit replies
+                // from ::1 to discovery probes or stale IPv6 traffic.
+                let version = data.first().map(|byte| byte >> 4);
+                let family_configured = self.iface.ip_addrs().iter().any(|address| {
+                    matches!(
+                        (version, address.address()),
+                        (Some(4), smoltcp::wire::IpAddress::Ipv4(_))
+                            | (Some(6), smoltcp::wire::IpAddress::Ipv6(_))
+                    )
+                });
+                self.last_seen = Instant::now();
+                if !family_configured {
+                    return Ok(Vec::new());
+                }
                 self.device.push_packet(data.to_owned());
                 self.poll();
                 self.last_seen = Instant::now();
@@ -275,11 +529,11 @@ impl<'a> ManagementSocket<'a> {
                     Ok(Vec::new())
                 }
             }
-            TunnResult::WriteToTunnelV6(_, _) => {
-                Err("Received an decryptable IPv6 packet, what is going on here?".to_string())
-            }
             TunnResult::Err(err) => Err(format!("{err:?}")),
             TunnResult::Done => {
+                if receiver_index.is_some() && receiver_index == self.pending_confirmation {
+                    self.pending_confirmation = None;
+                }
                 // BoringTun reports an authenticated empty transport packet as
                 // `Done`. Reply so a client using persistent keepalives can
                 // confirm that the management peer remains reachable.
@@ -398,6 +652,13 @@ impl<'a> ManagementSocketTCPReceiver<'a> {
             if let Some(socket) = tunn_sock.get_tcp_socket() {
                 socket.register_recv_waker(ctx.waker());
 
+                if socket.state() == tcp::State::Closed {
+                    return Poll::Ready(TCPRecvResult::Err(std::io::Error::new(
+                        std::io::ErrorKind::ConnectionReset,
+                        "Management TCP socket closed",
+                    )));
+                }
+
                 if let tcp::State::CloseWait = socket.state() {
                     if socket.recv_queue() != 0 {
                         match socket.recv(|buf| (buf.len(), buf.to_vec())) {
@@ -450,10 +711,446 @@ impl<'a> ManagementSocketTCPReceiver<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::peer_discovery::{MANAGEMENT_CHARGER_ADDRESS, MANAGEMENT_SERVER_ADDRESS};
     use super::*;
     use futures_util::task::{waker_ref, ArcWake};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::Context;
+
+    async fn management_pair(
+        server_cidr: &str,
+        charger_cidr: &str,
+    ) -> (ManagementSocket<'static>, ManagementSocket<'static>) {
+        management_pair_with_registration(server_cidr, charger_cidr, None).await
+    }
+
+    async fn management_pair_with_registration(
+        server_cidr: &str,
+        charger_cidr: &str,
+        registered: Option<(&str, &str)>,
+    ) -> (ManagementSocket<'static>, ManagementSocket<'static>) {
+        use boringtun::x25519::{PublicKey, StaticSecret};
+        let server_key = StaticSecret::from([11; 32]);
+        let charger_key = StaticSecret::from([22; 32]);
+        let server_pub = PublicKey::from(&server_key);
+        let charger_pub = PublicKey::from(&charger_key);
+        let server_limiter = Arc::new(RateLimiter::new(&server_pub, 100));
+        let charger_limiter = Arc::new(RateLimiter::new(&charger_pub, 100));
+        let mut server_tun = Tunn::new(
+            server_key,
+            charger_pub,
+            Some([33; 32]),
+            None,
+            1,
+            Some(server_limiter.clone()),
+        );
+        let mut charger_tun = Tunn::new(
+            charger_key,
+            server_pub,
+            Some([33; 32]),
+            None,
+            2,
+            Some(charger_limiter.clone()),
+        );
+        let mut output = [0; 2048];
+        let TunnResult::WriteToNetwork(init) =
+            charger_tun.format_handshake_initiation(&mut output, false)
+        else {
+            panic!()
+        };
+        let init = init.to_vec();
+        let TunnResult::WriteToNetwork(response) = server_tun.decapsulate(None, &init, &mut output)
+        else {
+            panic!()
+        };
+        let response = response.to_vec();
+        let TunnResult::WriteToNetwork(keepalive) =
+            charger_tun.decapsulate(None, &response, &mut output)
+        else {
+            panic!()
+        };
+        let keepalive = keepalive.to_vec();
+        assert!(matches!(
+            server_tun.decapsulate(None, &keepalive, &mut output),
+            TunnResult::Done
+        ));
+
+        // These outer sockets remain IPv4 even when the inner tunnel is IPv6.
+        let server_udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let charger_udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        server_udp.writable().await.unwrap();
+        charger_udp.writable().await.unwrap();
+        let server = if let Some((local, peer)) = registered {
+            ManagementSocket::new_preferred_ipv6(
+                local.parse().unwrap(),
+                peer.parse().unwrap(),
+                charger_udp.local_addr().unwrap(),
+                server_tun,
+                server_limiter,
+                server_udp.clone(),
+                uuid::Uuid::new_v4(),
+            )
+        } else {
+            ManagementSocket::new(
+                server_cidr.parse().unwrap(),
+                charger_cidr.parse().unwrap(),
+                charger_udp.local_addr().unwrap(),
+                server_tun,
+                server_limiter,
+                server_udp.clone(),
+                uuid::Uuid::new_v4(),
+            )
+        }
+        .unwrap();
+        let charger = ManagementSocket::new(
+            charger_cidr.parse().unwrap(),
+            server_cidr.parse().unwrap(),
+            server_udp.local_addr().unwrap(),
+            charger_tun,
+            charger_limiter,
+            charger_udp,
+            uuid::Uuid::new_v4(),
+        )
+        .unwrap();
+        (server, charger)
+    }
+
+    // Model the charger's multicast echo handler, which always replies from
+    // the random service ULA used by management UDP and TCP.
+    async fn answer_discovery_probe(charger: &mut ManagementSocket<'_>) {
+        use smoltcp::wire::{Icmpv6Packet, Icmpv6Repr, IpProtocol, Ipv6Packet, Ipv6Repr};
+        let mut network = [0; 2048];
+        let size = tokio::time::timeout(
+            Duration::from_secs(1),
+            charger.udp_socket.recv(&mut network),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let mut output = [0; 2048];
+        let TunnResult::WriteToTunnelV6(bytes, _) =
+            charger.device.decapsulate(&network[..size], &mut output)
+        else {
+            panic!("expected discovery probe")
+        };
+        let packet = Ipv6Packet::new_checked(&*bytes).unwrap();
+        assert_eq!(packet.dst_addr(), ALL_NODES_ADDRESS);
+        assert_eq!(packet.hop_limit(), 1);
+        assert_eq!(packet.next_header(), IpProtocol::Icmpv6);
+        let server = packet.src_addr();
+        let IpAddr::V6(local) = charger.local_ip else {
+            panic!()
+        };
+        let Icmpv6Repr::EchoRequest {
+            ident,
+            seq_no,
+            data,
+        } = Icmpv6Repr::parse(
+            &server,
+            &packet.dst_addr(),
+            &Icmpv6Packet::new_checked(packet.payload()).unwrap(),
+            &Default::default(),
+        )
+        .unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(ident, 0x4d47);
+        let reply = Icmpv6Repr::EchoReply {
+            ident,
+            seq_no,
+            data,
+        };
+        let mut bytes = vec![0; 40 + reply.buffer_len()];
+        let mut packet = Ipv6Packet::new_unchecked(&mut bytes);
+        Ipv6Repr {
+            src_addr: local,
+            dst_addr: server,
+            next_header: IpProtocol::Icmpv6,
+            payload_len: reply.buffer_len(),
+            hop_limit: 64,
+        }
+        .emit(&mut packet);
+        reply.emit(
+            &local,
+            &server,
+            &mut Icmpv6Packet::new_unchecked(packet.payload_mut()),
+            &Default::default(),
+        );
+        charger.peer_ip = server.into();
+        let mut encrypted = [0; 2048];
+        let TunnResult::WriteToNetwork(bytes) = charger.device.encapsulate(&bytes, &mut encrypted)
+        else {
+            panic!()
+        };
+        charger.send_slice(bytes).unwrap();
+    }
+
+    async fn deliver_one(to: &mut ManagementSocket<'_>) -> Vec<u8> {
+        let mut packet = [0; 2048];
+        let size = tokio::time::timeout(Duration::from_secs(1), to.udp_socket.recv(&mut packet))
+            .await
+            .expect("management peer did not receive encrypted UDP")
+            .unwrap();
+        to.decrypt(&packet[..size]).unwrap()
+    }
+
+    async fn pump(to: &mut ManagementSocket<'_>) {
+        let mut packet = [0; 2048];
+        for _ in 0..32 {
+            match tokio::time::timeout(Duration::from_millis(5), to.udp_socket.recv(&mut packet))
+                .await
+            {
+                Ok(Ok(size)) => {
+                    to.decrypt(&packet[..size]).unwrap();
+                }
+                Ok(Err(error)) => panic!("UDP receive failed: {error}"),
+                Err(_) => return,
+            }
+        }
+        panic!("management peer kept sending unexpectedly");
+    }
+
+    #[actix_web::test]
+    async fn management_udp_preserves_prefixes_and_supports_both_inner_families() {
+        for (local, peer) in [
+            ("10.123.123.3", "10.123.123.2"),
+            ("10.123.123.3/24", "10.123.123.2/24"),
+            ("fd00:123:ffff::3/64", "fd00:123:ffff::2/64"),
+            ("fd00:123:ffff::3", "fd00:123:ffff::2"),
+        ] {
+            let (mut server, mut charger) = management_pair(local, peer).await;
+            let registered: IpNetwork = local.parse().unwrap();
+            assert_eq!(server.iface.ip_addrs()[0].address(), registered.ip().into());
+            assert_eq!(server.iface.ip_addrs()[0].prefix_len(), registered.prefix());
+            charger.encrypt_and_send_slice(b"management request");
+            assert_eq!(deliver_one(&mut server).await, b"management request");
+            server.encrypt_and_send_slice(b"management response");
+            assert_eq!(deliver_one(&mut charger).await, b"management response");
+        }
+    }
+
+    #[actix_web::test]
+    async fn management_tcp_charge_log_works_with_ipv4_and_requested_ipv6_addresses() {
+        for (local, peer) in [
+            ("10.123.123.3", "10.123.123.2"),
+            ("fd00:123:ffff::3/64", "fd00:123:ffff::2/64"),
+            ("fd00:123:ffff::3/128", "fd00:123:ffff::2/128"),
+        ] {
+            let (mut server, mut charger) = management_pair(local, peer).await;
+            server.init_tcp_socket();
+            let server_ip = server.iface.ip_addrs()[0].address();
+            server
+                .get_tcp_socket()
+                .unwrap()
+                .listen((server_ip, 8080))
+                .unwrap();
+            charger.init_tcp_socket();
+            let handle = charger.tcp_socket.unwrap();
+            charger
+                .sockets
+                .get_mut::<tcp::Socket>(handle)
+                .connect(charger.iface.context(), (server_ip, 8080), 49152)
+                .unwrap();
+            charger.poll();
+            for _ in 0..10 {
+                pump(&mut server).await;
+                pump(&mut charger).await;
+                if charger.get_tcp_socket().unwrap().can_send() {
+                    break;
+                }
+            }
+            assert!(
+                charger.get_tcp_socket().unwrap().can_send(),
+                "TCP handshake failed for {local}"
+            );
+            charger
+                .get_tcp_socket()
+                .unwrap()
+                .send_slice(b"charge log over management tunnel")
+                .unwrap();
+            charger.poll();
+            for _ in 0..10 {
+                pump(&mut server).await;
+                pump(&mut charger).await;
+                if server.get_tcp_socket().unwrap().can_recv() {
+                    break;
+                }
+            }
+            let received = server
+                .get_tcp_socket()
+                .unwrap()
+                .recv(|bytes| (bytes.len(), bytes.to_vec()))
+                .unwrap();
+            assert_eq!(received, b"charge log over management tunnel");
+        }
+    }
+
+    #[actix_web::test]
+    async fn ipv6_management_peer_answers_echo_at_its_registered_address() {
+        use smoltcp::{
+            socket::icmp,
+            wire::{Icmpv6Packet, Icmpv6Repr},
+        };
+        let (mut server, mut charger) =
+            management_pair("fd00:123:ffff::3/128", "fd00:123:ffff::2/128").await;
+        let local = "fd00:123:ffff::2".parse().unwrap();
+        let peer = "fd00:123:ffff::3".parse().unwrap();
+        let buffer =
+            || icmp::PacketBuffer::new(vec![icmp::PacketMetadata::EMPTY; 4], vec![0; 1024]);
+        let mut icmp = icmp::Socket::new(buffer(), buffer());
+        icmp.bind(icmp::Endpoint::Ident(0x5757)).unwrap();
+        let repr = Icmpv6Repr::EchoRequest {
+            ident: 0x5757,
+            seq_no: 17,
+            data: b"management-peer-discovery",
+        };
+        let payload = icmp
+            .send(repr.buffer_len(), smoltcp::wire::IpAddress::Ipv6(peer))
+            .unwrap();
+        repr.emit(
+            &local,
+            &peer,
+            &mut Icmpv6Packet::new_unchecked(payload),
+            &Default::default(),
+        );
+        let handle = charger.sockets.add(icmp);
+        charger.poll();
+        pump(&mut server).await;
+        pump(&mut charger).await;
+        let (bytes, address) = charger
+            .sockets
+            .get_mut::<icmp::Socket>(handle)
+            .recv()
+            .unwrap();
+        assert_eq!(address, smoltcp::wire::IpAddress::Ipv6(peer));
+        let packet = Icmpv6Packet::new_checked(bytes).unwrap();
+        assert_eq!(
+            Icmpv6Repr::parse(&peer, &local, &packet, &Default::default()).unwrap(),
+            Icmpv6Repr::EchoReply {
+                ident: 0x5757,
+                seq_no: 17,
+                data: b"management-peer-discovery"
+            }
+        );
+    }
+
+    #[actix_web::test]
+    async fn management_socket_rejects_mixed_inner_families() {
+        let (server, _) = management_pair("10.123.123.3", "10.123.123.2").await;
+        let key = boringtun::x25519::StaticSecret::from([7; 32]);
+        let peer = boringtun::x25519::PublicKey::from([8; 32]);
+        let result = ManagementSocket::new(
+            "fd00:123:ffff::3/64".parse().unwrap(),
+            "10.123.123.2".parse().unwrap(),
+            server.remote_addr,
+            Tunn::new(key, peer, None, None, 0, None),
+            server.rate_limiter,
+            server.udp_socket,
+            server.charger_id,
+        );
+        assert!(result.unwrap_err().contains("same IP family"));
+    }
+
+    #[actix_web::test]
+    async fn stale_ipv4_registration_discovers_ipv6_and_flushes_queued_commands() {
+        let (mut server, mut charger) = management_pair_with_registration(
+            "fd00:123:ffff::3/128",
+            "fd00:123:ffff::2/128",
+            Some(("10.123.123.3", "10.123.123.2")),
+        )
+        .await;
+        let IpAddr::V6(local) = server.local_ip else {
+            panic!()
+        };
+        assert_eq!(local.octets()[0], 0xfd);
+        assert_ne!(local, MANAGEMENT_SERVER_ADDRESS);
+        assert_eq!(server.peer_ip, IpAddr::V6(ALL_NODES_ADDRESS));
+        server.encrypt_and_send_slice(b"command using preferred IPv6");
+        assert_eq!(server.pending_packets.len(), 1);
+        // The first encrypted packet is ICMPv6; the charger replies from its
+        // service address to the random relay address despite stale registration.
+        answer_discovery_probe(&mut charger).await;
+        assert!(deliver_one(&mut server).await.is_empty());
+        assert!(!server.is_discovering_peer());
+        assert_eq!(server.peer_ip, IpAddr::V6(MANAGEMENT_CHARGER_ADDRESS));
+        assert!(server.pending_packets.is_empty());
+        assert_eq!(
+            deliver_one(&mut charger).await,
+            b"command using preferred IPv6"
+        );
+        charger.encrypt_and_send_slice(b"IPv6 management response");
+        assert_eq!(deliver_one(&mut server).await, b"IPv6 management response");
+    }
+
+    #[actix_web::test]
+    async fn legacy_device_gets_queued_commands_after_bounded_ipv6_probe() {
+        let (mut server, mut charger) = management_pair_with_registration(
+            "10.123.123.3",
+            "10.123.123.2",
+            Some(("10.123.123.3", "10.123.123.2")),
+        )
+        .await;
+        server.encrypt_and_send_slice(b"legacy command after timeout");
+        assert_eq!(server.peer_ip, IpAddr::V6(ALL_NODES_ADDRESS));
+        assert!(deliver_one(&mut charger).await.is_empty());
+        assert!(server.is_discovering_peer());
+        server.poll_at(
+            Instant::now()
+                + super::super::peer_discovery::DISCOVERY_TIMEOUT
+                + Duration::from_millis(1),
+        );
+        assert!(!server.is_discovering_peer());
+        assert_eq!(server.peer_ip, "10.123.123.2".parse::<IpAddr>().unwrap());
+        assert_eq!(
+            deliver_one(&mut charger).await,
+            b"legacy command after timeout"
+        );
+        charger.encrypt_and_send_slice(b"legacy management response");
+        assert_eq!(
+            deliver_one(&mut server).await,
+            b"legacy management response"
+        );
+    }
+
+    #[actix_web::test]
+    async fn legacy_management_traffic_does_not_override_pending_ipv6_preference() {
+        let (mut server, mut charger) = management_pair_with_registration(
+            "10.123.123.3",
+            "10.123.123.2",
+            Some(("10.123.123.3", "10.123.123.2")),
+        )
+        .await;
+        charger.encrypt_and_send_slice(b"legacy device is already sending");
+        assert_eq!(
+            deliver_one(&mut server).await,
+            b"legacy device is already sending"
+        );
+        assert!(server.is_discovering_peer());
+        assert_eq!(server.peer_ip, IpAddr::V6(ALL_NODES_ADDRESS));
+    }
+
+    #[actix_web::test]
+    async fn maintenance_drives_discovery_without_management_commands() {
+        use std::collections::HashMap;
+        let (server, mut charger) = management_pair_with_registration(
+            "fd00:123:ffff::3/128",
+            "fd00:123:ffff::2/128",
+            Some(("10.123.123.3", "10.123.123.2")),
+        )
+        .await;
+        let id = server.id();
+        let server = Arc::new(Mutex::new(server));
+        let sockets = Arc::new(Mutex::new(HashMap::from([(id, server.clone())])));
+        super::super::poll_management_discovery_once(&sockets).await;
+        answer_discovery_probe(&mut charger).await;
+        assert!(deliver_one(&mut *server.lock().await).await.is_empty());
+        assert!(!server.lock().await.is_discovering_peer());
+        assert_eq!(
+            server.lock().await.peer_ip,
+            IpAddr::V6(MANAGEMENT_CHARGER_ADDRESS)
+        );
+    }
 
     struct WakeCounter(AtomicUsize);
     impl ArcWake for WakeCounter {
@@ -499,4 +1196,6 @@ mod tests {
             Poll::Ready(TCPRecvResult::Err(_))
         ));
     }
+
+    include!("random_management_tests.rs");
 }

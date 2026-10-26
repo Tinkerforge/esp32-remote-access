@@ -11,7 +11,8 @@
     "posttest": "npx playwright test --project=chromium -c post-playwright.config.ts",
     "test:unit": "vitest",
     "test:unit:run": "vitest run",
-    "build:wasm": "cd ../wg-webclient && wasm-pack build --target web",
+    "test:tunnel-worker": "node test-tunnel-worker.mjs",
+    "build:wasm": "cd ../wg-webclient && wasm-pack build --target bundler",
     "typecheck": "npm run build:wasm && tsc --noEmit",
     "lint": "oxlint src",
     "lint:fix": "oxlint src --fix"

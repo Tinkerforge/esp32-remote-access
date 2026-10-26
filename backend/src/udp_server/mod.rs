@@ -23,6 +23,7 @@ pub mod management;
 mod multiplex;
 pub mod packet;
 pub mod pcap_logger;
+mod peer_discovery;
 mod registry;
 pub mod socket;
 
@@ -144,6 +145,33 @@ async fn start_rate_limiters_reset_thread(
     }
 }
 
+/// Poll only sessions still selecting their inner peer address. This timer is
+/// independent of incoming UDP and application commands, so retries and the
+/// legacy fallback progress even when the peer stays silent.
+async fn poll_management_discovery_once(
+    devices: &Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
+) {
+    let sockets: Vec<_> = devices.lock().await.values().cloned().collect();
+    for socket in sockets {
+        if let Some(mut socket) = socket.try_lock() {
+            if socket.is_discovering_peer() {
+                socket.poll();
+            }
+        }
+    }
+}
+
+async fn poll_management_discovery(
+    devices: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
+) {
+    let mut interval = tokio::time::interval(Duration::from_millis(100));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        interval.tick().await;
+        poll_management_discovery_once(&devices).await;
+    }
+}
+
 pub fn start_server(
     bridge_state: web::Data<BridgeState<'static>>,
     app_state: web::Data<AppState>,
@@ -160,6 +188,10 @@ pub fn start_server(
         app_state.clone(),
         bridge_state.clone(),
         rate_limiters,
+    ));
+
+    actix::spawn(poll_management_discovery(
+        bridge_state.device_management_map_with_id.clone(),
     ));
 
     actix::spawn(run_server(

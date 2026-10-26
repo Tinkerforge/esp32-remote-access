@@ -21,6 +21,7 @@ mod monitoring;
 
 use std::{
     collections::{HashMap, HashSet},
+    net::{IpAddr, SocketAddr},
     num::NonZeroUsize,
     sync::Arc,
     time::Duration,
@@ -261,16 +262,22 @@ async fn main() -> std::io::Result<()> {
     });
 
     #[cfg(debug_assertions)]
-    let port = "8081";
+    let port = 8081;
     #[cfg(not(debug_assertions))]
-    let port = "443";
+    let port = 443;
 
-    let addr = format!("0.0.0.0:{port}");
+    // The public listener family is independent of registered tunnel IPs and
+    // the IPv4 UDP endpoint used by existing ESP32 firmware.
+    let bind_ip: IpAddr = std::env::var("HTTP_BIND_IP")
+        .unwrap_or_else(|_| "0.0.0.0".into())
+        .parse()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+    let addr = SocketAddr::new(bind_ip, port);
     log::info!("running on {:?}", addr);
 
     // crash in case of TLS loading error
     let tls_config = load_rustls_config().unwrap();
-    server.bind_rustls_0_23(&addr, tls_config)?.run().await?;
+    server.bind_rustls_0_23(addr, tls_config)?.run().await?;
 
     Ok(())
 }
