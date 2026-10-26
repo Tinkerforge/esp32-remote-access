@@ -4,18 +4,18 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.103"
+anyhow = "1.0.104"
 base64 = "0.22.1"
-boringtun = "0.7.0"
+boringtun = "0.7.1"
 bs58 = "0.5.1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
 ipnetwork = { version = "0.21.1", features = ["serde"] }
-log = "0.4.29"
-rand = "0.10"
+log = "0.4.34"
+rand = "0.10.3"
 reqwest = { version = "0.13.1", features = ["json"] }
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
 simplelog = "0.12.2"
-tokio = { version = "1.49.0", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 
 [patch.crates-io]
 reqwest = { git = "https://github.com/passcod/reqwest.git", rev = "c67a8c5a779d4315c1d6e71eebe8eb185acdbd5a"  }

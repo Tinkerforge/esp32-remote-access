@@ -6,21 +6,21 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = "0.4.40"
+chrono = "0.4.45"
 
-diesel = { version = "2.3.13", features = ["postgres", "uuid", "network-address", "chrono"] }
+diesel = { version = "2.3.14", features = ["postgres", "uuid", "network-address", "chrono"] }
 diesel-async = { version = "0.9.2", default-features = false, features = ["postgres", "deadpool"] }
 diesel_migrations = { version = "2.3.2", features = ["postgres"] }
 dotenvy = "0.15.7"
 
 ipnetwork = "0.21.1"
-log = "0.4.27"
-serde = { version = "1.0.219", features = ["derive"] }
+log = "0.4.34"
+serde = { version = "1.0.229", features = ["derive"] }
 # `tokio` is required for `tokio::task::spawn_blocking` in `run_migrations`.
 # The `rt` feature enables `spawn_blocking`; nothing else is needed because
 # the migration work is fully synchronous inside the blocking thread.
-tokio = { version = "1", features = ["rt"] }
-uuid = { version = "1.16.0", features = ["v4"] }
+tokio = { version = "1.54.1", features = ["rt"] }
+uuid = { version = "1.29.0", features = ["v4"] }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+tokio = { version = "1.54.1", features = ["macros", "rt", "rt-multi-thread"] }
