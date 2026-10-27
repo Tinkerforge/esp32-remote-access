@@ -24,7 +24,7 @@ mod multiplex;
 pub mod packet;
 pub mod pcap_logger;
 mod peer_discovery;
-mod registry;
+pub(crate) mod registry;
 pub mod socket;
 
 use futures_util::lock::Mutex;

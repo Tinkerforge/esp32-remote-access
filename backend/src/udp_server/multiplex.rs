@@ -36,6 +36,7 @@ use ipnetwork::{IpNetwork, Ipv4Network};
 use rand_core::{OsRng, TryRngCore};
 
 use crate::{
+    firmware::supports_ipv6_tunnel,
     rate_limit::GlobalSearchRateLimiter,
     routes::{charger::user_is_allowed, send_chargelog_to_user::send_charge_log_to_user},
     udp_server::{
@@ -278,9 +279,20 @@ fn match_tunnel(
             _ => continue,
         };
 
-        // Discover random IPv6 management endpoints independently of old
-        // registration data. Registered service addresses are a legacy fallback.
-        let mut socket = ManagementSocket::new_preferred_ipv6(
+        // Older firmware goes straight to its registered IPv4 addresses without
+        // waiting for an IPv6 discovery timeout.
+        let constructor =
+            if supports_ipv6_tunnel(device.device_type.as_deref(), &device.firmware_version) {
+                ManagementSocket::new_preferred_ipv6
+            } else {
+                if !device.wg_server_ip.is_ipv4() || !device.wg_charger_ip.is_ipv4() {
+                    return Err(anyhow::anyhow!(
+                        "firmware does not support IPv6 management tunnels"
+                    ));
+                }
+                ManagementSocket::new
+            };
+        let mut socket = constructor(
             device.wg_server_ip,
             device.wg_charger_ip,
             addr,
@@ -757,9 +769,9 @@ mod tests {
             psk: BASE64_STANDARD.encode(psk),
             wg_server_ip: "10.0.0.1/24".parse().unwrap(),
             webinterface_port: 80,
-            firmware_version: String::new(),
+            firmware_version: "2.13.5+1234abcd".to_string(),
             last_state_change: None,
-            device_type: None,
+            device_type: Some("Tinkerforge-WARP3_Charger/2.13.5+1234abcd".to_string()),
             mtu: None,
             last_charge_log_upload_hash: vec![],
         };
@@ -805,6 +817,62 @@ mod tests {
             panic!("peer could not complete handshake");
         };
         assert!(socket.decrypt(keepalive).unwrap().is_empty());
+    }
+
+    #[actix_web::test]
+    async fn older_or_unknown_firmware_sends_ipv4_commands_without_discovery() {
+        use smoltcp::wire::{Ipv4Packet, UdpPacket};
+
+        for (version, device_type) in [
+            ("2.13.4", Some("Tinkerforge-WARP3_Charger/2.13.4")),
+            (
+                "2.13.5-beta.1",
+                Some("Tinkerforge-WARP3_Charger/2.13.5-beta.1"),
+            ),
+            ("", Some("Tinkerforge-WARP3_Charger")),
+            ("invalid", Some("Tinkerforge-WARP3_Charger")),
+            ("2.13.5", None),
+            ("99.0.0", Some("unknown")),
+        ] {
+            let (mut peer, mut charger, init) = peer_and_charger();
+            charger.firmware_version = version.to_owned();
+            charger.device_type = device_type.map(str::to_owned);
+            let local = charger.wg_server_ip.ip();
+            let remote = charger.wg_charger_ip.ip();
+            let udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+            let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+            udp.writable().await.unwrap();
+            let (_, mut socket, response) =
+                match_tunnel(vec![charger], client.local_addr().unwrap(), &init, udp).unwrap();
+            assert!(!socket.is_discovering_peer());
+            let mut output = [0; 2048];
+            let TunnResult::WriteToNetwork(keepalive) =
+                peer.decapsulate(None, &response, &mut output)
+            else {
+                panic!("peer could not complete handshake");
+            };
+            socket.decrypt(keepalive).unwrap();
+            socket.encrypt_and_send_slice(b"immediate IPv4 command");
+            let mut network = [0; 2048];
+            let packet = loop {
+                let size = tokio::time::timeout(Duration::from_secs(1), client.recv(&mut network))
+                    .await
+                    .unwrap()
+                    .unwrap();
+                match peer.decapsulate(None, &network[..size], &mut output) {
+                    TunnResult::Done => continue,
+                    TunnResult::WriteToTunnelV4(data, _) => break data.to_vec(),
+                    other => panic!("expected IPv4 without a discovery probe: {other:?}"),
+                }
+            };
+            let packet = Ipv4Packet::new_checked(&packet).unwrap();
+            assert_eq!(std::net::IpAddr::from(packet.src_addr()), local);
+            assert_eq!(std::net::IpAddr::from(packet.dst_addr()), remote);
+            assert_eq!(
+                UdpPacket::new_checked(packet.payload()).unwrap().payload(),
+                b"immediate IPv4 command"
+            );
+        }
     }
 
     #[actix_web::test]

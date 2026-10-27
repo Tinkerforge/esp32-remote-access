@@ -155,6 +155,12 @@ probes from a random service ULA, matching the current firmware. Its outer
 WireGuard UDP transport uses IPv4. It maintains management tunnels for load
 testing; it does not serve the device's HTTP interface or handle management commands.
 
+Management and browser tunnels only attempt IPv6 on these firmware versions
+or newer (the latest releases as of 2026-10-27): WARP 2.13.4, WARP2/3/4 and
+ELTAKO 2.13.5, WARP Energy Manager 2.9.5, and WARP Energy Manager 2.0 / Smart
+Energy Broker 1.8.5. Older firmware and unknown device models or versions use
+IPv4 directly, without an IPv6 discovery delay.
+
 Build
 -----
 

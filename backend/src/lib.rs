@@ -48,6 +48,7 @@ use udp_server::{
 
 pub mod branding;
 pub mod error;
+mod firmware;
 pub mod hasher;
 pub mod middleware;
 pub mod models;

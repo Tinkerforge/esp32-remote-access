@@ -331,6 +331,70 @@ pub async fn management(
         }
     };
 
+    let (fw_version, port, mtu) = match &data.data {
+        ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port, None),
+        ManagementDataVersion::V2(v) => (v.firmware_version.clone(), v.port, v.mtu),
+    };
+
+    let user_agent = req.headers().get("User-Agent");
+    let device_type = user_agent.and_then(|h| h.to_str().ok()).and_then(|ua| {
+        if ua == "ESP32 HTTP Client/1.0" {
+            None
+        } else {
+            Some(ua.to_string())
+        }
+    });
+
+    let ipv6_support_changed =
+        crate::firmware::supports_ipv6_tunnel(
+            device.device_type.as_deref(),
+            &device.firmware_version,
+        ) != crate::firmware::supports_ipv6_tunnel(device_type.as_deref(), &fw_version);
+
+    {
+        let mut conn = get_connection(&state).await?;
+        let result = if let Some(m) = mtu {
+            diesel::update(chargers::chargers)
+                .filter(chargers::id.eq(charger_id))
+                .set((
+                    chargers::firmware_version.eq(fw_version),
+                    chargers::webinterface_port.eq(port as i32),
+                    chargers::device_type.eq(device_type),
+                    chargers::mtu.eq(m as i32),
+                ))
+                .execute(&mut conn)
+                .await
+        } else {
+            diesel::update(chargers::chargers)
+                .filter(chargers::id.eq(charger_id))
+                .set((
+                    chargers::firmware_version.eq(fw_version),
+                    chargers::webinterface_port.eq(port as i32),
+                    chargers::device_type.eq(device_type),
+                ))
+                .execute(&mut conn)
+                .await
+        };
+
+        match result {
+            Ok(_) => {}
+            Err(_err) => {
+                log::error!("Error while updating charger: {_err}");
+                return Err(Error::InternalError.into());
+            }
+        }
+    }
+
+    if ipv6_support_changed {
+        // Reconnects must not retain the previous firmware's IPv6 policy.
+        crate::udp_server::registry::remove(
+            &bridge_state.device_management_map,
+            &bridge_state.device_management_map_with_id,
+            charger_id,
+        )
+        .await;
+    }
+
     let configured_users = update_configured_users(&state, charger_id, &data.data).await?;
 
     {
@@ -420,54 +484,6 @@ pub async fn management(
             // when the first UDP packet arrives.
             let mut lost_conns = bridge_state.lost_connections.lock().await;
             lost_conns.insert(charger_id, losing_conns);
-        }
-    }
-
-    let (fw_version, port, mtu) = match &data.data {
-        ManagementDataVersion::V1(v) => (v.firmware_version.clone(), v.port, None),
-        ManagementDataVersion::V2(v) => (v.firmware_version.clone(), v.port, v.mtu),
-    };
-
-    let user_agent = req.headers().get("User-Agent");
-    let device_type = user_agent.and_then(|h| h.to_str().ok()).and_then(|ua| {
-        if ua == "ESP32 HTTP Client/1.0" {
-            None
-        } else {
-            Some(ua.to_string())
-        }
-    });
-
-    {
-        let mut conn = get_connection(&state).await?;
-        let result = if let Some(m) = mtu {
-            diesel::update(chargers::chargers)
-                .filter(chargers::id.eq(charger_id))
-                .set((
-                    chargers::firmware_version.eq(fw_version),
-                    chargers::webinterface_port.eq(port as i32),
-                    chargers::device_type.eq(device_type),
-                    chargers::mtu.eq(m as i32),
-                ))
-                .execute(&mut conn)
-                .await
-        } else {
-            diesel::update(chargers::chargers)
-                .filter(chargers::id.eq(charger_id))
-                .set((
-                    chargers::firmware_version.eq(fw_version),
-                    chargers::webinterface_port.eq(port as i32),
-                    chargers::device_type.eq(device_type),
-                ))
-                .execute(&mut conn)
-                .await
-        };
-
-        match result {
-            Ok(_) => {}
-            Err(_err) => {
-                log::error!("Error while updating charger: {_err}");
-                return Err(Error::InternalError.into());
-            }
         }
     }
 
@@ -1193,7 +1209,7 @@ mod tests {
     /// This test asserts that step 2 leaves the map entry intact so the
     /// subsequent `fetch_chargers` keeps reporting `Connected`.
     #[actix::test]
-    async fn test_management_keeps_active_tunnel_alive() {
+    async fn test_management_keeps_active_tunnel_until_firmware_policy_changes() {
         use crate::{
             routes::charger::get_devices::{fetch_chargers, ChargerStatus},
             udp_server::socket::ManagementSocket,
@@ -1293,6 +1309,63 @@ mod tests {
             id_map.contains_key(&device_uuid),
             "management request must not remove the active tunnel entry",
         );
+        drop(id_map);
+
+        // Crossing the cutoff invalidates both indices; a newer supported
+        // version keeps the active tunnel. Cover an upgrade and a downgrade.
+        for (version, keep_tunnel) in [("2.13.5", false), ("2.14.0", true), ("2.13.4", false)] {
+            let socket = Arc::new(Mutex::new(
+                ManagementSocket::new_for_test(device_uuid, remote_addr).await,
+            ));
+            bridge_state
+                .device_management_map
+                .lock()
+                .await
+                .insert(remote_addr, socket.clone());
+            bridge_state
+                .device_management_map_with_id
+                .lock()
+                .await
+                .insert(device_uuid, socket);
+            let req = test::TestRequest::put()
+                .uri("/management")
+                .append_header(("X-Forwarded-For", "123.123.123.123"))
+                .append_header(("User-Agent", format!("Tinkerforge-WARP3_Charger/{version}")))
+                .set_json(ManagementSchema {
+                    id: None,
+                    password: None,
+                    data: ManagementDataVersion::V2(ManagementDataVersion2 {
+                        id: device.uuid.clone(),
+                        password: device.password.clone(),
+                        port: 0,
+                        firmware_version: version.to_owned(),
+                        mtu: None,
+                        configured_users: vec![ConfiguredUser {
+                            email: None,
+                            user_id: Some(user_id.to_string()),
+                            name: Some(String::new()),
+                        }],
+                    }),
+                })
+                .to_request();
+            let _: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
+            assert_eq!(
+                bridge_state
+                    .device_management_map
+                    .lock()
+                    .await
+                    .contains_key(&remote_addr),
+                keep_tunnel
+            );
+            assert_eq!(
+                bridge_state
+                    .device_management_map_with_id
+                    .lock()
+                    .await
+                    .contains_key(&device_uuid),
+                keep_tunnel
+            );
+        }
     }
 
     /// Regression test for the bug where lost user connections were not

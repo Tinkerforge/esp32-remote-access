@@ -6,6 +6,15 @@ type Socket<'a> = Arc<Mutex<ManagementSocket<'a>>>;
 type AddressMap<'a> = Mutex<HashMap<SocketAddr, Socket<'a>>>;
 type IdMap<'a> = Mutex<HashMap<uuid::Uuid, Socket<'a>>>;
 
+/// Forget a cached tunnel when its firmware crosses the IPv6 version cutoff.
+pub(crate) async fn remove<'a>(by_addr: &AddressMap<'a>, by_id: &IdMap<'a>, id: uuid::Uuid) {
+    let mut by_addr = by_addr.lock().await;
+    let mut by_id = by_id.lock().await;
+    if let Some(socket) = by_id.remove(&id) {
+        by_addr.retain(|_, entry| !Arc::ptr_eq(entry, &socket));
+    }
+}
+
 /// Writers always acquire address -> ID. Socket locks are only tried while
 /// holding these maps, never awaited. Updating both indices has no yield point.
 pub(super) async fn publish<'a>(
@@ -82,6 +91,31 @@ pub(super) async fn prune<'a>(by_addr: &AddressMap<'a>, by_id: &IdMap<'a>) -> Ve
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[actix_web::test]
+    async fn firmware_policy_change_removes_only_the_devices_cached_tunnel() {
+        let addresses = Mutex::new(HashMap::new());
+        let ids = Mutex::new(HashMap::new());
+        let id = uuid::Uuid::new_v4();
+        let other_id = uuid::Uuid::new_v4();
+        let addr = "127.0.0.1:1000".parse().unwrap();
+        let other_addr = "127.0.0.1:2000".parse().unwrap();
+        let socket = ManagementSocket::new_for_test(id, addr).await;
+        let current = publish(&addresses, &ids, id, addr, socket, 1)
+            .await
+            .unwrap();
+        let other = ManagementSocket::new_for_test(other_id, other_addr).await;
+        publish(&addresses, &ids, other_id, other_addr, other, 2)
+            .await
+            .unwrap();
+        // Removing an index must not await a busy socket.
+        let _busy = current.lock().await;
+        remove(&addresses, &ids, id).await;
+        assert!(!addresses.lock().await.contains_key(&addr));
+        assert!(!ids.lock().await.contains_key(&id));
+        assert!(addresses.lock().await.contains_key(&other_addr));
+        assert!(ids.lock().await.contains_key(&other_id));
+    }
 
     #[actix_web::test]
     async fn older_search_finishing_last_cannot_replace_newer_tunnel() {

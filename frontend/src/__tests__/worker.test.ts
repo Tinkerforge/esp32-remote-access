@@ -37,7 +37,7 @@ type MessageHandler = (event: { data: unknown }) => Promise<void>;
 let handlers: Map<string, MessageHandler>;
 let postMessage: ReturnType<typeof vi.fn>;
 const keys = { id: "key-id", charger_pub: "pub", web_private: [], psk: [],
-    web_address: "10.123.1.3/32", charger_address: "10.123.1.2/32" };
+    web_address: "10.123.1.3/32", charger_address: "10.123.1.2/32", ipv6_supported: true };
 const setup: SetupMessage = { chargerID: "charger", port: 80, mtu: 1420, secret: new Uint8Array(32), debugMode: false };
 const message = async (data: unknown) => handlers.get("message")!({ data });
 const configure = () => message({ type: MessageType.Setup, data: setup });
@@ -55,6 +55,37 @@ afterEach(async () => {
 });
 
 describe("worker tunnel lifecycle", () => {
+    it.each([false, undefined])("connects directly over IPv4 when IPv6 support is %s", async (supported) => {
+        vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...keys, ipv6_supported: supported })));
+        await configure();
+        expect(mocks.clients[0].args.slice(4, 6)).toEqual([keys.web_address, keys.charger_address]);
+        expect(mocks.clients[0].args[10]).toBe(false);
+        await message("connect");
+        expect(mocks.clients[0].start_inner_ws).toHaveBeenCalledOnce();
+    });
+
+    it("uses a discovery token's IPv4 fallback directly after a firmware downgrade", async () => {
+        const fallback = { web_address: "10.123.1.3/24", charger_address: "10.123.1.2/32" };
+        vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...keys,
+            web_address: "fd00::3/128", charger_address: "ff02::1/128",
+            ipv6_supported: false, ipv4_fallback: fallback,
+        })));
+        await configure();
+        expect(mocks.clients[0].args.slice(4, 6)).toEqual([fallback.web_address, fallback.charger_address]);
+        expect(mocks.clients[0].args[10]).toBe(false);
+    });
+
+    it.each(["ff02::1/128", "fd00::2/128"])(
+        "does not attempt an IPv6 tunnel to %s when firmware support is unknown", async (peer) => {
+            vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...keys,
+                web_address: "fd00::3/128", charger_address: peer, ipv6_supported: undefined,
+            })));
+            await configure();
+            expect(mocks.clients).toHaveLength(0);
+            expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: MessageType.Error }));
+        },
+    );
+
     it.each([
         ["10.123.1.3/32", "10.123.1.2/32"],
         ["fd00::3/64", "fd00::2/128"],
