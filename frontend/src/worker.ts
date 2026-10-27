@@ -268,13 +268,22 @@ async function start_connection(setup_data: SetupMessage, deadline = Date.now() 
     }
     if (generation !== connectionGeneration) return;
     const decrypted_keys = decrypt_keys(keys, setup_data.secret);
-    // Probe the authenticated user tunnel itself. Legacy registrations retain
-    // their IPv4 pair as fallback; the public/management family is irrelevant.
-    const peerAddress = keys.charger_address.split("/")[0];
+    // Only firmware at the IPv6 cutoff or newer may probe or use IPv6. A device
+    // downgraded after registration can use its advertised legacy IPv4 pair.
+    let localAddress = keys.web_address;
+    let chargerAddress = keys.charger_address;
+    if (!keys.ipv6_supported && chargerAddress.includes(":")) {
+        if (!keys.ipv4_fallback) {
+            reportTimeout();
+            return;
+        }
+        localAddress = keys.ipv4_fallback.web_address;
+        chargerAddress = keys.ipv4_fallback.charger_address;
+    }
+    const peerAddress = chargerAddress.split("/")[0];
     const normalizedPeer = peerAddress.includes(":") ? new URL(`http://[${peerAddress}]/`).hostname : "";
     const discoveryToken = normalizedPeer === "[ff02::1]";
-    const discoverPeer = discoveryToken || !peerAddress.includes(":");
-    let localAddress = keys.web_address;
+    const discoverPeer = keys.ipv6_supported === true && (discoveryToken || !peerAddress.includes(":"));
     if (discoveryToken) {
         const bytes = crypto.getRandomValues(new Uint8Array(16));
         bytes[0] = 0xfd;
@@ -287,7 +296,7 @@ async function start_connection(setup_data: SetupMessage, deadline = Date.now() 
         decrypted_keys.psk,
         tunnel_url + keys.id,
         localAddress,
-        keys.charger_address,
+        chargerAddress,
         setup_data.port,
         setup_data.mtu,
         () => {

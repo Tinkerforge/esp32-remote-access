@@ -29,6 +29,7 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::{
     error::Error,
+    firmware::supports_ipv6_tunnel,
     routes::user::get_user,
     utils::{get_connection, parse_uuid},
     AppState,
@@ -47,6 +48,9 @@ pub struct GetWgKeysResponseSchema {
     psk: Vec<u8>,
     #[schema(value_type = SchemaType::String)]
     web_address: IpNetwork,
+    /// Whether this device's model and firmware allow IPv6 tunnel attempts.
+    #[serde(default)]
+    ipv6_supported: bool,
     /// Legacy ESP32 address pair for an explicitly advertised discovery token.
     /// This is session fallback metadata; registered addresses are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -134,11 +138,17 @@ pub async fn get_key(
     }
 
     let mut conn = get_connection(&state).await?;
-    let key: Option<WgKey> = match WgKey::belonging_to(&user)
+    use db_connector::schema::chargers;
+    let key = match WgKey::belonging_to(&user)
         .filter(charger_id.eq(&cid))
         .filter(id.ne_all(keys_in_use_count))
-        .select(WgKey::as_select())
-        .get_result::<WgKey>(&mut conn)
+        .inner_join(chargers::table)
+        .select((
+            WgKey::as_select(),
+            chargers::firmware_version,
+            chargers::device_type,
+        ))
+        .get_result::<(WgKey, String, Option<String>)>(&mut conn)
         .await
     {
         Ok(v) => Some(v),
@@ -146,7 +156,7 @@ pub async fn get_key(
         Err(_err) => return Err(Error::InternalError.into()),
     };
 
-    if let Some(key) = key {
+    if let Some((key, firmware_version, device_type)) = key {
         let ipv4_fallback = ipv4_fallback(key.charger_address, key.connection_no);
         let key = GetWgKeysResponseSchema {
             id: key.id.to_string(),
@@ -156,6 +166,7 @@ pub async fn get_key(
             web_private: key.web_private,
             psk: key.psk,
             web_address: key.web_address,
+            ipv6_supported: supports_ipv6_tunnel(device_type.as_deref(), &firmware_version),
             ipv4_fallback,
         };
         Ok(HttpResponse::Ok().json(key))
@@ -212,6 +223,70 @@ mod tests {
 
         let resp: GetWgKeysResponseSchema = test::call_and_read_body_json(&app, req).await;
         assert_eq!(resp.charger_id, device.uuid);
+    }
+
+    #[actix_web::test]
+    async fn key_response_uses_current_firmware_metadata() {
+        use db_connector::schema::chargers;
+
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
+        let device = user.add_random_charger().await;
+        let device_id: uuid::Uuid = device.uuid.parse().unwrap();
+        let state = crate::tests::create_test_state(None);
+        let app = test::init_service(
+            App::new()
+                .configure(configure)
+                .app_data(state.clone())
+                .wrap(JwtMiddleware)
+                .service(get_key),
+        )
+        .await;
+        let mut original_key = None;
+        // Upgrade/downgrade must change session policy without rotating keys.
+        for (version, device_type, expected) in [
+            ("2.13.4", Some("Tinkerforge-WARP3_Charger/2.13.4"), false),
+            (
+                "2.13.5+1234abcd",
+                Some("Tinkerforge-WARP3_Charger/2.13.5+1234abcd"),
+                true,
+            ),
+            ("2.14.0", Some("Tinkerforge-WARP3_Charger/2.14.0"), true),
+            ("2.13.4", Some("Tinkerforge-WARP3_Charger/2.13.4"), false),
+            ("invalid", Some("Tinkerforge-WARP3_Charger/invalid"), false),
+            ("2.14.0", None, false),
+        ] {
+            {
+                let mut conn = get_connection(&state).await.unwrap();
+                diesel::update(chargers::table.find(device_id))
+                    .set((
+                        chargers::firmware_version.eq(version),
+                        chargers::device_type.eq(device_type),
+                    ))
+                    .execute(&mut conn)
+                    .await
+                    .unwrap();
+            }
+            let req = test::TestRequest::get()
+                .uri(&format!("/get_key?cid={device_id}"))
+                .cookie(Cookie::new("access_token", user.get_access_token()))
+                .to_request();
+            let response: GetWgKeysResponseSchema = test::call_and_read_body_json(&app, req).await;
+            assert_eq!(response.ipv6_supported, expected, "{version}");
+            let key = (
+                response.id,
+                response.charger_address,
+                response.web_address,
+                response.charger_pub,
+                response.web_private,
+                response.psk,
+            );
+            if let Some(original) = &original_key {
+                assert_eq!(&key, original);
+            } else {
+                original_key = Some(key);
+            }
+        }
     }
 
     #[actix_web::test]

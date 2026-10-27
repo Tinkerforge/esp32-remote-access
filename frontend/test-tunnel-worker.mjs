@@ -18,17 +18,21 @@ const publicKey = sodium.crypto_scalarmult_base(secret);
 /** @param {string} text */
 const seal = text => Array.from(sodium.crypto_box_seal(new TextEncoder().encode(text), publicKey));
 const baseKeys = {
+    ipv6_supported: true,
     charger_pub: sodium.to_base64(sodium.crypto_scalarmult_base(new Uint8Array(32).fill(2)), sodium.base64_variants.ORIGINAL),
     web_private: seal(sodium.to_base64(new Uint8Array(32).fill(1), sodium.base64_variants.ORIGINAL)),
     psk: seal(sodium.to_base64(new Uint8Array(32).fill(3), sodium.base64_variants.ORIGINAL)),
 };
-/** @type {Record<string, {web_address: string, charger_address: string, ipv4_fallback?: {web_address: string, charger_address: string}}>} */
+/** @type {Record<string, {web_address: string, charger_address: string, ipv6_supported?: boolean, ipv4_fallback?: {web_address: string, charger_address: string}}>} */
 const profiles = {
     v4: { web_address: "10.123.1.3/24", charger_address: "10.123.1.2/32" },
     v6: { web_address: "fd00::3/64", charger_address: "fd00::2/128" },
     "v6-discovery": { web_address: "fd00::3/128", charger_address: "ff02::1/128" },
     auto: { web_address: "10.123.1.3/24", charger_address: "10.123.1.2/32" },
     "token-fallback": { web_address: "fd00::3/128", charger_address: "ff02::1/128",
+        ipv4_fallback: { web_address: "10.123.1.3/24", charger_address: "10.123.1.2/32" } },
+    legacy: { web_address: "10.123.1.3/24", charger_address: "10.123.1.2/32", ipv6_supported: false },
+    "legacy-token": { web_address: "fd00::3/128", charger_address: "ff02::1/128", ipv6_supported: false,
         ipv4_fallback: { web_address: "10.123.1.3/24", charger_address: "10.123.1.2/32" } },
 };
 let autoPeer = "v4";
@@ -57,7 +61,7 @@ server.on("connection", socket => {
 server.on("upgrade", (req, socket, head) => {
     const id = new URL(req.url ?? "/", "http://localhost").searchParams.get("key_id");
     if (!id || !profiles[id]) { socket.destroy(); return; }
-    const target = id === "auto" || id === "token-fallback" ? autoPeer : id;
+    const target = id.startsWith("legacy") ? "v4" : id === "auto" || id === "token-fallback" ? autoPeer : id;
     const peer = connect(18081, "::1", () => {
         peer.write(`GET /${target} HTTP/1.1\r\n` + req.rawHeaders.reduce((s, h, i) =>
             s + (i % 2 === 0 ? `${h}: ` : `${h}\r\n`), "") + "\r\n");
@@ -87,6 +91,7 @@ try {
         // Multicast discovery metadata supports IPv6 and legacy IPv4 fallback.
         ["[::1]", "token-fallback", "v6-discovery"],
         ["[::1]", "token-fallback", "v4"],
+        ["127.0.0.1", "legacy", "v4"], ["[::1]", "legacy-token", "v4"],
     ]) {
         autoPeer = target;
         const expectIpv6 = target.startsWith("v6");
@@ -173,8 +178,12 @@ try {
         assert.ok(tcpPairs.length > 0, "Capture must contain inner TCP traffic");
         assert.ok(httpRequests > 0 && wsRequests > 0, "Both HTTP and inner WebSocket must use TCP");
         if (profile !== "v6") {
-            assert.ok(discoverySource?.startsWith("fd"));
-            assert.notEqual(discoverySource, previousDiscoverySource);
+            if (profile.startsWith("legacy")) {
+                assert.equal(discoverySource, undefined, "Older firmware must not receive IPv6 discovery probes");
+            } else {
+                assert.ok(discoverySource?.startsWith("fd"));
+                assert.notEqual(discoverySource, previousDiscoverySource);
+            }
             if (expectIpv6) assert.ok(discoveryPeer?.startsWith("fd"));
             for (const [source, destination] of tcpPairs) {
                 const local = expectIpv6 ? discoverySource : "0a7b0103";
