@@ -62,8 +62,8 @@ pub struct Ipv4Fallback {
 }
 
 fn ipv4_fallback(peer: IpNetwork, connection_no: i32) -> Option<Ipv4Fallback> {
-    // Multicast metadata advertises discovery; recognize the previous token
-    // for existing registrations, too. Concrete IPv6 services have no fallback.
+    // Only the all-nodes discovery token gets a legacy IPv4 fallback.
+    // Concrete IPv6 services have no fallback.
     if peer.ip() != "ff02::1".parse::<std::net::IpAddr>().unwrap() {
         return None;
     }
@@ -179,9 +179,10 @@ mod tests {
     async fn discovery_token_has_a_slot_specific_legacy_profile() {
         for (peer, slot, expected) in [
             ("ff02::1/128", 1, Some(("10.123.1.3/24", "10.123.1.2/32"))),
-            ("fe80::1/128", 1, Some(("10.123.1.3/24", "10.123.1.2/32"))),
-            ("fe80:0:0:0:0:0:0:1/64", 255, Some(("10.123.255.3/24", "10.123.255.2/32"))),
-            ("fe80::1", -1, None), ("fe80::1", 256, None),
+            ("ff02::1/128", 0, Some(("10.123.0.3/24", "10.123.0.2/32"))),
+            ("ff02:0:0:0:0:0:0:1/64", 255, Some(("10.123.255.3/24", "10.123.255.2/32"))),
+            ("ff02::1", -1, None), ("ff02::1", 256, None),
+            ("fe80::1/128", 1, None), ("fe80:0:0:0:0:0:0:1/64", 255, None),
             ("10.123.1.2/24", 1, None), ("fd00::2/128", 1, None),
         ] {
             let profile = ipv4_fallback(peer.parse().unwrap(), slot);
@@ -269,7 +270,7 @@ mod tests {
                 "10.123.1.2/32",
             ),
             ("fd01::2/64", "fd01::3/128", "fd00::3/64", "fd00::2/128"),
-            ("fd01::2/64", "fd01::3/128", "fd00::3/128", "fe80::1/128"),
+            ("fd01::2/64", "fd01::3/128", "fd00::3/128", "ff02::1/128"),
         ] {
             // Destruction order ensures the owner removes the device first.
             let (mut invited, _) = TestUser::random().await;

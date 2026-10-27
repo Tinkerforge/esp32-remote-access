@@ -58,6 +58,9 @@ describe("worker tunnel lifecycle", () => {
     it.each([
         ["10.123.1.3/32", "10.123.1.2/32"],
         ["fd00::3/64", "fd00::2/128"],
+        ["fd00::3/128", "fe80::1"],
+        ["fd00::3/128", "fe80::1/128"],
+        ["fd00::3/128", "FE80:0:0:0:0:0:0:1/128"],
     ])("passes registered addresses through unchanged: %s", async (local, peer) => {
         vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...keys, web_address: local, charger_address: peer })));
         await configure();
@@ -68,7 +71,7 @@ describe("worker tunnel lifecycle", () => {
         expect(mocks.clients[0].start_inner_ws).toHaveBeenCalledOnce();
     });
 
-    it.each(["ff02::1", "ff02::1/128", "FF02:0:0:0:0:0:0:1/128", "fe80::1", "fe80::1/128", "FE80:0:0:0:0:0:0:1/128"])(
+    it.each(["ff02::1", "ff02::1/128", "FF02:0:0:0:0:0:0:1/128"])(
         "uses IPv6 discovery and a fresh session address for %s", async (peer) => {
             vi.mocked(fetch).mockImplementation(async () => new Response(JSON.stringify({
                 ...keys, web_address: "fd00::3/128", charger_address: peer,
@@ -96,7 +99,7 @@ describe("worker tunnel lifecycle", () => {
     it("passes an advertised IPv4 fallback into token discovery", async () => {
         const fallback = { web_address: "10.123.1.3/24", charger_address: "10.123.1.2/32" };
         vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...keys,
-            web_address: "fd00::3/128", charger_address: "fe80::1/128", ipv4_fallback: fallback,
+            web_address: "fd00::3/128", charger_address: "ff02::1/128", ipv4_fallback: fallback,
         })));
         await configure();
         expect(mocks.clients[0].args.slice(10)).toEqual([true, fallback.web_address, fallback.charger_address]);
