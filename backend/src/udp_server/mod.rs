@@ -44,9 +44,8 @@ use actix_web::web;
 use ipnetwork::IpNetwork;
 use packet::ManagementResponseV2;
 
-/// Since boringtun doesnt reset the internal ratelimiter for us we need to do it manually.
-/// We can do this with a very low frequency since the management connection
-/// is always one to one and the esps keepalive is two minutes.
+/// Reset BoringTun's shared rate limiters and prune expired management sessions
+/// and discovery entries.
 async fn start_rate_limiters_reset_thread(
     device_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket<'static>>>>>>,
     device_map_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
@@ -145,30 +144,28 @@ async fn start_rate_limiters_reset_thread(
     }
 }
 
-/// Poll only sessions still selecting their inner peer address. This timer is
-/// independent of incoming UDP and application commands, so retries and the
-/// legacy fallback progress even when the peer stays silent.
-async fn poll_management_discovery_once(
+/// Drive keepalives for every session, and discovery only while selecting the
+/// inner peer address. Idle connections retain their authenticated peer instead
+/// of expiring and repeating discovery on the next device packet.
+async fn maintain_management_connections_once(
     devices: &Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
 ) {
     let sockets: Vec<_> = devices.lock().await.values().cloned().collect();
     for socket in sockets {
         if let Some(mut socket) = socket.try_lock() {
-            if socket.is_discovering_peer() {
-                socket.poll();
-            }
+            socket.maintain();
         }
     }
 }
 
-async fn poll_management_discovery(
+async fn maintain_management_connections(
     devices: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
 ) {
     let mut interval = tokio::time::interval(Duration::from_millis(100));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         interval.tick().await;
-        poll_management_discovery_once(&devices).await;
+        maintain_management_connections_once(&devices).await;
     }
 }
 
@@ -190,7 +187,7 @@ pub fn start_server(
         rate_limiters,
     ));
 
-    actix::spawn(poll_management_discovery(
+    actix::spawn(maintain_management_connections(
         bridge_state.device_management_map_with_id.clone(),
     ));
 

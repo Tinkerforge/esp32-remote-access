@@ -324,7 +324,7 @@ impl<'a> ManagementSocket<'a> {
             static_private,
             peer_static_public,
             None,
-            Some(5),
+            Some(15),
             0,
             Some(rate_limiter.clone()),
         );
@@ -354,6 +354,32 @@ impl<'a> ManagementSocket<'a> {
 
     pub fn poll(&mut self) {
         self.poll_at(Instant::now());
+    }
+
+    /// Drive WireGuard keepalives and handshake retries even when discovery
+    /// has finished and no management commands are being sent.
+    pub(super) fn maintain(&mut self) {
+        let mut dst = [0u8; 148];
+        match self.device.update_timers(&mut dst) {
+            TunnResult::WriteToNetwork(data) => {
+                if let Err(error) = self.send_slice(data) {
+                    log::warn!("Management tunnel {}: {error}", self.charger_id);
+                }
+            }
+            TunnResult::Done => {}
+            TunnResult::Err(error) => {
+                log::debug!("Management tunnel {} timer: {error:?}", self.charger_id);
+            }
+            TunnResult::WriteToTunnelV4(_, _) | TunnResult::WriteToTunnelV6(_, _) => {
+                log::error!(
+                    "Management tunnel {} timer produced an IP packet",
+                    self.charger_id
+                );
+            }
+        }
+        if self.is_discovering_peer() {
+            self.poll();
+        }
     }
 
     fn poll_at(&mut self, now: Instant) {
@@ -740,7 +766,7 @@ mod tests {
             server_key,
             charger_pub,
             Some([33; 32]),
-            None,
+            Some(15),
             1,
             Some(server_limiter.clone()),
         );
@@ -1142,7 +1168,7 @@ mod tests {
         let id = server.id();
         let server = Arc::new(Mutex::new(server));
         let sockets = Arc::new(Mutex::new(HashMap::from([(id, server.clone())])));
-        super::super::poll_management_discovery_once(&sockets).await;
+        super::super::maintain_management_connections_once(&sockets).await;
         answer_discovery_probe(&mut charger).await;
         assert!(deliver_one(&mut *server.lock().await).await.is_empty());
         assert!(!server.lock().await.is_discovering_peer());
@@ -1150,6 +1176,117 @@ mod tests {
             server.lock().await.peer_ip,
             IpAddr::V6(MANAGEMENT_CHARGER_ADDRESS)
         );
+    }
+
+    #[actix_web::test]
+    async fn maintenance_keeps_idle_peers_registered_without_repeating_discovery() {
+        use std::collections::HashMap;
+
+        let addresses = Arc::new(Mutex::new(HashMap::new()));
+        let sockets = Arc::new(Mutex::new(HashMap::new()));
+        let mut peers = Vec::new();
+        for (local, peer, registered) in [
+            ("10.123.123.3", "10.123.123.2", None),
+            (
+                "fd00:123:ffff::3/128",
+                "fd00:123:ffff::2/128",
+                Some(("10.123.123.3", "10.123.123.2")),
+            ),
+        ] {
+            let (mut server, mut charger) =
+                management_pair_with_registration(local, peer, registered).await;
+            if server.is_discovering_peer() {
+                server.poll();
+                answer_discovery_probe(&mut charger).await;
+                deliver_one(&mut server).await;
+            }
+            let selected = (server.local_ip, server.peer_ip);
+            let server = super::super::registry::publish(
+                &addresses,
+                &sockets,
+                server.id(),
+                server.remote_addr,
+                server,
+                1,
+            )
+            .await
+            .unwrap();
+            peers.push((server, charger, selected));
+        }
+
+        // A busy connection must not block maintenance of other peers.
+        let busy = peers[0].0.lock().await;
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            super::super::maintain_management_connections_once(&sockets),
+        )
+        .await
+        .expect("maintenance waited for a busy socket");
+        drop(busy);
+
+        let mut network = [0; 2048];
+        for (_, charger, _) in &peers {
+            assert_eq!(
+                charger
+                    .udp_socket
+                    .try_recv(&mut network)
+                    .unwrap_err()
+                    .kind(),
+                std::io::ErrorKind::WouldBlock,
+                "keepalive was sent before its interval elapsed"
+            );
+        }
+        tokio::time::sleep(Duration::from_secs(15)).await;
+        for (server, _, _) in &peers {
+            server.lock().await.expire_for_test();
+        }
+        super::super::maintain_management_connections_once(&sockets).await;
+
+        let mut output = [0; 2048];
+        for (server, charger, selected) in &mut peers {
+            assert!(server.lock().await.last_seen() >= Duration::from_secs(60));
+            let size = tokio::time::timeout(
+                Duration::from_secs(1),
+                charger.udp_socket.recv(&mut network),
+            )
+            .await
+            .expect("idle peer did not receive a server keepalive")
+            .unwrap();
+            assert_eq!(size, 32);
+            assert!(matches!(
+                charger.device.decapsulate(&network[..size], &mut output),
+                TunnResult::Done
+            ));
+
+            // Only an authenticated response refreshes liveness.
+            let TunnResult::WriteToNetwork(reply) = charger.device.encapsulate(&[], &mut output)
+            else {
+                panic!("peer could not send a keepalive response");
+            };
+            charger.send_slice(reply).unwrap();
+            let mut server = server.lock().await;
+            assert!(deliver_one(&mut server).await.is_empty());
+            assert!(server.last_seen() < Duration::from_secs(1));
+            assert!(!server.is_discovering_peer());
+            assert_eq!((server.local_ip, server.peer_ip), *selected);
+        }
+        assert!(super::super::registry::prune(&addresses, &sockets)
+            .await
+            .is_empty());
+        assert_eq!(sockets.lock().await.len(), peers.len());
+        assert_eq!(addresses.lock().await.len(), peers.len());
+
+        for (server, _, _) in &peers {
+            server.lock().await.expire_for_test();
+        }
+        assert_eq!(
+            super::super::registry::prune(&addresses, &sockets)
+                .await
+                .len(),
+            peers.len()
+        );
+        assert!(sockets.lock().await.is_empty());
+        assert!(addresses.lock().await.is_empty());
     }
 
     struct WakeCounter(AtomicUsize);

@@ -268,7 +268,7 @@ fn match_tunnel(
             static_private,
             peer_static_public,
             Some(psk),
-            Some(5),
+            Some(15),
             OsRng.try_next_u32()?,
             Some(rate_limiter.clone()),
         );

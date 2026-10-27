@@ -30,7 +30,7 @@ http = "1.5.0"
 tungstenite = "0.28"
 
 # Instant::now from smoltcp, enabled by the std-feature must not be used since it will crash in wasm32
-smoltcp = { version = "0.12.0", default-features = false, features = ["proto-ipv4", "medium-ip", "socket-tcp", "std"] }
+smoltcp = { version = "0.12.0", default-features = false, features = ["proto-ipv4", "proto-ipv6", "medium-ip", "socket-tcp", "socket-icmp", "std"] }
 web-sys = { version = "0.3.106", features = ["WebSocket", "Window", "FileReader", "Document", "Element", "HtmlElement", "Performance", "MessageEvent", "CustomEventInit", "CustomEvent", "Headers", "ResponseInit", "Response", "WorkerGlobalScope", "Request", "AddEventListenerOptions", "Crypto"] }
 
 

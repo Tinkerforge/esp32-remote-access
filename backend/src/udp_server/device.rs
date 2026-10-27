@@ -65,6 +65,10 @@ impl ManagementDevice {
     pub fn encapsulate<'a>(&mut self, src: &[u8], dst: &'a mut [u8]) -> TunnResult<'a> {
         self.tunn.encapsulate(src, dst)
     }
+
+    pub fn update_timers<'a>(&mut self, dst: &'a mut [u8]) -> TunnResult<'a> {
+        self.tunn.update_timers(dst)
+    }
 }
 
 impl phy::Device for ManagementDevice {
