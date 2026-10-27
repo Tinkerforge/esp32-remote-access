@@ -1,4 +1,5 @@
 use std::{
+    net::Ipv6Addr,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -22,6 +23,11 @@ use tokio::{
     sync::{Barrier, broadcast},
     task,
 };
+
+mod ipv6;
+
+#[cfg(test)]
+mod tests;
 
 const HOST: &str = "tf-freddy:8081";
 const WG_PORT: u16 = 51820;
@@ -110,8 +116,8 @@ fn generate_random_keys() -> Keys {
         web_private: (0..32).map(|_| rand::random::<u8>()).collect(),
         psk: (0..32).map(|_| rand::random::<u8>()).collect(),
         charger_public: STANDARD.encode((0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>()),
-        web_address: "10.0.0.1/24".parse().unwrap(),
-        charger_address: "10.0.0.2/24".parse().unwrap(),
+        web_address: IpNetwork::new(ipv6::random_address().into(), 128).unwrap(),
+        charger_address: IpNetwork::new(ipv6::ALL_NODES_ADDRESS.into(), 128).unwrap(),
         connection_no: rand::random::<u16>(),
     }
 }
@@ -129,8 +135,8 @@ fn generate_random_add_charger_schema(
     let charger = ChargerSchema {
         uid: uid.clone(),
         charger_pub: pub_key,
-        wg_charger_ip: "10.1.0.1/24".parse().unwrap(),
-        wg_server_ip: "10.1.0.2/24".parse().unwrap(),
+        wg_charger_ip: IpNetwork::new(ipv6::ALL_NODES_ADDRESS.into(), 128).unwrap(),
+        wg_server_ip: IpNetwork::new(ipv6::random_address().into(), 128).unwrap(),
         psk: STANDARD.encode(psk),
     };
 
@@ -204,6 +210,7 @@ struct EmuCharger {
     barrier: Arc<Barrier>,
     socket: UdpSocket,
     tun: Tunn,
+    management_address: Ipv6Addr,
     rate_limiter: Arc<boringtun::noise::rate_limiter::RateLimiter>,
     cleanup: Arc<AtomicBool>,
 }
@@ -265,6 +272,7 @@ impl EmuCharger {
             barrier,
             socket,
             tun,
+            management_address: ipv6::random_address(),
             rate_limiter,
             cleanup,
         })
@@ -330,6 +338,38 @@ impl EmuCharger {
         Ok(body)
     }
 
+    async fn handle_management_packet(
+        &mut self,
+        mut packet: &[u8],
+        output: &mut [u8],
+    ) -> anyhow::Result<()> {
+        loop {
+            match self.tun.decapsulate(None, packet, output) {
+                TunnResult::WriteToNetwork(data) => {
+                    self.socket.send(data).await?;
+                    // BoringTun may have queued packets to flush after a handshake.
+                    packet = &[];
+                }
+                TunnResult::WriteToTunnelV6(data, _) => {
+                    if let Some(reply) =
+                        ipv6::management_discovery_reply(data, self.management_address)
+                    {
+                        match self.tun.encapsulate(&reply, output) {
+                            TunnResult::WriteToNetwork(data) => {
+                                self.socket.send(data).await?;
+                            }
+                            TunnResult::Done => {}
+                            other => anyhow::bail!("Failed to encrypt discovery reply: {other:?}"),
+                        }
+                    }
+                    return Ok(());
+                }
+                TunnResult::Done | TunnResult::WriteToTunnelV4(_, _) => return Ok(()),
+                TunnResult::Err(error) => anyhow::bail!("Invalid WireGuard packet: {error:?}"),
+            }
+        }
+    }
+
     /// Keep the WireGuard tunnel alive until the peer has been silent for two
     /// minutes. `Tunn::update_timers` emits the configured persistent
     /// keepalive packets, so it must be called even while the socket is idle.
@@ -375,21 +415,13 @@ impl EmuCharger {
                 }
                 received = self.socket.recv(&mut recv_buf) => {
                     match received {
-                        Ok(n) => match self.tun.decapsulate(None, &recv_buf[..n], &mut send_buf) {
-                            TunnResult::WriteToNetwork(data) => {
-                                last_response = Instant::now();
-                                if let Err(e) = self.socket.send(data).await {
-                                    warn!("Failed to send WireGuard response: {}", e);
-                                }
-                            }
-                            TunnResult::Done
-                            | TunnResult::WriteToTunnelV4(_, _)
-                            | TunnResult::WriteToTunnelV6(_, _) => {
+                        Ok(n) => match self.handle_management_packet(&recv_buf[..n], &mut send_buf).await {
+                            Ok(()) => {
                                 // A packet that BoringTun accepted is a response from the peer,
                                 // including an empty WireGuard keepalive packet.
                                 last_response = Instant::now();
                             }
-                            TunnResult::Err(e) => warn!("Ignoring invalid WireGuard packet: {:?}", e),
+                            Err(e) => warn!("Failed to handle WireGuard packet: {}", e),
                         },
                         Err(e) => warn!("WireGuard socket receive error: {}", e),
                     }

@@ -150,6 +150,11 @@ File structure
 - ``warp_emu`` WARP Energy Manager emulator for testing
 - ``wg-webclient`` The Wireguard implementation containing also a network stack and Http and Websocket client.
 
+``warp_emu`` registers IPv6 discovery metadata and answers management ICMPv6
+probes from a random service ULA, matching the current firmware. Its outer
+WireGuard UDP transport uses IPv4. It maintains management tunnels for load
+testing; it does not serve the device's HTTP interface or handle management commands.
+
 Build
 -----
 
