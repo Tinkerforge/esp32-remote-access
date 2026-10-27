@@ -371,6 +371,10 @@ management and cleanup still use the source constant ``HOST`` in
 produce properly sealed browser keys. Ctrl+C starts device cleanup; a second
 Ctrl+C exits immediately.
 
+The emulator registers IPv6 discovery metadata and answers management ICMPv6
+probes from a random service ULA, matching the current firmware. Its outer
+WireGuard UDP transport uses IPv4. It does not handle management commands.
+
 ``scripts/sign_string.py`` signs bytes with libsodium Ed25519 combined mode.
 Run ``python3 scripts/sign_string.py --help`` for key-file, environment and
 KeePassXC options. It requires a **64-byte** secret key and emits a length line
