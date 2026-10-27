@@ -52,14 +52,9 @@ impl PeerDiscovery {
         Self {
             handle,
             registered_local,
-            // Discovery metadata is not a unicast service fallback. Accept
-            // the previous link-local token for existing registrations.
+            // Multicast discovery metadata is not a unicast service fallback.
             fallback: match registered_peer {
-                IpAddr::V6(address)
-                    if address.is_unicast_link_local() || address.is_multicast() =>
-                {
-                    None
-                }
+                IpAddr::V6(address) if address.is_multicast() => None,
                 address => Some(address),
             },
             local,
@@ -241,6 +236,7 @@ mod tests {
         for (registered, expected) in [
             ("10.123.123.2", "10.123.123.2"),
             ("fd00:123:ffff::2", "fd00:123:ffff::2"),
+            ("fe80::1", "fe80::1"),
         ] {
             let (mut discovery, mut sockets) = discovery(registered.parse().unwrap(), now);
             assert_eq!(

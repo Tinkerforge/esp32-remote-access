@@ -1050,7 +1050,7 @@ mod test {
 
     #[wasm_bindgen_test(async)]
     async fn discovery_token_can_fall_back_after_firmware_downgrade() {
-        exercise("ws://127.0.0.1:18081/v4", "fd00::3/128", "fe80::1", true,
+        exercise("ws://127.0.0.1:18081/v4", "fd00::3/128", "ff02::1", true,
             Some(("10.123.1.3/24", "10.123.1.2/32"))).await;
     }
 }

@@ -272,8 +272,7 @@ async function start_connection(setup_data: SetupMessage, deadline = Date.now() 
     // their IPv4 pair as fallback; the public/management family is irrelevant.
     const peerAddress = keys.charger_address.split("/")[0];
     const normalizedPeer = peerAddress.includes(":") ? new URL(`http://[${peerAddress}]/`).hostname : "";
-    // Existing fe80::1 registrations also use multicast probes after upgrade.
-    const discoveryToken = normalizedPeer === "[ff02::1]" || normalizedPeer === "[fe80::1]";
+    const discoveryToken = normalizedPeer === "[ff02::1]";
     const discoverPeer = discoveryToken || !peerAddress.includes(":");
     let localAddress = keys.web_address;
     if (discoveryToken) {

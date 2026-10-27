@@ -28,7 +28,7 @@ const profiles = {
     v6: { web_address: "fd00::3/64", charger_address: "fd00::2/128" },
     "v6-discovery": { web_address: "fd00::3/128", charger_address: "ff02::1/128" },
     auto: { web_address: "10.123.1.3/24", charger_address: "10.123.1.2/32" },
-    "token-fallback": { web_address: "fd00::3/128", charger_address: "fe80::1/128",
+    "token-fallback": { web_address: "fd00::3/128", charger_address: "ff02::1/128",
         ipv4_fallback: { web_address: "10.123.1.3/24", charger_address: "10.123.1.2/32" } },
 };
 let autoPeer = "v4";
@@ -84,7 +84,7 @@ try {
         ["[::1]", "v6-discovery"], ["[::1]", "v6-discovery"],
         // Same stored addresses, key ID and key material across firmware changes.
         ["[::1]", "auto", "v4"], ["[::1]", "auto", "v6-discovery"], ["[::1]", "auto", "v4"],
-        // Previous unicast metadata must also send multicast and learn IPv6.
+        // Multicast discovery metadata supports IPv6 and legacy IPv4 fallback.
         ["[::1]", "token-fallback", "v6-discovery"],
         ["[::1]", "token-fallback", "v4"],
     ]) {
