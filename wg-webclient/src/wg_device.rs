@@ -221,6 +221,14 @@ fn create_onmessage_closure(
     let connected = Rc::new(RefCell::new(false));
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
         let data = e.data();
+        if data.as_string().as_deref() == Some("reconnect") {
+            // Identification reopened this relay route after a device restart.
+            // Rebuild the browser client so discovery and TCP use fresh state.
+            if let Some(socket) = message_socket.upgrade() {
+                socket.close().ok();
+            }
+            return;
+        }
         let data = match data.dyn_into::<web_sys::Blob>() {
             Ok(blob) => blob,
             Err(_) => {
@@ -398,6 +406,30 @@ impl phy::TxToken for WgTunPhyTxToken {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_arch = "wasm32")]
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn reconnect_notification_requests_a_new_browser_client() {
+        let resets = Rc::new(RefCell::new(0));
+        let count = resets.clone();
+        let reconnect = Closure::<dyn FnMut()>::new(move || *count.borrow_mut() += 1);
+        let socket = js_sys::Object::new();
+        js_sys::Reflect::set(&socket, &"close".into(), reconnect.as_ref()).unwrap();
+        let socket = Rc::new(socket.unchecked_into::<WebSocket>());
+        let connected = Closure::<dyn FnMut()>::new(|| panic!("reset reported as ready"));
+        let handler = create_onmessage_closure(
+            Rc::downgrade(&socket),
+            Weak::new(),
+            Weak::new(),
+            Weak::new(),
+            connected.as_ref().unchecked_ref::<js_sys::Function>().clone(),
+        );
+        let event = js_sys::Object::new();
+        js_sys::Reflect::set(&event, &"data".into(), &"reconnect".into()).unwrap();
+        handler.as_ref().unchecked_ref::<js_sys::Function>()
+            .call1(&JsValue::NULL, &event).unwrap();
+        assert_eq!(*resets.borrow(), 1);
+    }
 
     fn pair() -> (Tunn, Tunn) {
         let a = x25519::StaticSecret::from([1; 32]);

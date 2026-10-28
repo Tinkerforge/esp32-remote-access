@@ -30,6 +30,9 @@ let connectionGeneration = 0;
 let innerRetry: ReturnType<typeof setTimeout> | undefined;
 let reconnectRetry: ReturnType<typeof setTimeout> | undefined;
 let setupAbort: AbortController | undefined;
+let connectionInProgress = false;
+let pendingInnerConnect = false;
+let pendingDownload = false;
 const CONNECTION_TIMEOUT_MS = 10_000;
 
 function cancelInnerRetry() {
@@ -39,21 +42,30 @@ function cancelInnerRetry() {
 
 function disposeClient() {
     cancelInnerRetry();
-    if (wgClient) {
-        wgClient.disconnect();
-        wgClient.free();
-        wgClient = undefined;
+    const client = wgClient;
+    wgClient = undefined;
+    if (client) {
+        client.disconnect();
+        client.free();
     }
 }
 
-function stopConnection() {
+function resetConnection() {
     ++connectionGeneration;
     setupAbort?.abort();
     clearTimeout(reconnectRetry);
     disposeClient();
 }
 
+function stopConnection() {
+    resetConnection();
+    connectionInProgress = false;
+    pendingInnerConnect = false;
+    pendingDownload = false;
+}
+
 function reportTimeout() {
+    stopConnection();
     self.postMessage({ type: MessageType.Error, data: {
         translation: "wgclient.connection_timeout", format: undefined,
     } });
@@ -94,7 +106,6 @@ function start_inner_ws_with_retry(cb: (msg: string) => void) {
             return;
         }
         if (client.peer_discovery_failed() || Date.now() >= deadline) {
-            stopConnection();
             reportTimeout();
             return;
         }
@@ -103,17 +114,20 @@ function start_inner_ws_with_retry(cb: (msg: string) => void) {
     attempt();
 }
 
+function connectInnerWebsocket() {
+    start_inner_ws_with_retry((msg: string) => {
+        self.postMessage({ type: MessageType.Websocket, data: msg });
+    });
+}
+
 self.addEventListener("message", async (e: MessageEvent) => {
     if (typeof e.data === "string") {
         switch (e.data) {
             case "connect":
-                if (wgClient) {
-                    start_inner_ws_with_retry((msg: string) => {
-                        self.postMessage({
-                            type: 0,
-                            data: msg
-                        });
-                    });
+                if (connectionInProgress) {
+                    pendingInnerConnect = true;
+                } else if (wgClient) {
+                    connectInnerWebsocket();
                 } else {
                     self.postMessage({
                         type: MessageType.Error,
@@ -131,10 +145,11 @@ self.addEventListener("message", async (e: MessageEvent) => {
                 break;
 
             case "pauseWS":
+                pendingInnerConnect = false;
                 cancelInnerRetry();
                 if (wgClient) {
                     wgClient.disconnect_inner_ws();
-                } else {
+                } else if (!connectionInProgress) {
                     self.postMessage({
                         type: MessageType.Error,
                         data: {
@@ -148,6 +163,8 @@ self.addEventListener("message", async (e: MessageEvent) => {
             case "download":
                 if (wgClient) {
                     triggerDownload();
+                } else if (connectionInProgress) {
+                    pendingDownload = true;
                 } else {
                     self.postMessage({
                         type: MessageType.Error,
@@ -185,19 +202,20 @@ self.addEventListener("message", async (e: MessageEvent) => {
                     body: req_data.body,
                 });
                 const url = request.url.replace(self.location.origin, "");
-                if (!wgClient) {
-                    const msg: Message = {
-                        type: MessageType.Error,
-                        id: data.id,
-                        data: {
-                            translation: "wgclient.not_initialized",
-                            format: undefined,
-                        },
-                    };
-                    self.postMessage(msg);
-                    return;
+                const client = wgClient;
+                let response: Response;
+                try {
+                    // The old iframe may keep polling while replacement keys
+                    // load. Reply to its HTTP request without closing the UI.
+                    response = client
+                        ? await client.fetch(request, url, username, password)
+                        : new Response(null, { status: 503, statusText: "Tunnel disconnected" });
+                } catch (error) {
+                    if (client === wgClient) throw error;
+                    // Settle the old iframe's service-worker request without
+                    // reporting an expected reconnect cancellation as a crash.
+                    response = new Response(null, { status: 503, statusText: "Tunnel disconnected" });
                 }
-                const response: Response = await wgClient.fetch(request, url, username, password);
                 const headers: [string, string][] = [];
                 response.headers.forEach((val, key) => {
                     headers.push([key, val]);
@@ -220,6 +238,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
 
             case MessageType.Setup:
                 stopConnection();
+                connectionInProgress = true;
                 const setupGeneration = connectionGeneration;
                 await sodium.ready;
                 if (setupGeneration !== connectionGeneration) return;
@@ -232,7 +251,8 @@ self.addEventListener("message", async (e: MessageEvent) => {
 });
 
 async function start_connection(setup_data: SetupMessage, deadline = Date.now() + CONNECTION_TIMEOUT_MS) {
-    stopConnection();
+    resetConnection();
+    connectionInProgress = true;
     const generation = connectionGeneration;
     const controller = new AbortController();
     setupAbort = controller;
@@ -243,6 +263,7 @@ async function start_connection(setup_data: SetupMessage, deadline = Date.now() 
         const resp = await fetch(url, { credentials: "same-origin", signal: controller.signal });
         if (generation !== connectionGeneration) return;
         if (resp.status === 404) {
+            stopConnection();
             self.postMessage({ type: MessageType.Error, data: {
                 translation: "chargers.all_keys_in_use", format: undefined,
             } });
@@ -250,6 +271,7 @@ async function start_connection(setup_data: SetupMessage, deadline = Date.now() 
         } else if (resp.status !== 200) {
             const response = await resp.text();
             if (generation !== connectionGeneration) return;
+            stopConnection();
             self.postMessage({ type: MessageType.Error, data: {
                 translation: "chargers.loading_keys_failed", format: { status: resp.status, response },
             } });
@@ -301,13 +323,24 @@ async function start_connection(setup_data: SetupMessage, deadline = Date.now() 
         setup_data.mtu,
         () => {
             if (generation !== connectionGeneration || wgClient !== client) return;
+            connectionInProgress = true;
             cancelInnerRetry();
             reconnectRetry = setTimeout(() => {
                 if (generation === connectionGeneration) void start_connection(setup_data);
             }, 1000);
         },
         () => {
-            if (generation === connectionGeneration && wgClient === client) self.postMessage("ready");
+            if (generation !== connectionGeneration || wgClient !== client) return;
+            connectionInProgress = false;
+            self.postMessage("ready");
+            if (pendingInnerConnect) {
+                pendingInnerConnect = false;
+                connectInnerWebsocket();
+            }
+            if (pendingDownload) {
+                pendingDownload = false;
+                triggerDownload();
+            }
         },
         discoverPeer,
         keys.ipv4_fallback?.web_address,

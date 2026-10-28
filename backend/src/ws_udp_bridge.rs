@@ -168,11 +168,6 @@ impl<'a> WebClient<'a> {
         )
         .await;
 
-        {
-            let mut keys_in_use = self.app_state.keys_in_use.lock().await;
-            keys_in_use.remove(&self.key_id);
-        }
-
         let meta = RemoteConnMeta {
             charger_id: self.charger_id,
             conn_no: self.conn_no,
@@ -189,13 +184,17 @@ impl<'a> WebClient<'a> {
 
         {
             let mut lost_map = self.bridge_state.lost_connections.lock().await;
-            let _ = lost_map.remove(&self.charger_id);
+            if let Some(clients) = lost_map.get_mut(&self.charger_id) {
+                clients.retain(|(conn_no, _)| *conn_no != self.conn_no);
+                if clients.is_empty() {
+                    lost_map.remove(&self.charger_id);
+                }
+            }
         }
         {
             let mut map = self.bridge_state.undiscovered_clients.lock().await;
             let _ = map.remove(&meta);
         }
-
         {
             let command = ManagementCommand {
                 command_id: ManagementCommandId::Disconnect,
@@ -224,6 +223,9 @@ impl<'a> WebClient<'a> {
             }
         }
 
+        // Release the key only after the old route and Disconnect command are
+        // gone, so a reconnect cannot reuse it while cleanup is still running.
+        self.app_state.keys_in_use.lock().await.remove(&self.key_id);
         self.session.close(None).await.ok();
     }
 }

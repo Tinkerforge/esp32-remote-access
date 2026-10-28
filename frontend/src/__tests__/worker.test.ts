@@ -5,9 +5,11 @@ const mocks = vi.hoisted(() => ({
     clients: [] as Array<{
         ready: boolean; failed: boolean; start_inner_ws: ReturnType<typeof vi.fn>;
         disconnect_inner_ws: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn>;
-        free: ReturnType<typeof vi.fn>; args: unknown[];
+        free: ReturnType<typeof vi.fn>; fetch: ReturnType<typeof vi.fn>;
+        get_pcap_log: ReturnType<typeof vi.fn>; args: unknown[];
     }>,
     construct: vi.fn(),
+    autoReady: true,
 }));
 vi.mock("wg-webclient", () => ({
     set_pcap_logging: vi.fn(),
@@ -18,11 +20,16 @@ vi.mock("wg-webclient", () => ({
         disconnect_inner_ws = vi.fn();
         disconnect = vi.fn();
         free = vi.fn();
+        fetch = vi.fn();
+        get_pcap_log = vi.fn(() => new Uint8Array());
         args: unknown[];
         constructor(...args: unknown[]) {
             this.args = args;
             mocks.construct(...args);
             mocks.clients.push(this);
+            void Promise.resolve().then(() => {
+                if (mocks.autoReady) (args[9] as () => void)();
+            });
         }
         peer_discovery_complete() { return this.ready; }
         peer_discovery_failed() { return this.failed; }
@@ -43,7 +50,7 @@ const message = async (data: unknown) => handlers.get("message")!({ data });
 const configure = () => message({ type: MessageType.Setup, data: setup });
 
 beforeEach(async () => {
-    vi.resetModules(); vi.useFakeTimers(); mocks.clients.length = 0; mocks.construct.mockClear();
+    vi.resetModules(); vi.useFakeTimers(); mocks.clients.length = 0; mocks.construct.mockClear(); mocks.autoReady = true;
     handlers = new Map(); postMessage = vi.fn();
     vi.stubGlobal("self", { addEventListener: (type: string, cb: MessageHandler) => handlers.set(type, cb),
         postMessage, location: { origin: "https://[::1]" } });
@@ -177,11 +184,40 @@ describe("worker tunnel lifecycle", () => {
         await message("connect"); (previous.args[8] as () => void)();
         await vi.advanceTimersByTimeAsync(1000);
         expect(mocks.clients).toHaveLength(2);
+        postMessage.mockClear();
         (previous.args[8] as () => void)(); (previous.args[9] as () => void)();
         await vi.advanceTimersByTimeAsync(12_000);
         expect(mocks.clients).toHaveLength(2);
         expect(postMessage).not.toHaveBeenCalledWith("ready");
         await message("connect"); expect(mocks.clients[1].start_inner_ws).toHaveBeenCalledOnce();
+    });
+
+    it("rebuilds discovery and resumes the web interface when a restarted device requests reconnection", async () => {
+        const discoveryKeys = { ...keys, web_address: "fd00::3/128", charger_address: "ff02::1/128" };
+        vi.mocked(fetch).mockImplementation(async () => new Response(JSON.stringify(discoveryKeys)));
+        await configure();
+        const previous = mocks.clients[0];
+        (previous.args[9] as () => void)();
+        await message("connect");
+        expect(previous.start_inner_ws).toHaveBeenCalledOnce();
+        postMessage.mockClear();
+        (previous.args[8] as () => void)();
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(previous.disconnect).toHaveBeenCalledOnce();
+        expect(previous.free).toHaveBeenCalledOnce();
+        expect(fetch).toHaveBeenCalledTimes(2);
+        const resumed = mocks.clients[1];
+        expect(resumed.args[4]).not.toBe(previous.args[4]);
+        expect(resumed.args[5]).toBe("ff02::1/128");
+        expect(resumed.args[10]).toBe(true);
+        resumed.ready = false;
+        (resumed.args[9] as () => void)();
+        expect(postMessage).toHaveBeenCalledWith("ready");
+        await message("connect");
+        expect(resumed.start_inner_ws).not.toHaveBeenCalled();
+        resumed.ready = true;
+        await vi.advanceTimersByTimeAsync(200);
+        expect(resumed.start_inner_ws).toHaveBeenCalledOnce();
     });
 
     it("ignores an in-flight setup response after close", async () => {
@@ -190,6 +226,95 @@ describe("worker tunnel lifecycle", () => {
         const pending = configure(); await Promise.resolve();
         await message("close"); resolve(new Response(JSON.stringify(keys)));
         await pending; expect(mocks.clients).toHaveLength(0);
+    });
+
+    it.each(["close", "reconnect"])("settles in-flight HTTP requests when the client is disposed on %s", async (action) => {
+        await configure();
+        const previous = mocks.clients[0];
+        let reject!: (error: Error) => void;
+        previous.fetch.mockReturnValueOnce(new Promise((_, rejectRequest) => { reject = rejectRequest; }));
+        previous.disconnect.mockImplementation(() => reject(new Error("Tunnel disconnected")));
+        const pending = message({ type: MessageType.Fetch, id: "pending-request", data: {
+            method: "GET", headers: [], url: "https://[::1]/status",
+        } });
+        if (action === "close") {
+            await message("close");
+        } else {
+            (previous.args[8] as () => void)();
+            await vi.advanceTimersByTimeAsync(1000);
+        }
+        await pending;
+        expect(previous.free).toHaveBeenCalledOnce();
+        expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            type: MessageType.FetchResponse, id: "pending-request",
+            data: expect.objectContaining({ status: 503, statusText: "Tunnel disconnected" }),
+        }));
+        expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ unresolved: true }));
+    });
+
+    it("keeps iframe traffic nonfatal while replacement keys are loading", async () => {
+        await configure();
+        let resolveKeys!: (response: Response) => void;
+        vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { resolveKeys = resolve; }));
+        (mocks.clients[0].args[8] as () => void)();
+        await vi.advanceTimersByTimeAsync(1000);
+        postMessage.mockClear();
+
+        await message("connect");
+        await message("pauseWS");
+        await message("connect");
+        await message("download");
+        await message({ type: MessageType.Fetch, id: "gap-request", data: {
+            method: "GET", headers: [], url: "https://[::1]/status",
+        } });
+        expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            type: MessageType.FetchResponse, id: "gap-request",
+            data: expect.objectContaining({ status: 503 }),
+        }));
+        expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: MessageType.Error }));
+
+        mocks.autoReady = false;
+        resolveKeys(new Response(JSON.stringify(keys)));
+        await vi.advanceTimersByTimeAsync(0);
+        const resumed = mocks.clients[1];
+        expect(resumed.start_inner_ws).not.toHaveBeenCalled();
+        expect(resumed.get_pcap_log).not.toHaveBeenCalled();
+        (resumed.args[9] as () => void)();
+        expect(resumed.start_inner_ws).toHaveBeenCalledOnce();
+        expect(resumed.get_pcap_log).toHaveBeenCalledOnce();
+        expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: MessageType.Error }));
+    });
+
+    it.each(["pauseWS", "close"])("cancels a connect requested during reconnection on %s", async (action) => {
+        await configure();
+        let resolveKeys!: (response: Response) => void;
+        vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { resolveKeys = resolve; }));
+        (mocks.clients[0].args[8] as () => void)();
+        await vi.advanceTimersByTimeAsync(1000);
+        postMessage.mockClear();
+        await message("connect");
+        await message(action);
+        resolveKeys(new Response(JSON.stringify(keys)));
+        await vi.advanceTimersByTimeAsync(0);
+        if (action === "close") {
+            expect(mocks.clients).toHaveLength(1);
+        } else {
+            expect(mocks.clients).toHaveLength(2);
+            expect(mocks.clients[1].start_inner_ws).not.toHaveBeenCalled();
+        }
+        expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: MessageType.Error }));
+    });
+
+    it("settles HTTP requests without a client instead of sending a fatal UI error", async () => {
+        postMessage.mockClear();
+        await message({ type: MessageType.Fetch, id: "unavailable-request", data: {
+            method: "GET", headers: [], url: "https://[::1]/status",
+        } });
+        expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            type: MessageType.FetchResponse, id: "unavailable-request",
+            data: expect.objectContaining({ status: 503 }),
+        }));
+        expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: MessageType.Error }));
     });
 
     it("bounds retries when loading keys fails", async () => {
