@@ -9,6 +9,10 @@ repository = "https://github.com/Tinkerforge/esp32-remote-access"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[example]]
+name = "tunnel_peer"
+path = "tests/fixtures/tunnel_peer.rs"
+
 [features]
 default = ["console_error_panic_hook"]
 
