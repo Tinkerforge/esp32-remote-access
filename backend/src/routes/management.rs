@@ -34,12 +34,11 @@ use crate::{
     error::Error,
     rate_limit::ChargerRateLimiter,
     routes::{auth::login::FindBy, user::get_user_id},
-    udp_server::management::RemoteConnMeta,
+    udp_server::management::reconnect_user_sessions,
     utils::{
         get_charger_by_uid, get_charger_from_db, get_connection, parse_uuid,
         update_charger_state_change,
     },
-    ws_udp_bridge::open_connection,
     AppState, BridgeState,
 };
 
@@ -410,82 +409,7 @@ pub async fn management(
         });
     }
 
-    let addresses = {
-        let mut map = bridge_state.device_remote_conn_map.lock().await;
-        let mut addresses = Vec::new();
-        map.retain(|key, addr| {
-            if key.charger_id == charger_id {
-                addresses.push((*addr, key.conn_no));
-                false
-            } else {
-                true
-            }
-        });
-        addresses
-    };
-
-    let losing_conns = {
-        let mut clients = bridge_state.web_client_map.lock().await;
-        let mut losing_conns = Vec::new();
-        for (addr, conn_no) in addresses.into_iter() {
-            if let Some(recipient) = clients.remove(&addr) {
-                losing_conns.push((conn_no, recipient));
-            }
-        }
-        losing_conns
-    };
-
-    if !losing_conns.is_empty() {
-        // The management request comes in over the device's WireGuard tunnel,
-        // so the device is reachable right now. Reattach the saved user
-        // connections immediately so they survive even if the first UDP
-        // packet on this tunnel was already processed before the management
-        // request arrived (in which case `multiplex.rs`'s `Entry::Vacant`
-        // branch would not see these entries in `lost_connections`).
-        let management_sock = {
-            let map = bridge_state.device_management_map_with_id.lock().await;
-            map.get(&charger_id).cloned()
-        };
-
-        if let Some(management_sock) = management_sock {
-            log::info!(
-                "Charger {charger_id} identified via management: reattaching {} lost user connection(s).",
-                losing_conns.len()
-            );
-            for (conn_no, recipient) in losing_conns.into_iter() {
-                log::info!(
-                    "Reattaching user to reconnected charger {charger_id} (conn_no={conn_no})."
-                );
-                let meta = RemoteConnMeta {
-                    charger_id,
-                    conn_no,
-                };
-                bridge_state
-                    .undiscovered_clients
-                    .lock()
-                    .await
-                    .insert(meta, recipient);
-                if let Err(_err) = open_connection(
-                    conn_no,
-                    charger_id,
-                    management_sock.clone(),
-                    bridge_state.port_discovery.clone(),
-                )
-                .await
-                {
-                    log::error!(
-                        "Failed to reopen lost connection (charger_id={charger_id}, conn_no={conn_no})."
-                    );
-                }
-            }
-        } else {
-            // The device's tunnel is not yet up; fall back to leaving the
-            // entries in `lost_connections` so `multiplex.rs` picks them up
-            // when the first UDP packet arrives.
-            let mut lost_conns = bridge_state.lost_connections.lock().await;
-            lost_conns.insert(charger_id, losing_conns);
-        }
-    }
+    reconnect_user_sessions(&bridge_state, charger_id).await;
 
     update_charger_state_change(charger_id, state, bridge_state).await;
 
@@ -1368,29 +1292,9 @@ mod tests {
         }
     }
 
-    /// Regression test for the bug where lost user connections were not
-    /// reopened when the device reconnected.
-    ///
-    /// Sequence under test:
-    ///   1. A user connects to a charger via WebSocket. The connection is
-    ///      routed through `web_client_map` / `device_remote_conn_map`.
-    ///   2. The tunnel briefly drops and is re-established. The first UDP
-    ///      packet on the new tunnel populates `device_management_map_with_id`
-    ///      BEFORE the management request runs, meaning the `Entry::Vacant`
-    ///      branch in `multiplex.rs` already passed with empty
-    ///      `lost_connections`.
-    ///   3. The charger calls `PUT /management`. Without reattaching in the
-    ///      handler itself, the saved user connection would never be
-    ///      reopened, because nothing else consumes `lost_connections` once
-    ///      the tunnel is up.
-    ///
-    /// This test verifies that an entry in `device_remote_conn_map` whose
-    /// session has already disappeared (a common state right after a tunnel
-    /// reconnect: the old UDP source address changed, the session timed
-    /// out, etc.) is cleanly drained by the management endpoint and does
-    /// not get parked in `lost_connections`. The full happy-path reattach
-    /// (with a live WebSocket session) is covered end-to-end by the
-    /// `warp_emu` integration tests.
+    /// Stale routes with no browser session must be drained on identification
+    /// without accumulating entries in `lost_connections`. Live browser
+    /// reconnection is covered by the UDP management unit tests.
     #[actix::test]
     async fn test_management_drains_stale_device_remote_conn_entries() {
         use crate::{udp_server::management::RemoteConnMeta, udp_server::socket::ManagementSocket};

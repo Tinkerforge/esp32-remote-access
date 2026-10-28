@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use std::{cell::RefCell, collections::VecDeque, io::Read, pin::Pin, rc::{Rc, Weak}, task::Poll};
+use std::{cell::RefCell, collections::{HashMap, VecDeque}, io::Read, pin::Pin, rc::{Rc, Weak}, task::Poll};
 
 use crate::{
     hyper_stream::HyperStream, icmp_discovery::{self, PeerDiscovery},
@@ -39,15 +39,19 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{CustomEvent, MessageEvent, Response};
 
 type EventClosure = Closure<dyn FnMut(CustomEvent)>;
-type EventQueue = Rc<RefCell<VecDeque<EventClosure>>>;
+type EventQueue = Rc<RefCell<PendingFetches>>;
+
+#[derive(Default)]
+struct PendingFetches {
+    disconnected: bool,
+    callbacks: HashMap<String, (EventClosure, js_sys::Function)>,
+}
 type HyperResp = hyper::Response<hyper::body::Incoming>;
 type RequestFuture = Pin<Box<dyn Future<Output = hyper::Result<HyperResp>>>>;
 type ConnPin = Pin<Box<Connection<HyperStream, Box<Body>>>>;
 type RespPin = Pin<Box<HyperResp>>;
 
-/// The exported client struct. It Wraps the actual Client and a Queue to keep the needed
-/// callbacks alive.
-/// Most function calls are simply passed to the wrapped object.
+/// The exported client and its pending HTTP response callbacks.
 #[wasm_bindgen]
 pub struct Client(
     WgClient,
@@ -82,19 +86,21 @@ impl Client {
         console_log::init_with_level(log::Level::Debug).ok();
         Self(
             WgClient::new(secret_str, peer_str, psk, url, internal_ip, internal_peer_ip, port, mtu, disconnect_cb, connect_cb, discover_peer.unwrap_or(false), fallback_local.as_deref(), fallback_peer.as_deref()),
-            Rc::new(RefCell::new(VecDeque::new())),
+            Rc::new(RefCell::new(PendingFetches::default())),
         )
     }
 
 
     /// Creates a new Promise that resolves when the event with the provided id is fired.
-    fn create_await_promise(&self, req_id: String) -> Promise {
-        let queue = self.1.clone();
-        Promise::new(&mut move |resolve, _| {
-            let queue_cpy = queue.clone();
+    fn create_await_promise(queue: EventQueue, req_id: String) -> Promise {
+        Promise::new(&mut move |resolve, reject| {
+            let queue_cpy = Rc::downgrade(&queue);
+            let completed_id = req_id.clone();
             let closure = Closure::<dyn FnMut(_)>::new(move |event: CustomEvent| {
                 let response = event.detail();
-                let _ = queue_cpy.borrow_mut().pop_front();
+                if let Some(queue) = queue_cpy.upgrade() {
+                    queue.borrow_mut().callbacks.remove(&completed_id);
+                }
                 resolve.call1(&JsValue::NULL, &response).unwrap();
             });
 
@@ -110,7 +116,7 @@ impl Client {
                     &options,
                 )
                 .unwrap();
-            queue.borrow_mut().push_back(closure);
+            queue.borrow_mut().callbacks.insert(req_id.clone(), (closure, reject));
         })
     }
 
@@ -118,21 +124,31 @@ impl Client {
     /// Makes a http request to the provided url and return a Promise that resolves to a JS Response object.
     /// Internally it calls the fetch function of the wrapped WgClient object and
     /// registers an EventListener for the event returned by it.
-    #[wasm_bindgen]
-    pub async fn fetch(&self, request: web_sys::Request, url: String, username: Option<String>, password: Option<String>) -> Response {
-        let id = self.0.clone().fetch(request.clone().unwrap(), url.clone(), None, username.clone(), password.clone());
-        let promise = self.create_await_promise(id);
-        let result = wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
-        let mut response = Response::from(result);
+    #[wasm_bindgen(unchecked_return_type = "Promise<Response>")]
+    pub fn fetch(&self, request: web_sys::Request, url: String, username: Option<String>, password: Option<String>) -> Promise {
+        // An exported async &self method holds a wasm-bindgen borrow until its
+        // promise settles. Own the request state instead, so reconnect can free
+        // the exported client while HTTP requests are still waiting.
+        let client = self.0.clone();
+        let pending = self.1.clone();
+        wasm_bindgen_futures::future_to_promise(async move {
+            if pending.borrow().disconnected {
+                return Err(js_sys::Error::new("Tunnel disconnected").into());
+            }
+            let id = client.fetch(request.clone()?, url.clone(), None, username.clone(), password.clone());
+            let result = JsFuture::from(Self::create_await_promise(pending.clone(), id)).await?;
+            let mut response = Response::from(result);
 
-        if response.status() == 401 {
-            let id = self.0.clone().fetch(request, url, None, username, password);
-            let promise = self.create_await_promise(id);
-            let result = wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
-            response = Response::from(result);
-        }
-
-        response
+            if response.status() == 401 {
+                if pending.borrow().disconnected {
+                    return Err(js_sys::Error::new("Tunnel disconnected").into());
+                }
+                let id = client.fetch(request, url, None, username, password);
+                let result = JsFuture::from(Self::create_await_promise(pending, id)).await?;
+                response = Response::from(result);
+            }
+            Ok(response.into())
+        })
     }
 
     #[wasm_bindgen]
@@ -161,11 +177,22 @@ impl Client {
     /// freeing this client. Unlike disconnect_inner_ws, this ends the session.
     #[wasm_bindgen]
     pub fn disconnect(&self) {
+        let callbacks = {
+            let mut pending = self.1.borrow_mut();
+            pending.disconnected = true;
+            std::mem::take(&mut pending.callbacks)
+        };
         self.0.clone().disconnect_inner_ws();
         self.0._polling_interval.cancel();
         self.0.current_request.borrow_mut().take();
         self.0.request_queue.borrow_mut().clear();
         self.0.iface.borrow().device().disconnect();
+        let global = web_sys::WorkerGlobalScope::from(JsValue::from(js_sys::global()));
+        let error = js_sys::Error::new("Tunnel disconnected");
+        for (id, (callback, reject)) in callbacks {
+            global.remove_event_listener_with_callback(&id, callback.as_ref().unchecked_ref()).ok();
+            reject.call1(&JsValue::NULL, &error).ok();
+        }
     }
 
     // leaks memory, for debugging only!!!
@@ -903,6 +930,38 @@ mod test {
         panic!("test peer did not respond within 5 seconds");
     }
 
+    #[wasm_bindgen_test(async)]
+    async fn disconnect_and_free_cancel_pending_fetches_without_borrowing_the_exported_client() {
+        let engine = base64::engine::general_purpose::STANDARD;
+        for started in [false, true] {
+            let noop = js_sys::Function::new_no_args("");
+            let client: JsValue = Client::new(
+                &engine.encode([1; 32]),
+                &engine.encode(x25519::PublicKey::from(&x25519::StaticSecret::from([2; 32])).as_bytes()),
+                &engine.encode([3; 32]), "ws://127.0.0.1:65534/lifetime",
+                "10.123.1.3", "10.123.1.2", 80, 1420,
+                noop.clone(), noop, Some(false), None, None,
+            ).into();
+            let fetch = js_sys::Reflect::get(&client, &"fetch".into()).unwrap()
+                .unchecked_into::<js_sys::Function>();
+            let mut requests = Vec::new();
+            for _ in 0..3 {
+                let request = web_sys::Request::new_with_str("http://test-peer/pending").unwrap();
+                let promise = fetch.call2(&client, &request, &"/pending".into()).unwrap();
+                requests.push(JsFuture::from(Promise::from(promise)));
+            }
+            if started { delay().await; }
+            for method in ["disconnect", "free"] {
+                js_sys::Reflect::get(&client, &method.into()).unwrap()
+                    .unchecked_into::<js_sys::Function>().call0(&client).unwrap();
+            }
+            for request in requests {
+                let error = request.await.expect_err("disconnected request stayed active");
+                assert_eq!(js_sys::Error::from(error).message(), "Tunnel disconnected");
+            }
+        }
+    }
+
     // Requires: cargo run --target x86_64-unknown-linux-gnu --example tunnel_peer
     async fn exercise(outer: &str, local: &str, peer: &str, discover: bool, fallback: Option<(&str, &str)>) {
         crate::set_pcap_logging(true);
@@ -937,7 +996,7 @@ mod test {
                 previous_peer = Some(discovered);
             }
             let request = web_sys::Request::new_with_str("http://test-peer/status").unwrap();
-            let response = client.fetch(request, "/status".into(), None, None).await;
+            let response = Response::from(JsFuture::from(client.fetch(request, "/status".into(), None, None)).await.unwrap());
             assert_eq!(response.status(), 200);
             let body = JsFuture::from(response.text().unwrap()).await.unwrap().as_string().unwrap();
             assert_eq!(body, if expect_ipv6 { "peer-v6" } else { "peer-v4" });

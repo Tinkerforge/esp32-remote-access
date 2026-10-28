@@ -39,25 +39,21 @@ use crate::{
     firmware::supports_ipv6_tunnel,
     rate_limit::GlobalSearchRateLimiter,
     routes::{charger::user_is_allowed, send_chargelog_to_user::send_charge_log_to_user},
-    udp_server::{
-        management::RemoteConnMeta,
-        packet::{
-            extract_management_packet_header, AckPacket, ChargeLogSendMetadata,
-            ChargeLogSendMetadataPacket, ManagementPacket, NackPacket, NackReason, PacketType,
-            RequestChargeLogSendPacket,
-        },
+    udp_server::packet::{
+        extract_management_packet_header, AckPacket, ChargeLogSendMetadata,
+        ChargeLogSendMetadataPacket, ManagementPacket, NackPacket, NackReason, PacketType,
+        RequestChargeLogSendPacket,
     },
     utils::{
         get_last_charge_log_upload_hash, set_last_charge_log_upload_hash,
         update_charger_state_change,
     },
-    ws_udp_bridge::open_connection,
     AppState, BridgeState,
 };
 
 use super::{
     admission::{DiscoveryAdmission, DiscoveryPermit},
-    management::try_port_discovery,
+    management::{reconnect_lost_clients, try_port_discovery},
     socket::{ManagementSocket, ManagementSocketTCPReceiver, TCPRecvResult},
 };
 
@@ -466,7 +462,7 @@ pub async fn run_server(
                                 return;
                             }
                         };
-                    let Some(socket) = super::registry::publish(
+                    let Some(_) = super::registry::publish(
                         &bridge_state.device_management_map,
                         &bridge_state.device_management_map_with_id,
                         id,
@@ -483,28 +479,7 @@ pub async fn run_server(
                     send_data(&bridge_state.socket, addr, &response);
                     // Keep discovery admission through reconnection bookkeeping
                     // so slow notifications cannot accumulate packet tasks.
-                    let lost = bridge_state.lost_connections.lock().await.remove(&id);
-                    if let Some(conns) = lost {
-                        for (conn_no, recipient) in conns {
-                            let meta = RemoteConnMeta {
-                                charger_id: id,
-                                conn_no,
-                            };
-                            bridge_state
-                                .undiscovered_clients
-                                .lock()
-                                .await
-                                .insert(meta, recipient);
-                            open_connection(
-                                conn_no,
-                                id,
-                                socket.clone(),
-                                bridge_state.port_discovery.clone(),
-                            )
-                            .await
-                            .ok();
-                        }
-                    }
+                    reconnect_lost_clients(&bridge_state, id).await;
                     let _ = tokio::time::timeout(
                         Duration::from_secs(5),
                         update_charger_state_change(id, app_state.clone(), bridge_state.clone()),
@@ -877,9 +852,7 @@ mod tests {
 
     #[actix_web::test]
     async fn candidate_matching_discovers_random_ipv6_despite_stale_ipv4_registration() {
-        use crate::udp_server::peer_discovery::{
-            random_management_address, ALL_NODES_ADDRESS,
-        };
+        use crate::udp_server::peer_discovery::{random_management_address, ALL_NODES_ADDRESS};
         use smoltcp::wire::{
             Icmpv6Packet, Icmpv6Repr, IpProtocol, Ipv6Packet, Ipv6Repr, UdpPacket,
         };

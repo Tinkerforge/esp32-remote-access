@@ -30,6 +30,45 @@ use super::packet::{
     OldManagementResponse, PacketType, RemoveUserCommand, RemoveUserCommandPacket,
 };
 
+/// Reattach saved relay sessions and ask browsers to rebuild their WireGuard
+/// client. The previous client's IPv6 peer and TCP streams are stale after a
+/// device restart. Other relay clients can continue using the reopened route.
+pub(crate) async fn reconnect_lost_clients(
+    state: &web::Data<BridgeState<'_>>,
+    charger_id: uuid::Uuid,
+) {
+    let socket = state
+        .device_management_map_with_id
+        .lock()
+        .await
+        .get(&charger_id)
+        .cloned();
+    let Some(socket) = socket else { return };
+    let clients = state.lost_connections.lock().await.remove(&charger_id);
+    if let Some(clients) = clients {
+        for (conn_no, mut session) in clients {
+            state.undiscovered_clients.lock().await.insert(
+                RemoteConnMeta {
+                    charger_id,
+                    conn_no,
+                },
+                session.clone(),
+            );
+            crate::ws_udp_bridge::open_connection(
+                conn_no,
+                charger_id,
+                socket.clone(),
+                state.port_discovery.clone(),
+            )
+            .await
+            .ok();
+            let _ =
+                tokio::time::timeout(std::time::Duration::from_secs(2), session.text("reconnect"))
+                    .await;
+        }
+    }
+}
+
 #[derive(PartialEq, Hash, Eq, Debug, Clone)]
 pub struct RemoteConnMeta {
     pub charger_id: uuid::Uuid,
@@ -46,6 +85,62 @@ impl Serialize for RemoteConnMeta {
         s.serialize_field("conn_no", &self.conn_no)?;
         s.end()
     }
+}
+
+/// Save browser sessions on identification and wake them once a management
+/// tunnel exists. HTTPS identification can arrive before or after its handshake.
+pub(crate) async fn reconnect_user_sessions(
+    state: &web::Data<BridgeState<'_>>,
+    charger_id: uuid::Uuid,
+) {
+    let addresses = {
+        let mut routes = state.device_remote_conn_map.lock().await;
+        let mut addresses = Vec::new();
+        routes.retain(|meta, addr| {
+            if meta.charger_id == charger_id {
+                addresses.push((*addr, meta.conn_no));
+                false
+            } else {
+                true
+            }
+        });
+        addresses
+    };
+    let mut sessions = {
+        let mut clients = state.web_client_map.lock().await;
+        addresses
+            .into_iter()
+            .filter_map(|(addr, conn_no)| clients.remove(&addr).map(|session| (conn_no, session)))
+            .collect::<Vec<_>>()
+    };
+    // A second restart can arrive while a browser is still waiting for port
+    // discovery. Those clients also need a fresh tunnel once the device is up.
+    {
+        let mut clients = state.undiscovered_clients.lock().await;
+        clients.retain(|meta, session| {
+            if meta.charger_id == charger_id {
+                sessions.push((meta.conn_no, session.clone()));
+                false
+            } else {
+                true
+            }
+        });
+    }
+    state
+        .port_discovery
+        .lock()
+        .await
+        .retain(|response, _| response.charger_id != charger_id.as_u128());
+    if !sessions.is_empty() {
+        state
+            .lost_connections
+            .lock()
+            .await
+            .entry(charger_id)
+            .or_default()
+            .extend(sessions);
+    }
+    reconnect_lost_clients(state, charger_id).await;
 }
 
 async fn process_old_packet(
@@ -318,6 +413,231 @@ mod tests {
         };
 
         web::Data::new(bridge_state)
+    }
+
+    fn browser_session() -> (actix_ws::Session, actix_web::HttpResponse) {
+        use actix_web::FromRequest;
+        use futures_util::FutureExt;
+        let (request, mut payload) = actix_web::test::TestRequest::get()
+            .insert_header(("Upgrade", "websocket"))
+            .insert_header(("Connection", "upgrade"))
+            .insert_header(("Sec-WebSocket-Version", "13"))
+            .insert_header(("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ=="))
+            .to_http_parts();
+        let payload = web::Payload::from_request(&request, &mut payload)
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        let (response, session, _) = actix_ws::handle(&request, payload).unwrap();
+        (session, response)
+    }
+
+    #[actix_web::test]
+    async fn reconnect_rebuilds_active_and_pending_browsers_when_tunnel_already_exists() {
+        let state = bridge_state_without_db();
+        let id = uuid::Uuid::new_v4();
+        let other_id = uuid::Uuid::new_v4();
+        let capture = install_capturing_socket(&state, id).await;
+        let (active, active_response) = browser_session();
+        let (pending, pending_response) = browser_session();
+        let (mut other, _other_response) = browser_session();
+        let address = "127.0.0.1:51821".parse().unwrap();
+        let meta = RemoteConnMeta {
+            charger_id: id,
+            conn_no: 1,
+        };
+        state
+            .device_remote_conn_map
+            .lock()
+            .await
+            .insert(meta.clone(), address);
+        state
+            .web_client_map
+            .lock()
+            .await
+            .insert(address, active.clone());
+        state.undiscovered_clients.lock().await.insert(
+            RemoteConnMeta {
+                charger_id: id,
+                conn_no: 2,
+            },
+            pending.clone(),
+        );
+        let other_meta = RemoteConnMeta {
+            charger_id: other_id,
+            conn_no: 1,
+        };
+        state
+            .undiscovered_clients
+            .lock()
+            .await
+            .insert(other_meta.clone(), other.clone());
+        let command = ManagementResponseV2 {
+            charger_id: id.as_u128(),
+            connection_no: 2,
+            connection_uuid: 1,
+        };
+        let other_command = ManagementResponseV2 {
+            charger_id: other_id.as_u128(),
+            connection_no: 1,
+            connection_uuid: 2,
+        };
+        state.port_discovery.lock().await.extend([
+            (command, std::time::Instant::now()),
+            (other_command, std::time::Instant::now()),
+        ]);
+
+        reconnect_user_sessions(&state, id).await;
+
+        assert!(other.ping(b"").await.is_ok());
+        assert!(!state
+            .device_remote_conn_map
+            .lock()
+            .await
+            .contains_key(&meta));
+        assert!(state.web_client_map.lock().await.is_empty());
+        assert_eq!(state.undiscovered_clients.lock().await.len(), 3);
+        assert!(!state.lost_connections.lock().await.contains_key(&id));
+        let discovery = state.port_discovery.lock().await;
+        assert!(!discovery.contains_key(&command));
+        assert!(discovery.contains_key(&other_command));
+        // Browsers receive an explicit reset request. CLI relay clients can
+        // ignore the text message and keep using their reopened route.
+        active.close(None).await.unwrap();
+        pending.close(None).await.unwrap();
+        state
+            .undiscovered_clients
+            .lock()
+            .await
+            .retain(|meta, _| meta.charger_id != id);
+        for response in [active_response, pending_response] {
+            assert_eq!(
+                actix_web::body::to_bytes(response.into_body())
+                    .await
+                    .unwrap(),
+                &b"\x81\x09reconnect\x88\x00"[..]
+            );
+        }
+        assert_eq!(take_captured(&capture).len(), 2);
+    }
+
+    #[actix_web::test]
+    async fn reconnect_waits_for_tunnel_and_preserves_browsers_across_repeated_identification() {
+        let state = bridge_state_without_db();
+        let id = uuid::Uuid::new_v4();
+        let (mut first, first_response) = browser_session();
+        let (second, second_response) = browser_session();
+        let (mut unrelated, _unrelated_response) = browser_session();
+        let other_id = uuid::Uuid::new_v4();
+        state
+            .lost_connections
+            .lock()
+            .await
+            .insert(other_id, vec![(1, unrelated.clone())]);
+        state.undiscovered_clients.lock().await.insert(
+            RemoteConnMeta {
+                charger_id: id,
+                conn_no: 1,
+            },
+            first.clone(),
+        );
+        reconnect_user_sessions(&state, id).await;
+        assert!(
+            first.ping(b"").await.is_ok(),
+            "browser woke before a tunnel existed"
+        );
+        state.undiscovered_clients.lock().await.insert(
+            RemoteConnMeta {
+                charger_id: id,
+                conn_no: 2,
+            },
+            second.clone(),
+        );
+        reconnect_user_sessions(&state, id).await;
+        assert_eq!(state.lost_connections.lock().await[&id].len(), 2);
+
+        // This is also called by the UDP path after publishing a new tunnel.
+        install_capturing_socket(&state, id).await;
+        reconnect_lost_clients(&state, id).await;
+        first.close(None).await.unwrap();
+        second.close(None).await.unwrap();
+        state
+            .undiscovered_clients
+            .lock()
+            .await
+            .retain(|meta, _| meta.charger_id != id);
+        for response in [first_response, second_response] {
+            let frames = actix_web::body::to_bytes(response.into_body())
+                .await
+                .unwrap();
+            assert!(frames.windows(9).any(|message| message == b"reconnect"));
+        }
+        assert!(unrelated.ping(b"").await.is_ok());
+        assert!(!state.lost_connections.lock().await.contains_key(&id));
+        assert!(state.lost_connections.lock().await.contains_key(&other_id));
+    }
+
+    #[actix_web::test]
+    async fn stopping_browser_preserves_other_lost_clients_and_reserves_key_until_cleanup() {
+        use crate::{ws_udp_bridge::WebClient, AppState};
+        use std::{collections::HashSet, future::Future, task::Context, time::Instant};
+        let state = bridge_state_without_db();
+        let id = uuid::Uuid::new_v4();
+        let key = uuid::Uuid::new_v4();
+        let app = web::Data::new(AppState {
+            pool: state.pool.clone(),
+            jwt_secret: String::new(),
+            mailer: None,
+            frontend_url: String::new(),
+            sender_email: String::new(),
+            sender_name: String::new(),
+            brand: Default::default(),
+            keys_in_use: Mutex::new(HashSet::from([key])),
+            hasher: Default::default(),
+        });
+        let (session, _response) = browser_session();
+        let (mut other, _other_response) = browser_session();
+        let client = WebClient::new(key, id, app.clone(), state.clone(), 1, session.clone()).await;
+        state
+            .lost_connections
+            .lock()
+            .await
+            .insert(id, vec![(1, session), (2, other.clone())]);
+        let command = ManagementResponseV2 {
+            charger_id: id.as_u128(),
+            connection_no: 1,
+            connection_uuid: 1,
+        };
+        let other_command = ManagementResponseV2 {
+            charger_id: id.as_u128(),
+            connection_no: 2,
+            connection_uuid: 2,
+        };
+        state
+            .port_discovery
+            .lock()
+            .await
+            .extend([(command, Instant::now()), (other_command, Instant::now())]);
+        install_capturing_socket(&state, id).await;
+        let socket = state.device_management_map_with_id.lock().await[&id].clone();
+        let guard = socket.lock().await;
+        let mut stop = Box::pin(client.stop());
+        let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+        assert!(stop.as_mut().poll(&mut cx).is_pending());
+        assert!(
+            app.keys_in_use.lock().await.contains(&key),
+            "released key before old Disconnect was sent"
+        );
+        drop(guard);
+        stop.await;
+
+        assert!(!app.keys_in_use.lock().await.contains(&key));
+        assert_eq!(state.lost_connections.lock().await[&id].len(), 1);
+        assert_eq!(state.lost_connections.lock().await[&id][0].0, 2);
+        assert!(other.ping(b"").await.is_ok());
+        let discovery = state.port_discovery.lock().await;
+        assert!(!discovery.contains_key(&command));
+        assert!(discovery.contains_key(&other_command));
     }
 
     #[actix_web::test]
