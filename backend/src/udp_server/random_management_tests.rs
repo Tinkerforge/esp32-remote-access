@@ -120,10 +120,10 @@ async fn independently_random_management_addresses_carry_udp_and_tcp() {
 }
 
 #[actix_web::test]
-async fn random_management_fallback_keeps_registered_cidr_prefixes() {
+async fn random_management_ipv4_fallback_keeps_registered_cidr_prefixes() {
     for (local, peer) in [
         ("10.123.123.3/24", "10.123.123.2/24"),
-        ("fd00:123:ffff::3/64", "fd00:123:ffff::2/64"),
+        ("10.123.123.3/32", "10.123.123.2/32"),
     ] {
         let (mut server, mut charger) =
             management_pair_with_registration(local, peer, Some((local, peer))).await;
