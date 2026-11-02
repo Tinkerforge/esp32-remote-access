@@ -195,22 +195,24 @@ test.describe('built worker tunnels', () => {
       assert.equal(interfaces, 1); assert.ok(packets > 0);
       assert.ok(tcpPairs.length > 0, 'Capture must contain inner TCP traffic');
       assert.ok(httpRequests > 0 && wsRequests > 0, 'Both HTTP and inner WebSocket must use TCP');
-      if (profile !== 'v6') {
-        if (profile.startsWith('legacy')) {
-          assert.equal(discoverySource, undefined, 'Older firmware must not receive IPv6 discovery probes');
-        } else {
-          assert.ok(discoverySource?.startsWith('fd'));
-          assert.notEqual(discoverySource, previousDiscoverySource);
-        }
-        if (expectIpv6) assert.ok(discoveryPeer?.startsWith('fd'));
-        for (const [source, destination] of tcpPairs) {
-          const local = expectIpv6 ? discoverySource : '0a7b0103';
-          const peer = expectIpv6 ? discoveryPeer : '0a7b0102';
-          assert.ok((source === local && destination === peer) || (source === peer && destination === local),
-            'TCP must use the selected address pair in both directions');
-        }
-        previousDiscoverySource = discoverySource;
+      if (profile.startsWith('legacy')) {
+        assert.equal(discoverySource, undefined, 'Older firmware must not receive IPv6 discovery probes');
+      } else {
+        assert.ok(discoverySource?.startsWith('fd'));
+        assert.notEqual(discoverySource, previousDiscoverySource);
+        assert.notEqual(discoverySource, 'fd000000000000000000000000000003', 'Saved IPv6 local address must be ignored');
       }
+      if (expectIpv6) {
+        assert.ok(discoveryPeer?.startsWith('fd'));
+        assert.notEqual(discoveryPeer, 'fd000000000000000000000000000002', 'Saved IPv6 peer must be ignored');
+      }
+      for (const [source, destination] of tcpPairs) {
+        const local = expectIpv6 ? discoverySource : '0a7b0103';
+        const peer = expectIpv6 ? discoveryPeer : '0a7b0102';
+        assert.ok((source === local && destination === peer) || (source === peer && destination === local),
+          'TCP must use the selected address pair in both directions');
+      }
+      previousDiscoverySource = discoverySource;
     });
   }
 });

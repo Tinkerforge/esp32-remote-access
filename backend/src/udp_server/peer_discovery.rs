@@ -1,5 +1,5 @@
 //! Discover random management addresses with all-nodes multicast ICMPv6 echo.
-//! Registered service addresses remain a bounded fallback for legacy firmware.
+//! Registered IPv4 addresses remain a bounded fallback for legacy firmware.
 
 use smoltcp::{
     iface::SocketHandle,
@@ -52,10 +52,10 @@ impl PeerDiscovery {
         Self {
             handle,
             registered_local,
-            // Multicast discovery metadata is not a unicast service fallback.
-            fallback: match registered_peer {
-                IpAddr::V6(address) if address.is_multicast() => None,
-                address => Some(address),
+            // IPv6 service addresses are random and must be discovered.
+            fallback: match (registered_local, registered_peer) {
+                (IpAddr::V4(_), IpAddr::V4(peer)) => Some(peer.into()),
+                _ => None,
             },
             local,
             deadline: now + DISCOVERY_TIMEOUT,
@@ -159,10 +159,15 @@ mod tests {
         PeerDiscovery::bind(&mut socket);
         let mut sockets = SocketSet::new(vec![]);
         let handle = sockets.add(socket);
+        let registered_local = if peer.is_ipv4() {
+            "10.123.123.3".parse().unwrap()
+        } else {
+            MANAGEMENT_SERVER_ADDRESS.into()
+        };
         let mut discovery = PeerDiscovery::new(
             handle,
             MANAGEMENT_SERVER_ADDRESS,
-            "10.123.123.3".parse().unwrap(),
+            registered_local,
             peer,
             now,
         );
@@ -231,14 +236,16 @@ mod tests {
     }
 
     #[test]
-    fn fallback_is_bounded_and_preserves_registered_family() {
+    fn only_registered_ipv4_is_a_bounded_fallback() {
         let now = Instant::now();
-        for (registered, expected) in [
-            ("10.123.123.2", "10.123.123.2"),
-            ("fd00:123:ffff::2", "fd00:123:ffff::2"),
-            ("fe80::1", "fe80::1"),
-        ] {
+        for registered in ["10.123.123.2", "fd00:123:ffff::2", "fe80::1", "ff02::1"] {
             let (mut discovery, mut sockets) = discovery(registered.parse().unwrap(), now);
+            let expected = if registered == "10.123.123.2" {
+                Some((registered.parse().unwrap(), false))
+            } else {
+                None
+            };
+            assert_eq!(discovery.accepts(registered.parse().unwrap()), expected.is_some());
             assert_eq!(
                 discovery.poll(
                     sockets.get_mut::<icmp::Socket>(discovery.handle),
@@ -251,8 +258,12 @@ mod tests {
                     sockets.get_mut::<icmp::Socket>(discovery.handle),
                     now + DISCOVERY_TIMEOUT
                 ),
-                Some((expected.parse().unwrap(), false))
+                expected
             );
+            if expected.is_none() {
+                assert_eq!(discovery.outstanding, [0], "discovery must start a fresh probe batch");
+                assert!(discovery.deadline > now + DISCOVERY_TIMEOUT);
+            }
         }
     }
 

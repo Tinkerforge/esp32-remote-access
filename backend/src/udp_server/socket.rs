@@ -144,7 +144,7 @@ impl<'a> ManagementSocket<'a> {
     }
 
     /// Runtime management sessions choose a fresh random IPv6 address and
-    /// discover the charger through ICMPv6. Registered service addresses remain
+    /// discover the charger through ICMPv6. Registered IPv4 addresses remain
     /// a fallback for legacy firmware, independently of user tunnel keys.
     pub fn new_preferred_ipv6(
         registered_self: IpNetwork,
@@ -184,7 +184,7 @@ impl<'a> ManagementSocket<'a> {
         // Preserve an established random server address across key rotation so
         // active TCP streams survive. A legacy fallback needs a new random ULA.
         let local = match self.local_ip {
-            IpAddr::V6(local) if self.local_ip != registered_self.ip() => local,
+            IpAddr::V6(local) => local,
             _ => random_management_address(),
         };
         self.local_ip = local.into();
@@ -1107,6 +1107,45 @@ mod tests {
         );
         charger.encrypt_and_send_slice(b"IPv6 management response");
         assert_eq!(deliver_one(&mut server).await, b"IPv6 management response");
+    }
+
+    #[actix_web::test]
+    async fn saved_ipv6_registration_discovers_the_current_service_addresses() {
+        let (mut server, mut charger) = management_pair_with_registration(
+            "fd00:123:ffff::3/128",
+            "fd00:123:ffff::2/128",
+            Some(("fd99::3/64", "fd99::2/128")),
+        )
+        .await;
+        let local = server.local_ip;
+        assert_ne!(local, "fd99::3".parse::<IpAddr>().unwrap());
+        server.encrypt_and_send_slice(b"command to discovered service");
+        answer_discovery_probe(&mut charger).await;
+        assert!(deliver_one(&mut server).await.is_empty());
+        assert!(!server.is_discovering_peer());
+        assert_eq!(server.local_ip, local);
+        assert_eq!(server.peer_ip, IpAddr::V6(MANAGEMENT_CHARGER_ADDRESS));
+        assert_eq!(deliver_one(&mut charger).await, b"command to discovered service");
+    }
+
+    #[actix_web::test]
+    async fn saved_ipv6_registration_is_not_used_after_discovery_times_out() {
+        let (mut server, _charger) = management_pair_with_registration(
+            "fd00:123:ffff::3/128",
+            "fd00:123:ffff::2/128",
+            Some(("fd99::3/64", "fd99::2/128")),
+        )
+        .await;
+        let local = server.local_ip;
+        server.encrypt_and_send_slice(b"command must wait for discovery");
+        server.poll_at(
+            Instant::now() + super::super::peer_discovery::DISCOVERY_TIMEOUT
+                + Duration::from_millis(1),
+        );
+        assert!(server.is_discovering_peer());
+        assert_eq!(server.local_ip, local);
+        assert_eq!(server.peer_ip, IpAddr::V6(ALL_NODES_ADDRESS));
+        assert_eq!(server.pending_packets.len(), 1);
     }
 
     #[actix_web::test]

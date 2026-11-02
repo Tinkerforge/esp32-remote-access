@@ -302,16 +302,9 @@ async function start_connection(setup_data: SetupMessage, deadline = Date.now() 
         localAddress = keys.ipv4_fallback.web_address;
         chargerAddress = keys.ipv4_fallback.charger_address;
     }
-    const peerAddress = chargerAddress.split("/")[0];
-    const normalizedPeer = peerAddress.includes(":") ? new URL(`http://[${peerAddress}]/`).hostname : "";
-    const discoveryToken = normalizedPeer === "[ff02::1]";
-    const discoverPeer = keys.ipv6_supported === true && (discoveryToken || !peerAddress.includes(":"));
-    if (discoveryToken) {
-        const bytes = crypto.getRandomValues(new Uint8Array(16));
-        bytes[0] = 0xfd;
-        localAddress = Array.from({ length: 8 }, (_, i) =>
-            ((bytes[2 * i] << 8) | bytes[2 * i + 1]).toString(16)).join(":") + "/128";
-    }
+    // The WASM client generates a fresh local ULA and discovers the peer.
+    // Saved IPv6 addresses are never used as service endpoints.
+    const discoverPeer = keys.ipv6_supported === true;
     const client = new Client(
         decrypted_keys.web_private_string,
         keys.charger_pub,

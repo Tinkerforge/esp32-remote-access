@@ -145,13 +145,11 @@ fn serve(stream: TcpStream) -> Result<()> {
     .map_err(|error| format!("WebSocket handshake: {error}"))?;
     socket.get_mut().set_nonblocking(true)?;
     let ipv6 = profile != "/v4";
-    let local: IpAddress = if profile == "/v6-discovery" {
+    let local: IpAddress = if ipv6 {
         let mut address = [0; 16];
         OsRng.try_fill_bytes(&mut address)?;
         address[0] = 0xfd;
         std::net::Ipv6Addr::from(address).into()
-    } else if ipv6 {
-        "fd00::2".parse().unwrap()
     } else {
         "10.123.1.2".parse().unwrap()
     };

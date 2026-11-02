@@ -945,7 +945,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn candidate_matching_accepts_registered_ipv6_management_addresses() {
+    async fn candidate_matching_starts_discovery_for_saved_ipv6_addresses() {
         for prefix in [64, 128] {
             let (mut peer, mut charger, init) = peer_and_charger();
             charger.wg_charger_ip = format!("fd00:123:ffff::2/{prefix}").parse().unwrap();
@@ -964,6 +964,7 @@ mod tests {
                 panic!()
             };
             assert!(socket.decrypt(keepalive).unwrap().is_empty());
+            assert!(socket.is_discovering_peer());
         }
     }
 

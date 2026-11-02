@@ -20,8 +20,8 @@
 //! Multicast ICMPv6 discovery inside an authenticated one-peer WireGuard link.
 //!
 //! Probe ff02::1 from the browser's random ULA and learn the service address
-//! from a correlated unicast echo reply. Concrete registered IPv6 services can
-//! be used directly; automatic detection retains a known IPv4 fallback. Stock
+//! from a correlated unicast echo reply. IPv6 always requires discovery;
+//! automatic detection retains a known IPv4 fallback. Stock
 //! IPv4 firmware does not answer these probes, so its fallback remains bounded.
 
 use smoltcp::{

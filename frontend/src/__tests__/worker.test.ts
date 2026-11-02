@@ -99,25 +99,25 @@ describe("worker tunnel lifecycle", () => {
         ["fd00::3/128", "fe80::1"],
         ["fd00::3/128", "fe80::1/128"],
         ["fd00::3/128", "FE80:0:0:0:0:0:0:1/128"],
-    ])("passes registered addresses through unchanged: %s", async (local, peer) => {
+    ])("enables discovery for supported firmware with saved addresses: %s", async (local, peer) => {
         vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ...keys, web_address: local, charger_address: peer })));
         await configure();
         expect(mocks.construct.mock.calls[0].slice(3, 6)).toEqual(["/api/ws?key_id=key-id", local, peer]);
-        expect(mocks.construct.mock.calls[0][10]).toBe(!peer.includes(":"));
+        expect(mocks.construct.mock.calls[0][10]).toBe(true);
         expect(mocks.construct.mock.calls[0].slice(11)).toEqual([undefined, undefined]);
         await message("connect");
         expect(mocks.clients[0].start_inner_ws).toHaveBeenCalledOnce();
     });
 
     it.each(["ff02::1", "ff02::1/128", "FF02:0:0:0:0:0:0:1/128"])(
-        "uses IPv6 discovery and a fresh session address for %s", async (peer) => {
+        "enables IPv6 discovery for token %s", async (peer) => {
             vi.mocked(fetch).mockImplementation(async () => new Response(JSON.stringify({
                 ...keys, web_address: "fd00::3/128", charger_address: peer,
             })));
             await configure();
             const first = mocks.clients[0];
-            expect(first.args[4]).toMatch(/^fd[0-9a-f]{2}(?::[0-9a-f]{1,4}){7}\/128$/);
-            expect(first.args[4]).not.toBe("fd00::3/128");
+            // The WASM client owns random address generation.
+            expect(first.args[4]).toBe("fd00::3/128");
             expect(first.args[5]).toBe(peer);
             expect(first.args[10]).toBe(true);
             first.ready = false;
@@ -129,7 +129,6 @@ describe("worker tunnel lifecycle", () => {
             (first.args[8] as () => void)();
             await vi.advanceTimersByTimeAsync(1000);
             expect(mocks.clients).toHaveLength(2);
-            expect(mocks.clients[1].args[4]).not.toBe(first.args[4]);
             expect(mocks.clients[1].args[10]).toBe(true);
         },
     );
@@ -207,7 +206,6 @@ describe("worker tunnel lifecycle", () => {
         expect(previous.free).toHaveBeenCalledOnce();
         expect(fetch).toHaveBeenCalledTimes(2);
         const resumed = mocks.clients[1];
-        expect(resumed.args[4]).not.toBe(previous.args[4]);
         expect(resumed.args[5]).toBe("ff02::1/128");
         expect(resumed.args[10]).toBe(true);
         resumed.ready = false;

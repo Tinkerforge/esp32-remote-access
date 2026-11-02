@@ -61,11 +61,11 @@ pub struct Client(
 #[wasm_bindgen]
 impl Client {
 
-    /// Use registered IPv4 or IPv6 tunnel addresses, preserving local prefixes.
-    /// `discover_peer` defaults to false. With registered IPv4 addresses it
-    /// probes the IPv6 discovery contract, falling back to those IPv4 addresses
-    /// after three seconds without a reply. IPv6 discovery callers may supply
-    /// an explicit IPv4 fallback pair. No management/outer address is consulted.
+    /// IPv6 always uses a fresh random local ULA and peer discovery.
+    /// `discover_peer` defaults to false for registered IPv4 addresses. Enabling
+    /// it probes IPv6, falling back to that IPv4 pair and prefix after three
+    /// seconds without a reply. IPv6 callers may supply an explicit IPv4
+    /// fallback pair. Saved IPv6 addresses are not used as service endpoints.
     #[wasm_bindgen(constructor)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -291,41 +291,39 @@ impl WgClient {
         assert!(matches!((self_addr, parsed_peer),
             (IpAddress::Ipv4(_), IpAddress::Ipv4(_)) | (IpAddress::Ipv6(_), IpAddress::Ipv6(_))),
             "Local and peer tunnel addresses must have the same family");
+        let discover_peer = discover_peer || matches!(parsed_peer, IpAddress::Ipv6(_));
+        let (cidr, parsed_peer, fallback) = if discover_peer {
+            let fallback = match (self_addr, parsed_peer) {
+                (IpAddress::Ipv4(_), IpAddress::Ipv4(peer)) => Some((cidr, peer)),
+                _ => match (fallback_local, fallback_peer) {
+                    (Some(local), Some(peer)) => {
+                        let cidr = icmp_discovery::parse_interface_cidr(local).expect("Invalid fallback local address");
+                        let peer = icmp_discovery::parse_cidr_address(peer).expect("Invalid fallback peer address");
+                        let (IpAddress::Ipv4(_), IpAddress::Ipv4(peer)) = (cidr.address(), peer) else {
+                            panic!("Fallback requires an IPv4 address pair");
+                        };
+                        Some((cidr, peer))
+                    }
+                    (None, None) => None,
+                    _ => panic!("Fallback requires both local and peer addresses"),
+                },
+            };
+            let mut bytes = [0; 16];
+            getrandom::fill(&mut bytes).unwrap();
+            bytes[0] = 0xfd;
+            let local = IpAddress::Ipv6(bytes.into());
+            (smoltcp::wire::IpCidr::new(local, 128),
+                IpAddress::Ipv6(icmp_discovery::ALL_NODES_ADDRESS), fallback)
+        } else { (cidr, parsed_peer, None) };
+        let self_addr = cidr.address();
         let iface = Rc::new(RefCell::new(Interface::new(device, cidr)));
+        if let Some((cidr, _)) = fallback {
+            iface.borrow_mut().add_ip_address(cidr);
+        }
         let iface_cpy = Rc::downgrade(&iface);
 
-        let (self_addr, parsed_peer, fallback) = if discover_peer {
-            match (self_addr, parsed_peer) {
-                (IpAddress::Ipv4(_), IpAddress::Ipv4(peer)) => {
-                    let mut bytes = [0; 16];
-                    getrandom::fill(&mut bytes).unwrap();
-                    bytes[0] = 0xfd;
-                    let local = IpAddress::Ipv6(bytes.into());
-                    iface.borrow_mut().add_ip_address(smoltcp::wire::IpCidr::new(local, 128));
-                    (local, IpAddress::Ipv6(icmp_discovery::ALL_NODES_ADDRESS), Some(peer))
-                }
-                _ => {
-                    let fallback = match (fallback_local, fallback_peer) {
-                        (Some(local), Some(peer)) => {
-                            let cidr = icmp_discovery::parse_interface_cidr(local).expect("Invalid fallback local address");
-                            let peer = icmp_discovery::parse_cidr_address(peer).expect("Invalid fallback peer address");
-                            let (IpAddress::Ipv4(_), IpAddress::Ipv4(peer)) = (cidr.address(), peer) else {
-                                panic!("Fallback requires an IPv4 address pair");
-                            };
-                            iface.borrow_mut().add_ip_address(cidr);
-                            Some(peer)
-                        }
-                        (None, None) => None,
-                        _ => panic!("Fallback requires both local and peer addresses"),
-                    };
-                    (self_addr, parsed_peer, fallback)
-                }
-            }
-        } else { (self_addr, parsed_peer, None) };
-
         // A public IPv6 listener says nothing about the inner tunnel family.
-        // Use the registered peer directly unless the caller enables contract
-        // detection, with a known IPv4 fallback where available.
+        // Only IPv4 can use a registered peer without discovery.
         let (internal_peer_ip, icmp_handle, discovery) = if discover_peer {
             assert!(matches!(parsed_peer, IpAddress::Ipv6(_)), "Discovery requires an IPv6 peer");
             let buffer = || smoltcp::socket::icmp::PacketBuffer::new(
@@ -336,7 +334,7 @@ impl WgClient {
             let mut nonce = [0; 16];
             getrandom::fill(&mut nonce).unwrap();
             let mut discovery = PeerDiscovery::new(crate::utils::now(), nonce);
-            if let Some(peer) = fallback { discovery = discovery.with_ipv4_fallback(peer); }
+            if let Some((_, peer)) = fallback { discovery = discovery.with_ipv4_fallback(peer); }
             (Rc::new(RefCell::new(None)), Some(handle),
                 Some(Rc::new(RefCell::new(discovery))))
         } else {
@@ -970,28 +968,25 @@ mod test {
         let mut previous_peer = None;
         // Recreate the complete client to cover reconnection with new WG sessions.
         for _ in 0..2 {
-            let local = if discover && local.contains(':') {
-                let mut address = [0; 16];
-                getrandom::fill(&mut address).unwrap();
-                address[0] = 0xfd;
-                format!("{}/128", std::net::Ipv6Addr::from(address))
-            } else { local.to_owned() };
             let noop = Closure::<dyn FnMut()>::new(|| {});
             let engine = base64::engine::general_purpose::STANDARD;
             let client = Client::new(
                 &engine.encode([1; 32]),
                 &engine.encode(x25519::PublicKey::from(&x25519::StaticSecret::from([2; 32])).as_bytes()),
-                &engine.encode([3; 32]), outer, &local, peer, 80, 1420,
+                &engine.encode([3; 32]), outer, local, peer, 80, 1420,
                 noop.as_ref().unchecked_ref::<js_sys::Function>().clone(),
                 noop.as_ref().unchecked_ref::<js_sys::Function>().clone(), Some(discover),
                 fallback.map(|(local, _)| local.to_owned()), fallback.map(|(_, peer)| peer.to_owned()),
             );
-            assert_eq!(client.peer_discovery_complete(), !discover);
+            let discovery_required = discover || peer.contains(':');
+            assert_eq!(client.peer_discovery_complete(), !discovery_required);
             wait_for(|| client.0.iface.borrow().is_up() && client.peer_discovery_complete()).await;
-            if discover && expect_ipv6 {
+            if discovery_required && expect_ipv6 {
                 let discovered = client.0.internal_peer_ip.borrow().unwrap();
                 let IpAddress::Ipv6(address) = discovered else { panic!("discovered IPv4 peer"); };
                 assert_eq!(address.octets()[0], 0xfd);
+                assert_ne!(discovered, icmp_discovery::parse_cidr_address(peer).unwrap(),
+                    "saved IPv6 peer was used instead of discovery");
                 assert_ne!(previous_peer, Some(discovered));
                 previous_peer = Some(discovered);
             }
@@ -1006,9 +1001,11 @@ mod test {
             client.start_inner_ws(callback.as_ref().unchecked_ref::<js_sys::Function>().clone());
             wait_for(|| !messages.borrow().is_empty()).await;
             assert_eq!(&*messages.borrow(), &["peer-ws"]);
-            let source = assert_capture(&client, fallback.filter(|_| !expect_ipv6).map(|p| p.0).unwrap_or(&local), discover, expect_ipv6);
-            if discover {
+            let source = assert_capture(&client, fallback.filter(|_| !expect_ipv6).map(|p| p.0).unwrap_or(local), discovery_required, expect_ipv6);
+            if discovery_required {
                 assert_ne!(previous_local, source, "replacement reused the IPv6 probe source");
+                assert_ne!(source.map(IpAddress::Ipv6), Some(icmp_discovery::parse_cidr_address(local).unwrap()),
+                    "saved address was used as the IPv6 probe source");
                 previous_local = source;
             }
             client.disconnect();
@@ -1083,12 +1080,12 @@ mod test {
     }
 
     #[wasm_bindgen_test(async)]
-    async fn registered_ipv6_peer_with_64_prefix() {
+    async fn saved_ipv6_addresses_with_64_prefix_require_discovery() {
         exercise("ws://[::1]:18081/v6", "fd00::3/64", "fd00::2/64", false, None).await;
     }
 
     #[wasm_bindgen_test(async)]
-    async fn registered_ipv6_peer_with_128_prefix() {
+    async fn saved_ipv6_addresses_with_128_prefix_require_discovery() {
         exercise("ws://127.0.0.1:18081/v6", "fd00::3/128", "fd00::2/128", false, None).await;
     }
 
