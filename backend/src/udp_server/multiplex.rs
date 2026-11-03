@@ -712,7 +712,11 @@ pub async fn run_server(
                                 tunn_sock.send_packet(ack_packet);
                             }
                             Err(e) => {
-                                log::error!("Failed to handle charge log: {:?}", e);
+                                log::error!(
+                                    "Failed to handle charge log from charger with id '{}': {:?}",
+                                    id,
+                                    e
+                                );
                                 let mut tunn_sock = tunn_sock.lock().await;
                                 let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
                                     NackReason::Timeout,
