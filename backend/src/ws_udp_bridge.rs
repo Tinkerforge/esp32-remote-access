@@ -155,6 +155,19 @@ impl<'a> WebClient<'a> {
     pub async fn stop(self) {
         log::debug!("Closed connection to charger '{}'", self.charger_id);
 
+        // Stop resending Connect commands the charger never answered. Besides the
+        // initial one, the charger may have gotten others when its management tunnel
+        // was reestablished in the meantime. Otherwise the charger may open the
+        // connection after we already sent the Disconnect, blocking the slot for the
+        // next client. This must happen before the key is released, so that it
+        // can't affect a new client.
+        remove_pending_connects(
+            &self.bridge_state.port_discovery,
+            self.charger_id,
+            self.conn_no,
+        )
+        .await;
+
         {
             let mut keys_in_use = self.app_state.keys_in_use.lock().await;
             keys_in_use.remove(&self.key_id);
@@ -255,6 +268,20 @@ pub async fn open_connection(
     sock.send_packet(ManagementPacket::CommandPacket(packet));
 
     Ok(())
+}
+
+async fn remove_pending_connects(
+    port_discovery: &Mutex<HashMap<ManagementResponseV2, Instant>>,
+    charger_id: uuid::Uuid,
+    conn_no: i32,
+) {
+    let charger_id = charger_id.as_u128();
+    let mut discovery = port_discovery.lock().await;
+    discovery.retain(|pending, _| {
+        // Copy out of the packed struct instead of taking references.
+        let (pending_charger_id, pending_conn_no) = (pending.charger_id, pending.connection_no);
+        pending_charger_id != charger_id || pending_conn_no != conn_no
+    });
 }
 
 /// Relay end-to-end encrypted WireGuard packets as binary WebSocket frames.
@@ -434,6 +461,35 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
+    }
+
+    #[actix_web::test]
+    async fn removing_pending_connects_only_affects_the_given_connection() {
+        let charger = Uuid::new_v4();
+        let other_charger = Uuid::new_v4();
+        let pending = |charger_id: Uuid, connection_no: i32| ManagementResponseV2 {
+            charger_id: charger_id.as_u128(),
+            connection_no,
+            connection_uuid: Uuid::new_v4().as_u128(),
+        };
+        // Initial Connect and one sent again after the management tunnel was reestablished.
+        let initial = pending(charger, 1);
+        let reattached = pending(charger, 1);
+        let other_conn = pending(charger, 2);
+        let other_charger_same_conn = pending(other_charger, 1);
+        let discovery = Mutex::new(HashMap::from([
+            (initial, Instant::now()),
+            (reattached, Instant::now()),
+            (other_conn, Instant::now()),
+            (other_charger_same_conn, Instant::now()),
+        ]));
+
+        remove_pending_connects(&discovery, charger, 1).await;
+
+        let discovery = discovery.lock().await;
+        assert_eq!(discovery.len(), 2);
+        assert!(discovery.contains_key(&other_conn));
+        assert!(discovery.contains_key(&other_charger_same_conn));
     }
 
     #[test]
