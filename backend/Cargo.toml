@@ -39,8 +39,8 @@ derive_more = "2.1.1"
 simplelog = "0.12.2"
 base64 = "0.22.1"
 ipnetwork = { version = "0.21.1", features = ["serde"] }
-utoipa = { version = "5.5.0", features = ["actix_extras"] }
-utoipa-swagger-ui = { version = "9.0.2", features = ["actix-web"] }
+utoipa = { version = "6.0.0", features = ["actix_extras"] }
+utoipa-swagger-ui = { version = "10.0.2", features = ["actix-web"] }
 log = "0.4.34"
 boringtun = { git = "https://github.com/Tinkerforge/boringtun.git", rev = "9ad180755a5281041dd6035a4db06b777f69f975" }
 rand_core = "0.9.5"
