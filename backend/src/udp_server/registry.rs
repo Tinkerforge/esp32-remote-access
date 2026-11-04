@@ -17,7 +17,6 @@ pub(super) async fn publish<'a>(
     generation: u64,
 ) -> Option<Socket<'a>> {
     socket.discovery_generation = generation;
-    let socket = Arc::new(Mutex::new(socket));
     let mut by_addr = by_addr.lock().await;
     let mut by_id = by_id.lock().await;
     if by_addr.contains_key(&addr) {
@@ -28,6 +27,7 @@ pub(super) async fn publish<'a>(
         if current_guard.discovery_generation >= generation {
             return None;
         }
+        socket.continue_out_sequence_of(&current_guard);
         let old_addr = current_guard.get_remote_address();
         if by_addr
             .get(&old_addr)
@@ -36,6 +36,7 @@ pub(super) async fn publish<'a>(
             by_addr.remove(&old_addr);
         }
     }
+    let socket = Arc::new(Mutex::new(socket));
     by_addr.insert(addr, socket.clone());
     by_id.insert(id, socket.clone());
     Some(socket)
@@ -127,5 +128,40 @@ mod tests {
         assert_eq!(prune(&addresses, &ids).await, vec![id]);
         assert!(addresses.lock().await.is_empty());
         assert!(ids.lock().await.is_empty());
+    }
+
+    #[actix_web::test]
+    async fn replacement_continues_sequence_numbers_of_old_tunnel() {
+        use crate::udp_server::packet::{AckPacket, ManagementPacket};
+
+        let addresses = Mutex::new(HashMap::new());
+        let ids = Mutex::new(HashMap::new());
+        let id = uuid::Uuid::new_v4();
+        let old_addr = "127.0.0.1:1000".parse().unwrap();
+        let new_addr = "127.0.0.1:2000".parse().unwrap();
+        let old = ManagementSocket::new_for_test(id, old_addr).await;
+        let old = publish(&addresses, &ids, id, old_addr, old, 1)
+            .await
+            .unwrap();
+        for _ in 0..5 {
+            old.lock()
+                .await
+                .send_packet(ManagementPacket::AckPacket(AckPacket::new()));
+        }
+
+        let mut new = ManagementSocket::new_for_test(id, new_addr).await;
+        let capture = Arc::new(std::sync::Mutex::new(Vec::new()));
+        new.enable_packet_capture(capture.clone());
+        let new = publish(&addresses, &ids, id, new_addr, new, 2)
+            .await
+            .unwrap();
+        new.lock()
+            .await
+            .send_packet(ManagementPacket::AckPacket(AckPacket::new()));
+
+        let captured = capture.lock().unwrap();
+        // Header layout: magic (u16), length (u16), seq_number (u16), ...
+        let seq_num = u16::from_le_bytes([captured[0][4], captured[0][5]]);
+        assert_eq!(seq_num, 6);
     }
 }

@@ -199,9 +199,15 @@ impl<'a> ManagementSocket<'a> {
         self.out_sequence = 1;
     }
 
+    /// The charger does not notice when we replace its tunnel (e.g. after its NAT mapping changed)
+    /// and keeps dropping commands that aren't newer than the last one it accepted.
+    pub(super) fn continue_out_sequence_of(&mut self, previous: &ManagementSocket<'_>) {
+        self.out_sequence = previous.out_sequence;
+    }
+
     pub fn send_packet(&mut self, mut packet: ManagementPacket) {
         packet.set_seq_num(self.out_sequence);
-        self.out_sequence += 1;
+        self.out_sequence = self.out_sequence.wrapping_add(1);
 
         let bytes = packet.as_bytes();
         #[cfg(test)]
