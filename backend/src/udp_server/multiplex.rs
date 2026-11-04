@@ -1086,6 +1086,45 @@ mod tests {
         charge_log_timeout_allows_retry(ChargeLogTimeout::TcpFin).await;
     }
 
+    // The device may start a new send (after a reboot, a local timeout or for the next user) while the server still waits for the TCP connection of the previous one.
+    // Rejecting or accepting the new request is fine, but afterwards a normal transfer on the same tunnel must work again.
+    #[tokio::test(start_paused = true)]
+    async fn charge_log_request_during_tcp_phase_allows_later_transfers() {
+        let mut peer = ChargeLogPeer::new().await;
+        let first = peer.request().await;
+        peer.metadata().await;
+
+        let server = peer.server.clone();
+        let second = tokio::spawn(async move {
+            wait_for_charge_log_metadata(&server).await?;
+            receive_charge_log(&server).await
+        });
+        peer.pump().await;
+        let sender = peer.server.lock().await.take_sender();
+        if let Some(sender) = sender {
+            sender
+                .send(ChargeLogSendMetadata {
+                    user_uuid: uuid::Uuid::new_v4().as_u128(),
+                    lang: "en".into(),
+                    is_monthly_email: false,
+                    filename: "charge-log.csv".into(),
+                    display_name: "Test charger".into(),
+                })
+                .unwrap();
+            peer.pump().await;
+        }
+
+        // The charger never connects for either request.
+        tokio::time::advance(Duration::from_secs(61)).await;
+        peer.pump().await;
+        assert!(first.is_finished(), "first transfer did not time out");
+        assert!(second.is_finished(), "second transfer did not time out");
+        assert!(first.await.unwrap().is_err());
+        assert!(second.await.unwrap().is_err());
+
+        peer.successful_retry().await;
+    }
+
     #[test]
     fn only_handshake_initiations_admit_unknown_peers() {
         let (_, _, init) = peer_and_charger();
