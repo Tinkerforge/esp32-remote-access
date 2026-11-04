@@ -17,6 +17,18 @@ import { GroupingModal } from "../components/device/GroupingModal";
 import { Provisioning } from "../components/Provisioning";
 import { DiscoveredDevices } from "../types/window";
 
+function loadExpandedGroups(): Set<string> {
+    try {
+        const stored: unknown = JSON.parse(window.localStorage.getItem("expandedGroups") ?? "[]");
+        if (Array.isArray(stored) && stored.every((id) => typeof id === "string")) {
+            return new Set(stored);
+        }
+    } catch {
+        // Invalid or unavailable storage must not prevent the device list loading.
+    }
+    return new Set();
+}
+
 export class DeviceList extends Component<Record<string, never>, DeviceListState> {
     removalDevice: StateDevice;
     stateUpdateWs: WebSocket | null;
@@ -55,6 +67,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             localDevices: [],
             cloudDevices: [],
             groupByEnabled: window.localStorage.getItem("groupByEnabled") !== "false",
+            expandedGroups: loadExpandedGroups(),
         };
 
         this.stateUpdateWs = null;
@@ -645,6 +658,24 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         this.setState({ groupByEnabled: nextValue });
     }
 
+    handleGroupToggle = (groupId: string) => {
+        this.setState((state) => {
+            const expandedGroups = new Set(state.expandedGroups);
+            if (expandedGroups.has(groupId)) {
+                expandedGroups.delete(groupId);
+            } else {
+                expandedGroups.add(groupId);
+            }
+            return { expandedGroups };
+        }, () => {
+            try {
+                window.localStorage.setItem("expandedGroups", JSON.stringify([...this.state.expandedGroups]));
+            } catch {
+                // Keep the in-memory preference when storage is unavailable or full.
+            }
+        });
+    }
+
     render() {
         const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
         const { route } = useLocation();
@@ -737,6 +768,8 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                         groupingSearchTerm: this.state.groupingSearchTerm,
                         setGroupingSearchTerm: (term: string) => this.setState({ groupingSearchTerm: term }),
                         groupByEnabled: this.state.groupByEnabled,
+                        expandedGroups: this.state.expandedGroups,
+                        onGroupToggle: this.handleGroupToggle,
                         onGroupByToggle: this.handleGroupByToggle,
                         onManageGroupingsClick: () => this.setState({ showGroupingModal: true }),
                     };

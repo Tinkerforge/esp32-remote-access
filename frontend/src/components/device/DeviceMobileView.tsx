@@ -1,4 +1,3 @@
-import { useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
 import { ButtonGroup, Col, Container, Dropdown, DropdownButton } from "react-bootstrap";
 import { ChevronDown, ChevronRight } from "react-feather";
@@ -21,6 +20,8 @@ interface DeviceMobileViewProps {
     formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
     groupings: Grouping[];
     bundleByGroups?: boolean;
+    expandedGroups: ReadonlySet<string>;
+    onGroupToggle: (groupId: string) => void;
     searchTerm: string;
     onSearchChange: (term: string) => void;
     selectedGroupingId: string | null;
@@ -45,6 +46,8 @@ export function DeviceMobileView({
     formatLastStateChange,
     groupings,
     bundleByGroups = false,
+    expandedGroups,
+    onGroupToggle,
     searchTerm,
     onSearchChange,
     selectedGroupingId,
@@ -56,20 +59,6 @@ export function DeviceMobileView({
     onManageGroupingsClick,
 }: DeviceMobileViewProps) {
     const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
-    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-    const toggleGroup = (groupId: string) => {
-        setExpandedGroups((prev) => {
-            const next = new Set(prev);
-            if (next.has(groupId)) {
-                next.delete(groupId);
-            } else {
-                next.add(groupId);
-            }
-            return next;
-        });
-    };
-
     const getMobileSortName = () => {
         switch (sortColumn) {
             case "name":
@@ -170,7 +159,7 @@ export function DeviceMobileView({
                 <button
                     type="button"
                     className={`group-section-header w-100 d-flex justify-content-between align-items-center px-3 py-2${expanded ? " group-section-header--expanded" : ""}`}
-                    onClick={() => toggleGroup(groupKey)}
+                    onClick={() => onGroupToggle(groupKey)}
                     aria-expanded={expanded}
                     style={{
                         cursor: "pointer",

@@ -57,6 +57,8 @@ const defaultProps = {
   groupingSearchTerm: '',
   setGroupingSearchTerm: vi.fn(),
   groupByEnabled: true,
+  expandedGroups: new Set<string>(),
+  onGroupToggle: vi.fn(),
   onGroupByToggle: vi.fn(),
   onManageGroupingsClick: vi.fn(),
 };
@@ -195,13 +197,11 @@ describe('DeviceTable', () => {
     expect(screen.queryByText('Test Device 1')).not.toBeInTheDocument();
   });
 
-  it('expands a group section and shows its devices when the header is clicked', () => {
+  it('requests a group toggle when the header is clicked', () => {
     render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
     const header = screen.getByText('Test Group');
     fireEvent.click(header.closest('tr') as HTMLElement);
-    expect(screen.getByText('Test Device 1')).toBeInTheDocument();
-
-    expect(screen.queryByText('Test Device 2')).not.toBeInTheDocument();
+    expect(defaultProps.onGroupToggle).toHaveBeenCalledWith('group1');
   });
 
   it('renders an Ungrouped section header for devices not in any group', () => {
@@ -210,11 +210,11 @@ describe('DeviceTable', () => {
     expect(screen.getByText('no_group')).toBeInTheDocument();
   });
 
-  it('expands the Ungrouped section and reveals its devices when clicked', () => {
+  it('requests a toggle for the Ungrouped section when clicked', () => {
     render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
     const header = screen.getByText('no_group').closest('tr') as HTMLElement;
     fireEvent.click(header);
-    expect(screen.getByText('Test Device 2')).toBeInTheDocument();
+    expect(defaultProps.onGroupToggle).toHaveBeenCalledWith('__ungrouped__');
   });
 
   it('renders a Local devices section for local-only devices in the bundled view', () => {
@@ -240,7 +240,7 @@ describe('DeviceTable', () => {
     expect(screen.queryByText('local_devices')).not.toBeInTheDocument();
   });
 
-  it('expands the Local devices section and shows its devices', () => {
+  it('requests a toggle for the Local devices section when clicked', () => {
     const localOnlyDevice: StateDevice = {
       id: '',
       uid: 99999,
@@ -256,7 +256,7 @@ describe('DeviceTable', () => {
     render(<DeviceTable {...defaultProps} devices={[...mockDevices, localOnlyDevice]} bundleByGroups={true} />);
     const header = screen.getByText('local_devices').closest('tr') as HTMLElement;
     fireEvent.click(header);
-    expect(screen.getByText('LAN Charger')).toBeInTheDocument();
+    expect(defaultProps.onGroupToggle).toHaveBeenCalledWith('__local__');
   });
 
   it('keeps the flat layout when bundleByGroups is false', () => {
@@ -266,12 +266,14 @@ describe('DeviceTable', () => {
   });
 
   it('uses a darker gray for collapsed group headers and a lighter gray when expanded', () => {
-    render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
+    const { rerender } = render(<DeviceTable {...defaultProps} bundleByGroups={true} />);
     const header = screen.getByText('Test Group').closest('tr') as HTMLElement;
     expect(header.style.background).toBe('rgb(206, 212, 218)');
 
-    fireEvent.click(header);
+    rerender(<DeviceTable {...defaultProps} bundleByGroups={true} expandedGroups={new Set(['group1'])} />);
     expect(header.style.background).toBe('rgb(233, 236, 239)');
+    expect(screen.getByText('Test Device 1')).toBeInTheDocument();
+    expect(screen.queryByText('Test Device 2')).not.toBeInTheDocument();
   });
 
   it('renders a colgroup that locks column widths', () => {

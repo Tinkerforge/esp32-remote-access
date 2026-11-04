@@ -1,4 +1,4 @@
-import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/preact';
+import { render, screen, waitFor, cleanup, fireEvent, act } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { DeviceList } from '../Devices';
 import { StateDevice } from '../../components/device/types';
@@ -734,6 +734,95 @@ describe('Devices.tsx - DeviceList', () => {
           expect(screen.getAllByLabelText('group_by_toggle').length).toBeGreaterThan(0);
           expect(screen.getAllByText('manage_groupings').length).toBeGreaterThan(0);
         });
+  });
+
+  describe('persisted group expansion', () => {
+    const mount = () => {
+      const loadSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined);
+      const connectSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined);
+      const ref = createRef<DeviceList>();
+      // @ts-expect-error - ref is valid but types dont allow it
+      const result = render(<DeviceList ref={ref} />);
+      loadSpy.mockRestore();
+      connectSpy.mockRestore();
+      act(() => getRef(ref).setState({
+        isLoading: false,
+        devices: [
+          { id: 'd1', uid: 1, name: 'Grouped charger', note: '', status: 'Connected', port: 80, valid: true, firmware_version: '1' },
+          { id: 'd2', uid: 2, name: 'Ungrouped charger', note: '', status: 'Connected', port: 80, valid: true, firmware_version: '1' },
+          { id: '', uid: 3, name: 'Local charger', note: '', status: 'Connected', port: 80, valid: true, firmware_version: '1', host: 'warp.local' },
+        ],
+        groupings: [{ id: 'g1', name: 'Garage', device_ids: ['d1'], is_default: false }],
+      }));
+      return result;
+    };
+
+    const headers = (container: Element, label: string) =>
+      Array.from(container.querySelectorAll<HTMLElement>('.group-section-header'))
+        .filter((header) => header.textContent?.includes(label));
+
+    it('defaults all sections to collapsed without saving over the preference', () => {
+      const { container } = mount();
+      const sections = container.querySelectorAll('.group-section-header');
+      expect(sections).toHaveLength(6);
+      sections.forEach((header) => expect(header).toHaveAttribute('aria-expanded', 'false'));
+      expect(localStorage.getItem('expandedGroups')).toBeNull();
+    });
+
+    it.each([
+      { view: 'desktop', index: 0, label: 'Garage', groupId: 'g1' },
+      { view: 'mobile', index: 1, label: 'Garage', groupId: 'g1' },
+      { view: 'desktop', index: 0, label: 'no_group', groupId: '__ungrouped__' },
+      { view: 'mobile', index: 1, label: 'no_group', groupId: '__ungrouped__' },
+      { view: 'desktop', index: 0, label: 'local_devices', groupId: '__local__' },
+      { view: 'mobile', index: 1, label: 'local_devices', groupId: '__local__' },
+    ])('remembers expanding and collapsing $label on $view across remounts', ({ index, label, groupId }) => {
+      let result = mount();
+      fireEvent.click(headers(result.container, label)[index]);
+      expect(headers(result.container, label)).toHaveLength(2);
+      headers(result.container, label).forEach((header) => expect(header).toHaveAttribute('aria-expanded', 'true'));
+      expect(JSON.parse(localStorage.getItem('expandedGroups')!)).toEqual([groupId]);
+
+      result.unmount();
+      result = mount();
+      headers(result.container, label).forEach((header) => expect(header).toHaveAttribute('aria-expanded', 'true'));
+      fireEvent.click(headers(result.container, label)[index]);
+      headers(result.container, label).forEach((header) => expect(header).toHaveAttribute('aria-expanded', 'false'));
+      expect(JSON.parse(localStorage.getItem('expandedGroups')!)).toEqual([]);
+
+      result.unmount();
+      result = mount();
+      headers(result.container, label).forEach((header) => expect(header).toHaveAttribute('aria-expanded', 'false'));
+    });
+
+    it('preserves other expanded sections when a group is collapsed', () => {
+      localStorage.setItem('expandedGroups', JSON.stringify(['g1', '__local__', '__ungrouped__']));
+      const { container } = mount();
+      fireEvent.click(headers(container, 'Garage')[0]);
+      expect(JSON.parse(localStorage.getItem('expandedGroups')!)).toEqual(['__local__', '__ungrouped__']);
+      for (const label of ['local_devices', 'no_group']) {
+        headers(container, label).forEach((header) => expect(header).toHaveAttribute('aria-expanded', 'true'));
+      }
+    });
+
+    it.each(['{', '{}', 'null', '42', '"g1"', '["g1",42]'])('ignores invalid saved expansion data: %s', (stored) => {
+      localStorage.setItem('expandedGroups', stored);
+      const { container } = mount();
+      headers(container, 'Garage').forEach((header) => expect(header).toHaveAttribute('aria-expanded', 'false'));
+      fireEvent.click(headers(container, 'Garage')[0]);
+      expect(JSON.parse(localStorage.getItem('expandedGroups')!)).toEqual(['g1']);
+    });
+
+    it('still toggles both layouts when saving the preference fails', () => {
+      const { container } = mount();
+      vi.mocked(localStorage.setItem).mockImplementationOnce(() => {
+        throw new DOMException('Storage is full', 'QuotaExceededError');
+      });
+      fireEvent.click(headers(container, 'Garage')[0]);
+      headers(container, 'Garage').forEach((header) => expect(header).toHaveAttribute('aria-expanded', 'true'));
+      fireEvent.click(headers(container, 'Garage')[1]);
+      expect(localStorage.getItem('expandedGroups')).toBe('[]');
+    });
   });
 
   describe('group-by toggle', () => {

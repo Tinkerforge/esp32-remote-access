@@ -74,4 +74,5 @@ export interface DeviceListState {
     // (instead of re-deriving them from the already-merged `devices` list).
     cloudDevices: StateDevice[],
     groupByEnabled: boolean,
+    expandedGroups: ReadonlySet<string>,
 }

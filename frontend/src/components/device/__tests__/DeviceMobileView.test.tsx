@@ -56,6 +56,8 @@ const defaultProps = {
   groupingSearchTerm: '',
   setGroupingSearchTerm: vi.fn(),
   groupByEnabled: true,
+  expandedGroups: new Set<string>(),
+  onGroupToggle: vi.fn(),
   onGroupByToggle: vi.fn(),
   onManageGroupingsClick: vi.fn(),
 };
@@ -151,13 +153,11 @@ describe('DeviceMobileView', () => {
     expect(screen.queryByText('Test Device 1')).not.toBeInTheDocument();
   });
 
-  it('expands a group section on the mobile view when its header is clicked', () => {
+  it('requests a group toggle on the mobile view when its header is clicked', () => {
     render(<DeviceMobileView {...defaultProps} bundleByGroups={true} />);
     const header = screen.getByText('Test Group').closest('button') as HTMLElement;
     fireEvent.click(header);
-    expect(screen.getByText('Test Device 1')).toBeInTheDocument();
-
-    expect(screen.queryByText('Test Device 2')).not.toBeInTheDocument();
+    expect(defaultProps.onGroupToggle).toHaveBeenCalledWith('group1');
   });
 
   it('renders an Ungrouped section header on mobile for devices not in any group', () => {
@@ -166,19 +166,21 @@ describe('DeviceMobileView', () => {
     expect(screen.getByText('no_group')).toBeInTheDocument();
   });
 
-  it('expands the Ungrouped section on mobile when its header is clicked', () => {
+  it('requests a toggle for the Ungrouped section on mobile when clicked', () => {
     render(<DeviceMobileView {...defaultProps} bundleByGroups={true} />);
     const header = screen.getByText('no_group').closest('button') as HTMLElement;
     fireEvent.click(header);
-    expect(screen.getByText('Test Device 2')).toBeInTheDocument();
+    expect(defaultProps.onGroupToggle).toHaveBeenCalledWith('__ungrouped__');
   });
 
   it('wraps expanded device cards in a bordered body container', () => {
-    const { container } = render(<DeviceMobileView {...defaultProps} bundleByGroups={true} />);
+    const { container, rerender } = render(<DeviceMobileView {...defaultProps} bundleByGroups={true} />);
     expect(container.querySelector('.group-section-body')).toBeNull();
 
-    const header = screen.getByText('Test Group').closest('button') as HTMLElement;
-    fireEvent.click(header);
+    rerender(<DeviceMobileView {...defaultProps} bundleByGroups={true} expandedGroups={new Set(['group1'])} />);
+
+    expect(screen.getByText('Test Device 1')).toBeInTheDocument();
+    expect(screen.queryByText('Test Device 2')).not.toBeInTheDocument();
 
     const bodies = container.querySelectorAll('.group-section-body');
     expect(bodies.length).toBe(1);
@@ -189,7 +191,7 @@ describe('DeviceMobileView', () => {
     expect(body.style.borderTop).toBe('');
     expect(body.style.borderRadius).toBe('0 0 0.375rem 0.375rem');
 
-    fireEvent.click(header);
+    rerender(<DeviceMobileView {...defaultProps} bundleByGroups={true} />);
     expect(container.querySelector('.group-section-body')).toBeNull();
   });
 
@@ -235,7 +237,7 @@ describe('DeviceMobileView', () => {
     expect(screen.queryByText('local_devices')).not.toBeInTheDocument();
   });
 
-  it('expands the Local devices section on mobile and shows its devices', () => {
+  it('requests a toggle for the Local devices section on mobile when clicked', () => {
     const localOnlyDevice: StateDevice = {
       id: '',
       uid: 99999,
@@ -251,6 +253,6 @@ describe('DeviceMobileView', () => {
     render(<DeviceMobileView {...defaultProps} devices={[...mockDevices, localOnlyDevice]} bundleByGroups={true} />);
     const header = screen.getByText('local_devices').closest('button') as HTMLElement;
     fireEvent.click(header);
-    expect(screen.getByText('LAN Charger')).toBeInTheDocument();
+    expect(defaultProps.onGroupToggle).toHaveBeenCalledWith('__local__');
   });
 });

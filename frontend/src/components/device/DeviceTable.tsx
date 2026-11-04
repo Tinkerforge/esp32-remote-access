@@ -1,4 +1,3 @@
-import { useState } from "preact/hooks";
 import { useTranslation } from "react-i18next";
 import { Col, Row, Table } from "react-bootstrap";
 import { ChevronDown, ChevronRight, ChevronUp } from "react-feather";
@@ -18,6 +17,8 @@ interface DeviceTableProps {
     formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
     groupings: Grouping[];
     bundleByGroups?: boolean;
+    expandedGroups: ReadonlySet<string>;
+    onGroupToggle: (groupId: string) => void;
     searchTerm: string;
     onSearchChange: (term: string) => void;
     selectedGroupingId: string | null;
@@ -54,6 +55,8 @@ export function DeviceTable({
     formatLastStateChange,
     groupings,
     bundleByGroups = false,
+    expandedGroups,
+    onGroupToggle,
     searchTerm,
     onSearchChange,
     selectedGroupingId,
@@ -65,20 +68,6 @@ export function DeviceTable({
     onManageGroupingsClick,
 }: DeviceTableProps) {
     const { t } = useTranslation("", { useSuspense: false, keyPrefix: "chargers" });
-
-    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-    const toggleGroup = (groupId: string) => {
-        setExpandedGroups((prev) => {
-            const next = new Set(prev);
-            if (next.has(groupId)) {
-                next.delete(groupId);
-            } else {
-                next.add(groupId);
-            }
-            return next;
-        });
-    };
 
     const getIcon = (column: SortColumn) => {
         if (sortColumn !== column) {
@@ -218,7 +207,7 @@ export function DeviceTable({
             <tr
                 key={`${groupKey}-header`}
                 class={`group-section-header${expanded ? " group-section-header--expanded" : ""}`}
-                onClick={() => toggleGroup(groupKey)}
+                onClick={() => onGroupToggle(groupKey)}
                 aria-expanded={expanded}
                 style={{ cursor: "pointer", background: expanded ? "#e9ecef" : "#ced4da" }}
             >
