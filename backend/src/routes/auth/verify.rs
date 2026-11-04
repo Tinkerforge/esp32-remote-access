@@ -65,6 +65,7 @@ pub async fn verify(state: web::Data<AppState>, ver: web::Query<Query>) -> impl 
 
         verification
             .filter(db_connector::schema::verification::id.eq(verify_id))
+            .filter(expiration.gt(chrono::Utc::now().naive_utc()))
             .select(Verification::as_select())
             .get_result::<Verification>(&mut conn)
             .await

@@ -187,8 +187,10 @@ enforces at most one default per user. Membership pairs are unique.
 ## Other routes and error behavior
 
 `POST /api/check_expiration` takes `{token_type: "Recovery" | "Verification",
-token: UUID}` and returns a JSON boolean indicating whether the row exists.
-Expiry is enforced by periodic cleanup. The endpoint is IP-rate-limited.
+token: UUID}` and returns a JSON boolean indicating whether the token is valid.
+Verification tokens must exist and be unexpired; expired registration rows can
+remain stored during account retention. Recovery tokens are checked for row
+existence, with expiry enforced by periodic cleanup. The endpoint is IP-rate-limited.
 
 `GET /api/state` is registered only with `debug_assertions`; it exposes in-memory
 relay state without JWT protection. It is absent in release builds.

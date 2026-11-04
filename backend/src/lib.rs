@@ -123,15 +123,32 @@ pub async fn clean_refresh_tokens(conn: &mut AsyncPgConnection) {
         .ok();
 }
 
-pub async fn clean_verification_tokens(conn: &mut AsyncPgConnection) {
-    // Remove all verification tokens that are expired
-    let awaiting_verification: Vec<uuid::Uuid> = {
-        use db_connector::schema::verification::dsl::*;
+// Keep unverified registrations available for support after their links expire.
+const UNVERIFIED_USER_RETENTION_DAYS: i64 = 30;
 
-        diesel::delete(verification.filter(expiration.lt(Utc::now().naive_utc())))
-            .execute(conn)
-            .await
-            .ok();
+pub async fn clean_verification_tokens(conn: &mut AsyncPgConnection) {
+    let now = Utc::now().naive_utc();
+    // Retain expired registration tokens as a retention deadline for the account.
+    // Email changes and already verified accounts still use the original expiry.
+    let awaiting_verification: Vec<uuid::Uuid> = {
+        use db_connector::schema::users::dsl as u;
+        use db_connector::schema::verification::dsl::*;
+        use diesel::BoolExpressionMethods;
+
+        diesel::delete(
+            verification.filter(expiration.lt(now)).filter(
+                expiration
+                    .lt(now - TimeDelta::days(UNVERIFIED_USER_RETENTION_DAYS))
+                    .or(user.eq_any(
+                        u::users
+                            .filter(u::email_verified.eq(true).or(u::old_email.is_not_null()))
+                            .select(u::id),
+                    )),
+            ),
+        )
+        .execute(conn)
+        .await
+        .ok();
 
         match verification
             .select(Verification::as_select())
@@ -609,7 +626,9 @@ pub(crate) mod tests {
             id: verify_id,
             user: user_id,
             expiration: Utc::now()
-                .checked_sub_signed(TimeDelta::seconds(1))
+                .checked_sub_signed(
+                    TimeDelta::days(UNVERIFIED_USER_RETENTION_DAYS) - TimeDelta::hours(1),
+                )
                 .unwrap()
                 .naive_utc(),
         };
@@ -619,9 +638,15 @@ pub(crate) mod tests {
             id: verify2_id,
             user: user2_id,
             expiration: Utc::now()
-                .checked_add_signed(TimeDelta::seconds(1))
+                .checked_add_signed(TimeDelta::hours(1))
                 .unwrap()
-                .naive_local(),
+                .naive_utc(),
+        };
+
+        let verify3 = Verification {
+            id: uuid::Uuid::new_v4(),
+            user: user3_id,
+            expiration: Utc::now().naive_utc() - TimeDelta::seconds(1),
         };
 
         let verify4_id = uuid::Uuid::new_v4();
@@ -641,7 +666,7 @@ pub(crate) mod tests {
                 use db_connector::schema::verification::dsl::*;
 
                 diesel::delete(
-                    verification.filter(id.eq_any(vec![verify_id, verify2_id, verify4_id])),
+                    verification.filter(user.eq_any(vec![user_id, user2_id, user3_id, user4_id])),
                 )
                 .execute(&mut conn)
                 .await
@@ -675,7 +700,7 @@ pub(crate) mod tests {
             use db_connector::schema::verification::dsl::*;
 
             diesel::insert_into(verification)
-                .values(vec![&verify, &verify2, &verify4])
+                .values(vec![&verify, &verify2, &verify3, &verify4])
                 .execute(&mut conn)
                 .await
                 .unwrap();
@@ -687,14 +712,15 @@ pub(crate) mod tests {
             use db_connector::schema::verification::dsl::*;
 
             let verifies: Vec<Verification> = verification
-                .filter(id.eq_any(vec![verify_id, verify2_id, verify4_id]))
+                .filter(user.eq_any(vec![user_id, user2_id, user3_id, user4_id]))
                 .select(Verification::as_select())
                 .load(&mut conn)
                 .await
                 .unwrap();
 
-            assert_eq!(verifies.len(), 1);
-            assert_eq!(verifies[0].id, verify2_id);
+            assert_eq!(verifies.len(), 2);
+            assert!(verifies.iter().any(|v| v.id == verify_id));
+            assert!(verifies.iter().any(|v| v.id == verify2_id));
         }
         let user = {
             use db_connector::schema::users::dsl::*;
@@ -706,7 +732,8 @@ pub(crate) mod tests {
                 .await
                 .unwrap();
 
-            assert_eq!(u.len(), 3);
+            assert_eq!(u.len(), 4);
+            assert!(u.iter().any(|u| u.id == user_id));
             assert!(u.iter().any(|u| u.id == user2_id));
             assert!(u.iter().any(|u| u.id == user3_id));
             assert!(u.iter().any(|u| u.id == user4_id));
@@ -715,6 +742,61 @@ pub(crate) mod tests {
         };
 
         assert_eq!(user.email, email);
+        assert_eq!(user.delivery_email, Some(email));
+        assert!(user.email_verified);
+        assert_eq!(user.old_email, None);
+        assert_eq!(user.old_delivery_email, None);
+
+        // Once the retention period passes, remove both the token and account.
+        {
+            use db_connector::schema::verification::dsl::*;
+
+            diesel::update(verification.find(verify_id))
+                .set(expiration.eq(Utc::now().naive_utc()
+                    - TimeDelta::days(UNVERIFIED_USER_RETENTION_DAYS)
+                    - TimeDelta::seconds(1)))
+                .execute(&mut conn)
+                .await
+                .unwrap();
+        }
+
+        clean_verification_tokens(&mut conn).await;
+
+        {
+            use db_connector::schema::verification::dsl::*;
+
+            assert_eq!(
+                verification
+                    .find(verify_id)
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                    .await
+                    .unwrap(),
+                0,
+            );
+        }
+        {
+            use db_connector::schema::users::dsl::*;
+
+            assert_eq!(
+                users
+                    .find(user_id)
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                    .await
+                    .unwrap(),
+                0
+            );
+            assert_eq!(
+                users
+                    .filter(id.eq_any(vec![user2_id, user3_id, user4_id]))
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                    .await
+                    .unwrap(),
+                3,
+            );
+        }
     }
 
     #[actix_web::test]

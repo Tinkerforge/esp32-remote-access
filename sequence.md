@@ -36,9 +36,13 @@ sequenceDiagram
 ```
 
 Names and emails are stored as plaintext; only the account private key is
-secretbox-encrypted. Verification rows have a one-day lifetime. The periodic
-cleanup task removes expired rows and unverified accounts without a remaining
-verification row. `POST /api/auth/resend_verification` requests another email.
+secretbox-encrypted. Verification links expire after one day. For unverified
+registrations, the periodic cleanup task retains the account and expired
+verification row for another 30 days so support can investigate missing emails.
+The expired row does not permit verification; `POST /api/auth/resend_verification`
+replaces it with a fresh one-day link. Once the retention period passes, cleanup
+removes the row and the unverified account. Tokens for email changes and already
+verified accounts are removed at their original expiry.
 
 ## Login
 
@@ -268,10 +272,12 @@ sequenceDiagram
 ```
 
 There is no emailed temporary password. Recovery tokens older than six hours
-are deleted by the minute-based cleanup task; verification rows use a one-day
-expiration. `/check_expiration` and the recovery handler check record existence,
-so expiry depends on that cleanup rather than an exact timestamp check in these
-handlers. Recovery does not itself issue login cookies or revoke refresh tokens.
+are deleted by the minute-based cleanup task. The recovery handler and
+`/check_expiration` for recovery tokens check record existence, so recovery expiry
+depends on that cleanup. Verification links use a one-day expiration, checked
+directly by `/auth/verify` and `/check_expiration` even while expired registration
+rows are retained. Recovery does not itself issue login cookies or revoke refresh
+tokens.
 
 ## Add or remove users/devices
 

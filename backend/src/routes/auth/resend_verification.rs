@@ -175,6 +175,102 @@ mod tests {
     use actix_web::{test, App};
 
     #[actix_web::test]
+    async fn test_resend_after_verification_expired() {
+        use crate::routes::check_expiration::{
+            check_expiration, CheckExpirationRequest, TokenType,
+        };
+        use db_connector::schema::verification::dsl::*;
+
+        let mail = "resend_expired@test.invalid";
+        create_user(mail).await;
+        crate::defer_async!(delete_user(mail));
+
+        let pool = db_connector::test_connection_pool();
+        let mut conn = pool.get().await.unwrap();
+        let uid = crate::routes::user::tests::get_test_uuid(mail)
+            .await
+            .unwrap();
+        let expired: Verification = diesel::update(verification.filter(user.eq(uid)))
+            .set(expiration.eq(chrono::Utc::now().naive_utc() - chrono::TimeDelta::days(1)))
+            .get_result(&mut conn)
+            .await
+            .unwrap();
+
+        crate::clean_verification_tokens(&mut conn).await;
+        assert!(verification
+            .find(expired.id)
+            .first::<Verification>(&mut conn)
+            .await
+            .is_ok());
+
+        let app = test::init_service(
+            App::new()
+                .configure(configure)
+                .service(resend_verification)
+                .service(crate::routes::auth::verify::verify)
+                .service(check_expiration),
+        )
+        .await;
+
+        let req = test::TestRequest::post()
+            .uri("/check_expiration")
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
+            .set_json(CheckExpirationRequest {
+                token_type: TokenType::Verification,
+                token: expired.id.to_string(),
+            })
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+        assert!(!test::read_body_json::<bool, _>(resp).await);
+
+        let req = test::TestRequest::get()
+            .uri(&format!("/verify?id={}", expired.id))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+        assert!(
+            !crate::routes::user::me::tests::get_test_user(mail)
+                .await
+                .email_verified
+        );
+
+        let req = test::TestRequest::post()
+            .uri("/resend_verification")
+            .insert_header(("X-Forwarded-For", "123.123.123.2"))
+            .set_json(ResendSchema {
+                email: mail.to_string(),
+            })
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        let renewed = verification
+            .filter(user.eq(uid))
+            .get_result::<Verification>(&mut conn)
+            .await
+            .unwrap();
+        assert_ne!(renewed.id, expired.id);
+        assert!(renewed.expiration > chrono::Utc::now().naive_utc());
+        assert!(
+            renewed.expiration
+                <= chrono::Utc::now().naive_utc()
+                    + chrono::TimeDelta::days(VERIFICATION_EXPIRATION_DAYS as i64)
+        );
+
+        let req = test::TestRequest::get()
+            .uri(&format!("/verify?id={}", renewed.id))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_redirection());
+        assert!(
+            crate::routes::user::me::tests::get_test_user(mail)
+                .await
+                .email_verified
+        );
+    }
+
+    #[actix_web::test]
     async fn test_resend_unverified() {
         let mail = "resend_unverified@test.invalid";
         create_user(mail).await;

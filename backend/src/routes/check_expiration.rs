@@ -53,6 +53,7 @@ async fn check_verification_token(
 
     let valid = match verification
         .filter(id.eq(token))
+        .filter(expiration.gt(chrono::Utc::now().naive_utc()))
         .get_result::<Verification>(&mut conn)
         .await
     {
