@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Col, Row, Table } from "react-bootstrap";
 import { ChevronDown, ChevronRight, ChevronUp } from "react-feather";
-import { StateDevice, SortColumn, Grouping, ConnectVia } from "./types";
+import { StateDevice, SortColumn, Grouping, ConnectVia, UNGROUPED_GROUP_ID } from "./types";
 import { DeviceTableRow } from "./DeviceTableRow";
 import { DeviceToolbar } from "./DeviceToolbar";
 
@@ -259,7 +259,7 @@ export function DeviceTable({
                 <tbody>
                     {localDevices.length > 0 && renderGroupSectionRows("__local__", t("local_devices"), localDevices)}
                     {grouped.flatMap((g) => renderGroupSectionRows(g.id, g.name, g.devices))}
-                    {ungroupedDevices.length > 0 && renderGroupSectionRows("__ungrouped__", t("no_group"), ungroupedDevices)}
+                    {ungroupedDevices.length > 0 && renderGroupSectionRows(UNGROUPED_GROUP_ID, t("no_group"), ungroupedDevices)}
                 </tbody>
             </Table>
         </Col>

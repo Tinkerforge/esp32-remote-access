@@ -163,12 +163,12 @@ describe('DeviceMobileView', () => {
   it('renders an Ungrouped section header on mobile for devices not in any group', () => {
     render(<DeviceMobileView {...defaultProps} bundleByGroups={true} />);
     expect(screen.queryByText('Test Device 2')).not.toBeInTheDocument();
-    expect(screen.getByText('no_group')).toBeInTheDocument();
+    expect(screen.getByText('no_group', { selector: '.group-section-header strong' })).toBeInTheDocument();
   });
 
   it('requests a toggle for the Ungrouped section on mobile when clicked', () => {
     render(<DeviceMobileView {...defaultProps} bundleByGroups={true} />);
-    const header = screen.getByText('no_group').closest('button') as HTMLElement;
+    const header = screen.getByText('no_group', { selector: '.group-section-header strong' }).closest('button') as HTMLElement;
     fireEvent.click(header);
     expect(defaultProps.onGroupToggle).toHaveBeenCalledWith('__ungrouped__');
   });

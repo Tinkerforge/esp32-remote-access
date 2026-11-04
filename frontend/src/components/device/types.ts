@@ -43,6 +43,8 @@ export type SortColumn = "name" | "uid" | "status" | "none" | "note" | "last_sta
 // the other if the chosen one is not actually reachable).
 export type ConnectVia = "default" | "local" | "cloud";
 
+export const UNGROUPED_GROUP_ID = "__ungrouped__";
+
 export interface Grouping {
     id: string,
     name: string,

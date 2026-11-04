@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Button, Dropdown, Form } from "react-bootstrap";
 import { Filter, Grid, List } from "react-feather";
-import { Grouping } from "./types";
+import { Grouping, UNGROUPED_GROUP_ID } from "./types";
 import { SearchInput } from "./SearchInput";
 
 interface DeviceToolbarProps {
@@ -40,6 +40,9 @@ export function DeviceToolbar({
     const isMobile = variant === "mobile";
 
     const selectedGrouping = groupings.find((g) => g.id === selectedGroupingId);
+    const selectedGroupingName = selectedGroupingId === UNGROUPED_GROUP_ID
+        ? t("no_group")
+        : selectedGrouping?.name;
 
     return (
         <div className={`d-flex ${isMobile ? "flex-column gap-3" : "justify-content-between align-items-center mx-2 flex-nowrap gap-2"} mb-3`}>
@@ -50,13 +53,13 @@ export function DeviceToolbar({
                 {groupings.length > 0 && (
                     <Dropdown className={isMobile ? "w-100 w-md-auto" : undefined}>
                         <Dropdown.Toggle
-                            variant={selectedGrouping ? "warning" : "primary"}
+                            variant={selectedGroupingName !== undefined ? "warning" : "primary"}
                             className={`d-inline-flex align-items-center justify-content-center${isMobile ? " w-100" : ""}`}
-                            title={selectedGrouping ? `${t("filter_by_grouping")}: ${selectedGrouping.name}` : t("filter_by_grouping")}
+                            title={selectedGroupingName !== undefined ? `${t("filter_by_grouping")}: ${selectedGroupingName}` : t("filter_by_grouping")}
                         >
                             <span className="d-inline-flex align-items-center gap-1">
                                 <Filter size={16} />
-                                {selectedGrouping ? selectedGrouping.name : t("filter_by_grouping")}
+                                {selectedGroupingName ?? t("filter_by_grouping")}
                             </span>
                         </Dropdown.Toggle>
                         <Dropdown.Menu>
@@ -72,6 +75,12 @@ export function DeviceToolbar({
                                 onClick={() => onGroupingFilterChange(null)}
                             >
                                 {t("all_devices")}
+                            </Dropdown.Item>
+                            <Dropdown.Item
+                                active={selectedGroupingId === UNGROUPED_GROUP_ID}
+                                onClick={() => onGroupingFilterChange(UNGROUPED_GROUP_ID)}
+                            >
+                                {t("no_group")}
                             </Dropdown.Item>
                             {groupings
                                 .filter((grouping) => grouping.name.toLowerCase().includes(groupingSearchTerm.toLowerCase()))

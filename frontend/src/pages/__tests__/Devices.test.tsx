@@ -1,4 +1,4 @@
-import { render, screen, waitFor, cleanup, fireEvent, act } from '@testing-library/preact';
+import { render, screen, waitFor, cleanup, fireEvent, act, within } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { DeviceList } from '../Devices';
 import { StateDevice } from '../../components/device/types';
@@ -734,6 +734,86 @@ describe('Devices.tsx - DeviceList', () => {
           expect(screen.getAllByLabelText('group_by_toggle').length).toBeGreaterThan(0);
           expect(screen.getAllByText('manage_groupings').length).toBeGreaterThan(0);
         });
+  });
+
+  describe('ungrouped device filter', () => {
+    const setup = (groupByEnabled = true, allGrouped = false) => {
+      const loadSpy = vi.spyOn(DeviceList.prototype, 'loadGroupings').mockResolvedValue(undefined);
+      const connectSpy = vi.spyOn(DeviceList.prototype, 'connectStateUpdateWebSocket').mockResolvedValue(undefined);
+      const ref = createRef<DeviceList>();
+      // @ts-expect-error - ref is valid but types dont allow it
+      const result = render(<DeviceList ref={ref} />);
+      loadSpy.mockRestore();
+      connectSpy.mockRestore();
+      const devices: StateDevice[] = [
+        { id: 'd1', uid: 1, name: 'Grouped charger', note: '', status: 'Connected', port: 80, valid: true, firmware_version: '1' },
+        { id: 'd2', uid: 2, name: 'Ungrouped garage', note: '', status: 'Connected', port: 80, valid: true, firmware_version: '1', host: 'garage.local' },
+        { id: 'd3', uid: 3, name: 'Other group charger', note: '', status: 'Connected', port: 80, valid: true, firmware_version: '1' },
+        { id: 'd4', uid: 4, name: 'Ungrouped driveway', note: '', status: 'Disconnected', port: 80, valid: true, firmware_version: '1' },
+        { id: '', uid: 5, name: 'Local charger', note: '', status: 'Connected', port: 80, valid: true, firmware_version: '1', host: 'local.local' },
+      ];
+      act(() => getRef(ref).setState({
+        isLoading: false,
+        devices,
+        groupByEnabled,
+        groupings: [
+          { id: 'g1', name: 'Garage', device_ids: allGrouped ? ['d1', 'd2', 'd4'] : ['d1'], is_default: false },
+          { id: 'g2', name: 'Office', device_ids: ['d1', 'd3'], is_default: false },
+        ],
+      }));
+      const menus = screen.getAllByText('all_devices').map((item) =>
+        within(item.closest('[data-testid="dropdown-menu"]') as HTMLElement));
+      return { ...result, ref, devices, menus };
+    };
+
+    it.each([
+      { view: 'desktop', index: 0, grouped: true },
+      { view: 'mobile', index: 1, grouped: true },
+      { view: 'desktop', index: 0, grouped: false },
+      { view: 'mobile', index: 1, grouped: false },
+    ])('selects ungrouped devices on $view with group-by=$grouped and clears the filter', ({ index, grouped }) => {
+      const { container, ref, devices, menus } = setup(grouped);
+      fireEvent.click(menus[index].getByRole('button', { name: 'no_group' }));
+
+      expect(getRef(ref).state.filteredDevices).toEqual([devices[1], devices[3]]);
+      expect(screen.queryByText('Grouped charger')).not.toBeInTheDocument();
+      expect(screen.queryByText('Other group charger')).not.toBeInTheDocument();
+      expect(screen.queryByText('Local charger')).not.toBeInTheDocument();
+      expect(screen.getAllByText('Ungrouped garage')).toHaveLength(2);
+      expect(screen.getAllByText('Ungrouped driveway')).toHaveLength(2);
+      expect(container.querySelectorAll('.group-section-header')).toHaveLength(0);
+      screen.getAllByTitle('filter_by_grouping: no_group').forEach((toggle) => {
+        expect(toggle).toHaveAttribute('variant', 'warning');
+      });
+      menus.forEach((menu) => expect(menu.getByRole('button', { name: 'no_group' })).toHaveAttribute('active', 'true'));
+
+      fireEvent.click(menus[index].getByRole('button', { name: 'all_devices' }));
+      expect(getRef(ref).state.selectedGroupingId).toBeNull();
+      expect(getRef(ref).state.filteredDevices).toEqual(devices);
+      expect(screen.getAllByTitle('filter_by_grouping')).toHaveLength(2);
+    });
+
+    it('combines the ungrouped filter with device search and switches to a named group', () => {
+      const { ref, devices, menus } = setup();
+      fireEvent.click(menus[0].getByRole('button', { name: 'no_group' }));
+      fireEvent.change(screen.getAllByPlaceholderText('search_devices_placeholder')[0], { target: { value: 'garage' } });
+      expect(getRef(ref).state.filteredDevices).toEqual([devices[1]]);
+      expect(screen.queryByText('Ungrouped driveway')).not.toBeInTheDocument();
+
+      fireEvent.change(screen.getAllByPlaceholderText('search_devices_placeholder')[0], { target: { value: '' } });
+      fireEvent.click(menus[0].getByRole('button', { name: 'Office (2)' }));
+      expect(getRef(ref).state.filteredDevices).toEqual([devices[0], devices[2]]);
+    });
+
+    it('keeps the filter available when every registered device belongs to a group', () => {
+      const { ref, devices, menus } = setup(true, true);
+      fireEvent.click(menus[0].getByRole('button', { name: 'no_group' }));
+      expect(getRef(ref).state.filteredDevices).toEqual([]);
+      expect(screen.getByText('no_devices_found')).toBeInTheDocument();
+      fireEvent.click(menus[0].getByRole('button', { name: 'all_devices' }));
+      expect(getRef(ref).state.filteredDevices).toEqual(devices);
+      expect(screen.queryByText('no_devices_found')).not.toBeInTheDocument();
+    });
   });
 
   describe('persisted group expansion', () => {

@@ -8,7 +8,7 @@ import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
 import { Button, Container, Spinner } from "react-bootstrap";
 import i18n from "../i18n";
 import { useLocation } from "preact-iso";
-import { Device, StateDevice, SortColumn, DeviceListState, Grouping, ConnectVia } from "../components/device/types";
+import { Device, StateDevice, SortColumn, DeviceListState, Grouping, ConnectVia, UNGROUPED_GROUP_ID } from "../components/device/types";
 import { DeviceTable } from "../components/device/DeviceTable";
 import { DeviceMobileView } from "../components/device/DeviceMobileView";
 import { DeleteDeviceModal } from "../components/device/DeleteDeviceModal";
@@ -451,7 +451,11 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         let filtered = this.filterDevices(this.state.devices, this.state.searchTerm);
 
         // Apply grouping filter
-        if (this.state.selectedGroupingId) {
+        if (this.state.selectedGroupingId === UNGROUPED_GROUP_ID) {
+            const groupedDeviceIds = new Set(this.state.groupings.flatMap(grouping => grouping.device_ids));
+            // Local-only devices have their own section and cannot belong to a group.
+            filtered = filtered.filter(device => device.id !== "" && !groupedDeviceIds.has(device.id));
+        } else if (this.state.selectedGroupingId) {
             const grouping = this.state.groupings.find(g => g.id === this.state.selectedGroupingId);
             if (grouping) {
                 filtered = filtered.filter(device => grouping.device_ids.includes(device.id));

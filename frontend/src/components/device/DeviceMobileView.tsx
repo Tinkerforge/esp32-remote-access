@@ -3,7 +3,7 @@ import { ButtonGroup, Col, Container, Dropdown, DropdownButton } from "react-boo
 import { ChevronDown, ChevronRight } from "react-feather";
 import Median from "median-js-bridge";
 import i18n from "../../i18n";
-import { StateDevice, SortColumn, Grouping, ConnectVia } from "./types";
+import { StateDevice, SortColumn, Grouping, ConnectVia, UNGROUPED_GROUP_ID } from "./types";
 import { DeviceCard } from "./DeviceCard";
 import { DeviceToolbar } from "./DeviceToolbar";
 
@@ -239,7 +239,7 @@ export function DeviceMobileView({
             {renderSortControls()}
             {localDevices.length > 0 && renderSection("__local__", t("local_devices"), localDevices)}
             {grouped.map((g) => renderSection(g.id, g.name, g.devices))}
-            {ungroupedDevices.length > 0 && renderSection("__ungrouped__", t("no_group"), ungroupedDevices)}
+            {ungroupedDevices.length > 0 && renderSection(UNGROUPED_GROUP_ID, t("no_group"), ungroupedDevices)}
         </Container>
     );
 }
