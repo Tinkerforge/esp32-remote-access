@@ -709,6 +709,7 @@ export interface components {
             /** Format: int32 */
             mtu: number;
             name?: string | null;
+            note?: string | null;
         };
         ChargerInfoRequest: {
             charger: string;

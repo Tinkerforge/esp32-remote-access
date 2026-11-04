@@ -7,6 +7,7 @@ import Median from "median-js-bridge";
 import i18n from '../i18n';
 import { Dispatch, StateUpdater, useEffect, useState, useRef } from 'preact/hooks';
 import { showAlert } from '../components/Alert';
+import { connectedDeviceNote } from '../components/Footer';
 import { useLocation, useRoute } from 'preact-iso';
 import { useTranslation } from 'react-i18next';
 import { components } from '../schema';
@@ -293,16 +294,21 @@ export function Frame() {
             frame_window.location.hash = hash;
         }
 
-        setTimeout(async () => {
+        let active = true;
+        const setupTimeout = setTimeout(async () => {
             await sodium.ready;
 
             if (!secret) {
                 await get_decrypted_secret();
             }
 
+            if (!active) return;
+
             const info = await fetchClient.POST("/charger/info", {
                 body: {charger: params.device},
             });
+
+            if (!active) return;
 
             if (info.error || !info.data) {
                 showAlert(t("not_connected"), "danger");
@@ -316,6 +322,16 @@ export function Frame() {
 
             if (Median.isNativeApp()) {
                 sessionStorage.setItem("currentConnection", info.data.id);
+            }
+
+            if (info.data.note) {
+                try {
+                    const noteBytes = Base64.toUint8Array(info.data.note);
+                    const decryptedNote = sodium.crypto_box_seal_open(noteBytes, pub_key as Uint8Array, secret as Uint8Array);
+                    connectedDeviceNote.value = new TextDecoder().decode(decryptedNote);
+                } catch {
+                    connectedDeviceNote.value = t("invalid_key");
+                }
             }
 
             if (info.data.name) {
@@ -337,13 +353,18 @@ export function Frame() {
         });
 
         return () => {
+            active = false;
+            clearTimeout(setupTimeout);
             if (interfaceRef.current && interfaceRef.current.cancel) {
+                clearTimeout(interfaceRef.current.timeout);
                 interfaceRef.current.cancel();
+                interfaceRef.current = undefined;
             }
             document.title = i18n.t("app_name");
             connected.value = false;
+            connectedDeviceNote.value = "";
         }
-    }, []);
+    }, [params.device, params.path]);
 
     const downLoadButton = isDebugMode.value ? <Row className="d-flex m-0">
             <Button variant='secondary' style={{borderRadius: 0}} class="m-0" onClick={() => {

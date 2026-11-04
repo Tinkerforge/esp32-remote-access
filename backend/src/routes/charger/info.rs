@@ -15,6 +15,7 @@ use crate::{
 pub struct ChargerInfo {
     pub id: String,
     pub name: Option<String>,
+    pub note: Option<String>,
     pub configured_port: i32,
     pub connected: bool,
     pub firmware_version: String,
@@ -84,6 +85,7 @@ pub async fn charger_info(
     let info = ChargerInfo {
         id: device_id.to_string(),
         name: device.name,
+        note: device.note,
         configured_port: port,
         connected,
         firmware_version,
@@ -120,6 +122,22 @@ mod tests {
         let device = user.add_random_charger().await;
         let _device = user.add_random_charger().await;
 
+        let pool = test_connection_pool();
+        let mut conn = pool.get().await.unwrap();
+        let device_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
+        let db_user = get_test_user(&user.mail).await;
+        let expected_note = "encrypted device note";
+        {
+            use db_connector::schema::allowed_users::dsl::*;
+            diesel::update(allowed_users)
+                .filter(user_id.eq(db_user.id))
+                .filter(charger_id.eq(device_uuid))
+                .set(note.eq(expected_note))
+                .execute(&mut conn)
+                .await
+                .unwrap();
+        }
+
         let app = App::new()
             .configure(configure)
             .wrap(JwtMiddleware)
@@ -139,10 +157,7 @@ mod tests {
         assert_eq!(resp.status(), 200);
         let body: ChargerInfo = test::read_body_json(resp).await;
 
-        let pool = test_connection_pool();
-        let mut conn = pool.get().await.unwrap();
         let user = get_test_user(&user.mail).await;
-        let device_uuid = uuid::Uuid::from_str(&device.uuid).unwrap();
         let name: Option<String> = {
             use db_connector::schema::allowed_users::dsl::*;
 
@@ -177,6 +192,7 @@ mod tests {
 
         assert_eq!(body.id, device.uuid);
         assert_eq!(body.name, name);
+        assert_eq!(body.note.as_deref(), Some(expected_note));
         assert_eq!(body.configured_port, port);
         assert_eq!(body.firmware_version, version);
     }

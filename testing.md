@@ -46,6 +46,10 @@ tests, the release state-endpoint test, database tests, formatting and Clippy.
 
 ## Frontend unit tests
 
+Use Node.js 24.15.0 or newer, matching CI. With nvm, run `nvm install` and
+`nvm use` from the repository root; `.nvmrc` selects Node 24. Older runtimes
+(including Node 22.14) crash while loading jsdom/Undici before tests can run.
+
 Build the local `wg-webclient/pkg` dependency before the initial `npm ci`:
 
 ```sh
