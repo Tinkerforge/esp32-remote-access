@@ -44,7 +44,6 @@ async fn get_charger(
 
 // Chargers can delete themselves via this route
 #[utoipa::path(
-    context_path = "/charger",
     request_body = SelfdestructSchema,
     responses(
         (status = 200, description = "Everything worked fine and the charger was deleted")

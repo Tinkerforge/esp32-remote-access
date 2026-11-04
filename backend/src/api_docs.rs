@@ -116,6 +116,7 @@ async fn main() {
             routes::management::management,
             routes::send_chargelog_to_user::send_chargelog,
             routes::webinterface::get_webinterface,
+            ws_udp_bridge::start_ws,
         ),
         components(schemas(
             routes::auth::login::LoginSchema,

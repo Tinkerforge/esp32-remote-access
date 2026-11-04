@@ -42,9 +42,8 @@ pub struct DeleteGroupingSchema {
     request_body = DeleteGroupingSchema,
     responses(
         (status = 200, description = "Grouping deleted successfully"),
-        (status = 400, description = "Invalid grouping ID"),
+        (status = 400, description = "Invalid grouping ID or grouping not found"),
         (status = 401, description = "Unauthorized - user does not own this grouping"),
-        (status = 404, description = "Grouping not found"),
         (status = 500, description = "Internal server error")
     ),
     security(

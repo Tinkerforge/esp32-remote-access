@@ -22,7 +22,7 @@ Usage:
     echo -n "the string to sign" | ./sign_string.py --secret-key <hex>
 
     # Read the message from a file
-    ./sign_string.py --secret-key <hex> --input-file firmware.bin > sig.b64
+    ./sign_string.py --secret-key-file key.hex --input-file firmware.bin | tail -n 1 > signed.b64
 
     # Generate an Ed25519 keypair (libsodium format: 64-byte sk = seed || pk)
     ./sign_string.py --generate-keypair
@@ -39,8 +39,11 @@ Usage:
 
 A libsodium Ed25519 secret key is 64 bytes (the seed concatenated with the
 public key). Generate it via libsodium's crypto_sign_keypair or via the
-``--generate-keypair`` flag below. The secret key can also be the 32-byte
-seed alone; libsodium accepts both.
+``--generate-keypair`` flag below. This script requires the full 64-byte key;
+it does not expand a 32-byte seed into a secret key.
+
+The script writes the signed blob length on the first stdout line, then the
+Base64-encoded combined blob on the second line. This is not a detached signature.
 
 When using ``--keepass``, the secret key is the ``password`` attribute of the
 configured entry (default entry name: ``sodium_secret_key``). This matches

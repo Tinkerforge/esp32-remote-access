@@ -155,7 +155,7 @@ async fn delete_allowed_user(
     request_body = DeleteChargerSchema,
     responses(
         (status = 200, description = "Deletion was successful."),
-        (status = 409, description = "The user sending the request is not the owner of the charger.")
+        (status = 401, description = "Access JWT is missing/invalid or the user has no access to the charger.")
     ),
     security(
         ("jwt" = [])

@@ -43,9 +43,8 @@ pub struct RemoveDeviceFromGroupingSchema {
     request_body = RemoveDeviceFromGroupingSchema,
     responses(
         (status = 200, description = "Device removed from grouping successfully"),
-        (status = 400, description = "Invalid input"),
+        (status = 400, description = "Invalid input or grouping or device not found in grouping"),
         (status = 401, description = "Unauthorized - user does not own this grouping"),
-        (status = 404, description = "Grouping or device not found in grouping"),
         (status = 500, description = "Internal server error")
     ),
     security(

@@ -56,7 +56,7 @@ pub struct PasswordUpdateSchema {
     request_body = PasswordUpdateSchema,
     responses(
         (status = 200, description = "Password update was successful."),
-        (status = 400, description = "The old password was wrong.")
+        (status = 401, description = "Access JWT is missing/invalid or the old login key is incorrect.")
     ),
     security(
         ("jwt" = [])

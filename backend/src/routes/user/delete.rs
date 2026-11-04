@@ -68,8 +68,11 @@ async fn get_all_chargers_for_user(
     request_body = DeleteUserSchema,
     responses(
         (status = 200),
-        (status = 400, description = "Wrong password"),
+        (status = 401, description = "Access JWT is missing/invalid or the login key is incorrect"),
         (status = 500)
+    ),
+    security(
+        ("jwt" = [])
     )
 )]
 #[delete("/delete")]

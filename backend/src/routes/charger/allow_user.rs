@@ -115,7 +115,7 @@ async fn authenticate_user(
     Ok(())
 }
 
-/// Give another user permission to access a charger owned by the user.
+/// Add a user using device credentials and the target user's login key or authorization token.
 #[utoipa::path(
     request_body = AllowUserSchema,
     responses(

@@ -29,7 +29,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Give another user permission to access a charger owned by the user. */
+        /** Add a user using device credentials and the target user's login key or authorization token. */
         put: operations["allow_user"];
         post?: never;
         delete?: never;
@@ -156,6 +156,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/service_token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Return the pre-shared authorization token string configured via the
+         *     `OPTIONAL_SERVICE_AUTH_TOKEN` environment variable. Intended for service
+         *     integrations that need a long-lived charger authorization token without
+         *     going through the regular user login flow.
+         */
+        get: operations["service_token"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/start_recovery": {
         parameters: {
             query?: never;
@@ -267,22 +289,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["remove"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/charger/selfdestruct": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["selfdestruct"];
         options?: never;
         head?: never;
         patch?: never;
@@ -433,6 +439,22 @@ export interface paths {
         put: operations["management"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/selfdestruct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["selfdestruct"];
         options?: never;
         head?: never;
         patch?: never;
@@ -618,6 +640,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ws": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Relay end-to-end encrypted WireGuard packets as binary WebSocket frames. */
+        get: operations["start_ws"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -724,12 +763,7 @@ export interface components {
         };
         EditGroupingSchema: {
             grouping_id: string;
-            /** @description New value for the default flag. Omit to leave it unchanged. */
             is_default?: boolean | null;
-            /**
-             * @description New name for the grouping. Omit (or send the current name) when only
-             *     toggling the default flag.
-             */
             name?: string | null;
         };
         GetAuthorizationTokensResponseSchema: {
@@ -1011,6 +1045,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Stored login salt, or a cached synthetic salt for an unknown email */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1019,8 +1054,8 @@ export interface operations {
                     "application/json": number[];
                 };
             };
-            /** @description User does not exist */
-            400: {
+            /** @description Rate limit exceeded */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1169,7 +1204,41 @@ export interface operations {
                 content?: never;
             };
             /** @description User not found */
-            404: {
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    service_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service token was returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description OPTIONAL_SERVICE_AUTH_TOKEN env var is missing */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1254,7 +1323,7 @@ export interface operations {
                     "application/json": components["schemas"]["AddChargerResponseSchema"];
                 };
             };
-            /** @description The charger already exists with another owner */
+            /** @description Access JWT is missing or invalid */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1321,7 +1390,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description All keys for this charger are currently in use */
+            /** @description No unused key is available for this user and charger */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1381,30 +1450,8 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The user sending the request is not the owner of the charger. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    selfdestruct: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SelfdestructSchema"];
-            };
-        };
-        responses: {
-            /** @description Everything worked fine and the charger was deleted */
-            200: {
+            /** @description Access JWT is missing/invalid or the user has no access to the charger. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1508,7 +1555,7 @@ export interface operations {
                     "application/json": components["schemas"]["AddDeviceToGroupingResponse"];
                 };
             };
-            /** @description Invalid input */
+            /** @description Invalid input or grouping not found */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1517,13 +1564,6 @@ export interface operations {
             };
             /** @description Unauthorized - user does not own grouping or is not allowed to access charger */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Grouping or charger not found */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1603,7 +1643,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid grouping ID */
+            /** @description Invalid grouping ID or grouping not found */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1612,13 +1652,6 @@ export interface operations {
             };
             /** @description Unauthorized - user does not own this grouping */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Grouping not found */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1725,7 +1758,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid input */
+            /** @description Invalid input or grouping or device not found in grouping */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1734,13 +1767,6 @@ export interface operations {
             };
             /** @description Unauthorized - user does not own this grouping */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Grouping or device not found in grouping */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1793,6 +1819,28 @@ export interface operations {
             };
         };
     };
+    selfdestruct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SelfdestructSchema"];
+            };
+        };
+        responses: {
+            /** @description Everything worked fine and the charger was deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     send_chargelog: {
         parameters: {
             query?: never;
@@ -1813,8 +1861,15 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid charger credentials or rate limit exceeded */
+            /** @description Invalid charger credentials */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1871,8 +1926,8 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Wrong password */
-            400: {
+            /** @description Access JWT is missing/invalid or the login key is incorrect */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1982,7 +2037,7 @@ export interface operations {
                     "application/json": components["schemas"]["UserInfo"];
                 };
             };
-            /** @description The jwt token was somehow valid but contained a non valid uuid. */
+            /** @description The account referenced by the access JWT no longer exists. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2011,8 +2066,8 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The old password was wrong. */
-            400: {
+            /** @description Access JWT is missing/invalid or the old login key is incorrect. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2084,6 +2139,54 @@ export interface operations {
             };
             /** @description Internal server error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    start_ws: {
+        parameters: {
+            query: {
+                key_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description WebSocket established; one encrypted WireGuard packet per binary frame */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid key ID or key does not exist */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access JWT is missing/invalid or the key belongs to another user */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Key is already in use */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Device has no active management connection */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

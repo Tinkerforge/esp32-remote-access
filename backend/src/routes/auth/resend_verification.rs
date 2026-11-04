@@ -84,7 +84,8 @@ fn send_verification_mail(
     context_path = "/auth",
     responses(
         (status = 200, description = "Verification email resent (or already verified but hidden)."),
-        (status = 404, description = "User not found")
+        (status = 400, description = "User not found"),
+        (status = 429, description = "Rate limit exceeded")
     )
 )]
 #[post("/resend_verification")]

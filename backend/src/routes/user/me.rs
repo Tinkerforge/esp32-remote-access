@@ -39,7 +39,7 @@ pub struct UserInfo {
     context_path = "/user",
     responses(
         (status = 200, description = "", body = UserInfo),
-        (status = 400, description = "The jwt token was somehow valid but contained a non valid uuid.")
+        (status = 400, description = "The account referenced by the access JWT no longer exists.")
     ),
     security(
         ("jwt" = [])

@@ -23,7 +23,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:16
         env:
           POSTGRES_PASSWORD: testing
           POSTGRES_USER: postgres

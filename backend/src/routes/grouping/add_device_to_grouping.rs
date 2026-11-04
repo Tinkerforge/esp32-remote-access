@@ -53,9 +53,8 @@ pub struct AddDeviceToGroupingResponse {
     request_body = AddDeviceToGroupingSchema,
     responses(
         (status = 200, description = "Device added to grouping successfully", body = AddDeviceToGroupingResponse),
-        (status = 400, description = "Invalid input"),
+        (status = 400, description = "Invalid input or grouping not found"),
         (status = 401, description = "Unauthorized - user does not own grouping or is not allowed to access charger"),
-        (status = 404, description = "Grouping or charger not found"),
         (status = 409, description = "Device already in grouping"),
         (status = 500, description = "Internal server error")
     ),

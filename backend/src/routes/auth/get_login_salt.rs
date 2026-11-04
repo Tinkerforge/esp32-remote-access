@@ -24,8 +24,8 @@ pub struct GetSaltQuery {
 #[utoipa::path(
     context_path = "/auth",
     responses(
-        (status = 200, body = Vec<u32>),
-        (status = 400, description = "User does not exist")
+        (status = 200, description = "Stored login salt, or a cached synthetic salt for an unknown email", body = Vec<u32>),
+        (status = 429, description = "Rate limit exceeded")
     ),
     params(
         GetSaltQuery

@@ -142,7 +142,8 @@ fn previous_month(today: chrono::NaiveDate, lang: &str) -> Result<String, Error>
     request_body = SendChargelogSchema,
     responses(
         (status = 200, description = "Chargelog sent via email"),
-        (status = 401, description = "Invalid charger credentials or rate limit exceeded"),
+        (status = 401, description = "Invalid charger credentials"),
+        (status = 429, description = "Rate limit exceeded"),
         (status = 500, description = "Internal server error"),
     )
 )]

@@ -48,7 +48,7 @@ use crate::{error::Error, utils::get_connection, AppState, BridgeState};
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(15);
 
-#[derive(Deserialize, Serialize, Validate)]
+#[derive(Deserialize, Serialize, Validate, utoipa::IntoParams)]
 struct WsQuery {
     #[validate(custom(function = validate_key_id))]
     pub key_id: String,
@@ -257,6 +257,20 @@ pub async fn open_connection(
     Ok(())
 }
 
+/// Relay end-to-end encrypted WireGuard packets as binary WebSocket frames.
+#[utoipa::path(
+    params(WsQuery),
+    responses(
+        (status = 101, description = "WebSocket established; one encrypted WireGuard packet per binary frame"),
+        (status = 400, description = "Invalid key ID or key does not exist"),
+        (status = 401, description = "Access JWT is missing/invalid or the key belongs to another user"),
+        (status = 409, description = "Key is already in use"),
+        (status = 502, description = "Device has no active management connection")
+    ),
+    security(
+        ("jwt" = [])
+    )
+)]
 #[get("/ws")]
 async fn start_ws(
     req: HttpRequest,

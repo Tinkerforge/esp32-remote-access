@@ -31,6 +31,9 @@ pub struct ChargerInfoRequest {
     responses(
         (status = 200, description = "Charger information", body = ChargerInfo),
         (status = 400, description = "Charger does not exist"),
+    ),
+    security(
+        ("jwt" = [])
     )
 )]
 #[post("/info")]

@@ -216,7 +216,7 @@ pub(crate) fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
     request_body = AddChargerSchema,
     responses(
         (status = 200, description = "Adding or updating the charger was successful.", body = AddChargerResponseSchema),
-        (status = 401, description = "The charger already exists with another owner"),
+        (status = 401, description = "Access JWT is missing or invalid"),
     ),
     security(
         ("jwt" = [])
