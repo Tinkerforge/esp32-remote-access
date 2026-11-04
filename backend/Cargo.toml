@@ -63,7 +63,7 @@ pcap-file = { version = "2.0.0", optional = true }
 
 [dev-dependencies]
 libsodium-sys-stable = "1.24.3"
-tokio = { version = "1.54.1", features = ["macros", "rt", "rt-multi-thread"] }
+tokio = { version = "1.54.1", features = ["macros", "rt", "rt-multi-thread", "test-util"] }
 
 [profile.release]
 opt-level = 3

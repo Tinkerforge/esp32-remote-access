@@ -341,11 +341,38 @@ pub fn send_data(socket: &UdpSocket, addr: SocketAddr, data: &[u8]) {
     }
 }
 
-async fn handle_charge_log<'a>(
-    meta_data: ChargeLogSendMetadata,
-    tunn_sock: Arc<Mutex<ManagementSocket<'a>>>,
-    app_state: web::Data<AppState>,
-) -> anyhow::Result<()> {
+async fn wait_for_charge_log_metadata(
+    tunn_sock: &Arc<Mutex<ManagementSocket<'_>>>,
+) -> anyhow::Result<ChargeLogSendMetadata> {
+    let receiver = {
+        let mut tun_sock = tunn_sock.lock().await;
+        if tun_sock.has_sender() {
+            tun_sock.send_packet(ManagementPacket::NackPacket(NackPacket::new(
+                NackReason::OngoingRequest,
+            )));
+            anyhow::bail!("Another charge log send is still in progress");
+        }
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        tun_sock.set_sender(sender);
+        tun_sock.send_packet(ManagementPacket::AckPacket(AckPacket::new()));
+        receiver
+    };
+
+    tokio::select! {
+        res = receiver => Ok(res?),
+        _ = tokio::time::sleep(Duration::from_secs(30)) => {
+            let mut tun_sock = tunn_sock.lock().await;
+            // Release the request slot so the charger can retry after a timeout.
+            tun_sock.take_sender();
+            tun_sock.send_packet(ManagementPacket::NackPacket(NackPacket::new(NackReason::Timeout)));
+            anyhow::bail!("Timeout while waiting for charge log metadata");
+        }
+    }
+}
+
+async fn receive_charge_log(
+    tunn_sock: &Arc<Mutex<ManagementSocket<'_>>>,
+) -> anyhow::Result<Vec<u8>> {
     let tcp_receiver = ManagementSocketTCPReceiver::new(tunn_sock.clone()).await;
     let ack_packet = ManagementPacket::AckPacket(AckPacket::new());
     {
@@ -381,18 +408,22 @@ async fn handle_charge_log<'a>(
         }
     }
 
+    Ok(buf.into_inner().unwrap())
+}
+
+async fn handle_charge_log<'a>(
+    meta_data: ChargeLogSendMetadata,
+    tunn_sock: Arc<Mutex<ManagementSocket<'a>>>,
+    app_state: web::Data<AppState>,
+) -> anyhow::Result<()> {
+    let charge_log = receive_charge_log(&tunn_sock).await?;
+
     // Send the charge log to the user
     let device_uuid = {
         let tunn_sock_lock = tunn_sock.lock().await;
         tunn_sock_lock.id()
     };
-    send_charge_log_to_user(
-        device_uuid,
-        &meta_data,
-        buf.into_inner().unwrap(),
-        &app_state,
-    )
-    .await?;
+    send_charge_log_to_user(device_uuid, &meta_data, charge_log, &app_state).await?;
 
     Ok(())
 }
@@ -648,45 +679,14 @@ pub async fn run_server(
                             return;
                         }
 
-                        {
-                            let mut tunn_sock = tunn_sock.lock().await;
-                            if tunn_sock.has_sender() {
-                                log::info!("Received charge log send request from charger with id '{}' while another send is still in progress", id);
-                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
-                                    NackReason::OngoingRequest,
-                                ));
-                                tunn_sock.send_packet(nack_packet);
-                                return;
-                            }
-                        }
-
-                        let (sender, receiver) = tokio::sync::oneshot::channel();
-                        {
-                            let mut tun_sock = tunn_sock.lock().await;
-                            tun_sock.set_sender(sender);
-                        }
-
-                        {
-                            let mut tun_sock = tunn_sock.lock().await;
-                            let ack_packet = ManagementPacket::AckPacket(AckPacket::new());
-                            tun_sock.send_packet(ack_packet);
-                        }
-
-                        let meta_data = tokio::select! {
-                            res = receiver => {
-                                match res {
-                                    Ok(meta_data) => meta_data,
-                                    Err(e) => {
-                                        log::error!("Failed to receive trigger for charge log send from charger with id '{}': {}", id, e);
-                                        return;
-                                    }
-                                }
-                            },
-                            _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
-                                let mut tun_sock = tunn_sock.lock().await;
-                                tun_sock.send_packet(ManagementPacket::NackPacket(NackPacket::new(NackReason::Timeout)));
-
-                                log::error!("Did not receive trigger for charge log send from charger with id '{}' within timeout", id);
+                        let meta_data = match wait_for_charge_log_metadata(&tunn_sock).await {
+                            Ok(meta_data) => meta_data,
+                            Err(e) => {
+                                log::error!(
+                                    "Failed to receive charge log metadata from charger '{}': {}",
+                                    id,
+                                    e
+                                );
                                 return;
                             }
                         };
@@ -780,6 +780,310 @@ mod tests {
             last_charge_log_upload_hash: vec![],
         };
         (peer, charger, init)
+    }
+
+    // Use a real WireGuard peer and smoltcp TCP connection, without a database
+    // or mail server. Paused Tokio time exercises the production deadlines.
+    struct ChargeLogPeer {
+        server: Arc<Mutex<ManagementSocket<'static>>>,
+        server_udp: Arc<UdpSocket>,
+        peer_udp: Arc<UdpSocket>,
+        device: super::super::device::ManagementDevice,
+        iface: smoltcp::iface::Interface,
+        sockets: smoltcp::iface::SocketSet<'static>,
+        tcp: Option<smoltcp::iface::SocketHandle>,
+        port: u16,
+        packets: Arc<std::sync::Mutex<Vec<Vec<u8>>>>,
+    }
+
+    impl ChargeLogPeer {
+        async fn new() -> Self {
+            use smoltcp::{iface, wire};
+
+            let server_udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+            let peer_udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+            let (mut peer, charger, init) = peer_and_charger();
+            let (_, mut server, response) = match_tunnel(
+                vec![charger],
+                peer_udp.local_addr().unwrap(),
+                &init,
+                server_udp.clone(),
+            )
+            .unwrap();
+            let mut output = [0u8; 2048];
+            let TunnResult::WriteToNetwork(keepalive) =
+                peer.decapsulate(None, &response, &mut output)
+            else {
+                panic!("peer could not complete handshake");
+            };
+            server_udp.writable().await.unwrap();
+            peer_udp.writable().await.unwrap();
+            server.decrypt(keepalive).unwrap();
+            let packets = Arc::new(std::sync::Mutex::new(Vec::new()));
+            server.enable_packet_capture(packets.clone());
+
+            let mut device = super::super::device::ManagementDevice::new(
+                peer_udp.clone(),
+                peer,
+                server_udp.local_addr().unwrap(),
+                super::super::pcap_logger::PcapLogger::new(),
+            );
+            let mut config = iface::Config::new(wire::HardwareAddress::Ip);
+            config.random_seed = 1;
+            let mut iface =
+                iface::Interface::new(config, &mut device, smoltcp::time::Instant::now());
+            iface.update_ip_addrs(|ips| {
+                ips.push(wire::IpCidr::new("10.0.0.2".parse().unwrap(), 24))
+                    .unwrap();
+            });
+            Self {
+                server: Arc::new(Mutex::new(server)),
+                server_udp,
+                peer_udp,
+                device,
+                iface,
+                sockets: iface::SocketSet::new(vec![]),
+                tcp: None,
+                port: 40000,
+                packets,
+            }
+        }
+
+        async fn pump(&mut self) {
+            let mut input = vec![0u8; 65535];
+            let mut output = vec![0u8; 65535];
+            // Bounded polling also makes a stalled transfer fail an assertion
+            // instead of hanging the test. No wall-clock sleeps are needed.
+            for _ in 0..32 {
+                self.iface.poll(
+                    smoltcp::time::Instant::now(),
+                    &mut self.device,
+                    &mut self.sockets,
+                );
+                while let Ok(size) = self.server_udp.try_recv(&mut input) {
+                    self.server.lock().await.decrypt(&input[..size]).unwrap();
+                }
+                while let Ok(size) = self.peer_udp.try_recv(&mut input) {
+                    match self.device.decapsulate(&input[..size], &mut output) {
+                        TunnResult::WriteToTunnelV4(data, _) => {
+                            self.device.push_packet(data.to_vec())
+                        }
+                        TunnResult::Done => {}
+                        other => panic!("unexpected WireGuard result: {other:?}"),
+                    }
+                }
+                tokio::task::yield_now().await;
+            }
+        }
+
+        async fn request(&mut self) -> tokio::task::JoinHandle<anyhow::Result<Vec<u8>>> {
+            self.packets.lock().unwrap().clear();
+            let server = self.server.clone();
+            let transfer = tokio::spawn(async move {
+                wait_for_charge_log_metadata(&server).await?;
+                receive_charge_log(&server).await
+            });
+            self.pump().await;
+            assert!(
+                self.server.lock().await.has_sender(),
+                "request was rejected"
+            );
+            self.assert_packets(&[PacketType::Ack]);
+            transfer
+        }
+
+        async fn metadata(&mut self) {
+            self.server
+                .lock()
+                .await
+                .take_sender()
+                .unwrap()
+                .send(ChargeLogSendMetadata {
+                    user_uuid: uuid::Uuid::new_v4().as_u128(),
+                    lang: "en".into(),
+                    is_monthly_email: false,
+                    filename: "charge-log.csv".into(),
+                    display_name: "Test charger".into(),
+                })
+                .unwrap();
+            self.pump().await;
+            assert!(self.server.lock().await.get_tcp_socket().is_some());
+            self.assert_packets(&[PacketType::Ack, PacketType::Ack]);
+        }
+
+        async fn connect(&mut self) {
+            use smoltcp::socket::tcp;
+
+            if let Some(handle) = self.tcp.take() {
+                self.sockets.remove(handle);
+            }
+            let mut socket = tcp::Socket::new(
+                tcp::SocketBuffer::new(vec![0; 65535]),
+                tcp::SocketBuffer::new(vec![0; 65535]),
+            );
+            self.port += 1;
+            socket
+                .connect(
+                    self.iface.context(),
+                    ("10.0.0.1".parse::<std::net::Ipv4Addr>().unwrap(), 8080),
+                    self.port,
+                )
+                .unwrap();
+            let handle = self.sockets.add(socket);
+            self.tcp = Some(handle);
+            self.pump().await;
+            assert_eq!(
+                self.sockets.get::<tcp::Socket>(handle).state(),
+                tcp::State::Established
+            );
+            assert_eq!(
+                self.server.lock().await.get_tcp_socket().unwrap().state(),
+                tcp::State::Established
+            );
+        }
+
+        async fn send(&mut self, data: &[u8]) {
+            let sent = self
+                .sockets
+                .get_mut::<smoltcp::socket::tcp::Socket>(self.tcp.unwrap())
+                .send_slice(data)
+                .unwrap();
+            assert_eq!(sent, data.len());
+            self.pump().await;
+            assert_eq!(
+                self.server
+                    .lock()
+                    .await
+                    .get_tcp_socket()
+                    .unwrap()
+                    .recv_queue(),
+                0,
+                "receiver did not consume the TCP data"
+            );
+        }
+
+        fn assert_packets(&self, expected: &[PacketType]) {
+            let packets = self.packets.lock().unwrap();
+            let types: Vec<_> = packets
+                .iter()
+                .map(|p| PacketType::try_from(p[7]).unwrap())
+                .collect();
+            assert_eq!(types, expected);
+            if matches!(expected.last(), Some(PacketType::Nack)) {
+                assert_eq!(packets.last().unwrap()[8], NackReason::Timeout as u8);
+            }
+        }
+
+        async fn successful_retry(&mut self) {
+            let transfer = self.request().await;
+            self.metadata().await;
+            self.connect().await;
+            let data = b"fresh charge log after timeout\n";
+            self.send(data).await;
+            self.sockets
+                .get_mut::<smoltcp::socket::tcp::Socket>(self.tcp.unwrap())
+                .close();
+            self.pump().await;
+            assert!(transfer.is_finished(), "retry did not finish after TCP FIN");
+            assert_eq!(transfer.await.unwrap().unwrap(), data);
+            assert!(!self.server.lock().await.has_sender());
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    enum ChargeLogTimeout {
+        Metadata,
+        TcpConnect,
+        FirstData,
+        MidTransfer,
+        TcpFin,
+    }
+
+    async fn charge_log_timeout_allows_retry(stage: ChargeLogTimeout) {
+        let mut peer = ChargeLogPeer::new().await;
+        let transfer = peer.request().await;
+        if !matches!(stage, ChargeLogTimeout::Metadata) {
+            peer.metadata().await;
+            if !matches!(stage, ChargeLogTimeout::TcpConnect) {
+                peer.connect().await;
+            }
+            if matches!(
+                stage,
+                ChargeLogTimeout::MidTransfer | ChargeLogTimeout::TcpFin
+            ) {
+                // Receiving data resets the idle deadline, even after most of
+                // the original 60 seconds have elapsed.
+                tokio::time::advance(Duration::from_secs(59)).await;
+                peer.send(b"partial old charge log\n").await;
+                if matches!(stage, ChargeLogTimeout::TcpFin) {
+                    peer.send(b"last row, but no FIN\n").await;
+                }
+            }
+        }
+        let timeout = if matches!(stage, ChargeLogTimeout::Metadata) {
+            30
+        } else {
+            60
+        };
+        tokio::time::advance(Duration::from_secs(timeout - 1)).await;
+        peer.pump().await;
+        assert!(
+            !transfer.is_finished(),
+            "transfer timed out before its idle deadline"
+        );
+        tokio::time::advance(Duration::from_secs(1)).await;
+        peer.pump().await;
+        assert!(transfer.is_finished(), "transfer did not time out");
+        let error = transfer.await.unwrap().unwrap_err();
+        if matches!(stage, ChargeLogTimeout::Metadata) {
+            assert_eq!(
+                error.to_string(),
+                "Timeout while waiting for charge log metadata"
+            );
+            peer.assert_packets(&[PacketType::Ack, PacketType::Nack]);
+        } else {
+            assert_eq!(
+                error.to_string(),
+                "Timeout while waiting for charge log data"
+            );
+        }
+        {
+            let mut server = peer.server.lock().await;
+            assert!(
+                !server.has_sender(),
+                "timed-out request still occupies the sender slot"
+            );
+            assert!(
+                server.get_tcp_socket().is_none(),
+                "timed-out TCP socket was not removed"
+            );
+        }
+        peer.successful_retry().await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn charge_log_metadata_timeout_allows_retry() {
+        charge_log_timeout_allows_retry(ChargeLogTimeout::Metadata).await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn charge_log_tcp_connect_timeout_allows_retry() {
+        charge_log_timeout_allows_retry(ChargeLogTimeout::TcpConnect).await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn charge_log_first_data_timeout_allows_retry() {
+        charge_log_timeout_allows_retry(ChargeLogTimeout::FirstData).await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn charge_log_mid_transfer_timeout_allows_retry() {
+        charge_log_timeout_allows_retry(ChargeLogTimeout::MidTransfer).await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn charge_log_tcp_fin_timeout_allows_retry() {
+        charge_log_timeout_allows_retry(ChargeLogTimeout::TcpFin).await;
     }
 
     #[test]
