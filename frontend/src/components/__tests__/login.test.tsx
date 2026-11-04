@@ -3,6 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { Login } from '../Login';
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: 'en' },
+  }),
+}));
+
 describe('Login Component', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockUtils: any;
@@ -40,6 +47,7 @@ describe('Login Component', () => {
     expect(screen.getByRole('textbox', { name: 'email' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'password' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'login' })).toBeTruthy();
+    expect(screen.queryByTestId('resend-verification')).toBeNull();
   });
 
   it('sets credentials_wrong when get_salt_for_user fails', async () => {
@@ -49,11 +57,12 @@ describe('Login Component', () => {
     await waitFor(() => {
       expect(mockUtils.fetchClient.POST).not.toHaveBeenCalled();
       expect(screen.getByRole('textbox', { name: 'email' })).toHaveClass('invalid');
+      expect(screen.queryByTestId('resend-verification')).toBeNull();
     });
   });
 
-  it('shows verification required alert on 403 login', async () => {
-    mockUtils.fetchClient.POST.mockResolvedValue({ response: { status: 403 }, error: null });
+  it('prompts unverified users to resend and sends verification for the submitted account', async () => {
+    mockUtils.fetchClient.POST.mockResolvedValueOnce({ response: { status: 403 }, error: 'Not verified' });
     fillAndSubmit();
 
     await waitFor(() => {
@@ -64,6 +73,50 @@ describe('Login Component', () => {
         'login.verify_before_login_heading'
       );
       expect(mockUtils.fetchClient.GET).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'register.resend_verification' })).toBeTruthy();
+    });
+    expect(mockUtils.fetchClient.POST).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'register.resend_verification' }));
+
+    await waitFor(() => {
+      expect(mockUtils.fetchClient.POST).toHaveBeenLastCalledWith('/auth/resend_verification', {
+        body: { email: 'user@example.com' },
+        headers: { 'X-Lang': 'en' },
+      });
+      expect(screen.getByTestId('resend-success')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'register.resend_verification' })).toBeNull();
+    });
+  });
+
+  it('allows retrying a failed verification resend from login', async () => {
+    mockUtils.fetchClient.POST
+      .mockResolvedValueOnce({ response: { status: 403 }, error: 'Not verified' })
+      .mockResolvedValueOnce({ response: { status: 500 }, error: 'Failed' });
+    fillAndSubmit();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'register.resend_verification' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('resend-error')).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'register.resend_verification' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('resend-success')).toBeTruthy();
+    });
+  });
+
+  it('hides the resend option when the login email changes', async () => {
+    mockUtils.fetchClient.POST.mockResolvedValueOnce({ response: { status: 403 }, error: 'Not verified' });
+    fillAndSubmit();
+
+    await screen.findByRole('button', { name: 'register.resend_verification' });
+    fireEvent.change(screen.getByRole('textbox', { name: 'email' }), {
+      target: { value: 'other@example.com' },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('resend-verification')).toBeNull();
     });
   });
 
@@ -73,6 +126,7 @@ describe('Login Component', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('textbox', { name: 'email' })).toHaveClass('invalid');
+      expect(screen.queryByTestId('resend-verification')).toBeNull();
     });
   });
 

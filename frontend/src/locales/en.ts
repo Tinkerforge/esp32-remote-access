@@ -201,7 +201,7 @@ export const en = {
         "success_alert_text": "You should receive an email within the next few minutes.",
         "success_alert_heading": "Success",
         "error_alert_text": "Failed to start recovery with status {{status}}: {{text}}",
-        "verify_before_login": "Please verify your email address before logging in",
+        "verify_before_login": "Please verify your email address before logging in. If you did not receive the verification email or the link has expired, use the button below to request a new email.",
         "verify_before_login_heading": "Email not verified",
         "verify_success": "Your account has been verified. You can now log in.",
         "verify_success_heading": "Account activated"

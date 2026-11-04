@@ -6,6 +6,7 @@ import { showAlert } from "./Alert";
 import { Modal } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { PasswordComponent } from "./PasswordComponent";
+import { ResendVerification } from "./ResendVerification";
 import sodium from "libsodium-wrappers";
 import { Base64 } from "js-base64";
 import i18n from "../i18n";
@@ -20,6 +21,7 @@ interface LoginState {
     password: string,
     show_modal: boolean,
     credentials_wrong: boolean,
+    unverified_email: string | null,
 }
 
 export class Login extends Component<Record<string, never>, LoginState> {
@@ -30,6 +32,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
             password: "",
             show_modal: false,
             credentials_wrong: false,
+            unverified_email: null,
         };
     }
 
@@ -39,6 +42,8 @@ export class Login extends Component<Record<string, never>, LoginState> {
         if (form.checkValidity() === false) {
             e.stopPropagation();
         }
+
+        this.setState({credentials_wrong: false, unverified_email: null});
 
         let login_salt: Uint8Array;
         try {
@@ -61,6 +66,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
         {
             const {error, response} = await fetchClient.POST("/auth/login", {body: login_schema, credentials: "same-origin"});
             if (response.status === 403) {
+                this.setState({unverified_email: login_schema.email});
                 showAlert(i18n.t("login.verify_before_login"), "danger", "login", i18n.t("login.verify_before_login_heading"));
                 return;
             } else if (error) {
@@ -108,7 +114,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
                         <Form.Group className="mb-3" controlId="startRecoveryEmail">
                             <Form.Label>{t("email")}</Form.Label>
                             <Form.Control type="email" placeholder={t("email")} value={this.state.email} onChange={(e) => {
-                                this.setState({email: (e.target as HTMLInputElement).value});
+                                this.setState({email: (e.target as HTMLInputElement).value, unverified_email: null});
                             }} />
                         </Form.Group>
                     </Modal.Body>
@@ -127,7 +133,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
                 <Form.Group className="mb-3" controlId="loginEmail">
                     <Form.Label>{t("email")}</Form.Label>
                     <Form.Control autoComplete="email" isInvalid={this.state.credentials_wrong} type="email" placeholder={t("email")} value={this.state.email} onChange={(e) => {
-                        this.setState({email: (e.target as HTMLInputElement).value});
+                        this.setState({email: (e.target as HTMLInputElement).value, unverified_email: null});
                     }} />
                 </Form.Group>
                 <Form.Group className="mb-3" controlId="loginPassword" >
@@ -149,6 +155,7 @@ export class Login extends Component<Record<string, never>, LoginState> {
                         this.setState({show_modal: true});
                     }}>{t("password_recovery")}</a>
             </Form>
+            {this.state.unverified_email && <ResendVerification key={this.state.unverified_email} email={this.state.unverified_email} />}
         </>)
     }
 }
