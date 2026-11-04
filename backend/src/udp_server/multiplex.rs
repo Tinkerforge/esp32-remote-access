@@ -593,28 +593,28 @@ pub async fn run_server(
                             }
 
                             let mut tun_sock = tunn_sock.lock().await;
-                            if let Some(sender) = sender {
+                            let reply = if let Some(sender) = sender {
                                 if sender.send(meta_data.data).is_err() {
                                     log::error!(
                                         "Failed to send charge log send trigger for charger '{}' to TCP socket",
                                         id
                                     );
-                                    let nack_packet = ManagementPacket::NackPacket(
-                                        NackPacket::new(NackReason::InternalError),
-                                    );
-                                    tun_sock.send_packet(nack_packet);
+                                    ManagementPacket::NackPacket(NackPacket::new(
+                                        NackReason::InternalError,
+                                    ))
+                                } else {
+                                    ManagementPacket::AckPacket(AckPacket::new())
                                 }
                             } else {
                                 log::error!(
                                     "Failed to get sender for charge log send request for charger '{}'",
                                     id
                                 );
-                                let nack_packet = ManagementPacket::NackPacket(NackPacket::new(
+                                ManagementPacket::NackPacket(NackPacket::new(
                                     NackReason::InternalError,
-                                ));
-                                tun_sock.send_packet(nack_packet);
-                            }
-                            tun_sock.send_packet(ManagementPacket::AckPacket(AckPacket::new()));
+                                ))
+                            };
+                            tun_sock.send_packet(reply);
                         }
                     }
                     // Charge log send request
