@@ -51,7 +51,7 @@ export function DeviceToolbar({
                     <Dropdown className={isMobile ? "w-100 w-md-auto" : undefined}>
                         <Dropdown.Toggle
                             variant={selectedGrouping ? "warning" : "primary"}
-                            className={isMobile ? "w-100" : undefined}
+                            className={`d-inline-flex align-items-center justify-content-center${isMobile ? " w-100" : ""}`}
                             title={selectedGrouping ? `${t("filter_by_grouping")}: ${selectedGrouping.name}` : t("filter_by_grouping")}
                         >
                             <span className="d-inline-flex align-items-center gap-1">
