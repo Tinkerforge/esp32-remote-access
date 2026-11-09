@@ -16,7 +16,7 @@ dotenvy = { version = "0.15.7"}
 futures-util = "0.3.34"
 ipnetwork = { version = "0.21.1", features = ["serde"] }
 libc = "0.2.191"
-libsodium-sys-stable = { version = "1.24.3", features = ["optimized", "minimal"] }
+libsodium-sys-stable = { version = "1.24.5", features = ["optimized", "minimal"] }
 log = "0.4.34"
 reqwest = { version = "0.13.5", features = ["cookies"] }
 reqwest-websocket = "0.6.0"
