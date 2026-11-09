@@ -196,6 +196,31 @@ mod tests {
     async fn deleting_account_without_devices_notifies_grouping_deletion() {
         let (mut user, _) = TestUser::random().await;
         user.login().await;
+        let uid = get_test_uuid(&user.mail).await.unwrap();
+        let pool = test_connection_pool();
+        let mut conn = pool.get().await.unwrap();
+        // Recovery and pending email verification records must not block
+        // deletion of an otherwise authenticated account.
+        {
+            use db_connector::{
+                models::{recovery_tokens::RecoveryToken, verification::Verification},
+                schema::{recovery_tokens, verification},
+            };
+            diesel::insert_into(recovery_tokens::table)
+                .values(RecoveryToken {
+                    id: uuid::Uuid::new_v4(),
+                    user_id: uid,
+                    created: chrono::Utc::now().timestamp(),
+                })
+                .execute(&mut conn)
+                .await
+                .unwrap();
+            diesel::insert_into(verification::table)
+                .values(Verification::new(uid))
+                .execute(&mut conn)
+                .await
+                .unwrap();
+        }
         let grouping = crate::routes::grouping::test_helpers::create_test_grouping(
             user.get_access_token(),
             "group",
@@ -232,6 +257,27 @@ mod tests {
                 .await
                 .is_none()
         );
+        {
+            use db_connector::schema::{recovery_tokens, verification};
+            assert_eq!(
+                recovery_tokens::table
+                    .filter(recovery_tokens::user_id.eq(uid))
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                    .await
+                    .unwrap(),
+                0
+            );
+            assert_eq!(
+                verification::table
+                    .filter(verification::user.eq(uid))
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                    .await
+                    .unwrap(),
+                0
+            );
+        }
     }
 
     #[actix_web::test]
