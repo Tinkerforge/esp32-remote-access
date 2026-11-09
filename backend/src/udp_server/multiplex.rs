@@ -346,7 +346,7 @@ async fn wait_for_charge_log_metadata(
 ) -> anyhow::Result<ChargeLogSendMetadata> {
     let receiver = {
         let mut tun_sock = tunn_sock.lock().await;
-        if tun_sock.has_sender() {
+        if tun_sock.has_sender() || tun_sock.get_tcp_socket().is_some() {
             tun_sock.send_packet(ManagementPacket::NackPacket(NackPacket::new(
                 NackReason::OngoingRequest,
             )));
@@ -380,35 +380,43 @@ async fn receive_charge_log(
         tun_sock.send_packet(ack_packet);
     }
 
-    let mut buf = BufWriter::new(Vec::with_capacity(10 * 1024 * 1024));
-    loop {
-        let handle_tcp_fut = tcp_receiver.handle_tcp_recv();
-        tokio::select! {
-            res = handle_tcp_fut => {
-                match res {
-                    TCPRecvResult::Ok(data) => {
-                        buf.write_all(&data)
-                            .map_err(|e| anyhow::Error::msg(format!("Error writing to charge log buffer: {}", e)))?;
-                    },
-                    TCPRecvResult::Finished => {
-                        buf.flush()
-                            .map_err(|e| anyhow::Error::msg(format!("Error flushing charge log buffer: {}", e)))?;
-                        break;
+    let result = async {
+        let mut buf = BufWriter::new(Vec::with_capacity(10 * 1024 * 1024));
+        loop {
+            let handle_tcp_fut = tcp_receiver.handle_tcp_recv();
+            tokio::select! {
+                res = handle_tcp_fut => {
+                    match res {
+                        TCPRecvResult::Ok(data) => {
+                            buf.write_all(&data)
+                                .map_err(|e| anyhow::Error::msg(format!("Error writing to charge log buffer: {}", e)))?;
+                        },
+                        TCPRecvResult::Finished => {
+                            buf.flush()
+                                .map_err(|e| anyhow::Error::msg(format!("Error flushing charge log buffer: {}", e)))?;
+                            break;
+                        }
+                        TCPRecvResult::Err(e) => {
+                            return Err(anyhow::Error::msg(format!("Error receiving from TCP socket: {}", e)));
+                        }
                     }
-                    TCPRecvResult::Err(e) => {
-                        return Err(anyhow::Error::msg(format!("Error receiving from TCP socket: {}", e)));
-                    }
+                },
+                _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {
+                    return Err(anyhow::Error::msg("Timeout while waiting for charge log data"));
                 }
-            },
-            _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {
-                let mut tun_sock = tunn_sock.lock().await;
-                tun_sock.remove_tcp_socket();
-                return Err(anyhow::Error::msg("Timeout while waiting for charge log data"));
             }
         }
-    }
 
-    Ok(buf.into_inner().unwrap())
+        Ok(buf.into_inner().unwrap())
+    }
+    .await;
+
+    let mut tun_sock = tunn_sock.lock().await;
+    // Send the closing FIN before removing a successfully completed socket.
+    // Release the transfer slot on errors and timeouts as well.
+    tun_sock.poll();
+    tun_sock.remove_tcp_socket();
+    result
 }
 
 async fn handle_charge_log<'a>(
@@ -986,8 +994,20 @@ mod tests {
             self.pump().await;
             assert!(transfer.is_finished(), "retry did not finish after TCP FIN");
             assert_eq!(transfer.await.unwrap().unwrap(), data);
-            assert!(!self.server.lock().await.has_sender());
+            let mut server = self.server.lock().await;
+            assert!(!server.has_sender());
+            assert!(
+                server.get_tcp_socket().is_none(),
+                "completed TCP socket was not removed"
+            );
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn charge_log_completed_transfer_allows_another_transfer() {
+        let mut peer = ChargeLogPeer::new().await;
+        peer.successful_retry().await;
+        peer.successful_retry().await;
     }
 
     #[derive(Clone, Copy)]
@@ -1086,13 +1106,14 @@ mod tests {
         charge_log_timeout_allows_retry(ChargeLogTimeout::TcpFin).await;
     }
 
-    // The device may start a new send (after a reboot, a local timeout or for the next user) while the server still waits for the TCP connection of the previous one.
-    // Rejecting or accepting the new request is fine, but afterwards a normal transfer on the same tunnel must work again.
+    // A new request must be rejected while the previous transfer waits for TCP
+    // data. After that transfer times out, a normal transfer must work again.
     #[tokio::test(start_paused = true)]
-    async fn charge_log_request_during_tcp_phase_allows_later_transfers() {
+    async fn charge_log_request_during_tcp_phase_is_rejected_and_allows_later_transfers() {
         let mut peer = ChargeLogPeer::new().await;
         let first = peer.request().await;
         peer.metadata().await;
+        peer.packets.lock().unwrap().clear();
 
         let server = peer.server.clone();
         let second = tokio::spawn(async move {
@@ -1100,27 +1121,28 @@ mod tests {
             receive_charge_log(&server).await
         });
         peer.pump().await;
-        let sender = peer.server.lock().await.take_sender();
-        if let Some(sender) = sender {
-            sender
-                .send(ChargeLogSendMetadata {
-                    user_uuid: uuid::Uuid::new_v4().as_u128(),
-                    lang: "en".into(),
-                    is_monthly_email: false,
-                    filename: "charge-log.csv".into(),
-                    display_name: "Test charger".into(),
-                })
-                .unwrap();
-            peer.pump().await;
+        assert!(second.is_finished(), "second request was not rejected");
+        assert_eq!(
+            second.await.unwrap().unwrap_err().to_string(),
+            "Another charge log send is still in progress"
+        );
+        assert!(!peer.server.lock().await.has_sender());
+        {
+            let packets = peer.packets.lock().unwrap();
+            assert_eq!(packets.len(), 1, "expected a single rejection packet");
+            assert_eq!(
+                PacketType::try_from(packets[0][7]).unwrap(),
+                PacketType::Nack
+            );
+            assert_eq!(packets[0][8], NackReason::OngoingRequest as u8);
         }
+        assert!(!first.is_finished(), "rejection ended the first transfer");
 
-        // The charger never connects for either request.
+        // The charger never connects for the first request.
         tokio::time::advance(Duration::from_secs(61)).await;
         peer.pump().await;
         assert!(first.is_finished(), "first transfer did not time out");
-        assert!(second.is_finished(), "second transfer did not time out");
         assert!(first.await.unwrap().is_err());
-        assert!(second.await.unwrap().is_err());
 
         peer.successful_retry().await;
     }
