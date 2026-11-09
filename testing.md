@@ -44,6 +44,38 @@ the shared schema.
 [Backend CI](.github/workflows/backend-tests.yml) runs migrations, debug backend
 tests, the release state-endpoint test, database tests, formatting and Clippy.
 
+### Device-list notification coverage
+
+When adding a mutation, check both the database fields returned by
+`fetch_chargers` and the account's groupings. The device-list WebSocket must
+notify every active tab for the affected account after a successful change.
+
+| Mutation path | Notification |
+| --- | --- |
+| `/charger/add`, `/add_with_token` (including re-registration) | `state_change` |
+| `/allow_user`, legacy `/charger/allow_user` (including re-sharing) | `state_change` with account-specific name, note and validity |
+| `/charger/update_note` | `state_change` with account-specific note |
+| `/management` (name, firmware, port, access reconciliation) | `state_change` for remaining users; `device_removed` for revoked users |
+| UDP tunnel establishment and expiry | `state_change` |
+| `/charger/remove` | `device_removed` for the requesting account |
+| `/selfdestruct` (UUID and legacy numeric ID) | `device_removed` for all associated accounts |
+| `/user/delete` | `device_removed` for that account's devices, then `groupings_changed` for cascaded grouping deletion |
+| `/auth/recovery` with a new secret | `state_change` with `valid: false`; other accounts retain their own validity |
+| `/auth/recovery` with a reused secret | No device-list change |
+| Grouping create, edit/default, delete, add member, remove member | `groupings_changed` for the owning account |
+
+The periodic device cleanup only removes devices without any allowed users,
+so it has no device-list recipients. Expired unverified registrations cannot
+have authenticated device-list sessions. Startup migrations run before serving
+WebSockets.
+
+Regression tests cover multiple tabs, account isolation, rejected mutations,
+shared devices, snapshot/update ordering, and group changes during reconnects.
+The frontend also refreshes groupings after device removals to reflect cascaded
+membership deletions. Run backend tests serially (`cargo test -- --test-threads=1`)
+when checking this against one shared disposable database: cleanup tests operate
+on database-wide state and can interfere with concurrent account-flow tests.
+
 ## Frontend unit tests
 
 Use Node.js 24.15.0 or newer, matching CI. With nvm, run `nvm install` and

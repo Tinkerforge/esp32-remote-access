@@ -28,7 +28,7 @@ use utoipa::ToSchema;
 use crate::{
     error::Error,
     utils::{get_connection, parse_uuid},
-    AppState,
+    AppState, BridgeState,
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -53,6 +53,7 @@ pub struct DeleteGroupingSchema {
 #[delete("/delete")]
 pub async fn delete_grouping(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     payload: web::Json<DeleteGroupingSchema>,
     user_id: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
@@ -87,6 +88,9 @@ pub async fn delete_grouping(
         .execute(&mut conn)
         .await
         .map_err(|_| Error::InternalError)?;
+
+    drop(conn);
+    super::notify_groupings_changed(user_uuid, &bridge_state).await;
 
     Ok(HttpResponse::Ok().finish())
 }

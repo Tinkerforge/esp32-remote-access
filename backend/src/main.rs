@@ -192,7 +192,7 @@ async fn main() -> std::io::Result<()> {
         undiscovered_devices: Arc::new(Mutex::new(HashMap::new())),
         lost_connections: Mutex::new(HashMap::new()),
         socket: Arc::new(udp_socket),
-        state_update_clients: Mutex::new(HashMap::new()),
+        state_update_clients: Default::default(),
         device_ratelimiter: device_ratelimiter.clone(),
     });
 

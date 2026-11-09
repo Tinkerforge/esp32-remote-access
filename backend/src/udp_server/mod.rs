@@ -132,10 +132,7 @@ async fn start_rate_limiters_reset_thread(
             let mut map = bridge_state.lost_connections.lock().await;
             map.shrink_to_fit();
         }
-        {
-            let mut map = bridge_state.state_update_clients.lock().await;
-            map.shrink_to_fit();
-        }
+        bridge_state.state_update_clients.shrink_to_fit().await;
         {
             let mut set = state.keys_in_use.lock().await;
             set.shrink_to_fit();

@@ -313,7 +313,7 @@ mod tests {
             undiscovered_devices: Arc::new(Mutex::new(HashMap::new())),
             lost_connections: Mutex::new(HashMap::new()),
             socket: Arc::new(tokio::net::UdpSocket::from_std(std_socket).unwrap()),
-            state_update_clients: Mutex::new(HashMap::new()),
+            state_update_clients: Default::default(),
             device_ratelimiter: Arc::new(crate::rate_limit::ChargerRateLimiter::new()),
         };
 

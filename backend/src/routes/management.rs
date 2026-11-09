@@ -120,6 +120,7 @@ async fn identify_configured_user(
 
 async fn update_configured_users(
     state: &web::Data<AppState>,
+    bridge_state: &web::Data<BridgeState<'_>>,
     charger_id: uuid::Uuid,
     data: &ManagementDataVersion,
 ) -> actix_web::Result<(Vec<i32>, Vec<String>, Vec<String>)> {
@@ -200,11 +201,23 @@ async fn update_configured_users(
             diesel::delete(
                 wg_keys::wg_keys
                     .filter(wg_keys::charger_id.eq(&charger_id))
-                    .filter(wg_keys::user_id.eq_any(deleted_users)),
+                    .filter(wg_keys::user_id.eq_any(&deleted_users)),
             )
             .execute(&mut conn)
             .await
             .map_err(|_| Error::InternalError)?;
+            drop(conn);
+            for user_id in deleted_users {
+                bridge_state
+                    .state_update_clients
+                    .send(
+                        user_id,
+                        crate::routes::charger::get_devices::StateUpdateMessage::DeviceRemoved {
+                            charger_id: charger_id.to_string(),
+                        },
+                    )
+                    .await;
+            }
         }
 
         // Get uuid of configured users on the server
@@ -331,7 +344,8 @@ pub async fn management(
         }
     };
 
-    let configured_users = update_configured_users(&state, charger_id, &data.data).await?;
+    let configured_users =
+        update_configured_users(&state, &bridge_state, charger_id, &data.data).await?;
 
     {
         let mut map = bridge_state.undiscovered_devices.lock().await;
@@ -827,7 +841,15 @@ mod tests {
         )
         .await;
 
-        let app = App::new().configure(configure).service(management);
+        let bridge_state = crate::tests::create_test_bridge_state(None);
+        let (_, mut removed_user_updates) = bridge_state
+            .state_update_clients
+            .subscribe(get_test_uuid(&mail2).await.unwrap())
+            .await;
+        let app = App::new()
+            .configure(configure)
+            .app_data(bridge_state)
+            .service(management);
         let app = test::init_service(app).await;
 
         let data = ManagementDataVersion::V2(ManagementDataVersion2 {
@@ -856,6 +878,10 @@ mod tests {
             .to_request();
         let resp: ManagementResponseSchema = test::call_and_read_body_json(&app, req).await;
 
+        assert!(matches!(removed_user_updates.try_recv().unwrap(),
+            crate::routes::charger::get_devices::StateUpdateMessage::DeviceRemoved { charger_id }
+                if charger_id == device.uuid));
+        assert!(removed_user_updates.try_recv().is_err());
         println!("{resp:?}");
         assert_eq!([1], *resp.configured_users);
         assert_eq!(

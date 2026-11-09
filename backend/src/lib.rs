@@ -87,7 +87,7 @@ pub struct BridgeState<'a> {
     pub undiscovered_devices: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     pub lost_connections: Mutex<HashMap<uuid::Uuid, Vec<(i32, Session)>>>,
     pub socket: Arc<UdpSocket>,
-    pub state_update_clients: Mutex<HashMap<uuid::Uuid, Session>>,
+    pub state_update_clients: routes::charger::get_devices::StateUpdateClients,
     pub device_ratelimiter: Arc<crate::rate_limit::ChargerRateLimiter>,
 }
 
@@ -402,7 +402,7 @@ pub(crate) mod tests {
             undiscovered_devices: Arc::new(Mutex::new(HashMap::new())),
             lost_connections: Mutex::new(HashMap::new()),
             socket: Arc::new(UdpSocket::from_std(std_socket).unwrap()),
-            state_update_clients: Mutex::new(HashMap::new()),
+            state_update_clients: Default::default(),
             device_ratelimiter: Arc::new(crate::rate_limit::ChargerRateLimiter::new()),
         };
 
@@ -425,7 +425,7 @@ pub(crate) mod tests {
             undiscovered_devices: Arc::new(Mutex::new(HashMap::new())),
             lost_connections: Mutex::new(HashMap::new()),
             socket: Arc::new(UdpSocket::from_std(std_socket).unwrap()),
-            state_update_clients: Mutex::new(HashMap::new()),
+            state_update_clients: Default::default(),
             device_ratelimiter: Arc::new(crate::rate_limit::ChargerRateLimiter::new()),
         };
 

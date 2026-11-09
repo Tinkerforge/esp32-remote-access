@@ -28,7 +28,7 @@ use utoipa::ToSchema;
 use crate::{
     error::Error,
     utils::{get_connection, parse_uuid},
-    AppState,
+    AppState, BridgeState,
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -61,6 +61,7 @@ pub struct EditGroupingResponse {
 #[put("/edit")]
 pub async fn edit_grouping(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     payload: web::Json<EditGroupingSchema>,
     user_id: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
@@ -137,6 +138,9 @@ pub async fn edit_grouping(
         (None, None) => return Err(Error::InvalidPayload.into()),
     }
     .map_err(|_| Error::InternalError)?;
+
+    drop(conn);
+    super::notify_groupings_changed(user_uuid, &bridge_state).await;
 
     Ok(HttpResponse::Ok().json(EditGroupingResponse {
         id: updated_grouping.id.to_string(),

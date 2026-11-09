@@ -24,7 +24,7 @@ use diesel_async::RunQueryDsl as _;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{error::Error, utils::get_connection, AppState};
+use crate::{error::Error, utils::get_connection, AppState, BridgeState};
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct CreateGroupingSchema {
@@ -56,6 +56,7 @@ pub struct CreateGroupingResponse {
 #[post("/create")]
 pub async fn create_grouping(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     payload: web::Json<CreateGroupingSchema>,
     user_id: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
@@ -89,6 +90,9 @@ pub async fn create_grouping(
         .get_result::<DeviceGrouping>(&mut conn)
         .await
         .map_err(|_| Error::InternalError)?;
+
+    drop(conn);
+    super::notify_groupings_changed(user_uuid, &bridge_state).await;
 
     Ok(HttpResponse::Ok().json(CreateGroupingResponse {
         id: grouping.id.to_string(),

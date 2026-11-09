@@ -88,7 +88,8 @@ The generated document includes `/ws`; the JWT-protected legacy
 
 Connect to `wss://HOST/api/charger/get_devices` with the access cookie (or a
 Bearer header when the client supports custom upgrade headers). The first
-**text frame** contains a JSON array. Later text frames contain:
+**text frame** contains a JSON array. Later text frames upsert a device after
+connection, registration, sharing or note changes:
 
 ```json
 {
@@ -110,9 +111,38 @@ Bearer header when the client supports custom upgrade headers). The first
 
 `status` serializes as `"Connected"` or `"Disconnected"`, not an integer.
 Timestamps are Unix seconds or `null`; old associations may have no `added_at`.
-The backend currently tracks one notification session per user UUID. This is
-not a plain HTTP GET returning JSON; clients expecting the old response must
-use a WebSocket upgrade and read its initial text frame.
+When a device is removed from the account, including access revoked by the
+device, the server sends:
+
+```json
+{"type": "device_removed", "charger_id": "550e8400-e29b-41d4-a716-446655440000"}
+```
+
+Clients must remove that UUID from their cloud device list. Local discovery
+may still show the device independently. All active tabs/sessions for the account
+receive updates, with names and notes specific to that account. Each connection
+receives its initial array before queued updates; slow clients are disconnected
+and should reconnect to obtain a fresh snapshot.
+
+Account deletion sends removals to that account's active sessions, while devices
+shared with other accounts remain available to those accounts. Recovery using a
+new encryption key sends `state_change` updates with `valid: false`; recovery
+that reuses the key leaves device validity unchanged.
+
+Creating, renaming, deleting or changing the default grouping, and adding or
+removing grouping members, sends the owning account:
+
+```json
+{"type": "groupings_changed"}
+```
+
+Clients reload `/api/grouping/list` for these notifications and after connecting
+or reconnecting. The frontend preserves the selected filter on remote changes
+and clears it if the selected group was deleted. Device removals also refresh
+groupings to reflect cascaded membership deletions.
+
+This is not a plain HTTP GET returning JSON; clients expecting the old response
+must use a WebSocket upgrade and read its initial text frame.
 
 ### Remote relay WebSocket
 

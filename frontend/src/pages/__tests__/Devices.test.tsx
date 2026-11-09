@@ -259,7 +259,7 @@ describe('Devices.tsx - DeviceList', () => {
       { id: 'x', uid: 10, name: 'X', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
       { id: 'y', uid: 11, name: 'Y', status: 'Connected', note: '', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [], groupings: [], selectedGroupingId: null, groupingSearchTerm: '', isLoading: false });
+    getRef(ref).setState({ devices, cloudDevices: devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [], groupings: [], selectedGroupingId: null, groupingSearchTerm: '', isLoading: false });
 
     getRef(ref).handleDelete(devices[0]);
     await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(true));
@@ -267,6 +267,9 @@ describe('Devices.tsx - DeviceList', () => {
     (fetchClient.DELETE as unknown as Mock).mockResolvedValue({ response: { status: 200 } });
     await getRef(ref).handleDeleteConfirm();
     await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(false));
+    expect(getRef(ref).state.devices.map(d => d.id)).toEqual(['y']);
+    expect(getRef(ref).state.cloudDevices.map(d => d.id)).toEqual(['y']);
+    await act(async () => { getRef(ref).processCharger({ ...devices[1], status: 'Disconnected' }); });
     expect(getRef(ref).state.devices.map(d => d.id)).toEqual(['y']);
   });
 
@@ -290,6 +293,7 @@ describe('Devices.tsx - DeviceList', () => {
     // Set up state with a search filter active - only "Test" devices should be in filteredDevices
     getRef(ref).setState({
       devices,
+      cloudDevices: devices,
       sortColumn: 'none',
       sortSequence: 'asc',
       showDeleteModal: false,
@@ -316,7 +320,7 @@ describe('Devices.tsx - DeviceList', () => {
 
     // Verify the device is removed from both devices and filteredDevices
     await waitFor(() => expect(getRef(ref).state.showDeleteModal).toBe(false));
-    expect(getRef(ref).state.devices.map(d => d.id)).toEqual(['test-2', 'prod-1']);
+    expect(getRef(ref).state.devices.map(d => d.id)).toEqual(['prod-1', 'test-2']);
     expect(getRef(ref).state.filteredDevices.map(d => d.id)).toEqual(['test-2']);
   });
 
@@ -344,6 +348,7 @@ describe('Devices.tsx - DeviceList', () => {
     // Set up state with a grouping filter active
     getRef(ref).setState({
       devices,
+      cloudDevices: devices,
       sortColumn: 'none',
       sortSequence: 'asc',
       showDeleteModal: false,
@@ -387,7 +392,7 @@ describe('Devices.tsx - DeviceList', () => {
     const devices = [
       { id: 'z', uid: 5, name: 'Z', status: 'Connected', note: 'old', port: 0, valid: true, last_state_change: null, firmware_version: '1' },
     ];
-    getRef(ref).setState({ devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [], groupings: [], selectedGroupingId: null, groupingSearchTerm: '', isLoading: false });
+    getRef(ref).setState({ devices, cloudDevices: devices, sortColumn: 'none', sortSequence: 'asc', showDeleteModal: false, showEditNoteModal: false, editNote: '', editChargerIdx: 0, searchTerm: '', filteredDevices: [], groupings: [], selectedGroupingId: null, groupingSearchTerm: '', isLoading: false });
     await waitFor(() => expect(getRef(ref).state.devices.length).toBe(1));
 
     getRef(ref).handleEditNote(devices[0]);
@@ -396,7 +401,7 @@ describe('Devices.tsx - DeviceList', () => {
     (sodium.crypto_box_seal as unknown as Mock).mockReturnValue(new Uint8Array([9, 9]));
     (fetchClient.POST as unknown as Mock).mockResolvedValue({ error: undefined });
     const evt = { preventDefault: vi.fn() } as unknown as Event;
-    getRef(ref).setState({ editNote: 'new', editChargerIdx: 0 });
+    await act(async () => { getRef(ref).setState({ editNote: 'new', editChargerIdx: 0 }); });
     await getRef(ref).handleEditNoteSubmit(evt);
     await waitFor(() => expect(getRef(ref).state.devices[0].note).toBe('new'));
     expect(getRef(ref).state.showEditNoteModal).toBe(false);

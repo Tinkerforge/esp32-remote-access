@@ -8,7 +8,12 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::{error::Error, routes::auth::register::hash_key, utils::get_connection, AppState};
+use crate::{
+    error::Error,
+    routes::auth::register::hash_key,
+    utils::{get_connection, notify_state_change},
+    AppState, BridgeState,
+};
 
 #[derive(Deserialize, Serialize, ToSchema)]
 pub struct RecoverySchema {
@@ -72,17 +77,23 @@ async fn invalidate_wg_keys(state: &web::Data<AppState>, uid: Uuid) -> actix_web
     Ok(())
 }
 
-async fn invalidate_chargers(state: &web::Data<AppState>, uid: Uuid) -> actix_web::Result<()> {
+async fn invalidate_chargers(
+    state: &web::Data<AppState>,
+    bridge_state: &web::Data<BridgeState<'_>>,
+    uid: Uuid,
+) -> actix_web::Result<()> {
     let mut conn = get_connection(state).await?;
     use db_connector::schema::allowed_users::dsl::*;
 
-    match diesel::update(allowed_users.filter(user_id.eq(uid)))
+    let invalidated: Vec<Uuid> = diesel::update(allowed_users.filter(user_id.eq(uid)))
         .set(valid.eq(false))
-        .execute(&mut conn)
+        .returning(charger_id)
+        .get_results(&mut conn)
         .await
-    {
-        Ok(_) => {}
-        Err(_err) => return Err(Error::InternalError.into()),
+        .map_err(|_| Error::InternalError)?;
+    drop(conn);
+    for cid in invalidated {
+        notify_state_change(cid, state.clone(), bridge_state.clone()).await;
     }
     Ok(())
 }
@@ -99,6 +110,7 @@ async fn invalidate_chargers(state: &web::Data<AppState>, uid: Uuid) -> actix_we
 pub async fn recovery(
     data: web::Json<RecoverySchema>,
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
 ) -> actix_web::Result<impl Responder> {
     let recovery_key = match Uuid::from_str(&data.recovery_key) {
         Ok(uuid) => uuid,
@@ -111,7 +123,7 @@ pub async fn recovery(
 
     if !data.reused_secret {
         invalidate_wg_keys(&state, user_id).await?;
-        invalidate_chargers(&state, user_id).await?;
+        invalidate_chargers(&state, &bridge_state, user_id).await?;
     }
 
     let new_hash = match hash_key(data.new_login_key.clone(), &state.hasher).await {
@@ -176,7 +188,7 @@ mod tests {
                 tests::{generate_random_bytes_len, get_test_uuid, hash_test_key, TestUser},
             },
         },
-        tests::configure,
+        tests::{configure, create_test_bridge_state},
     };
 
     use super::{recovery, RecoverySchema};
@@ -224,7 +236,14 @@ mod tests {
             reused_secret: true,
         };
 
-        let app = App::new().configure(configure).service(recovery);
+        let bridge_state = create_test_bridge_state(None);
+        let uid = get_test_uuid(&user.mail).await.unwrap();
+        let (_, mut updates) = bridge_state.state_update_clients.subscribe(uid).await;
+        let (_, mut other_tab) = bridge_state.state_update_clients.subscribe(uid).await;
+        let app = App::new()
+            .configure(configure)
+            .app_data(bridge_state)
+            .service(recovery);
         let app = test::init_service(app).await;
 
         let req = TestRequest::post()
@@ -235,6 +254,8 @@ mod tests {
 
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
+        assert!(updates.try_recv().is_err());
+        assert!(other_tab.try_recv().is_err());
 
         // "Logout user"
         user.access_token = None;
@@ -283,6 +304,18 @@ mod tests {
         let (mut user, mail) = TestUser::random().await;
         user.login().await;
         let device = user.add_random_charger().await;
+        let second_device = user.add_random_charger().await;
+        let (mut guest, _) = TestUser::random().await;
+        guest.login().await;
+        user.allow_user(
+            &guest.mail,
+            crate::routes::charger::allow_user::UserAuth::LoginKey(base64::Engine::encode(
+                &base64::prelude::BASE64_STANDARD,
+                guest.get_login_key().await,
+            )),
+            &device,
+        )
+        .await;
         let recovery_id = start_test_recovery(&mail).await;
 
         let new_secret = generate_random_bytes_len(crypto_box_SECRETKEYBYTES as usize);
@@ -321,7 +354,18 @@ mod tests {
             reused_secret: false,
         };
 
-        let app = App::new().configure(configure).service(recovery);
+        let bridge_state = create_test_bridge_state(None);
+        let uid = get_test_uuid(&user.mail).await.unwrap();
+        let (_, mut updates) = bridge_state.state_update_clients.subscribe(uid).await;
+        let (_, mut other_tab) = bridge_state.state_update_clients.subscribe(uid).await;
+        let (_, mut guest_updates) = bridge_state
+            .state_update_clients
+            .subscribe(get_test_uuid(&guest.mail).await.unwrap())
+            .await;
+        let app = App::new()
+            .configure(configure)
+            .app_data(bridge_state)
+            .service(recovery);
         let app = test::init_service(app).await;
 
         let req = TestRequest::post()
@@ -332,6 +376,29 @@ mod tests {
 
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
+        for receiver in [&mut updates, &mut other_tab] {
+            let mut invalidated_ids = Vec::new();
+            for _ in 0..2 {
+                match receiver.try_recv().unwrap() {
+                    crate::routes::charger::get_devices::StateUpdateMessage::StateChange {
+                        charger,
+                    } => {
+                        assert!(!charger.valid);
+                        invalidated_ids.push(charger.id);
+                    }
+                    _ => panic!("Recovery must update validity, not remove the device"),
+                }
+            }
+            invalidated_ids.sort();
+            let mut expected = vec![device.uuid.clone(), second_device.uuid.clone()];
+            expected.sort();
+            assert_eq!(invalidated_ids, expected);
+            assert!(receiver.try_recv().is_err());
+        }
+        assert!(matches!(guest_updates.try_recv().unwrap(),
+            crate::routes::charger::get_devices::StateUpdateMessage::StateChange { charger }
+                if charger.id == device.uuid && charger.valid));
+        assert!(guest_updates.try_recv().is_err());
 
         // "Logout user"
         user.access_token = None;
@@ -367,11 +434,21 @@ mod tests {
             let mut conn = pool.get().await.unwrap();
             let res: Vec<WgKey> = wg_keys
                 .filter(charger_id.eq(uuid))
+                .filter(user_id.eq(uid))
                 .select(WgKey::as_select())
                 .load(&mut conn)
                 .await
                 .unwrap();
             assert_eq!(res.len(), 0);
+            let guest_id = get_test_uuid(&guest.mail).await.unwrap();
+            let guest_keys: i64 = wg_keys
+                .filter(charger_id.eq(uuid))
+                .filter(user_id.eq(guest_id))
+                .count()
+                .get_result(&mut conn)
+                .await
+                .unwrap();
+            assert_eq!(guest_keys, 5);
         }
         {
             use db_connector::schema::allowed_users::dsl::*;

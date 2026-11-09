@@ -25,7 +25,7 @@ use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    routes::charger::user_is_allowed,
+    routes::charger::{get_devices::StateUpdateMessage, user_is_allowed},
     udp_server::management::prompt_charger_to_remove_user,
     utils::{get_connection, parse_uuid},
     AppState, BridgeState,
@@ -183,6 +183,16 @@ pub async fn remove(
         delete_allowed_user(device_id, removed_user, &state).await?;
         delete_keys_for_user(device_id, removed_user, &state).await?;
     }
+
+    bridge_state
+        .state_update_clients
+        .send(
+            user_id.into(),
+            StateUpdateMessage::DeviceRemoved {
+                charger_id: device_id.to_string(),
+            },
+        )
+        .await;
 
     Ok(HttpResponse::Ok())
 }

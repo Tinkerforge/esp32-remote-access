@@ -8,9 +8,11 @@ use utoipa::ToSchema;
 use crate::{
     error::Error,
     rate_limit::ChargerRateLimiter,
-    routes::charger::add::password_matches,
+    routes::charger::{
+        add::password_matches, get_devices::StateUpdateMessage, remove::remove_charger_from_state,
+    },
     utils::{get_charger_by_uid, get_charger_from_db, get_connection, parse_uuid},
-    AppState,
+    AppState, BridgeState,
 };
 
 #[derive(ToSchema, Serialize, Deserialize)]
@@ -53,26 +55,28 @@ async fn get_charger(
 pub async fn selfdestruct(
     payload: web::Json<SelfdestructSchema>,
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     rate_limiter: web::Data<ChargerRateLimiter>,
     req: HttpRequest,
 ) -> actix_web::Result<impl Responder> {
     // funtion does also the rate limiting
     let device = get_charger(payload.0, &state, &rate_limiter, &req).await?;
 
-    {
+    let removed_users: Vec<uuid::Uuid> = {
         let mut conn = get_connection(&state).await?;
         use db_connector::schema::allowed_users::dsl as allowed_users;
 
         match diesel::delete(
             allowed_users::allowed_users.filter(allowed_users::charger_id.eq(device.id)),
         )
-        .execute(&mut conn)
+        .returning(allowed_users::user_id)
+        .get_results(&mut conn)
         .await
         {
-            Ok(_) => {}
+            Ok(users) => users,
             Err(_err) => return Err(Error::InternalError.into()),
         }
-    }
+    };
 
     {
         let mut conn = get_connection(&state).await?;
@@ -100,6 +104,19 @@ pub async fn selfdestruct(
         }
     }
 
+    remove_charger_from_state(device.id, &bridge_state).await;
+    for user_id in removed_users {
+        bridge_state
+            .state_update_clients
+            .send(
+                user_id,
+                StateUpdateMessage::DeviceRemoved {
+                    charger_id: device.id.to_string(),
+                },
+            )
+            .await;
+    }
+
     Ok(HttpResponse::Ok().body(()))
 }
 
@@ -118,9 +135,101 @@ mod tests {
     use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
     use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
 
-    use crate::{routes::user::tests::TestUser, tests::configure};
+    use base64::{prelude::BASE64_STANDARD, Engine};
+
+    use crate::{
+        routes::{
+            charger::{allow_user::UserAuth, get_devices::StateUpdateMessage},
+            user::tests::{get_test_uuid, TestUser},
+        },
+        tests::{configure, create_test_bridge_state},
+    };
 
     use super::{selfdestruct, SelfdestructSchema};
+
+    async fn check_selfdestruct_notifications(legacy_id: bool) {
+        let (mut owner, _) = TestUser::random().await;
+        let (mut guest, _) = TestUser::random().await;
+        owner.login().await;
+        guest.login().await;
+        let device = owner.add_random_charger().await;
+        owner
+            .allow_user(
+                &guest.mail,
+                UserAuth::LoginKey(BASE64_STANDARD.encode(guest.get_login_key().await)),
+                &device,
+            )
+            .await;
+
+        let bridge_state = create_test_bridge_state(None);
+        let owner_id = get_test_uuid(&owner.mail).await.unwrap();
+        let guest_id = get_test_uuid(&guest.mail).await.unwrap();
+        let (_, mut owner_tab) = bridge_state.state_update_clients.subscribe(owner_id).await;
+        let (_, mut owner_second_tab) = bridge_state.state_update_clients.subscribe(owner_id).await;
+        let (_, mut guest_tab) = bridge_state.state_update_clients.subscribe(guest_id).await;
+        let (_, mut unrelated_tab) = bridge_state
+            .state_update_clients
+            .subscribe(uuid::Uuid::new_v4())
+            .await;
+        let app = test::init_service(
+            App::new()
+                .configure(configure)
+                .app_data(bridge_state)
+                .service(selfdestruct),
+        )
+        .await;
+
+        let mut schema = SelfdestructSchema {
+            id: legacy_id.then_some(device.uid),
+            uuid: if legacy_id {
+                None
+            } else {
+                Some(device.uuid.clone())
+            },
+            password: "incorrect-password".into(),
+        };
+        let req = TestRequest::delete()
+            .uri("/selfdestruct")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .set_json(&schema)
+            .to_request();
+        assert!(test::call_service(&app, req)
+            .await
+            .status()
+            .is_client_error());
+        for receiver in [
+            &mut owner_tab,
+            &mut owner_second_tab,
+            &mut guest_tab,
+            &mut unrelated_tab,
+        ] {
+            assert!(receiver.try_recv().is_err());
+        }
+
+        schema.password = device.password;
+        let req = TestRequest::delete()
+            .uri("/selfdestruct")
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .set_json(&schema)
+            .to_request();
+        assert_eq!(test::call_service(&app, req).await.status(), 200);
+        for receiver in [&mut owner_tab, &mut owner_second_tab, &mut guest_tab] {
+            assert!(matches!(receiver.try_recv().unwrap(),
+                StateUpdateMessage::DeviceRemoved { charger_id } if charger_id == device.uuid));
+            assert!(receiver.try_recv().is_err());
+        }
+        assert!(unrelated_tab.try_recv().is_err());
+    }
+
+    #[actix_web::test]
+    async fn selfdestruct_notifies_all_users_and_tabs() {
+        check_selfdestruct_notifications(false).await;
+    }
+
+    #[actix_web::test]
+    async fn legacy_selfdestruct_notifies_all_users_and_tabs() {
+        check_selfdestruct_notifications(true).await;
+    }
 
     #[actix_web::test]
     async fn test_selfdestruction() {

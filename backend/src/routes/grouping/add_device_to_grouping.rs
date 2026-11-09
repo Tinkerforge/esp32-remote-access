@@ -31,7 +31,7 @@ use crate::{
     error::Error,
     routes::charger::user_is_allowed,
     utils::{get_connection, parse_uuid},
-    AppState,
+    AppState, BridgeState,
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -65,6 +65,7 @@ pub struct AddDeviceToGroupingResponse {
 #[post("/add_device")]
 pub async fn add_device_to_grouping(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     payload: web::Json<AddDeviceToGroupingSchema>,
     user_id: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
@@ -124,6 +125,8 @@ pub async fn add_device_to_grouping(
             Err(_err) => return Err(Error::InternalError.into()),
         }
     };
+
+    super::notify_groupings_changed(user_uuid, &bridge_state).await;
 
     Ok(HttpResponse::Ok().json(AddDeviceToGroupingResponse {
         id: member.id.to_string(),

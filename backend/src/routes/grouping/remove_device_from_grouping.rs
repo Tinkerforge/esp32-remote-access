@@ -28,7 +28,7 @@ use utoipa::ToSchema;
 use crate::{
     error::Error,
     utils::{get_connection, parse_uuid},
-    AppState,
+    AppState, BridgeState,
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -54,6 +54,7 @@ pub struct RemoveDeviceFromGroupingSchema {
 #[delete("/remove_device")]
 pub async fn remove_device_from_grouping(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     payload: web::Json<RemoveDeviceFromGroupingSchema>,
     user_id: crate::models::uuid::Uuid,
 ) -> actix_web::Result<impl Responder> {
@@ -99,6 +100,9 @@ pub async fn remove_device_from_grouping(
     if deleted == 0 {
         return Err(Error::ChargerDoesNotExist.into());
     }
+
+    drop(conn);
+    super::notify_groupings_changed(user_uuid, &bridge_state).await;
 
     Ok(HttpResponse::Ok().finish())
 }

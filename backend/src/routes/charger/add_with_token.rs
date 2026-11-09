@@ -10,7 +10,7 @@ use crate::{
         ChargerSchema,
     },
     utils::{parse_uuid, validate_auth_token},
-    AppState,
+    AppState, BridgeState,
 };
 
 use super::add::{AddChargerResponseSchema, Keys};
@@ -70,6 +70,7 @@ fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
 #[put("/add_with_token")]
 pub async fn add_with_token(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     body: actix_web_validator::Json<AddChargerWithTokenSchema>,
 ) -> actix_web::Result<impl Responder> {
     let user_id = parse_uuid(&body.user_id)?;
@@ -83,7 +84,7 @@ pub async fn add_with_token(
         name: body.name.clone(),
         note: body.note.clone(),
     };
-    let resp = register_charger(state, schema, user_id).await?;
+    let resp = register_charger(state, bridge_state, schema, user_id).await?;
 
     Ok(HttpResponse::Ok().json(resp))
 }

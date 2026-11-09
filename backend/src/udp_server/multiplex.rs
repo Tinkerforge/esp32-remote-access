@@ -1268,7 +1268,7 @@ mod tests {
                 }]),
             )]))),
             lost_connections: Mutex::new(HashMap::new()),
-            state_update_clients: Mutex::new(HashMap::new()),
+            state_update_clients: Default::default(),
             device_ratelimiter: Arc::new(crate::rate_limit::ChargerRateLimiter::new()),
         });
         let state = web::Data::new(AppState {

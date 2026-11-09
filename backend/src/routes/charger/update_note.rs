@@ -25,8 +25,8 @@ use utoipa::ToSchema;
 
 use crate::{
     error::Error,
-    utils::{get_connection, parse_uuid},
-    AppState,
+    utils::{get_connection, notify_state_change, parse_uuid},
+    AppState, BridgeState,
 };
 
 #[derive(ToSchema, Deserialize, Serialize)]
@@ -51,6 +51,7 @@ pub async fn update_note(
     schema: web::Json<UpdateNoteSchema>,
     state: web::Data<AppState>,
     uid: crate::models::uuid::Uuid,
+    bridge_state: web::Data<BridgeState<'_>>,
 ) -> actix_web::Result<impl Responder> {
     let cid = parse_uuid(&schema.charger_id)?;
 
@@ -68,6 +69,9 @@ pub async fn update_note(
         Err(NotFound) => return Err(Error::ChargerDoesNotExist.into()),
         Err(_err) => return Err(Error::InternalError.into()),
     }
+
+    drop(conn);
+    notify_state_change(cid, state, bridge_state).await;
 
     Ok(HttpResponse::Ok())
 }

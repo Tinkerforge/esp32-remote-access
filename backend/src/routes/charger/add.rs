@@ -30,7 +30,12 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
 
-use crate::{error::Error, routes::auth::register::hash_key, utils::get_connection, AppState};
+use crate::{
+    error::Error,
+    routes::auth::register::hash_key,
+    utils::{get_connection, notify_state_change},
+    AppState, BridgeState,
+};
 
 use super::get_charger_uuid;
 
@@ -225,16 +230,18 @@ pub(crate) fn validate_charger_id(id: &str) -> Result<(), ValidationError> {
 #[put("/add")]
 pub async fn add(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     device_schema: actix_web_validator::Json<AddChargerSchema>,
     user_id: crate::models::uuid::Uuid,
 ) -> Result<impl Responder, actix_web::Error> {
-    let resp = register_charger(state, device_schema.0, user_id.into()).await?;
+    let resp = register_charger(state, bridge_state, device_schema.0, user_id.into()).await?;
 
     Ok(HttpResponse::Ok().json(resp))
 }
 
 pub async fn register_charger(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     device_schema: AddChargerSchema,
     user_id: uuid::Uuid,
 ) -> actix_web::Result<AddChargerResponseSchema> {
@@ -278,6 +285,8 @@ pub async fn register_charger(
         charger_password: password,
         user_id: user_id.to_string(),
     };
+
+    notify_state_change(device_id, state, bridge_state).await;
 
     Ok(resp)
 }

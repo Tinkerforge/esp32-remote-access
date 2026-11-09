@@ -357,7 +357,7 @@ pub async fn update_charger_state_change(
     notify_state_change(charger_id, state, bridge_state).await;
 }
 
-async fn notify_state_change(
+pub(crate) async fn notify_state_change(
     charger_id: uuid::Uuid,
     state: web::Data<AppState>,
     bridge_state: web::Data<BridgeState<'_>>,
@@ -466,54 +466,16 @@ async fn notify_state_change(
             .collect()
     };
 
-    let sessions: Vec<(uuid::Uuid, actix_ws::Session)> = {
-        let state_update_clients = bridge_state.state_update_clients.lock().await;
-        state_update_clients
-            .iter()
-            .filter(|(user_id, _)| notifications.iter().any(|n| n.user_id == **user_id))
-            .map(|(id, session)| (*id, session.clone()))
-            .collect()
-    };
-
-    log::debug!(
-        "notify_state_change for charger {charger_id}: notifying {} connected client(s)",
-        sessions.len()
-    );
-
-    // Send messages and track failures
-    let mut to_remove = Vec::new();
-    for (user_id, mut session) in sessions {
-        let Some(notification) = notifications.iter().find(|n| n.user_id == user_id) else {
-            continue;
-        };
-
-        let message = StateUpdateMessage::StateChange {
-            charger: notification.charger.clone(),
-        };
-        let json_msg = match serde_json::to_string(&message) {
-            Ok(msg) => msg,
-            Err(e) => {
-                log::error!("Failed to serialize state update message: {:?}", e);
-                continue;
-            }
-        };
-
-        if !matches!(
-            tokio::time::timeout(std::time::Duration::from_secs(2), session.text(json_msg),).await,
-            Ok(Ok(()))
-        ) {
-            to_remove.push(user_id);
-            let _ =
-                tokio::time::timeout(std::time::Duration::from_secs(2), session.close(None)).await;
-        }
-    }
-
-    // Remove disconnected clients
-    if !to_remove.is_empty() {
-        let mut state_update_clients = bridge_state.state_update_clients.lock().await;
-        for user_id in to_remove {
-            state_update_clients.remove(&user_id);
-        }
+    for notification in notifications {
+        bridge_state
+            .state_update_clients
+            .send(
+                notification.user_id,
+                StateUpdateMessage::StateChange {
+                    charger: notification.charger,
+                },
+            )
+            .await;
     }
 }
 

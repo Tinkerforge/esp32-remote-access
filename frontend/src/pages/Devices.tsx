@@ -33,6 +33,9 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
     removalDevice: StateDevice;
     stateUpdateWs: WebSocket | null;
     isMounted: boolean;
+    reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    groupingsLoadVersion = 0;
+    applyDefaultGroupingOnLoad = true;
 
     constructor() {
         super();
@@ -79,6 +82,10 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
 
     componentWillUnmount() {
         this.isMounted = false;
+        if (this.reconnectTimeout !== null) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
         if (this.stateUpdateWs) {
             this.stateUpdateWs.close();
             this.stateUpdateWs = null;
@@ -92,6 +99,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
     }
 
     async connectStateUpdateWebSocket() {
+        if (!this.isMounted) return;
         const secretReady = (secret ? Promise.resolve() : get_decrypted_secret()).then(
             () => true,
             (error) => {
@@ -104,10 +112,11 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         const wsUrl = `${protocol}//${window.location.host}/api/charger/get_devices`;
 
         try {
-            this.stateUpdateWs = new WebSocket(wsUrl);
+            const ws = new WebSocket(wsUrl);
+            this.stateUpdateWs = ws;
 
-            this.stateUpdateWs.onmessage = async (event) => {
-                if (!await secretReady || !this.isMounted) return;
+            ws.onmessage = async (event) => {
+                if (!await secretReady || !this.isMounted || this.stateUpdateWs !== ws) return;
 
                 try {
                     const message = JSON.parse(event.data);
@@ -118,9 +127,18 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                     if (message.type === 'state_change' && message.charger && typeof message.charger === 'object') {
                         this.processCharger(message.charger as Device);
                     }
-                    // Handle initial charger list (array without type wrapper)
+                    else if (message.type === 'device_removed' && typeof message.charger_id === 'string') {
+                        this.removeCloudDevice(message.charger_id);
+                        this.loadGroupings(true);
+                    }
+                    else if (message.type === 'groupings_changed') {
+                        this.loadGroupings(true);
+                    }
+                    // Refresh groupings too: changes may have happened before
+                    // subscribing or while the WebSocket was disconnected.
                     else if (Array.isArray(message)) {
                         this.processChargers(message as Device[]);
+                        this.loadGroupings(true);
                     } else {
                         console.warn('Ignoring unknown state update payload:', message);
                     }
@@ -130,19 +148,21 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                 }
             };
 
-            this.stateUpdateWs.onerror = (error) => {
+            ws.onerror = (error) => {
                 console.error('State update WebSocket error:', error);
             };
 
-            this.stateUpdateWs.onclose = () => {
+            ws.onclose = () => {
+                if (this.stateUpdateWs !== ws) return;
+                this.stateUpdateWs = null;
                 if (this.isMounted) {
-                    setTimeout(() => this.connectStateUpdateWebSocket(), 5000);
+                    this.reconnectTimeout = setTimeout(() => this.connectStateUpdateWebSocket(), 5000);
                 }
             };
         } catch (e) {
             console.error('Failed to create state update WebSocket:', e);
             if (this.isMounted) {
-                setTimeout(() => this.connectStateUpdateWebSocket(), 5000);
+                this.reconnectTimeout = setTimeout(() => this.connectStateUpdateWebSocket(), 5000);
             }
         }
     }
@@ -171,9 +191,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             };
             stateDevices.push(state_charger);
         }
-        const merged = this.mergeDevices(stateDevices, this.state.localDevices);
-        this.setSortedDevices(merged);
-        this.setState({ cloudDevices: stateDevices, isLoading: false });
+        this.setState({ cloudDevices: stateDevices, isLoading: false }, this.refreshMergedDevices);
     }
 
     // Apply a single `state_change` notification from the backend: decrypt
@@ -201,17 +219,26 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             firmware_version: device.firmware_version,
         };
 
-        const cloudDevices = [...this.state.cloudDevices];
-        const existingIdx = cloudDevices.findIndex(d => d.id === state_charger.id);
-        if (existingIdx >= 0) {
-            cloudDevices[existingIdx] = state_charger;
-        } else {
-            cloudDevices.push(state_charger);
-        }
+        this.setState(state => {
+            const cloudDevices = [...state.cloudDevices];
+            const existingIdx = cloudDevices.findIndex(d => d.id === state_charger.id);
+            if (existingIdx >= 0) {
+                cloudDevices[existingIdx] = state_charger;
+            } else {
+                cloudDevices.push(state_charger);
+            }
+            return { cloudDevices, isLoading: false };
+        }, this.refreshMergedDevices);
+    }
 
-        const merged = this.mergeDevices(cloudDevices, this.state.localDevices);
-        this.setSortedDevices(merged);
-        this.setState({ cloudDevices, isLoading: false });
+    removeCloudDevice(chargerId: string) {
+        this.setState(state => ({
+            cloudDevices: state.cloudDevices.filter(device => device.id !== chargerId),
+        }), this.refreshMergedDevices);
+    }
+
+    refreshMergedDevices = () => {
+        this.setSortedDevices(this.mergeDevices(this.state.cloudDevices, this.state.localDevices));
     }
 
     subscribeToLocalDiscovery() {
@@ -222,9 +249,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
 
         window.onWarpChargersChanged = (updated: DiscoveredDevices[]) => {
             const newLocal = this.convertDiscoveredToState(updated);
-            this.setState({ localDevices: newLocal }, () => {
-                this.setSortedDevices(this.mergeDevices(this.state.cloudDevices, newLocal));
-            });
+            this.setState({ localDevices: newLocal }, this.refreshMergedDevices);
         };
 
         window.onWarpDiscoveryStopped = () => {
@@ -388,16 +413,15 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         const { response, error } = await fetchClient.DELETE("/charger/remove", { body, credentials: "same-origin" });
 
         if (response.status === 200) {
-            const devices = this.state.devices.filter((c) => c.id !== device.id);
-            this.setState({ devices }, () => {
-                this.applyFilters();
-            });
+            this.removeCloudDevice(device.id);
         } else {
             showAlert(t("remove_error_text", { charger_id: encodeUid(device.uid), status: response.status, text: error }), "danger");
         }
     }
 
-    async loadGroupings() {
+    async loadGroupings(preserveSelection = false) {
+        const version = ++this.groupingsLoadVersion;
+        if (!preserveSelection) this.applyDefaultGroupingOnLoad = true;
         try {
             const { data, error } = await fetchClient.GET("/grouping/list", {
                 credentials: "same-origin"
@@ -417,21 +441,22 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
                 };
             }));
 
-            // Apply the default grouping (if any) as the active filter so the
-            // user lands on a pre-filtered view on initial load and after
-            // grouping changes made via the GroupingModal.
-            const defaultGrouping = decryptedGroupings.find(g => g.is_default);
-            const defaultGroupingId = defaultGrouping ? defaultGrouping.id : null;
-
-            this.setState({
-                groupings: decryptedGroupings,
-                selectedGroupingId: defaultGroupingId,
-            }, () => {
-                // `setSortedDevices` (called by `processChargers`) re-runs
-                // `applyFilters` once devices arrive, but devices may already
-                // be present at this point, so run the filter eagerly.
-                this.applyFilters();
-            });
+            // Older responses must not overwrite a newer snapshot, even if
+            // decrypting a previous response takes longer.
+            if (!this.isMounted || version !== this.groupingsLoadVersion) return;
+            const defaultGroupingId = decryptedGroupings.find(g => g.is_default)?.id ?? null;
+            const applyDefault = this.applyDefaultGroupingOnLoad;
+            this.applyDefaultGroupingOnLoad = false;
+            this.setState(state => {
+                const selectedStillExists = state.selectedGroupingId === null
+                    || state.selectedGroupingId === UNGROUPED_GROUP_ID
+                    || decryptedGroupings.some(g => g.id === state.selectedGroupingId);
+                return {
+                    groupings: decryptedGroupings,
+                    selectedGroupingId: applyDefault ? defaultGroupingId
+                        : selectedStillExists ? state.selectedGroupingId : null,
+                };
+            }, () => this.applyFilters());
         } catch (error) {
             console.error("Failed to load groupings:", error);
         }
@@ -442,6 +467,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
     }
 
     handleGroupingFilterChange = (groupingId: string | null) => {
+        this.applyDefaultGroupingOnLoad = false;
         this.setState({ selectedGroupingId: groupingId }, () => {
             this.applyFilters();
         });
@@ -623,13 +649,15 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
     handleEditNoteSubmit = async (e: Event) => {
         e.preventDefault();
 
+        const deviceId = this.state.devices[this.state.editChargerIdx].id;
+        const note = this.state.editNote;
         // pub_key and secret are null-checked before this function is called
-        const encryptedNote = sodium.crypto_box_seal(this.state.editNote, pub_key as Uint8Array);
+        const encryptedNote = sodium.crypto_box_seal(note, pub_key as Uint8Array);
         const b64Note = Base64.fromUint8Array(encryptedNote);
 
         const { error } = await fetchClient.POST("/charger/update_note", {
             credentials: "same-origin",
-            body: { note: b64Note, charger_id: this.state.devices[this.state.editChargerIdx].id }
+            body: { note: b64Note, charger_id: deviceId }
         });
 
         if (error) {
@@ -637,9 +665,12 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
             return;
         }
 
-        const devices = this.state.devices;
-        devices[this.state.editChargerIdx].note = this.state.editNote;
-        this.setState({ showEditNoteModal: false, editNote: "", editChargerIdx: -1, devices });
+        this.setState(state => ({
+            showEditNoteModal: false,
+            editNote: "",
+            editChargerIdx: -1,
+            cloudDevices: state.cloudDevices.map(device => device.id === deviceId ? { ...device, note } : device),
+        }), this.refreshMergedDevices);
     }
 
     handleEditNoteCancel = () => {

@@ -32,8 +32,10 @@ use crate::{
         auth::login::{validate_password, FindBy},
         user::get_user_id,
     },
-    utils::{get_charger_from_db, get_connection, parse_uuid, validate_auth_token},
-    AppState,
+    utils::{
+        get_charger_from_db, get_connection, notify_state_change, parse_uuid, validate_auth_token,
+    },
+    AppState, BridgeState,
 };
 
 use super::add::{password_matches, Keys};
@@ -126,6 +128,7 @@ async fn authenticate_user(
 #[put("/allow_user")]
 pub async fn allow_user(
     state: web::Data<AppState>,
+    bridge_state: web::Data<BridgeState<'_>>,
     allow_user: web::Json<AllowUserSchema>,
     rate_limiter: web::Data<ChargerRateLimiter>,
     req: HttpRequest,
@@ -209,6 +212,8 @@ pub async fn allow_user(
         Ok(_) => (),
         Err(_err) => {}
     }
+
+    notify_state_change(cid, state, bridge_state).await;
 
     Ok(HttpResponse::Ok().json(AllowUserResponse {
         user_id: allowed_uuid.to_string(),

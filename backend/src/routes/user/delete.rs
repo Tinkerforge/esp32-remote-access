@@ -9,7 +9,10 @@ use crate::{
     error::Error,
     routes::{
         auth::login::{validate_password, FindBy},
-        charger::remove::{delete_charger, remove_charger_from_state},
+        charger::{
+            get_devices::StateUpdateMessage,
+            remove::{delete_charger, remove_charger_from_state},
+        },
         user::logout::delete_all_refresh_tokens,
     },
     udp_server::management::prompt_charger_to_remove_user,
@@ -129,6 +132,15 @@ pub async fn delete_user(
             delete_charger(cid, &state).await?;
             remove_charger_from_state(cid, &bridge_state).await;
         }
+        bridge_state
+            .state_update_clients
+            .send(
+                uid,
+                StateUpdateMessage::DeviceRemoved {
+                    charger_id: cid.to_string(),
+                },
+            )
+            .await;
     }
 
     delete_all_refresh_tokens(uid, &state).await?;
@@ -141,6 +153,13 @@ pub async fn delete_user(
             .await
             .map_err(|_| Error::InternalError)?;
     }
+
+    // Deleting the account also cascades to its groupings, including for
+    // accounts with no devices (and therefore no device removal messages).
+    bridge_state
+        .state_update_clients
+        .send(uid, StateUpdateMessage::GroupingsChanged)
+        .await;
 
     Ok(HttpResponse::Ok())
 }
@@ -167,11 +186,53 @@ mod tests {
             auth::get_login_salt::tests::get_test_login_salt,
             user::tests::{get_test_uuid, hash_test_key, TestUser},
         },
-        tests::configure,
+        tests::{configure, create_test_bridge_state},
         utils::generate_random_bytes,
     };
 
     use super::{delete_user, DeleteUserSchema};
+
+    #[actix_web::test]
+    async fn deleting_account_without_devices_notifies_grouping_deletion() {
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
+        let grouping = crate::routes::grouping::test_helpers::create_test_grouping(
+            user.get_access_token(),
+            "group",
+        )
+        .await;
+        let bridge = create_test_bridge_state(None);
+        let (_, mut updates) = bridge
+            .state_update_clients
+            .subscribe(get_test_uuid(&user.mail).await.unwrap())
+            .await;
+        let app = test::init_service(
+            App::new()
+                .configure(configure)
+                .app_data(bridge)
+                .wrap(JwtMiddleware)
+                .service(delete_user),
+        )
+        .await;
+        let req = test::TestRequest::delete()
+            .uri("/delete")
+            .cookie(Cookie::new("access_token", user.get_access_token()))
+            .set_json(DeleteUserSchema {
+                login_key: user.get_login_key().await,
+            })
+            .to_request();
+        assert_eq!(test::call_service(&app, req).await.status(), 200);
+        assert!(matches!(
+            updates.try_recv().unwrap(),
+            crate::routes::charger::get_devices::StateUpdateMessage::GroupingsChanged
+        ));
+        assert!(updates.try_recv().is_err());
+        assert!(
+            crate::routes::grouping::test_helpers::get_grouping_from_db(&grouping.id)
+                .await
+                .is_none()
+        );
+    }
 
     #[actix_web::test]
     async fn test_delete() {
@@ -180,6 +241,7 @@ mod tests {
         let token = user1.login().await.to_owned();
         user2.login().await;
         let device = user1.add_random_charger().await;
+        let private_device = user1.add_random_charger().await;
         let device2 = user2.add_random_charger().await;
         // Share charger with user2
         let user2_auth = crate::routes::charger::allow_user::UserAuth::LoginKey(
@@ -189,8 +251,13 @@ mod tests {
         let uid1 = get_test_uuid(&user1_mail).await.unwrap();
         let uid2 = get_test_uuid(&user2_mail).await.unwrap();
 
+        let bridge_state = create_test_bridge_state(None);
+        let (_, mut updates) = bridge_state.state_update_clients.subscribe(uid1).await;
+        let (_, mut second_tab) = bridge_state.state_update_clients.subscribe(uid1).await;
+        let (_, mut other_user) = bridge_state.state_update_clients.subscribe(uid2).await;
         let app = App::new()
             .configure(configure)
+            .app_data(bridge_state)
             .wrap(JwtMiddleware)
             .service(delete_user);
         let app = test::init_service(app).await;
@@ -206,6 +273,27 @@ mod tests {
 
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
+        for receiver in [&mut updates, &mut second_tab] {
+            let mut removed = Vec::new();
+            for _ in 0..2 {
+                match receiver.try_recv().unwrap() {
+                    crate::routes::charger::get_devices::StateUpdateMessage::DeviceRemoved {
+                        charger_id,
+                    } => removed.push(charger_id),
+                    _ => panic!("Account deletion must remove its devices"),
+                }
+            }
+            removed.sort();
+            let mut expected = vec![device.uuid.clone(), private_device.uuid.clone()];
+            expected.sort();
+            assert_eq!(removed, expected);
+            assert!(matches!(
+                receiver.try_recv().unwrap(),
+                crate::routes::charger::get_devices::StateUpdateMessage::GroupingsChanged
+            ));
+            assert!(receiver.try_recv().is_err());
+        }
+        assert!(other_user.try_recv().is_err());
 
         let pool = test_connection_pool();
         let mut conn = pool.get().await.unwrap();
@@ -303,8 +391,13 @@ mod tests {
         let uid1 = get_test_uuid(&user1_mail).await.unwrap();
         let uid2 = get_test_uuid(&user2_mail).await.unwrap();
 
+        let bridge_state = create_test_bridge_state(None);
+        let (_, mut updates) = bridge_state.state_update_clients.subscribe(uid1).await;
+        let (_, mut second_tab) = bridge_state.state_update_clients.subscribe(uid1).await;
+        let (_, mut other_user) = bridge_state.state_update_clients.subscribe(uid2).await;
         let app = App::new()
             .configure(configure)
+            .app_data(bridge_state)
             .wrap(JwtMiddleware)
             .service(delete_user);
         let app = test::init_service(app).await;
@@ -320,6 +413,9 @@ mod tests {
 
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 401);
+        assert!(updates.try_recv().is_err());
+        assert!(second_tab.try_recv().is_err());
+        assert!(other_user.try_recv().is_err());
 
         let pool = test_connection_pool();
         let mut conn = pool.get().await.unwrap();

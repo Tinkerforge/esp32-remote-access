@@ -22,15 +22,13 @@ use actix_web::{get, rt, web, HttpRequest, HttpResponse, Responder};
 use actix_ws::AggregatedMessage;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger};
-use diesel::{
-    result::Error::NotFound, BelongingToDsl, ExpressionMethods, GroupedBy, QueryDsl,
-    SelectableHelper,
-};
+use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl as _;
-use futures_util::future::Either;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
 use utoipa::ToSchema;
 
 use crate::{error::Error, routes::user::get_user, utils::get_connection, AppState, BridgeState};
@@ -63,6 +61,65 @@ pub struct GetChargerSchema {
 pub enum StateUpdateMessage {
     #[serde(rename = "state_change")]
     StateChange { charger: GetChargerSchema },
+    #[serde(rename = "device_removed")]
+    DeviceRemoved { charger_id: String },
+    #[serde(rename = "groupings_changed")]
+    GroupingsChanged,
+}
+
+/// Each tab has its own bounded queue. Updates are queued before fetching the
+/// initial list, and only the WebSocket task writes frames, so the list always
+/// arrives first. A slow client is disconnected and reconnects with a fresh list.
+#[derive(Default)]
+pub struct StateUpdateClients {
+    clients: futures_util::lock::Mutex<
+        HashMap<uuid::Uuid, HashMap<uuid::Uuid, mpsc::Sender<StateUpdateMessage>>>,
+    >,
+}
+
+impl StateUpdateClients {
+    pub(crate) async fn subscribe(
+        &self,
+        user_id: uuid::Uuid,
+    ) -> (uuid::Uuid, mpsc::Receiver<StateUpdateMessage>) {
+        let connection_id = uuid::Uuid::new_v4();
+        let (sender, receiver) = mpsc::channel(64);
+        self.clients
+            .lock()
+            .await
+            .entry(user_id)
+            .or_default()
+            .insert(connection_id, sender);
+        (connection_id, receiver)
+    }
+
+    pub(crate) async fn unsubscribe(&self, user_id: uuid::Uuid, connection_id: uuid::Uuid) {
+        let mut clients = self.clients.lock().await;
+        if let Some(connections) = clients.get_mut(&user_id) {
+            connections.remove(&connection_id);
+            if connections.is_empty() {
+                clients.remove(&user_id);
+            }
+        }
+    }
+
+    pub(crate) async fn send(&self, user_id: uuid::Uuid, message: StateUpdateMessage) {
+        let mut clients = self.clients.lock().await;
+        if let Some(connections) = clients.get_mut(&user_id) {
+            connections.retain(|_, sender| sender.try_send(message.clone()).is_ok());
+            if connections.is_empty() {
+                clients.remove(&user_id);
+            }
+        }
+    }
+
+    pub(crate) async fn shrink_to_fit(&self) {
+        let mut clients = self.clients.lock().await;
+        for connections in clients.values_mut() {
+            connections.shrink_to_fit();
+        }
+        clients.shrink_to_fit();
+    }
 }
 
 pub async fn fetch_chargers(
@@ -75,50 +132,20 @@ pub async fn fetch_chargers(
 
     let user = get_user(state, uid).await?;
 
-    // Fetch both the allowed_users list and the matching chargers on a
-    // single connection, then release it before consulting the bridge
-    // state map (which holds a mutex).
+    // A single query keeps associations and chargers consistent if a device
+    // is removed while a client is fetching its initial snapshot.
     let devices: Vec<(Charger, AllowedUser)> = {
         let mut conn = get_connection(state).await?;
-
-        let allowed_users_list: Vec<AllowedUser> = match AllowedUser::belonging_to(&user)
-            .select(AllowedUser::as_select())
+        allowed_users::allowed_users
+            .inner_join(chargers::chargers)
+            .filter(allowed_users::user_id.eq(user.id))
+            .select((Charger::as_select(), AllowedUser::as_select()))
             .load(&mut conn)
             .await
-        {
-            Ok(d) => d,
-            Err(NotFound) => Vec::new(),
-            Err(err) => {
-                log::error!("Failed to load allowed users: {err}");
-                return Err(Error::InternalError.into());
-            }
-        };
-
-        let device_ids = AllowedUser::belonging_to(&user).select(allowed_users::charger_id);
-        let devices_list: Vec<Charger> = match chargers::chargers
-            .filter(chargers::id.eq_any(device_ids))
-            .select(Charger::as_select())
-            .load(&mut conn)
-            .await
-        {
-            Ok(v) => v,
-            Err(err) => {
+            .map_err(|err| {
                 log::error!("Failed to load devices: {err}");
-                return Err(Error::InternalError.into());
-            }
-        };
-
-        allowed_users_list
-            .grouped_by(&devices_list)
-            .into_iter()
-            .zip(devices_list)
-            .filter_map(|(allowed_users_for_device, device)| {
-                allowed_users_for_device
-                    .as_slice()
-                    .first()
-                    .map(|au| (device, au.clone()))
-            })
-            .collect()
+                Error::InternalError
+            })?
     };
 
     let device_map = bridge_state.device_management_map_with_id.lock().await;
@@ -195,75 +222,75 @@ async fn handle_websocket(
 
     let user_id: uuid::Uuid = uid.into();
 
-    if resp.status() == 101 {
-        let mut state_update_clients = bridge_state.state_update_clients.lock().await;
-        state_update_clients.insert(user_id, session.clone());
-    }
+    let (connection_id, mut updates) = bridge_state.state_update_clients.subscribe(user_id).await;
 
     rt::spawn(async move {
         let mut last_heartbeat = Instant::now();
         let mut interval_timer = interval(HEARTBEAT_INTERVAL);
 
-        // Send initial charger list
-        if let Ok(chargers) = fetch_chargers(&state, user_id, &bridge_state).await {
-            if let Ok(json) = serde_json::to_string(&chargers) {
-                let _ = session.text(json).await;
-            } else {
-                log::error!(
-                    "Failed to serialize chargers for user {} during get_devices WebSocket connection.",
-                    user_id
-                );
-                let _ = session.close(None).await;
-                return;
-            }
-        } else {
-            log::error!(
-                "Failed to fetch chargers for user {} during get_devices WebSocket connection.",
-                user_id
-            );
-            let _ = session.close(None).await;
-            return;
-        }
+        let result = async {
+            let chargers = fetch_chargers(&state, user_id, &bridge_state).await?;
+            send_json(&mut session, &chargers).await?;
 
-        loop {
-            let tick = interval_timer.tick();
-            actix_web::rt::pin!(tick);
-
-            match futures_util::future::select(ws_stream.next(), tick).await {
-                Either::Left((Some(Ok(AggregatedMessage::Close(_))), _)) => break,
-                Either::Left((Some(Ok(AggregatedMessage::Ping(msg))), _)) => {
-                    let _ = session.pong(&msg).await;
-                    last_heartbeat = Instant::now();
-                }
-                Either::Left((Some(Ok(AggregatedMessage::Pong(_))), _)) => {
-                    last_heartbeat = Instant::now();
-                }
-                Either::Left((Some(Ok(_msg)), _)) => {
-                    // Ignore other messages
-                }
-                Either::Left((Some(Err(_err)), _)) => {
-                    log::error!("Websocket Error during get_devices connection: {_err:?}");
-                    break;
-                }
-                Either::Left((None, _)) => break,
-                Either::Right(_) => {
-                    if Instant::now().duration_since(last_heartbeat) > CLIENT_TIMEOUT {
-                        log::debug!("get_devices WebSocket client quietly quit.");
-                        break;
+            loop {
+                tokio::select! {
+                    message = ws_stream.next() => match message {
+                        Some(Ok(AggregatedMessage::Close(_))) | None => break,
+                        Some(Ok(AggregatedMessage::Ping(msg))) => {
+                            session.pong(&msg).await
+                                .map_err(actix_web::error::ErrorInternalServerError)?;
+                            last_heartbeat = Instant::now();
+                        }
+                        Some(Ok(AggregatedMessage::Pong(_))) => {
+                            last_heartbeat = Instant::now();
+                        }
+                        Some(Ok(_)) => {}
+                        Some(Err(err)) => {
+                            return Err(actix_web::error::ErrorInternalServerError(err));
+                        }
+                    },
+                    update = updates.recv() => {
+                        let Some(update) = update else { break };
+                        send_json(&mut session, &update).await?;
                     }
-                    let _ = session.ping(b"").await;
+                    _ = interval_timer.tick() => {
+                        if last_heartbeat.elapsed() > CLIENT_TIMEOUT {
+                            log::debug!("get_devices WebSocket client quietly quit.");
+                            break;
+                        }
+                        session.ping(b"").await
+                            .map_err(actix_web::error::ErrorInternalServerError)?;
+                    }
                 }
             }
+            Ok::<_, actix_web::Error>(())
         }
+        .await;
 
-        {
-            let mut state_update_clients = bridge_state.state_update_clients.lock().await;
-            state_update_clients.remove(&user_id);
+        if let Err(err) = result {
+            log::error!("get_devices WebSocket for user {user_id} failed: {err}");
         }
-        let _ = session.close(None).await;
+        bridge_state
+            .state_update_clients
+            .unsubscribe(user_id, connection_id)
+            .await;
+        let _ = tokio::time::timeout(Duration::from_secs(2), session.close(None)).await;
     });
 
     Ok(resp)
+}
+
+async fn send_json(
+    session: &mut actix_ws::Session,
+    value: &impl Serialize,
+) -> actix_web::Result<()> {
+    tokio::time::timeout(
+        Duration::from_secs(2),
+        session.text(serde_json::to_string(value)?),
+    )
+    .await
+    .map_err(actix_web::error::ErrorInternalServerError)?
+    .map_err(actix_web::error::ErrorInternalServerError)
 }
 
 #[cfg(test)]
@@ -306,6 +333,316 @@ mod tests {
             .await
             .expect("Failed to find user")
             .id
+    }
+
+    #[actix_web::test]
+    async fn state_updates_reach_all_tabs_and_cleanup_only_the_closed_connection() {
+        let clients = StateUpdateClients::default();
+        let user_id = uuid::Uuid::new_v4();
+        let other_id = uuid::Uuid::new_v4();
+        let (first_id, mut first) = clients.subscribe(user_id).await;
+        let (_, mut second) = clients.subscribe(user_id).await;
+        let (_, mut other) = clients.subscribe(other_id).await;
+        let message = StateUpdateMessage::DeviceRemoved {
+            charger_id: "device".into(),
+        };
+
+        clients.send(user_id, message.clone()).await;
+        for receiver in [&mut first, &mut second] {
+            assert!(
+                matches!(receiver.try_recv().unwrap(), StateUpdateMessage::DeviceRemoved { charger_id } if charger_id == "device")
+            );
+        }
+        assert!(other.try_recv().is_err());
+
+        clients.unsubscribe(user_id, first_id).await;
+        let (_, mut replacement) = clients.subscribe(user_id).await;
+        // A late cleanup from the old connection cannot remove newer tabs.
+        clients.unsubscribe(user_id, first_id).await;
+        clients.send(user_id, message).await;
+        assert!(first.recv().await.is_none());
+        assert!(second.try_recv().is_ok());
+        assert!(replacement.try_recv().is_ok());
+    }
+
+    #[actix_web::test]
+    async fn slow_state_update_client_is_disconnected_instead_of_losing_updates_silently() {
+        let clients = StateUpdateClients::default();
+        let user_id = uuid::Uuid::new_v4();
+        let (_, mut slow) = clients.subscribe(user_id).await;
+        let (_, mut fast) = clients.subscribe(user_id).await;
+        for i in 0..65 {
+            clients
+                .send(
+                    user_id,
+                    StateUpdateMessage::DeviceRemoved {
+                        charger_id: i.to_string(),
+                    },
+                )
+                .await;
+            assert!(fast.try_recv().is_ok());
+        }
+        for _ in 0..64 {
+            assert!(slow.try_recv().is_ok());
+        }
+        assert!(slow.recv().await.is_none());
+        clients
+            .send(
+                user_id,
+                StateUpdateMessage::DeviceRemoved {
+                    charger_id: "next".into(),
+                },
+            )
+            .await;
+        assert!(fast.try_recv().is_ok());
+    }
+
+    #[actix_web::test]
+    async fn websocket_sends_initial_snapshot_before_queued_updates() {
+        use crate::{middleware::jwt::JwtMiddleware, tests::configure};
+        use actix_web::{body::MessageBody, cookie::Cookie, test, App};
+
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
+        let user_id = get_user_uuid_from_email(&user.mail).await;
+        let (_, bridge_state) = get_test_state();
+        let app = test::init_service(
+            App::new()
+                .configure(configure)
+                .app_data(bridge_state.clone())
+                .wrap(JwtMiddleware)
+                .service(get_devices),
+        )
+        .await;
+        let mut req = test::TestRequest::get()
+            .uri("/get_devices")
+            .cookie(Cookie::new("access_token", user.get_access_token()))
+            .append_header(("connection", "upgrade"))
+            .append_header(("upgrade", "websocket"))
+            .append_header(("sec-websocket-version", "13"))
+            .append_header(("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="))
+            .to_request();
+        // Keep the incoming stream open while inspecting outgoing WS frames.
+        *req.payload() = actix_web::dev::Payload::Stream {
+            payload: Box::pin(futures_util::stream::pending()),
+        };
+        let response = test::call_service(&app, req).await;
+        assert_eq!(response.status(), 101);
+        bridge_state
+            .state_update_clients
+            .send(
+                user_id,
+                StateUpdateMessage::DeviceRemoved {
+                    charger_id: "removed".into(),
+                },
+            )
+            .await;
+
+        let mut body = Box::pin(response.into_body());
+        let mut bytes = Vec::new();
+        let mut text_frames = Vec::new();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while text_frames.len() < 2 {
+                let chunk = futures_util::future::poll_fn(|cx| body.as_mut().poll_next(cx))
+                    .await
+                    .unwrap()
+                    .unwrap();
+                bytes.extend_from_slice(&chunk);
+                while bytes.len() >= 2 {
+                    // Both JSON payloads are short, unmasked server frames.
+                    let length = bytes[1] as usize;
+                    assert!(length < 126);
+                    if bytes.len() < length + 2 {
+                        break;
+                    }
+                    if bytes[0] == 0x81 {
+                        text_frames.push(
+                            serde_json::from_slice::<serde_json::Value>(&bytes[2..length + 2])
+                                .unwrap(),
+                        );
+                    }
+                    bytes.drain(..length + 2);
+                }
+            }
+        })
+        .await
+        .expect("initial snapshot and queued update should be sent");
+        assert_eq!(text_frames[0], serde_json::json!([]));
+        assert_eq!(
+            text_frames[1],
+            serde_json::json!({"type": "device_removed", "charger_id": "removed"})
+        );
+        // Dropping the response closes the session; its failed heartbeat must
+        // also clean up the subscription.
+        drop(body);
+        tokio::time::timeout(Duration::from_secs(7), async {
+            while !bridge_state
+                .state_update_clients
+                .clients
+                .lock()
+                .await
+                .is_empty()
+            {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("closed subscription should be cleaned up");
+    }
+
+    #[actix_web::test]
+    async fn live_device_updates_cover_sharing_notes_and_removal() {
+        use crate::routes::charger::{
+            allow_user::allow_user, remove::remove, update_note::update_note,
+        };
+        use crate::{middleware::jwt::JwtMiddleware, tests::configure};
+        use actix_web::{cookie::Cookie, test, App};
+
+        let (mut owner, _) = TestUser::random().await;
+        let (mut guest, _) = TestUser::random().await;
+        owner.login().await;
+        guest.login().await;
+        let device = owner.add_random_charger().await;
+        let owner_id = get_user_uuid_from_email(&owner.mail).await;
+        let guest_id = get_user_uuid_from_email(&guest.mail).await;
+        let (_, bridge_state) = get_test_state();
+        let (_, mut owner_tab) = bridge_state.state_update_clients.subscribe(owner_id).await;
+        let (_, mut owner_other_tab) = bridge_state.state_update_clients.subscribe(owner_id).await;
+        let (_, mut guest_tab) = bridge_state.state_update_clients.subscribe(guest_id).await;
+        let (_, mut unrelated) = bridge_state
+            .state_update_clients
+            .subscribe(uuid::Uuid::new_v4())
+            .await;
+
+        let app = test::init_service(
+            App::new()
+                .configure(configure)
+                .app_data(bridge_state.clone())
+                .wrap(JwtMiddleware)
+                .service(allow_user)
+                .service(update_note)
+                .service(remove),
+        )
+        .await;
+        let req = test::TestRequest::put()
+            .uri("/allow_user")
+            .cookie(Cookie::new("access_token", owner.get_access_token()))
+            .append_header(("X-Forwarded-For", "123.123.123.3"))
+            .set_json(serde_json::json!({
+                "charger_id": device.uuid,
+                "charger_password": device.password,
+                "email": guest.mail,
+                "user_auth": {"LoginKey": BASE64_STANDARD.encode(guest.get_login_key().await)},
+                "wg_keys": crate::routes::charger::add::tests::generate_random_keys(),
+                "charger_name": "guest-name",
+                "note": "guest-note",
+            }))
+            .to_request();
+        assert!(test::call_service(&app, req).await.status().is_success());
+        for receiver in [&mut owner_tab, &mut owner_other_tab, &mut guest_tab] {
+            assert!(
+                matches!(receiver.try_recv().unwrap(), StateUpdateMessage::StateChange { charger } if charger.id == device.uuid)
+            );
+        }
+
+        let req = test::TestRequest::post()
+            .uri("/update_note")
+            .cookie(Cookie::new("access_token", owner.get_access_token()))
+            .set_json(serde_json::json!({"charger_id": device.uuid, "note": "owner-note"}))
+            .to_request();
+        assert!(test::call_service(&app, req).await.status().is_success());
+        for receiver in [&mut owner_tab, &mut owner_other_tab] {
+            assert!(
+                matches!(receiver.try_recv().unwrap(), StateUpdateMessage::StateChange { charger } if charger.note.as_deref() == Some("owner-note"))
+            );
+        }
+        assert!(
+            matches!(guest_tab.try_recv().unwrap(), StateUpdateMessage::StateChange { charger } if charger.note.as_deref() == Some("guest-note") && charger.name == "guest-name")
+        );
+
+        // Removing a shared device only removes it for the requesting user.
+        let req = test::TestRequest::delete()
+            .uri("/remove")
+            .cookie(Cookie::new("access_token", owner.get_access_token()))
+            .set_json(serde_json::json!({"charger": device.uuid}))
+            .to_request();
+        assert!(test::call_service(&app, req).await.status().is_success());
+        for receiver in [&mut owner_tab, &mut owner_other_tab] {
+            assert!(
+                matches!(receiver.try_recv().unwrap(), StateUpdateMessage::DeviceRemoved { charger_id } if charger_id == device.uuid)
+            );
+        }
+        assert!(guest_tab.try_recv().is_err());
+
+        // The final user receives a removal even after the charger row is gone.
+        let req = test::TestRequest::delete()
+            .uri("/remove")
+            .cookie(Cookie::new("access_token", guest.get_access_token()))
+            .set_json(serde_json::json!({"charger": device.uuid}))
+            .to_request();
+        assert!(test::call_service(&app, req).await.status().is_success());
+        assert!(
+            matches!(guest_tab.try_recv().unwrap(), StateUpdateMessage::DeviceRemoved { charger_id } if charger_id == device.uuid)
+        );
+        assert!(unrelated.try_recv().is_err());
+    }
+
+    #[actix_web::test]
+    async fn registration_notifies_existing_device_list_subscriptions() {
+        use crate::routes::charger::{
+            add::{add, encode_charger_uid, tests::generate_random_keys},
+            add_with_token::add_with_token,
+        };
+        use crate::{middleware::jwt::JwtMiddleware, tests::configure};
+        use actix_web::{cookie::Cookie, test, App};
+
+        let (mut user, _) = TestUser::random().await;
+        user.login().await;
+        let user_id = get_user_uuid_from_email(&user.mail).await;
+        let token = user.create_authorization_token(true).await;
+        let (_, bridge_state) = get_test_state();
+        let (_, mut updates) = bridge_state.state_update_clients.subscribe(user_id).await;
+        let app = test::init_service(
+            App::new()
+                .configure(configure)
+                .app_data(bridge_state)
+                .wrap(JwtMiddleware)
+                .service(add)
+                .service(add_with_token),
+        )
+        .await;
+
+        for with_token in [false, true] {
+            let keys = generate_random_keys();
+            let uid = random_positive_charger_id();
+            let mut body = serde_json::json!({
+                "charger": {
+                    "uid": encode_charger_uid(uid), "charger_pub": keys[0].charger_public,
+                    "wg_charger_ip": "0.0.0.0/0", "wg_server_ip": "0.0.0.0/0", "psk": "",
+                },
+                "keys": keys, "name": "name", "note": "note",
+            });
+            let path = if with_token {
+                body["token"] = token.token.clone().into();
+                body["user_id"] = user_id.to_string().into();
+                "/add_with_token"
+            } else {
+                "/add"
+            };
+            let req = test::TestRequest::put()
+                .uri(path)
+                .cookie(Cookie::new("access_token", user.get_access_token()))
+                .set_json(body)
+                .to_request();
+            let response = test::call_service(&app, req).await;
+            assert!(response.status().is_success());
+            let response: crate::routes::charger::add::AddChargerResponseSchema =
+                test::read_body_json(response).await;
+            assert!(
+                matches!(updates.try_recv().unwrap(), StateUpdateMessage::StateChange { charger } if charger.id == response.charger_uuid && charger.uid == uid && charger.note.as_deref() == Some("note"))
+            );
+            crate::routes::charger::remove::tests::remove_test_device(&response.charger_uuid).await;
+        }
     }
 
     /// Test if only the chargers the user has access to will be returned.
@@ -406,18 +743,9 @@ mod tests {
         assert_eq!(resp.len(), 0);
     }
 
-    /// Test that the race condition between fetching allowed_users and chargers is handled.
-    ///
-    /// This tests the fix for a race condition where:
-    /// 1. allowed_users are fetched for a user
-    /// 2. chargers are fetched based on those allowed_users
-    /// 3. Between those two queries, an allowed_user entry could be deleted
-    /// 4. This would result in grouped_by returning an empty array for that charger
-    ///
-    /// The fix uses filter_map with .first() instead of directly accessing [0],
-    /// which would panic on an empty array.
+    /// A device whose association was removed must be absent from the snapshot.
     #[actix_web::test]
-    async fn test_race_condition_allowed_user_deleted_between_queries() {
+    async fn test_deleted_association_is_absent_from_initial_snapshot() {
         let (mut user1, _) = TestUser::random().await;
         user1.login().await;
 
@@ -425,9 +753,7 @@ mod tests {
         let device1 = user1.add_random_charger().await;
         let device2 = user1.add_random_charger().await;
 
-        // Directly delete the allowed_user entry for device1 from the database
-        // This simulates the race condition where another request deletes the
-        // allowed_user between fetching allowed_users and joining with chargers
+        // Remove only the association, leaving the charger row in place.
         {
             use db_connector::schema::allowed_users::dsl::*;
 
