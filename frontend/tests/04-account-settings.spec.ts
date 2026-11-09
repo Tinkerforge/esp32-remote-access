@@ -1,19 +1,31 @@
 import { test, expect } from '@playwright/test';
-import { login, testPassword1, testUser1Email } from './common';
+import { login, testPassword1, testUser1Email, testUserName1 } from './common';
 
 test('account information validation', async ({ page }) => {
   await login(page, testUser1Email, testPassword1);
 
   await page.getByRole('link', { name: testUser1Email, exact: true }).click();
 
-  await expect(page.getByLabel('Name')).toBeVisible();
-  await page.getByLabel('Name').clear();
-  await page.getByRole('button', { name: 'Save changes' }).click();
+  const nameInput = page.getByLabel('Name', { exact: true });
+  const saveButton = page.getByRole('button', { name: 'Save changes' });
+
+  // The form is visible before the account information has finished loading.
+  await expect(nameInput).toHaveValue(testUserName1);
+  await nameInput.clear();
+  await saveButton.click();
   await expect(page.getByText('The name must not be empty')).toBeVisible();
 
-  await page.getByLabel('Email-address').clear();
-  await page.getByLabel('Email-address').fill(testUser1Email);
-  await page.getByRole('button', { name: 'Save changes' }).click();
+  await nameInput.fill(testUserName1);
+  const [response] = await Promise.all([
+    page.waitForResponse((resp) =>
+      new URL(resp.url()).pathname === '/api/user/update_user' && resp.request().method() === 'PUT'
+    ),
+    saveButton.click(),
+  ]);
+  expect(response.status()).toBe(200);
+  await expect(saveButton).toBeDisabled();
+  await expect(nameInput).toHaveValue(testUserName1);
+  await expect(page.getByText('The name must not be empty')).not.toBeVisible();
 });
 
 test('password change dialog validation', async ({ page }) => {

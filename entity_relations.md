@@ -166,6 +166,11 @@ erDiagram
 - Authorization tokens carry use-once flags and creation/last-use timestamps.
   Refresh and recovery tokens and verification rows serve separate purposes.
 
+Deleting a user cascades to their device access rows, WireGuard keys, all token
+and verification records, and device groupings, including grouping memberships.
+Shared device records and other users' data remain intact. The account deletion
+endpoint also removes devices left without any allowed users.
+
 The source of truth is [schema.rs](db_connector/src/schema.rs),
 [models](db_connector/src/models/mod.rs) and the ordered
 [migrations](db_connector/migrations). Startup applies embedded migrations;

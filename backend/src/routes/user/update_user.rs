@@ -173,11 +173,11 @@ pub async fn update_user(
     use db_connector::schema::users::dsl::*;
 
     let uid: uuid::Uuid = uid.into();
-    let user_cpy = new_user.clone();
+    let normalized_email = new_user.email.to_lowercase();
     {
         let mut conn = get_connection(&state).await?;
         match users
-            .filter(email.eq(&user_cpy.email.to_lowercase()))
+            .filter(email.eq(&normalized_email))
             .select(User::as_select())
             .get_result::<User>(&mut conn)
             .await
@@ -206,8 +206,9 @@ pub async fn update_user(
         }
     };
 
-    // Only set up verification if email changed
-    let exp = if new_user.email != old_user.email {
+    // Only set up verification if the normalized email changed.
+    let email_changed = normalized_email != old_user.email;
+    let exp = if email_changed {
         if old_user.old_email.is_some() {
             return Err(ErrorConflict("Another email change is already pending."));
         }
@@ -230,11 +231,19 @@ pub async fn update_user(
         let updated = diesel::update(users.find::<uuid::Uuid>(uid))
             .set((
                 name.eq(&new_user.name),
-                email.eq(&new_user.email.to_lowercase()),
+                email.eq(&normalized_email),
                 delivery_email.eq(&new_user.email),
-                email_verified.eq(new_user.email == old_user.email),
-                old_email.eq(&old_user.email),
-                old_delivery_email.eq(&old_user.delivery_email),
+                email_verified.eq(!email_changed && old_user.email_verified),
+                old_email.eq(if email_changed {
+                    Some(&old_user.email)
+                } else {
+                    old_user.old_email.as_ref()
+                }),
+                old_delivery_email.eq(if email_changed {
+                    old_user.delivery_email.as_ref()
+                } else {
+                    old_user.old_delivery_email.as_ref()
+                }),
             ))
             .execute(&mut conn)
             .await;
@@ -448,6 +457,25 @@ pub mod tests {
         // Check that email_verified is still true
         let updated_user = get_test_user(&mail).await;
         assert!(updated_user.email_verified);
+        assert_eq!(updated_user.old_email, db_user.old_email);
+        assert_eq!(updated_user.old_delivery_email, db_user.old_delivery_email);
+
+        // Email addresses are stored lowercase; a case-only edit is not a
+        // change of address and must not require verification either.
+        let req = test::TestRequest::put()
+            .uri("/update_user")
+            .set_json(UpdateUserSchema {
+                name: updated_user.name.clone(),
+                email: mail.to_uppercase(),
+            })
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status().as_u16(), 200);
+        let updated_user = get_test_user(&mail).await;
+        assert!(updated_user.email_verified);
+        assert_eq!(updated_user.old_email, db_user.old_email);
+        assert_eq!(updated_user.old_delivery_email, db_user.old_delivery_email);
 
         let pool = test_connection_pool();
         let mut conn = pool.get().await.unwrap();
@@ -461,6 +489,23 @@ pub mod tests {
             .await
             .unwrap();
         assert!(verify_records.is_empty());
+
+        // A name-only save must not block a later email change.
+        let new_email = format!("changed_{mail}");
+        defer_async!({
+            let inner_email = new_email.clone();
+            async move { delete_user(&inner_email).await }
+        });
+        let req = test::TestRequest::put()
+            .uri("/update_user")
+            .set_json(UpdateUserSchema {
+                name: updated_user.name,
+                email: new_email.clone(),
+            })
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status().as_u16(), 200);
     }
 
     #[actix_web::test]
@@ -483,7 +528,7 @@ pub mod tests {
         };
 
         defer_async!({
-            let inner_email = new_email;
+            let inner_email = new_email.clone();
             async move { delete_user(&inner_email).await }
         });
 
@@ -494,6 +539,24 @@ pub mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
+
+        // Editing the name while verification is pending must preserve the
+        // original address and must not verify the new address implicitly.
+        let req = test::TestRequest::put()
+            .uri("/update_user")
+            .set_json(UpdateUserSchema {
+                name: "Updated Name".to_string(),
+                email: new_email.clone(),
+            })
+            .cookie(Cookie::new("access_token", token))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status().as_u16(), 200);
+        let updated_user = get_test_user(&new_email).await;
+        assert_eq!(updated_user.name, "Updated Name");
+        assert!(!updated_user.email_verified);
+        assert_eq!(updated_user.old_email.as_ref(), Some(&db_user.email));
+        assert_eq!(updated_user.old_delivery_email, db_user.delivery_email);
 
         // Attempt second email change while first is pending
         let another_email = format!("another_{mail}");
