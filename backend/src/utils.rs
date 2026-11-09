@@ -197,7 +197,8 @@ pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<Ap
     #[cfg(not(test))]
     {
         if let Some(ref mailer) = state.mailer {
-            let email = Message::builder()
+            log::info!("Sending email to {email:?} with subject {subject:?}");
+            let message = Message::builder()
                 .from(
                     format!("{} <{}>", state.sender_name, state.sender_email)
                         .parse()
@@ -209,12 +210,16 @@ pub fn send_email(email: &str, subject: &str, body: String, state: &web::Data<Ap
                 .body(body)
                 .unwrap();
 
-            match mailer.send(&email) {
-                Ok(_) => log::info!("Email sent successfully!"),
-                Err(e) => log::error!("Could not send email: {e:?}"),
+            match mailer.send(&message) {
+                Ok(_) => log::info!("Email sent to {email:?} with subject {subject:?}"),
+                Err(e) => {
+                    log::error!("Could not send email to {email:?} with subject {subject:?}: {e:?}")
+                }
             }
         } else {
-            log::error!("No mailer configured, email not sent");
+            log::error!(
+                "No mailer configured, email to {email:?} with subject {subject:?} not sent"
+            );
         }
     }
 
@@ -242,24 +247,26 @@ pub async fn send_email_with_attachment<T: IntoBody + Send + 'static>(
         .acquire()
         .await
         .map_err(|_| Error::InternalError)?;
-    let email = email.to_owned();
-    let subject = subject.to_owned();
-    let attachment_filename = attachment_filename.to_owned();
+    let recipient = email.to_owned();
+    let email_subject = subject.to_owned();
+    let filename = attachment_filename.to_owned();
     let state = state.clone();
     tokio::task::spawn_blocking(move || {
         let _permit = permit;
         send_email_with_attachment_blocking(
-            &email,
-            &subject,
+            &recipient,
+            &email_subject,
             body,
             attachment_data,
-            &attachment_filename,
+            &filename,
             &state,
         )
     })
     .await
     .map_err(|err| {
-        log::error!("Email worker failed: {err}");
+        log::error!(
+            "Email worker failed for {email:?} with subject {subject:?} and attachment {attachment_filename:?}: {err}"
+        );
         Error::InternalError
     })?
 }
@@ -275,6 +282,9 @@ fn send_email_with_attachment_blocking<T: IntoBody>(
     #[cfg(not(test))]
     {
         if let Some(ref mailer) = state.mailer {
+            log::info!(
+                "Sending email to {email:?} with subject {subject:?} and attachment {attachment_filename:?}"
+            );
             let multipart = lettre::message::MultiPart::mixed()
                 .singlepart(
                     lettre::message::SinglePart::builder()
@@ -289,7 +299,7 @@ fn send_email_with_attachment_blocking<T: IntoBody>(
                     ),
                 );
 
-            let email = lettre::Message::builder()
+            let message = lettre::Message::builder()
                 .from(
                     format!("{} <{}>", state.sender_name, state.sender_email)
                         .parse()
@@ -300,15 +310,21 @@ fn send_email_with_attachment_blocking<T: IntoBody>(
                 .multipart(multipart)
                 .unwrap();
 
-            match mailer.send(&email) {
-                Ok(_) => log::info!("Email with attachment sent successfully!"),
+            match mailer.send(&message) {
+                Ok(_) => log::info!(
+                    "Email sent to {email:?} with subject {subject:?} and attachment {attachment_filename:?}"
+                ),
                 Err(e) => {
-                    log::error!("Could not send email: {e:?}");
+                    log::error!(
+                        "Could not send email to {email:?} with subject {subject:?} and attachment {attachment_filename:?}: {e:?}"
+                    );
                     return Err(Error::InternalError);
                 }
             }
         } else {
-            log::error!("No mailer configured, email not sent");
+            log::error!(
+                "No mailer configured, email to {email:?} with subject {subject:?} and attachment {attachment_filename:?} not sent"
+            );
             return Err(Error::InternalError);
         }
     }
