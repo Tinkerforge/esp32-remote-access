@@ -785,7 +785,12 @@ mod tests {
 
             let server_udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
             let peer_udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
-            let (mut peer, charger, init) = peer_and_charger();
+            let (mut peer, mut charger, init) = peer_and_charger();
+            // This peer implements only the registered IPv4 profile. Advertise
+            // legacy firmware so matching does not start IPv6 discovery before
+            // the charge-log ACKs and TCP connection can reach it.
+            charger.firmware_version = "2.13.4".to_owned();
+            charger.device_type = Some("Tinkerforge-WARP3_Charger/2.13.4".to_owned());
             let (_, mut server, response) = match_tunnel(
                 vec![charger],
                 peer_udp.local_addr().unwrap(),
@@ -793,6 +798,10 @@ mod tests {
                 server_udp.clone(),
             )
             .unwrap();
+            assert!(
+                !server.is_discovering_peer(),
+                "charge-log fixture requires IPv4"
+            );
             let mut output = [0u8; 2048];
             let TunnResult::WriteToNetwork(keepalive) =
                 peer.decapsulate(None, &response, &mut output)
