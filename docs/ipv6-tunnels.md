@@ -18,16 +18,17 @@ IPv6 does not enable outer IPv6 device UDP.
 ## Firmware compatibility
 
 The backend enables inner IPv6 only for recognized products at or above these
-minimum versions. The policy is defined in
+minimum versions, set one patch above the latest releases as of 2026-11-16.
+The policy is defined in
 [`backend/src/firmware.rs`](../backend/src/firmware.rs).
 
 | Product from the management `User-Agent` | Minimum firmware |
 | --- | --- |
-| `Tinkerforge-WARP_Charger` | `2.13.4` |
-| `Tinkerforge-WARP2_Charger`, `Tinkerforge-WARP3_Charger`, `Tinkerforge-WARP4_Charger` | `2.13.5` |
-| `ELTAKO-ELTAKO_Wallbox` | `2.13.5` |
-| `Tinkerforge-WARP_Energy_Manager` | `2.9.5` |
-| `Tinkerforge-WARP_Energy_Manager_2.0`, `effizient2-Smart_Energy_Broker` | `1.8.5` |
+| `Tinkerforge-WARP_Charger` | `2.13.6` |
+| `Tinkerforge-WARP2_Charger`, `Tinkerforge-WARP3_Charger`, `Tinkerforge-WARP4_Charger` | `2.13.7` |
+| `ELTAKO-ELTAKO_Wallbox` | `2.13.7` |
+| `Tinkerforge-WARP_Energy_Manager` | `2.9.7` |
+| `Tinkerforge-WARP_Energy_Manager_2.0`, `effizient2-Smart_Energy_Broker` | `1.8.7` |
 
 `get_key` exposes the decision as `ipv6_supported`. The browser requires an
 explicit `true`; otherwise it uses registered IPv4 or `ipv4_fallback` immediately.

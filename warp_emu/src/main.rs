@@ -312,7 +312,7 @@ impl EmuCharger {
             id: self.uuid.clone(),
             password: self.password.clone(),
             port: 8080,
-            firmware_version: "2.9.5".to_string(),
+            firmware_version: "2.9.7".to_string(),
             configured_users: vec![ConfiguredUser {
                 email: None,
                 user_id: Some(self.user_id.clone()),
@@ -332,7 +332,7 @@ impl EmuCharger {
             .put(format!("https://{}/api/management", HOST))
             .header(
                 reqwest::header::USER_AGENT,
-                "Tinkerforge-WARP_Energy_Manager/2.9.5",
+                "Tinkerforge-WARP_Energy_Manager/2.9.7",
             )
             .json(&schema)
             .send()

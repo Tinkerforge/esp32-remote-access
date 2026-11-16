@@ -1263,7 +1263,7 @@ mod tests {
 
         // Crossing the cutoff invalidates both indices; a newer supported
         // version keeps the active tunnel. Cover an upgrade and a downgrade.
-        for (version, keep_tunnel) in [("2.13.5", false), ("2.14.0", true), ("2.13.4", false)] {
+        for (version, keep_tunnel) in [("2.13.7", false), ("2.14.0", true), ("2.13.6", false)] {
             let socket = Arc::new(Mutex::new(
                 ManagementSocket::new_for_test(device_uuid, remote_addr).await,
             ));
