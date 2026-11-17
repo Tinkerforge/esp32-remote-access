@@ -25,8 +25,7 @@ pub(super) fn random_management_address() -> Ipv6Addr {
 
 // Concrete addresses used by the existing protocol fixtures, never by sessions.
 #[cfg(test)]
-pub const MANAGEMENT_CHARGER_ADDRESS: Ipv6Addr =
-    Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 2);
+pub const MANAGEMENT_CHARGER_ADDRESS: Ipv6Addr = Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 2);
 #[cfg(test)]
 pub const MANAGEMENT_SERVER_ADDRESS: Ipv6Addr = Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 3);
 
@@ -245,7 +244,10 @@ mod tests {
             } else {
                 None
             };
-            assert_eq!(discovery.accepts(registered.parse().unwrap()), expected.is_some());
+            assert_eq!(
+                discovery.accepts(registered.parse().unwrap()),
+                expected.is_some()
+            );
             assert_eq!(
                 discovery.poll(
                     sockets.get_mut::<icmp::Socket>(discovery.handle),
@@ -261,7 +263,11 @@ mod tests {
                 expected
             );
             if expected.is_none() {
-                assert_eq!(discovery.outstanding, [0], "discovery must start a fresh probe batch");
+                assert_eq!(
+                    discovery.outstanding,
+                    [0],
+                    "discovery must start a fresh probe batch"
+                );
                 assert!(discovery.deadline > now + DISCOVERY_TIMEOUT);
             }
         }

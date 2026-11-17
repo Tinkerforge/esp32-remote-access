@@ -74,7 +74,8 @@ fn ipv4_fallback(peer: IpNetwork, connection_no: i32) -> Option<Ipv4Fallback> {
     let slot = u8::try_from(connection_no).ok()?;
     Some(Ipv4Fallback {
         web_address: IpNetwork::new(std::net::Ipv4Addr::new(10, 123, slot, 3).into(), 24).unwrap(),
-        charger_address: IpNetwork::new(std::net::Ipv4Addr::new(10, 123, slot, 2).into(), 32).unwrap(),
+        charger_address: IpNetwork::new(std::net::Ipv4Addr::new(10, 123, slot, 2).into(), 32)
+            .unwrap(),
     })
 }
 
@@ -191,14 +192,23 @@ mod tests {
         for (peer, slot, expected) in [
             ("ff02::1/128", 1, Some(("10.123.1.3/24", "10.123.1.2/32"))),
             ("ff02::1/128", 0, Some(("10.123.0.3/24", "10.123.0.2/32"))),
-            ("ff02:0:0:0:0:0:0:1/64", 255, Some(("10.123.255.3/24", "10.123.255.2/32"))),
-            ("ff02::1", -1, None), ("ff02::1", 256, None),
-            ("fe80::1/128", 1, None), ("fe80:0:0:0:0:0:0:1/64", 255, None),
-            ("10.123.1.2/24", 1, None), ("fd00::2/128", 1, None),
+            (
+                "ff02:0:0:0:0:0:0:1/64",
+                255,
+                Some(("10.123.255.3/24", "10.123.255.2/32")),
+            ),
+            ("ff02::1", -1, None),
+            ("ff02::1", 256, None),
+            ("fe80::1/128", 1, None),
+            ("fe80:0:0:0:0:0:0:1/64", 255, None),
+            ("10.123.1.2/24", 1, None),
+            ("fd00::2/128", 1, None),
         ] {
             let profile = ipv4_fallback(peer.parse().unwrap(), slot);
-            assert_eq!(profile.map(|p| (p.web_address.to_string(), p.charger_address.to_string())),
-                expected.map(|(local, peer)| (local.to_owned(), peer.to_owned())));
+            assert_eq!(
+                profile.map(|p| (p.web_address.to_string(), p.charger_address.to_string())),
+                expected.map(|(local, peer)| (local.to_owned(), peer.to_owned()))
+            );
         }
     }
 
@@ -431,9 +441,12 @@ mod tests {
                         .iter()
                         .find(|k| k.charger_public == response.charger_pub)
                         .unwrap();
-                    let expected_fallback = ipv4_fallback(original.charger_address, original.connection_no as i32);
-                    assert_eq!(serde_json::to_value(&response.ipv4_fallback).unwrap(),
-                        serde_json::to_value(expected_fallback).unwrap());
+                    let expected_fallback =
+                        ipv4_fallback(original.charger_address, original.connection_no as i32);
+                    assert_eq!(
+                        serde_json::to_value(&response.ipv4_fallback).unwrap(),
+                        serde_json::to_value(expected_fallback).unwrap()
+                    );
                     assert_eq!(response.web_private, original.web_private);
                     assert_eq!(response.psk, original.psk);
                 }

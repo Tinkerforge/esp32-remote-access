@@ -1025,8 +1025,7 @@ mod tests {
             socket::icmp,
             wire::{Icmpv6Packet, Icmpv6Repr},
         };
-        let (mut server, mut charger) =
-            management_pair("fe80::3/128", "fe80::2/128").await;
+        let (mut server, mut charger) = management_pair("fe80::3/128", "fe80::2/128").await;
         let local = "fe80::2".parse().unwrap();
         let peer = "fe80::3".parse().unwrap();
         let buffer =
@@ -1132,7 +1131,10 @@ mod tests {
         assert!(!server.is_discovering_peer());
         assert_eq!(server.local_ip, local);
         assert_eq!(server.peer_ip, IpAddr::V6(MANAGEMENT_CHARGER_ADDRESS));
-        assert_eq!(deliver_one(&mut charger).await, b"command to discovered service");
+        assert_eq!(
+            deliver_one(&mut charger).await,
+            b"command to discovered service"
+        );
     }
 
     #[actix_web::test]
@@ -1146,7 +1148,8 @@ mod tests {
         let local = server.local_ip;
         server.encrypt_and_send_slice(b"command must wait for discovery");
         server.poll_at(
-            Instant::now() + super::super::peer_discovery::DISCOVERY_TIMEOUT
+            Instant::now()
+                + super::super::peer_discovery::DISCOVERY_TIMEOUT
                 + Duration::from_millis(1),
         );
         assert!(server.is_discovering_peer());
