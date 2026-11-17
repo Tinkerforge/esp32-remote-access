@@ -165,6 +165,10 @@ Repository layout
 The Rust crates have separate manifests and lockfiles; there is no root Cargo
 workspace. Run Cargo commands from the relevant crate directory.
 
+Each Rust project's ``.cargo/config.toml`` requires newly resolved registry
+dependencies to have been published at least seven days ago. Existing lockfile
+entries are retained. This policy requires Cargo 1.100 or newer.
+
 ``warp_emu`` registers IPv6 discovery metadata and answers management ICMPv6
 probes from a random service link-local address. Its outer WireGuard UDP
 transport uses IPv4. It maintains management tunnels for load testing; it does
@@ -182,7 +186,7 @@ Local development
 Prerequisites
 ~~~~~~~~~~~~~
 
-- A current stable Rust toolchain, including the ``wasm32-unknown-unknown`` target.
+- Rust 1.100 or newer, including the ``wasm32-unknown-unknown`` target.
 - Node.js 24 (used by CI and the Docker frontend builds) and npm.
 - ``wasm-pack`` and a C compiler; the container WASM builds install Clang.
 - PostgreSQL, or Docker with the Compose v2 plugin to run the supplied database.
