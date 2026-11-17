@@ -166,9 +166,9 @@ The Rust crates have separate manifests and lockfiles; there is no root Cargo
 workspace. Run Cargo commands from the relevant crate directory.
 
 ``warp_emu`` registers IPv6 discovery metadata and answers management ICMPv6
-probes from a random service ULA, matching the current firmware. Its outer
-WireGuard UDP transport uses IPv4. It maintains management tunnels for load
-testing; it does not serve the device's HTTP interface or handle management commands.
+probes from a random service link-local address. Its outer WireGuard UDP
+transport uses IPv4. It maintains management tunnels for load testing; it does
+not serve the device's HTTP interface or handle management commands.
 
 Management and browser tunnels only attempt IPv6 on these firmware versions
 or newer (one patch above the latest releases as of 2026-11-16): WARP 2.13.6,
@@ -383,8 +383,8 @@ produce properly sealed browser keys. Ctrl+C starts device cleanup; a second
 Ctrl+C exits immediately.
 
 The emulator registers IPv6 discovery metadata and answers management ICMPv6
-probes from a random service ULA, matching the current firmware. Its outer
-WireGuard UDP transport uses IPv4. It does not handle management commands.
+probes from a random service link-local address. Its outer WireGuard UDP
+transport uses IPv4. It does not handle management commands.
 
 ``scripts/sign_string.py`` signs bytes with libsodium Ed25519 combined mode.
 Run ``python3 scripts/sign_string.py --help`` for key-file, environment and
