@@ -16,7 +16,11 @@ JWT-protected routes accept an `access_token` cookie or an
 `Authorization: Bearer TOKEN` header. Cookie lookup takes precedence. Refresh
 uses the `refresh_token` cookie or a Bearer refresh JWT instead. Login issues
 cookies, not a JSON token body. Access JWTs last 6 minutes; refresh JWTs last
-60 days and also require a stored session record.
+60 days and also require a stored session record. Each account can retain up to
+1,000 refresh sessions. Issuing a new token at the limit removes the oldest
+sessions, keeping the new login usable. Normal token rotation replaces its
+previous session and does not accumulate sessions. Evicted sessions need to
+log in again once their access JWT expires.
 
 Device endpoints authenticate using credentials in their request bodies;
 authorization-token endpoints are distinct from JWT authentication. JSON byte

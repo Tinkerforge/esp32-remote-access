@@ -23,7 +23,7 @@ use argon2::password_hash::PasswordHashString;
 use chrono::{Days, TimeDelta, Utc};
 use db_connector::models::{refresh_tokens::RefreshToken, users::User};
 use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
-use diesel_async::RunQueryDsl as _;
+use diesel_async::{AsyncConnection, RunQueryDsl as _};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
@@ -35,6 +35,9 @@ use crate::{
 
 pub const MAX_TOKEN_AGE_MINUTES: i64 = 6;
 const MAX_REFRESH_TOKEN_AGE_DAYS: i64 = 60;
+// Allow ample room for devices and repeated logins while bounding abandoned
+// sessions (for example, clients that discard their cookies after each login).
+const MAX_REFRESH_TOKENS_PER_USER: i64 = 1_000;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Validate, ToSchema)]
 pub struct LoginSchema {
@@ -197,8 +200,9 @@ pub async fn create_refresh_token(
         sub: token_id.to_string(),
     };
 
-    // Insert the refresh token and release the connection before doing the
-    // JWT signing work, which doesn't need a database handle.
+    // Prune and insert atomically, serializing issuance for this account even
+    // across server processes. Always reserve a slot for the new token so login
+    // succeeds at the limit, including when many tokens share an expiration.
     {
         let mut conn = get_connection(state).await?;
         use db_connector::schema::refresh_tokens::dsl as refresh_tokens;
@@ -208,14 +212,43 @@ pub async fn create_refresh_token(
             user_id,
             expiration: exp as i64,
         };
-        match diesel::insert_into(refresh_tokens::refresh_tokens)
-            .values(&token)
-            .execute(&mut conn)
-            .await
-        {
-            Ok(_) => {}
-            Err(_err) => return Err(Error::InternalError.into()),
-        }
+        conn.transaction::<_, diesel::result::Error, _>(async |conn| {
+            use db_connector::schema::users::dsl as users;
+
+            users::users
+                .find(user_id)
+                .select(users::id)
+                .for_update()
+                .first::<uuid::Uuid>(conn)
+                .await?;
+
+            // All refresh tokens have the same lifetime, so expiration orders
+            // them by issuance time. UUID breaks ties within the same second.
+            let old_tokens = diesel::alias!(db_connector::schema::refresh_tokens as old_tokens);
+            let oldest_tokens = old_tokens
+                .filter(old_tokens.field(refresh_tokens::user_id).eq(user_id))
+                .select(old_tokens.field(refresh_tokens::id))
+                .order((
+                    old_tokens.field(refresh_tokens::expiration).desc(),
+                    old_tokens.field(refresh_tokens::id).desc(),
+                ))
+                .offset(MAX_REFRESH_TOKENS_PER_USER - 1);
+
+            diesel::delete(
+                refresh_tokens::refresh_tokens.filter(refresh_tokens::id.eq_any(oldest_tokens)),
+            )
+            .execute(conn)
+            .await?;
+
+            diesel::insert_into(refresh_tokens::refresh_tokens)
+                .values(&token)
+                .execute(conn)
+                .await?;
+
+            Ok(())
+        })
+        .await
+        .map_err(|_| Error::InternalError)?;
     }
 
     let token = match jsonwebtoken::encode(
@@ -242,6 +275,8 @@ pub async fn create_refresh_token(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::collections::HashSet;
+
     use actix_web::{http::header::ContentType, test, App};
 
     use super::*;
@@ -251,8 +286,194 @@ pub(crate) mod tests {
             register::tests::{create_user, delete_user},
             verify::tests::fast_verify,
         },
-        tests::configure,
+        routes::user::tests::{get_test_uuid, TestUser},
+        tests::{configure, create_test_state},
     };
+
+    async fn seed_refresh_tokens(
+        state: &web::Data<AppState>,
+        user_id: uuid::Uuid,
+        expirations: impl IntoIterator<Item = i64>,
+    ) -> Vec<RefreshToken> {
+        let tokens: Vec<_> = expirations
+            .into_iter()
+            .map(|expiration| RefreshToken {
+                id: uuid::Uuid::new_v4(),
+                user_id,
+                expiration,
+            })
+            .collect();
+        let mut conn = get_connection(state).await.unwrap();
+        diesel::insert_into(db_connector::schema::refresh_tokens::table)
+            .values(&tokens)
+            .execute(&mut conn)
+            .await
+            .unwrap();
+        tokens
+    }
+
+    async fn refresh_token_ids(
+        state: &web::Data<AppState>,
+        uid: uuid::Uuid,
+    ) -> HashSet<uuid::Uuid> {
+        use db_connector::schema::refresh_tokens::dsl::*;
+        let mut conn = get_connection(state).await.unwrap();
+        refresh_tokens
+            .filter(user_id.eq(uid))
+            .select(id)
+            .load::<uuid::Uuid>(&mut conn)
+            .await
+            .unwrap()
+            .into_iter()
+            .collect()
+    }
+
+    fn refresh_cookie_id(cookie: &str, state: &web::Data<AppState>) -> uuid::Uuid {
+        let cookie = Cookie::parse(cookie.to_owned()).unwrap();
+        super::super::jwt_refresh::extract_token(cookie.value().to_owned(), &state.jwt_secret)
+            .unwrap()
+            .0
+    }
+
+    #[actix_web::test]
+    async fn refresh_token_limit_preserves_sessions_below_capacity() {
+        let (user, _) = TestUser::random().await;
+        let uid = get_test_uuid(&user.mail).await.unwrap();
+        let state = create_test_state(None);
+        let now = Utc::now().timestamp();
+        let tokens = seed_refresh_tokens(
+            &state,
+            uid,
+            (1..=MAX_REFRESH_TOKENS_PER_USER - 3).map(|i| now + i),
+        )
+        .await;
+        let mut expected: HashSet<_> = tokens.iter().map(|token| token.id).collect();
+
+        for _ in 0..3 {
+            let cookie = create_refresh_token(&state, uid).await.unwrap();
+            expected.insert(refresh_cookie_id(&cookie, &state));
+        }
+
+        assert_eq!(expected.len(), MAX_REFRESH_TOKENS_PER_USER as usize);
+        assert_eq!(refresh_token_ids(&state, uid).await, expected);
+    }
+
+    #[actix_web::test]
+    async fn refresh_token_limit_login_prunes_oldest_and_isolates_accounts() {
+        let (user, _) = TestUser::random().await;
+        let uid = get_test_uuid(&user.mail).await.unwrap();
+        let (other_user, _) = TestUser::random().await;
+        let other_uid = get_test_uuid(&other_user.mail).await.unwrap();
+        let state = create_test_state(None);
+        let now = Utc::now().timestamp();
+        let other_tokens = seed_refresh_tokens(&state, other_uid, [now + 100]).await;
+        // Include expired tokens and an account already above the limit.
+        seed_refresh_tokens(&state, uid, [now - 2, now - 1]).await;
+        let tokens = seed_refresh_tokens(
+            &state,
+            uid,
+            (1..=MAX_REFRESH_TOKENS_PER_USER + 10).map(|i| now + i),
+        )
+        .await;
+
+        let (_, refresh_token) = login_user(&user.mail, user.get_login_key().await).await;
+        let new_id = super::super::jwt_refresh::extract_token(refresh_token, &state.jwt_secret)
+            .unwrap()
+            .0;
+        let mut expected: HashSet<_> = tokens
+            .iter()
+            .rev()
+            .take((MAX_REFRESH_TOKENS_PER_USER - 1) as usize)
+            .map(|token| token.id)
+            .collect();
+        expected.insert(new_id);
+
+        assert_eq!(expected.len(), MAX_REFRESH_TOKENS_PER_USER as usize);
+        assert_eq!(refresh_token_ids(&state, uid).await, expected);
+        assert_eq!(
+            refresh_token_ids(&state, other_uid).await,
+            other_tokens.iter().map(|token| token.id).collect()
+        );
+    }
+
+    #[actix_web::test]
+    async fn refresh_token_limit_rotation_at_capacity_preserves_other_sessions() {
+        let (user, _) = TestUser::random().await;
+        let uid = get_test_uuid(&user.mail).await.unwrap();
+        let state = create_test_state(None);
+        // Identical expiration timestamps must not cause over-eviction or
+        // evict the newly issued token based on its random UUID.
+        let expiration = (Utc::now() + TimeDelta::days(MAX_REFRESH_TOKEN_AGE_DAYS)).timestamp();
+        seed_refresh_tokens(
+            &state,
+            uid,
+            (0..MAX_REFRESH_TOKENS_PER_USER).map(|_| expiration),
+        )
+        .await;
+        let cookie = create_refresh_token(&state, uid).await.unwrap();
+        let mut current_id = refresh_cookie_id(&cookie, &state);
+        let mut current_token = Cookie::parse(cookie).unwrap().value().to_owned();
+        let mut expected = refresh_token_ids(&state, uid).await;
+        assert_eq!(expected.len(), MAX_REFRESH_TOKENS_PER_USER as usize);
+        assert!(expected.contains(&current_id));
+
+        let app = test::init_service(
+            App::new()
+                .app_data(state.clone())
+                .service(super::super::jwt_refresh::jwt_refresh),
+        )
+        .await;
+        for _ in 0..3 {
+            let req = test::TestRequest::get()
+                .uri("/jwt_refresh")
+                .cookie(Cookie::new("refresh_token", current_token))
+                .to_request();
+            let resp = test::call_service(&app, req).await;
+            assert_eq!(resp.status(), 200);
+            current_token = resp
+                .response()
+                .cookies()
+                .find(|cookie| cookie.name() == "refresh_token")
+                .unwrap()
+                .value()
+                .to_owned();
+            assert!(expected.remove(&current_id));
+            current_id =
+                super::super::jwt_refresh::extract_token(current_token.clone(), &state.jwt_secret)
+                    .unwrap()
+                    .0;
+            expected.insert(current_id);
+            assert_eq!(refresh_token_ids(&state, uid).await, expected);
+        }
+    }
+
+    #[actix_web::test]
+    async fn refresh_token_limit_serializes_concurrent_issuance() {
+        let (user, _) = TestUser::random().await;
+        let uid = get_test_uuid(&user.mail).await.unwrap();
+        // Separate pools mimic separate server processes sharing a database.
+        let state = create_test_state(None);
+        let other_state = create_test_state(None);
+        let expiration = (Utc::now() + TimeDelta::days(1)).timestamp();
+        seed_refresh_tokens(
+            &state,
+            uid,
+            (0..MAX_REFRESH_TOKENS_PER_USER).map(|_| expiration),
+        )
+        .await;
+
+        let results =
+            futures_util::future::join_all((0..20).map(|i| {
+                create_refresh_token(if i % 2 == 0 { &state } else { &other_state }, uid)
+            }))
+            .await;
+        let ids = refresh_token_ids(&state, uid).await;
+        assert_eq!(ids.len(), MAX_REFRESH_TOKENS_PER_USER as usize);
+        for result in results {
+            let cookie = result.unwrap();
+            assert!(ids.contains(&refresh_cookie_id(&cookie, &state)));
+        }
+    }
 
     pub async fn login_user(email: &str, login_key: Vec<u8>) -> (String, String) {
         println!("Logging in user: {}", email);

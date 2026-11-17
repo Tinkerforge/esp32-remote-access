@@ -1,0 +1,1 @@
+DROP INDEX refresh_tokens_user_id_expiration_id_idx;
