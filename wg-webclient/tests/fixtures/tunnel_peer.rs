@@ -148,7 +148,7 @@ fn serve(stream: TcpStream) -> Result<()> {
     let local: IpAddress = if ipv6 {
         let mut address = [0; 16];
         OsRng.try_fill_bytes(&mut address)?;
-        address[0] = 0xfd;
+        address[..8].copy_from_slice(&[0xfe, 0x80, 0, 0, 0, 0, 0, 0]);
         std::net::Ipv6Addr::from(address).into()
     } else {
         "10.123.1.2".parse().unwrap()

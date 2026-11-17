@@ -1,4 +1,4 @@
-//! Discover random management addresses with all-nodes multicast ICMPv6 echo.
+//! Discover random link-local management addresses with multicast ICMPv6 echo.
 //! Registered IPv4 addresses remain a bounded fallback for legacy firmware.
 
 use smoltcp::{
@@ -18,16 +18,17 @@ const DISCOVERY_IDENT: u16 = 0x4d47;
 
 pub(super) fn random_management_address() -> Ipv6Addr {
     let mut bytes: [u8; 16] = rand::random();
-    bytes[0] = 0xfd;
+    // fe80::/64 with a random interface ID on this one-peer tunnel link.
+    bytes[..8].copy_from_slice(&[0xfe, 0x80, 0, 0, 0, 0, 0, 0]);
     bytes.into()
 }
 
 // Concrete addresses used by the existing protocol fixtures, never by sessions.
 #[cfg(test)]
 pub const MANAGEMENT_CHARGER_ADDRESS: Ipv6Addr =
-    Ipv6Addr::new(0xfd00, 0x123, 0xffff, 0, 0, 0, 0, 2);
+    Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 2);
 #[cfg(test)]
-pub const MANAGEMENT_SERVER_ADDRESS: Ipv6Addr = Ipv6Addr::new(0xfd00, 0x123, 0xffff, 0, 0, 0, 0, 3);
+pub const MANAGEMENT_SERVER_ADDRESS: Ipv6Addr = Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 3);
 
 pub(super) struct PeerDiscovery {
     pub handle: SocketHandle,
@@ -76,7 +77,6 @@ impl PeerDiscovery {
         };
         if peer.is_unspecified()
             || peer.is_multicast()
-            || peer.is_unicast_link_local()
             || peer.is_loopback()
             || peer.to_ipv4_mapped().is_some()
             || peer == self.local

@@ -19,8 +19,8 @@
 
 //! Multicast ICMPv6 discovery inside an authenticated one-peer WireGuard link.
 //!
-//! Probe ff02::1 from the browser's random ULA and learn the service address
-//! from a correlated unicast echo reply. IPv6 always requires discovery;
+//! Probe ff02::1 from the browser's random link-local address and learn the
+//! service address from a correlated unicast echo reply. IPv6 requires discovery;
 //! automatic detection retains a known IPv4 fallback. Stock
 //! IPv4 firmware does not answer these probes, so its fallback remains bounded.
 
@@ -165,8 +165,12 @@ fn parse_peer_reply(
     outstanding: &[u16],
     nonce: &[u8],
 ) -> Option<Ipv6Address> {
-    if src.is_unspecified() || src.is_multicast() || src.is_unicast_link_local()
-        || src.is_loopback() || src.to_ipv4_mapped().is_some() || src == local {
+    if src.is_unspecified()
+        || src.is_multicast()
+        || src.is_loopback()
+        || src.to_ipv4_mapped().is_some()
+        || src == local
+    {
         return None;
     }
     let packet = Icmpv6Packet::new_checked(payload).ok()?;
@@ -226,7 +230,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn legacy_management_startup_does_not_consume_the_user_probe_budget() {
         let (mut iface, handle, _, _) = test_interface();
-        let local = "fd00::3".parse().unwrap();
+        let local = "fe80::3".parse().unwrap();
         let legacy = "10.123.1.2".parse().unwrap();
         let mut discovery = PeerDiscovery::new(Instant::from_millis(0), [7; 16]).with_ipv4_fallback(legacy);
         // The first authenticated user probe becomes possible only after the
@@ -248,7 +252,7 @@ mod tests {
         iface.add_ip_address("10.123.1.3/24".parse().unwrap());
         let peer = "10.123.1.2".parse().unwrap();
         let mut discovery = PeerDiscovery::new(Instant::from_millis(0), [7; 16]).with_ipv4_fallback(peer);
-        let local = "fd00::3".parse().unwrap();
+        let local = "fe80::3".parse().unwrap();
         for ms in (0..3000).step_by(500) {
             assert_eq!(discovery.poll(&mut iface, handle, local, Instant::from_millis(ms)), None);
             iface.poll();
@@ -280,10 +284,15 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn only_valid_contract_reply_selects_ipv6_over_ipv4_fallback() {
         use smoltcp::wire::{IpProtocol, Ipv6Packet, Ipv6Repr};
-        for (source, corrupt, ipv6) in [("fd00::2", false, true), ("fe80::1", false, false), ("fd00::2", true, false)] {
+        for (source, corrupt, ipv6) in [
+            ("fd00::2", false, true),
+            ("fe80::2", false, true),
+            ("fe80::2", true, false),
+            ("::1", false, false),
+        ] {
             let (mut iface, handle, rx, _) = test_interface();
-            let local = "fd00::3".parse().unwrap();
-                let source = source.parse().unwrap();
+            let local = "fe80::3".parse().unwrap();
+            let source = source.parse().unwrap();
             let legacy = "10.123.1.2".parse().unwrap();
             let nonce = [7; 16];
             let mut discovery = PeerDiscovery::new(Instant::from_millis(0), nonce).with_ipv4_fallback(legacy);
@@ -324,8 +333,8 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn reply_checksum_and_request_correlation() {
-        let local = "fd00::3".parse().unwrap();
-        let peer = "fd00::2".parse().unwrap();
+        let local = "fe80::3".parse().unwrap();
+        let peer = "fe80::2".parse().unwrap();
         let nonce = b"discovery-session";
         let repr = Icmpv6Repr::EchoReply {
             ident: DISCOVERY_IDENT,
@@ -385,7 +394,7 @@ mod tests {
         let tx = Arc::new(Mutex::new(VecDeque::new()));
         let mut iface = Interface::new(
             crate::tests::LocalDevice::new(rx.clone(), tx.clone()),
-            "fd00::3/128".parse().unwrap(),
+            "fe80::3/128".parse().unwrap(),
         );
         let buffer =
             || icmp::PacketBuffer::new(vec![icmp::PacketMetadata::EMPTY; 4], vec![0; 1024]);
@@ -399,8 +408,8 @@ mod tests {
     fn receives_reply_for_concrete_local_address_and_rejects_corruption() {
         use smoltcp::wire::{IpProtocol, Ipv6Packet, Ipv6Repr};
         let (mut iface, handle, rx, _) = test_interface();
-        let local = "fd00::3".parse().unwrap();
-        let peer = "fd00::2".parse().unwrap();
+        let local = "fe80::3".parse().unwrap();
+        let peer = "fe80::2".parse().unwrap();
         let nonce = [42; 16];
         let reply = Icmpv6Repr::EchoReply {
             ident: DISCOVERY_IDENT,
@@ -443,7 +452,7 @@ mod tests {
     fn discovery_is_bounded_and_medium_ip_transmits_multicast() {
         let (mut iface, handle, _, tx) = test_interface();
         let mut discovery = PeerDiscovery::new(Instant::from_millis(0), [7; 16]);
-        let local = "fd00::3".parse().unwrap();
+        let local = "fe80::3".parse().unwrap();
         for milliseconds in (0..10_000).step_by(100) {
             assert_eq!(
                 discovery.poll(

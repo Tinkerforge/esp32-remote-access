@@ -143,7 +143,7 @@ impl<'a> ManagementSocket<'a> {
         })
     }
 
-    /// Runtime management sessions choose a fresh random IPv6 address and
+    /// Runtime management sessions choose a fresh random link-local address and
     /// discover the charger through ICMPv6. Registered IPv4 addresses remain
     /// a fallback for legacy firmware, independently of user tunnel keys.
     pub fn new_preferred_ipv6(
@@ -182,7 +182,8 @@ impl<'a> ManagementSocket<'a> {
             self.sockets.remove(discovery.handle);
         }
         // Preserve an established random server address across key rotation so
-        // active TCP streams survive. A legacy fallback needs a new random ULA.
+        // active TCP streams survive. After IPv4 fallback, choose a new random
+        // link-local address.
         let local = match self.local_ip {
             IpAddr::V6(local) => local,
             _ => random_management_address(),
@@ -268,7 +269,7 @@ impl<'a> ManagementSocket<'a> {
         }
         self.peer_ip = peer;
         // Rekeying the same address preserves streams. A recreated charger
-        // interface has lost its old TCP state and may use a different ULA.
+        // interface has lost its old TCP state and may use a new link-local address.
         if let Some(socket) = self.get_tcp_socket() {
             if socket
                 .remote_endpoint()
@@ -848,7 +849,7 @@ mod tests {
     }
 
     // Model the charger's multicast echo handler, which always replies from
-    // the random service ULA used by management UDP and TCP.
+    // the random service link-local address used by management UDP and TCP.
     async fn answer_discovery_probe(charger: &mut ManagementSocket<'_>) {
         use smoltcp::wire::{Icmpv6Packet, Icmpv6Repr, IpProtocol, Ipv6Packet, Ipv6Repr};
         let mut network = [0; 2048];
@@ -948,8 +949,8 @@ mod tests {
         for (local, peer) in [
             ("10.123.123.3", "10.123.123.2"),
             ("10.123.123.3/24", "10.123.123.2/24"),
-            ("fd00:123:ffff::3/64", "fd00:123:ffff::2/64"),
-            ("fd00:123:ffff::3", "fd00:123:ffff::2"),
+            ("fe80::3/64", "fe80::2/64"),
+            ("fe80::3", "fe80::2"),
         ] {
             let (mut server, mut charger) = management_pair(local, peer).await;
             let registered: IpNetwork = local.parse().unwrap();
@@ -966,8 +967,8 @@ mod tests {
     async fn management_tcp_charge_log_works_with_ipv4_and_requested_ipv6_addresses() {
         for (local, peer) in [
             ("10.123.123.3", "10.123.123.2"),
-            ("fd00:123:ffff::3/64", "fd00:123:ffff::2/64"),
-            ("fd00:123:ffff::3/128", "fd00:123:ffff::2/128"),
+            ("fe80::3/64", "fe80::2/64"),
+            ("fe80::3/128", "fe80::2/128"),
         ] {
             let (mut server, mut charger) = management_pair(local, peer).await;
             server.init_tcp_socket();
@@ -1025,9 +1026,9 @@ mod tests {
             wire::{Icmpv6Packet, Icmpv6Repr},
         };
         let (mut server, mut charger) =
-            management_pair("fd00:123:ffff::3/128", "fd00:123:ffff::2/128").await;
-        let local = "fd00:123:ffff::2".parse().unwrap();
-        let peer = "fd00:123:ffff::3".parse().unwrap();
+            management_pair("fe80::3/128", "fe80::2/128").await;
+        let local = "fe80::2".parse().unwrap();
+        let peer = "fe80::3".parse().unwrap();
         let buffer =
             || icmp::PacketBuffer::new(vec![icmp::PacketMetadata::EMPTY; 4], vec![0; 1024]);
         let mut icmp = icmp::Socket::new(buffer(), buffer());
@@ -1073,7 +1074,7 @@ mod tests {
         let key = boringtun::x25519::StaticSecret::from([7; 32]);
         let peer = boringtun::x25519::PublicKey::from([8; 32]);
         let result = ManagementSocket::new(
-            "fd00:123:ffff::3/64".parse().unwrap(),
+            "fe80::3/64".parse().unwrap(),
             "10.123.123.2".parse().unwrap(),
             server.remote_addr,
             Tunn::new(key, peer, None, None, 0, None),
@@ -1087,15 +1088,15 @@ mod tests {
     #[actix_web::test]
     async fn stale_ipv4_registration_discovers_ipv6_and_flushes_queued_commands() {
         let (mut server, mut charger) = management_pair_with_registration(
-            "fd00:123:ffff::3/128",
-            "fd00:123:ffff::2/128",
+            "fe80::3/128",
+            "fe80::2/128",
             Some(("10.123.123.3", "10.123.123.2")),
         )
         .await;
         let IpAddr::V6(local) = server.local_ip else {
             panic!()
         };
-        assert_eq!(local.octets()[0], 0xfd);
+        assert_eq!(&local.octets()[..8], &[0xfe, 0x80, 0, 0, 0, 0, 0, 0]);
         assert_ne!(local, MANAGEMENT_SERVER_ADDRESS);
         assert_eq!(server.peer_ip, IpAddr::V6(ALL_NODES_ADDRESS));
         server.encrypt_and_send_slice(b"command using preferred IPv6");
@@ -1118,8 +1119,8 @@ mod tests {
     #[actix_web::test]
     async fn saved_ipv6_registration_discovers_the_current_service_addresses() {
         let (mut server, mut charger) = management_pair_with_registration(
-            "fd00:123:ffff::3/128",
-            "fd00:123:ffff::2/128",
+            "fe80::3/128",
+            "fe80::2/128",
             Some(("fd99::3/64", "fd99::2/128")),
         )
         .await;
@@ -1137,8 +1138,8 @@ mod tests {
     #[actix_web::test]
     async fn saved_ipv6_registration_is_not_used_after_discovery_times_out() {
         let (mut server, _charger) = management_pair_with_registration(
-            "fd00:123:ffff::3/128",
-            "fd00:123:ffff::2/128",
+            "fe80::3/128",
+            "fe80::2/128",
             Some(("fd99::3/64", "fd99::2/128")),
         )
         .await;
@@ -1205,8 +1206,8 @@ mod tests {
     async fn maintenance_drives_discovery_without_management_commands() {
         use std::collections::HashMap;
         let (server, mut charger) = management_pair_with_registration(
-            "fd00:123:ffff::3/128",
-            "fd00:123:ffff::2/128",
+            "fe80::3/128",
+            "fe80::2/128",
             Some(("10.123.123.3", "10.123.123.2")),
         )
         .await;
@@ -1233,8 +1234,8 @@ mod tests {
         for (local, peer, registered) in [
             ("10.123.123.3", "10.123.123.2", None),
             (
-                "fd00:123:ffff::3/128",
-                "fd00:123:ffff::2/128",
+                "fe80::3/128",
+                "fe80::2/128",
                 Some(("10.123.123.3", "10.123.123.2")),
             ),
         ] {

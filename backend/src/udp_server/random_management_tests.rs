@@ -7,22 +7,27 @@ async fn independently_random_management_addresses_carry_udp_and_tcp() {
     for _ in 0..2 {
         let device_address = random_management_address();
         let (mut server, mut charger) = management_pair_with_registration(
-            "fd00:123:ffff::3/128",
+            "fe80::3/128",
             &format!("{device_address}/128"),
             Some(("10.123.123.3/24", "10.123.123.2/24")),
         )
         .await;
         let server_address = server.local_ip;
+        assert_eq!(&device_address.octets()[..8], &[0xfe, 0x80, 0, 0, 0, 0, 0, 0]);
+        let IpAddr::V6(local) = server_address else {
+            panic!("expected IPv6 management");
+        };
+        assert_eq!(&local.octets()[..8], &[0xfe, 0x80, 0, 0, 0, 0, 0, 0]);
         assert_ne!(server_address, IpAddr::V6(device_address));
         assert_ne!(server_address, IpAddr::V6(MANAGEMENT_SERVER_ADDRESS));
         if let Some((previous_server, previous_device)) = previous {
             assert_ne!(
                 server_address, previous_server,
-                "new relay session reused its ULA"
+                "new relay session reused its link-local address"
             );
             assert_ne!(
                 device_address, previous_device,
-                "new charger session reused its ULA"
+                "new charger session reused its link-local address"
             );
         }
         previous = Some((server_address, device_address));
@@ -149,7 +154,7 @@ async fn random_management_ipv4_fallback_keeps_registered_cidr_prefixes() {
 #[actix_web::test]
 async fn authenticated_reconnect_discovers_a_changed_management_device_address() {
     let (mut server, mut charger) = management_pair_with_registration(
-        "fd00:123:ffff::3/128",
+        "fe80::3/128",
         &format!("{}/128", random_management_address()),
         Some(("10.123.123.3", "10.123.123.2")),
     )

@@ -61,7 +61,7 @@ pub struct Client(
 #[wasm_bindgen]
 impl Client {
 
-    /// IPv6 always uses a fresh random local ULA and peer discovery.
+    /// IPv6 always uses a fresh random link-local address and peer discovery.
     /// `discover_peer` defaults to false for registered IPv4 addresses. Enabling
     /// it probes IPv6, falling back to that IPv4 pair and prefix after three
     /// seconds without a reply. IPv6 callers may supply an explicit IPv4
@@ -310,7 +310,7 @@ impl WgClient {
             };
             let mut bytes = [0; 16];
             getrandom::fill(&mut bytes).unwrap();
-            bytes[0] = 0xfd;
+            bytes[..8].copy_from_slice(&[0xfe, 0x80, 0, 0, 0, 0, 0, 0]);
             let local = IpAddress::Ipv6(bytes.into());
             (smoltcp::wire::IpCidr::new(local, 128),
                 IpAddress::Ipv6(icmp_discovery::ALL_NODES_ADDRESS), fallback)
@@ -984,7 +984,7 @@ mod test {
             if discovery_required && expect_ipv6 {
                 let discovered = client.0.internal_peer_ip.borrow().unwrap();
                 let IpAddress::Ipv6(address) = discovered else { panic!("discovered IPv4 peer"); };
-                assert_eq!(address.octets()[0], 0xfd);
+                assert!(address.is_unicast_link_local());
                 assert_ne!(discovered, icmp_discovery::parse_cidr_address(peer).unwrap(),
                     "saved IPv6 peer was used instead of discovery");
                 assert_ne!(previous_peer, Some(discovered));
@@ -1040,7 +1040,10 @@ mod test {
                         if ip.next_header() == IpProtocol::Icmpv6 && ip.payload()[0] == 128 {
                             discovery_requests += 1;
                             assert!(discover);
-                            assert_eq!(ip.src_addr().octets()[0], 0xfd);
+                            assert_eq!(
+                                &ip.src_addr().octets()[..8],
+                                &[0xfe, 0x80, 0, 0, 0, 0, 0, 0]
+                            );
                             probe_source = Some(ip.src_addr());
                             assert_eq!(ip.dst_addr(), icmp_discovery::ALL_NODES_ADDRESS);
                         }

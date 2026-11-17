@@ -1263,7 +1263,7 @@ mod tests {
         let packet = Ipv6Packet::new_checked(&request).unwrap();
         let server_address = packet.src_addr();
         let charger_address = random_management_address();
-        assert_eq!(server_address.octets()[0], 0xfd);
+        assert!(server_address.is_unicast_link_local());
         assert_eq!(packet.dst_addr(), ALL_NODES_ADDRESS);
         let icmp = Icmpv6Packet::new_checked(packet.payload()).unwrap();
         let Icmpv6Repr::EchoRequest {

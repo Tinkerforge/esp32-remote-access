@@ -55,13 +55,13 @@ fn registration_advertises_ipv6_discovery_for_management_and_user_tunnels() {
     assert_eq!(schema.charger.wg_charger_ip, multicast);
     assert_eq!(schema.charger.wg_server_ip.prefix(), 128);
     assert!(
-        matches!(schema.charger.wg_server_ip, IpNetwork::V6(address) if address.ip().is_unique_local())
+        matches!(schema.charger.wg_server_ip, IpNetwork::V6(address) if address.ip().is_unicast_link_local())
     );
     for key in schema.keys {
         assert_eq!(key.charger_address, multicast);
         assert_eq!(key.web_address.prefix(), 128);
         assert!(
-            matches!(key.web_address, IpNetwork::V6(address) if address.ip().is_unique_local())
+            matches!(key.web_address, IpNetwork::V6(address) if address.ip().is_unicast_link_local())
         );
     }
 }
@@ -106,7 +106,6 @@ fn discovery_ignores_malformed_or_unrelated_packets() {
         Ipv6Addr::UNSPECIFIED,
         Ipv6Addr::LOCALHOST,
         ipv6::ALL_NODES_ADDRESS,
-        "fe80::1".parse().unwrap(),
         "::ffff:192.0.2.1".parse().unwrap(),
         local,
     ] {
@@ -190,8 +189,8 @@ async fn management_loop_answers_encrypted_discovery_after_relay_address_changes
             .maintain_management_connection(&mut shutdown_rx)
             .await
     });
-    // A restarted relay chooses a new ULA. Both probes must work on the same
-    // authenticated tunnel, without pinning the previous relay's address.
+    // A restarted relay chooses a new link-local address. Both probes must work
+    // on the same authenticated tunnel without pinning the previous address.
     for sequence in 0..2 {
         let peer = ipv6::random_address();
         let nonce = rand::random::<[u8; 16]>();

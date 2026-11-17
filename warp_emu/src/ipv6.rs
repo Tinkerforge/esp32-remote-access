@@ -7,12 +7,12 @@ const MANAGEMENT_DISCOVERY_IDENT: u16 = 0x4d47;
 
 pub fn random_address() -> Ipv6Addr {
     let mut bytes: [u8; 16] = rand::random();
-    bytes[0] = 0xfd;
+    bytes[..8].copy_from_slice(&[0xfe, 0x80, 0, 0, 0, 0, 0, 0]);
     bytes.into()
 }
 
 /// Mirror the firmware's multicast discovery filter inside the authenticated
-/// management tunnel. The reply advertises the service ULA, never ff02::1.
+/// management tunnel. The reply advertises the service link-local address.
 pub fn management_discovery_reply(bytes: &[u8], local: Ipv6Addr) -> Option<Vec<u8>> {
     let packet = Ipv6Packet::new_checked(bytes).ok()?;
     let source = packet.src_addr();
@@ -22,7 +22,6 @@ pub fn management_discovery_reply(bytes: &[u8], local: Ipv6Addr) -> Option<Vec<u
         || packet.dst_addr() != ALL_NODES_ADDRESS
         || source.is_unspecified()
         || source.is_multicast()
-        || source.is_unicast_link_local()
         || source.is_loopback()
         || source.to_ipv4_mapped().is_some()
         || source == local

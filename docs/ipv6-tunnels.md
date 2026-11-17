@@ -39,13 +39,18 @@ management address pair.
 
 For supported firmware:
 
-- IPv6 always uses random local addresses and peer discovery. Saved IPv6
-  addresses are never used as service endpoints.
+- IPv6 always uses random link-local addresses in `fe80::/64` and peer discovery.
+  Saved IPv6 addresses are never used as service endpoints.
 - IPv4 registrations enable discovery with their registered pair as fallback.
   `ff02::1` can be registered to request discovery without a service address.
 - Discovery sends ICMPv6 echo requests inside the authenticated WireGuard
-  tunnel from a random ULA to `ff02::1`. The peer must reply from its reachable
-  service address. Only a validated reply selects IPv6.
+  tunnel from a random link-local address to `ff02::1`. The peer must reply from
+  its reachable service address. Link-local replies are accepted, as are ULA
+  replies from earlier IPv6 implementations. Only a validated reply selects IPv6.
+
+Each authenticated WireGuard tunnel has its own IP stack and is a separate link,
+so inner link-local addresses need no host interface scope identifier. Local
+addresses keep a random 64-bit interface ID and are configured as `/128`.
 
 Browser discovery keeps the registered IPv4 pair and prefix as fallback. After
 three seconds without a reply, it selects IPv4; this window starts after the

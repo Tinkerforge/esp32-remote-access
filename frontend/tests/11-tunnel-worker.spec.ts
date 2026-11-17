@@ -198,12 +198,12 @@ test.describe('built worker tunnels', () => {
       if (profile.startsWith('legacy')) {
         assert.equal(discoverySource, undefined, 'Older firmware must not receive IPv6 discovery probes');
       } else {
-        assert.ok(discoverySource?.startsWith('fd'));
+        assert.ok(discoverySource?.startsWith('fe80000000000000'));
         assert.notEqual(discoverySource, previousDiscoverySource);
         assert.notEqual(discoverySource, 'fd000000000000000000000000000003', 'Saved IPv6 local address must be ignored');
       }
       if (expectIpv6) {
-        assert.ok(discoveryPeer?.startsWith('fd'));
+        assert.ok(discoveryPeer?.startsWith('fe80000000000000'));
         assert.notEqual(discoveryPeer, 'fd000000000000000000000000000002', 'Saved IPv6 peer must be ignored');
       }
       for (const [source, destination] of tcpPairs) {
