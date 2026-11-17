@@ -44,11 +44,13 @@ use actix_web::web;
 use ipnetwork::IpNetwork;
 use packet::ManagementResponseV2;
 
+type ManagementSocketsById = Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>;
+
 /// Reset BoringTun's shared rate limiters and prune expired management sessions
 /// and discovery entries.
 async fn start_rate_limiters_reset_thread(
     device_map: Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<ManagementSocket<'static>>>>>>,
-    device_map_id: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
+    device_map_id: ManagementSocketsById,
     discovery_map: Arc<Mutex<HashMap<ManagementResponseV2, Instant>>>,
     undiscovered_devices: Arc<Mutex<HashMap<IpNetwork, HashSet<DiscoveryCharger>>>>,
     state: web::Data<AppState>,
@@ -144,9 +146,7 @@ async fn start_rate_limiters_reset_thread(
 /// Drive keepalives for every session, and discovery only while selecting the
 /// inner peer address. Idle connections retain their authenticated peer instead
 /// of expiring and repeating discovery on the next device packet.
-async fn maintain_management_connections_once(
-    devices: &Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
-) {
+async fn maintain_management_connections_once(devices: &ManagementSocketsById) {
     let sockets: Vec<_> = devices.lock().await.values().cloned().collect();
     for socket in sockets {
         if let Some(mut socket) = socket.try_lock() {
@@ -155,9 +155,7 @@ async fn maintain_management_connections_once(
     }
 }
 
-async fn maintain_management_connections(
-    devices: Arc<Mutex<HashMap<uuid::Uuid, Arc<Mutex<ManagementSocket<'static>>>>>>,
-) {
+async fn maintain_management_connections(devices: ManagementSocketsById) {
     let mut interval = tokio::time::interval(Duration::from_millis(100));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
