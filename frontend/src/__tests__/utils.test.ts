@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { reloadPage } from '../navigation';
 // Mock argon2-browser early to avoid wasm loading in test environment
 vi.mock('argon2-browser', () => ({
   hash: vi.fn(async () => ({ hash: 'MOCK_HASH' })),
@@ -184,11 +185,7 @@ describe('utils', () => {
 
   describe('refresh_access_token', () => {
     beforeEach(() => {
-      // Ensure pathname exists & default
-      Object.defineProperty(window, 'location', {
-        value: { ...(window.location || {}), pathname: '/', reload: vi.fn(), href: 'http://localhost:3000' },
-        configurable: true,
-      });
+      window.history.replaceState(null, '', '/');
       // Mock navigator.locks
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (navigator as any).locks = {
@@ -197,13 +194,12 @@ describe('utils', () => {
     });
 
     it('sets state to Recovery when on /recovery path', async () => {
-      Object.assign(window.location, { pathname: '/recovery' });
+      window.history.replaceState(null, '', '/recovery');
       await utils.refresh_access_token();
       expect(utils.loggedIn.value).toBe(utils.AppState.Recovery);
     });
 
     it('logs user in on successful refresh when secrets available', async () => {
-      Object.assign(window.location, { pathname: '/' });
       // Provide loginSalt & secret
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
@@ -230,7 +226,6 @@ describe('utils', () => {
     });
 
     it('sets state to LoggedOut and clears loginSalt on refresh failure', async () => {
-      Object.assign(window.location, { pathname: '/' });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.localStorage.getItem as any).mockImplementation((key: string) => key === 'loginSalt' ? 'salty' : null);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -613,6 +608,10 @@ describe('utils', () => {
   });
 
   describe('BroadcastChannel + appReload listener', () => {
+    beforeEach(() => {
+      vi.mocked(reloadPage).mockClear();
+    });
+
     it('handles logout message by setting LoggedOut state', () => {
       utils.loggedIn.value = utils.AppState.LoggedIn;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -624,23 +623,20 @@ describe('utils', () => {
     });
 
     it('triggers reload on login message', () => {
-  const reloadSpy = vi.spyOn(window.location, 'reload').mockImplementation(() => { /* no-op */ });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handler = (utils.bc as any).onmessage;
-  if (handler) {
-    handler({ data: 'login' });
-  }
-      expect(reloadSpy).toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (utils.bc as any).onmessage;
+      if (handler) {
+        handler({ data: 'login' });
+      }
+      expect(reloadPage).toHaveBeenCalled();
     });
 
     it('reloads page on appReload event when threshold exceeded', () => {
-  const reloadSpy = vi.spyOn(window.location, 'reload').mockImplementation(() => { /* no-op */ });
       const originalNow = Date.now;
       // Make Date.now large so (now - lastAlive) >= threshold
-  // We don't know lastAlive initial value, but adding large offset suffices.
-  Date.now = () => originalNow() + 1000 * 60 * 3;
+      Date.now = () => originalNow() + 1000 * 60 * 3;
       window.dispatchEvent(new Event('appReload'));
-      expect(reloadSpy).toHaveBeenCalled();
+      expect(reloadPage).toHaveBeenCalled();
       Date.now = originalNow;
     });
   });

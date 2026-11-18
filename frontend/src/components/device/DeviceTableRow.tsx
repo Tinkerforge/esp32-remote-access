@@ -4,7 +4,7 @@ import { Badge, Button, Col, Collapse, Container, Row } from "react-bootstrap";
 import { Edit } from "react-feather";
 import { encodeUid } from "../../base58";
 import { Circle } from "../Circle";
-import { StateDevice, Grouping, ConnectVia } from "./types";
+import { StateDevice, Grouping, ConnectVia, DeviceTranslation } from "./types";
 import { formatAddedAt } from "./formatAddedAt";
 
 interface DeviceTableRowProps {
@@ -13,7 +13,7 @@ interface DeviceTableRowProps {
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;
-    formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
+    formatLastStateChange: (t: DeviceTranslation, timestamp?: number | null) => string;
     groupings: Grouping[];
 }
 

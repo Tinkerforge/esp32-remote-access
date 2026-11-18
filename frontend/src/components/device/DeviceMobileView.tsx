@@ -3,7 +3,7 @@ import { ButtonGroup, Col, Container, Dropdown, DropdownButton } from "react-boo
 import { ChevronDown, ChevronRight } from "react-feather";
 import Median from "median-js-bridge";
 import i18n from "../../i18n";
-import { StateDevice, SortColumn, Grouping, ConnectVia, UNGROUPED_GROUP_ID } from "./types";
+import { StateDevice, SortColumn, Grouping, ConnectVia, DeviceTranslation, UNGROUPED_GROUP_ID } from "./types";
 import { DeviceCard } from "./DeviceCard";
 import { DeviceToolbar } from "./DeviceToolbar";
 
@@ -17,7 +17,7 @@ interface DeviceMobileViewProps {
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;
-    formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
+    formatLastStateChange: (t: DeviceTranslation, timestamp?: number | null) => string;
     groupings: Grouping[];
     bundleByGroups?: boolean;
     expandedGroups: ReadonlySet<string>;

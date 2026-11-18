@@ -30,6 +30,7 @@ import i18n from "../i18n";
 import { showAlert } from "../components/Alert";
 import { Base64 } from "js-base64";
 import { saveRecoveryData } from "../components/RecoveryDataComponent";
+import { reloadPage } from "../navigation";
 
 interface UserState {
     id: string,
@@ -96,7 +97,7 @@ class UserComponent extends Component<Record<string, never>, State> {
         const {response, error} = await fetchClient.PUT("/user/update_user", {body: this.state.user, credentials: "same-origin"});
         const status = response.status;
         if (status === 200) {
-            window.location.reload();
+            reloadPage();
         } else if (error) {
             showAlert(i18n.t("user.update_user_failed", {status, response: error}), "danger");
         }

@@ -1,6 +1,7 @@
 import { render, fireEvent, waitFor, screen } from '@testing-library/preact';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { User } from '../User';
+import { reloadPage } from '../../navigation';
 
 vi.mock('../../components/RecoveryDataComponent', () => ({
   saveRecoveryData: vi.fn().mockResolvedValue(undefined),
@@ -180,7 +181,7 @@ describe('User Component', () => {
         });
       });
 
-      expect(window.location.reload).toHaveBeenCalled();
+      expect(reloadPage).toHaveBeenCalled();
     });
 
     it('handles update user error', async () => {

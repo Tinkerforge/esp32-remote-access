@@ -2,6 +2,11 @@ import '@testing-library/jest-dom/vitest';
 import { beforeAll, vi } from 'vitest';
 import { h, ComponentChildren } from 'preact';
 
+vi.mock('./navigation', () => ({
+  reloadPage: vi.fn(),
+  replacePage: vi.fn(),
+}));
+
 interface MockComponentProps {
   children?: ComponentChildren;
   [key: string]: unknown;
@@ -270,7 +275,7 @@ vi.mock('react-bootstrap', () => {
   return {
     Alert,
     Badge,
-    Button: ({ children, type, variant, size, disabled, onClick, ...props }: ButtonProps) => h('button', {
+    Button: ({ children, type = 'button', variant, size, disabled, onClick, ...props }: ButtonProps) => h('button', {
       ...props,
       type,
       disabled,
@@ -337,7 +342,7 @@ vi.mock('react-bootstrap/Alert', () => {
 // Direct import path mock for Button (components import from 'react-bootstrap/Button')
 vi.mock('react-bootstrap/Button', () => {
   return {
-    default: ({ children, type, disabled, onClick }: { children?: ComponentChildren; type?: string; disabled?: boolean; onClick?: () => void }) =>
+    default: ({ children, type = 'button', disabled, onClick }: { children?: ComponentChildren; type?: string; disabled?: boolean; onClick?: () => void }) =>
       h('button', { type, disabled, onClick, 'data-testid': 'submit-button' }, children),
   };
 });
@@ -655,16 +660,6 @@ beforeAll(() => {
   Object.defineProperty(window, 'localStorage', {
     value: localStorageMock,
     configurable: true,
-    writable: true,
-  });
-
-  // Mock window.location.reload
-  Object.defineProperty(window, 'location', {
-    value: {
-      reload: vi.fn(),
-      replace: vi.fn(),
-      href: 'http://localhost:3000',
-    },
     writable: true,
   });
 

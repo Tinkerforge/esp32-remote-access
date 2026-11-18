@@ -1,3 +1,5 @@
+export type DeviceTranslation = (key: string, options: { count?: number }) => string;
+
 export interface Device {
     id: string,
     uid: number,

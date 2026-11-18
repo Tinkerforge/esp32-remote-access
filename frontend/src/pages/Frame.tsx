@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { components } from '../schema';
 import { Base64 } from 'js-base64';
 import sodium from 'libsodium-wrappers';
+import { reloadPage } from '../navigation';
 
 // Extend the Window interface to include custom properties
 declare global {
@@ -82,7 +83,7 @@ class VirtualNetworkInterface {
             return;
         }
         const data = msg.data as { translation: string, format?: Record<string, unknown> };
-        showAlert(i18n.t(data.translation, data.format) as string, "danger");
+        showAlert(i18n.t(data.translation, data.format ?? {}), "danger");
         this.route("/devices");
     }
 
@@ -345,7 +346,7 @@ export function Frame() {
             iframe.addEventListener("load", (v) => {
                 const iframeSrc = (v.target as HTMLIFrameElement).contentWindow?.location.href;
                 if (iframeSrc?.includes("devices")) {
-                    location.reload();
+                    reloadPage();
                 }
             });
 

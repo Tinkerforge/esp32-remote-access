@@ -3,6 +3,7 @@ import { Base64 } from "js-base64";
 import { Button, Modal, Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import Median from "median-js-bridge";
+import { replacePage } from "../navigation";
 
 interface RecoveryDataProps {
     email: string,
@@ -54,7 +55,7 @@ export function RecoveryDataComponent(props: RecoveryDataProps) {
                 // Only allow closing if user has saved and confirmed
                 if (saved.value && confirmed.value) {
                     props.show.value = false;
-                    window.location.replace("/");
+                    replacePage("/");
                 }
             }}>
             <Modal.Header closeButton={saved.value && confirmed.value}>

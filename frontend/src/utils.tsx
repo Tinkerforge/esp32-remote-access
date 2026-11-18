@@ -8,6 +8,7 @@ import { showAlert } from "./components/Alert";
 import { Base64 } from "js-base64";
 import { Message, MessageType } from "./types";
 import Median from "median-js-bridge";
+import { reloadPage } from "./navigation";
 
 export function is_warp_app(): boolean {
     return /warpapp-(android|ios)/.test(navigator.userAgent);
@@ -277,7 +278,7 @@ window.addEventListener("appReload", () => {
     // Sometime the appSleeps value seems not beeing set. To encounter this check if the lastAlive was
     // set during the timout of the wireguard connection
     if (appSleeps || Date.now() - lastAlive >= 1000 * 60 * 2) {
-        window.location.reload();
+        reloadPage();
     }
 });
 
@@ -296,7 +297,7 @@ export const bc = new BroadcastChannel("sync");
 bc.onmessage = (event) => {
     switch (event.data) {
         case "login":
-            window.location.reload();
+            reloadPage();
             break;
         case "logout":
             resetSecret();

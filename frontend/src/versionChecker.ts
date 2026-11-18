@@ -18,6 +18,7 @@
  */
 
 import i18n from './i18n';
+import { reloadPage } from './navigation';
 
 let currentVersion: string | null = null;
 let versionCheckInterval: NodeJS.Timeout | null = null;
@@ -93,7 +94,7 @@ export function startVersionChecking(intervalMinutes: number = 10) {
 
             if (hasNewVersion) {
                 if (confirm(i18n.t('version_checker.new_version_available'))) {
-                    window.location.reload();
+                    reloadPage();
                 } else {
                     stopVersionChecking();
                 }
@@ -116,7 +117,7 @@ export async function forceCheckForUpdates(): Promise<void> {
 
     if (hasNewVersion) {
         if (confirm(i18n.t('version_checker.new_version_confirm'))) {
-            window.location.reload();
+            reloadPage();
         }
     } else {
         alert(i18n.t('version_checker.already_latest'));

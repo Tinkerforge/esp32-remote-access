@@ -189,7 +189,7 @@ describe('DeviceMobileView', () => {
     expect(body.style.borderBottom).toBe('1px solid rgb(222, 226, 230)');
     expect(body.style.borderLeft).toBe('1px solid rgb(222, 226, 230)');
     expect(body.style.borderTop).toBe('');
-    expect(body.style.borderRadius).toBe('0 0 0.375rem 0.375rem');
+    expect(body.style.borderRadius).toMatch(/^0(?:px)? 0(?:px)? 0\.375rem 0\.375rem$/);
 
     rerender(<DeviceMobileView {...defaultProps} bundleByGroups={true} />);
     expect(container.querySelector('.group-section-body')).toBeNull();

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Col, Row, Table } from "react-bootstrap";
 import { ChevronDown, ChevronRight, ChevronUp } from "react-feather";
-import { StateDevice, SortColumn, Grouping, ConnectVia, UNGROUPED_GROUP_ID } from "./types";
+import { StateDevice, SortColumn, Grouping, ConnectVia, DeviceTranslation, UNGROUPED_GROUP_ID } from "./types";
 import { DeviceTableRow } from "./DeviceTableRow";
 import { DeviceToolbar } from "./DeviceToolbar";
 
@@ -14,7 +14,7 @@ interface DeviceTableProps {
     onDelete: (device: StateDevice) => void;
     onEditNote: (device: StateDevice) => void;
     connectionPossible: (device: StateDevice) => boolean;
-    formatLastStateChange: (t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null) => string;
+    formatLastStateChange: (t: DeviceTranslation, timestamp?: number | null) => string;
     groupings: Grouping[];
     bundleByGroups?: boolean;
     expandedGroups: ReadonlySet<string>;

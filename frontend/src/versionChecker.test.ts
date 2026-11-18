@@ -1,5 +1,6 @@
 import { describe, it, beforeEach, vi, expect, afterEach } from 'vitest';
 import { forceCheckForUpdates, startVersionChecking, stopVersionChecking } from './versionChecker';
+import { reloadPage } from './navigation';
 
 // Helper to mock fetch responses sequence
 function mockFetchSequence(responses: Array<Response | Promise<Response>>) {
@@ -17,22 +18,18 @@ function jsonResponse(obj: unknown, ok = true, headers: Record<string, string> =
   });
 }
 
-function okResponse(body = '', headers: Record<string, string> = {}) {
-  return new Response(body, { status: 200, headers });
+function mockVersionFallback(headers: Record<string, string> = {}) {
+  globalThis.fetch = vi.fn(async (url) =>
+    url === '/version.json' ? jsonResponse({}, false) : new Response('', { headers }),
+  );
 }
 
 describe('versionChecker', () => {
-  const originalLocation = window.location;
   const originalConfirm = window.confirm;
   const originalAlert = window.alert;
-  const originalNow = Date.now;
 
   beforeEach(() => {
-    Object.defineProperty(window, 'location', {
-      value: { ...originalLocation, reload: vi.fn(), href: 'http://localhost/' },
-      writable: true,
-      configurable: true,
-    });
+    vi.mocked(reloadPage).mockClear();
     window.confirm = vi.fn();
     window.alert = vi.fn();
   });
@@ -40,9 +37,6 @@ describe('versionChecker', () => {
   afterEach(() => {
     window.confirm = originalConfirm;
     window.alert = originalAlert;
-    // @ts-expect-error restore
-    window.location = originalLocation;
-    Date.now = originalNow;
     vi.restoreAllMocks();
     stopVersionChecking();
   });
@@ -64,7 +58,7 @@ describe('versionChecker', () => {
     await forceCheckForUpdates();
 
     expect(window.confirm).toHaveBeenCalled();
-    expect(window.location.reload).toHaveBeenCalled();
+    expect(reloadPage).toHaveBeenCalled();
   });
 
   it('forceCheckForUpdates shows already_latest when no update', async () => {
@@ -97,17 +91,12 @@ describe('versionChecker', () => {
     // If stopVersionChecking() was called inside, subsequent checks won't occur. We can’t easily assert internal interval
     // state, but at least ensure confirm was called once and no reload was triggered.
     expect(window.confirm).toHaveBeenCalledTimes(1);
-    expect(window.location.reload).not.toHaveBeenCalled();
+    expect(reloadPage).not.toHaveBeenCalled();
   });
 
   it('falls back to index last-modified header when /version.json is not ok', async () => {
     const lastModified = 'Mon, 01 Jan 2024 00:00:00 GMT';
-    mockFetchSequence([
-      jsonResponse({}, false),
-      okResponse('', { 'last-modified': lastModified }),
-      jsonResponse({}, false),
-      okResponse('', { 'last-modified': lastModified }),
-    ]);
+    mockVersionFallback({ 'last-modified': lastModified });
 
     startVersionChecking(60);
     await Promise.resolve();
@@ -115,19 +104,12 @@ describe('versionChecker', () => {
     await forceCheckForUpdates();
 
     expect(window.alert).toHaveBeenCalled(); // already latest based on last-modified
-    expect(window.location.reload).not.toHaveBeenCalled();
+    expect(reloadPage).not.toHaveBeenCalled();
   });
 
   it('falls back to Date.now() when last-modified header is missing', async () => {
-    Date.now = vi.fn(() => 1234567890);
-    mockFetchSequence([
-      // init path -> /version.json fails, index ok without header
-      jsonResponse({}, false),
-      okResponse(''),
-      // force check path -> same again
-      jsonResponse({}, false),
-      okResponse(''),
-    ]);
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1234567890);
+    mockVersionFallback();
 
     startVersionChecking(60);
     await Promise.resolve();
@@ -135,9 +117,8 @@ describe('versionChecker', () => {
     await forceCheckForUpdates();
 
     expect(window.alert).toHaveBeenCalled();
-    expect(window.location.reload).not.toHaveBeenCalled();
-  // ensure Date.now was used (may be called multiple times across init + check)
-  expect(Date.now).toHaveBeenCalled();
+    expect(reloadPage).not.toHaveBeenCalled();
+    expect(now).toHaveBeenCalled();
   });
 
   it('handles fetch errors gracefully and treats as no update', async () => {
@@ -205,7 +186,7 @@ describe('versionChecker', () => {
 
     await new Promise((r) => setTimeout(r, 100));
 
-    expect(window.location.reload).toHaveBeenCalled();
+    expect(reloadPage).toHaveBeenCalled();
   });
 
   it('stopVersionChecking clears active interval and is idempotent', async () => {

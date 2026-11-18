@@ -7,6 +7,7 @@ export default defineConfig({
     plugins: [preact() as any],
     test: {
         environment: "jsdom",
+        pool: "vmThreads",
         setupFiles: ["./src/test-setup.ts"],
         globals: true,
         include: ["src/**/*.{test,spec}.{js,ts,jsx,tsx}"],

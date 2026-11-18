@@ -8,7 +8,7 @@ import { fetchClient, get_decrypted_secret, pub_key, secret } from "../utils";
 import { Button, Container, Spinner } from "react-bootstrap";
 import i18n from "../i18n";
 import { useLocation } from "preact-iso";
-import { Device, StateDevice, SortColumn, DeviceListState, Grouping, ConnectVia, UNGROUPED_GROUP_ID } from "../components/device/types";
+import { Device, StateDevice, SortColumn, DeviceListState, Grouping, ConnectVia, DeviceTranslation, UNGROUPED_GROUP_ID } from "../components/device/types";
 import { DeviceTable } from "../components/device/DeviceTable";
 import { DeviceMobileView } from "../components/device/DeviceMobileView";
 import { DeleteDeviceModal } from "../components/device/DeleteDeviceModal";
@@ -491,7 +491,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         this.setState({ filteredDevices: filtered });
     }
 
-    formatLastStateChange(t: (key: string, options?: Record<string, unknown>) => string, timestamp?: number | null): string {
+    formatLastStateChange(t: DeviceTranslation, timestamp?: number | null): string {
         if (!timestamp) {
             return "-";
         }
@@ -504,7 +504,7 @@ export class DeviceList extends Component<Record<string, never>, DeviceListState
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
         if (diffMinutes < 1) {
-            return t("time_just_now");
+            return t("time_just_now", {});
         } else if (diffMinutes < 60) {
             return t("time_minutes_ago", { count: diffMinutes });
         } else if (diffHours < 24) {
