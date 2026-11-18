@@ -30,7 +30,7 @@ WORKDIR /home/builder/wg-webclient
 RUN wasm-pack build
 
 # Frontend build stage
-FROM node:24 AS frontend-build
+FROM node:26-bookworm AS frontend-build
 
 ARG BRAND
 ENV BRAND=${BRAND}
