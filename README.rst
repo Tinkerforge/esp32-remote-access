@@ -187,7 +187,7 @@ Prerequisites
 ~~~~~~~~~~~~~
 
 - Rust 1.100 or newer, including the ``wasm32-unknown-unknown`` target.
-- Node.js 24 (used by CI and the Docker frontend builds) and npm.
+- Node.js 26 (used by frontend CI and the Docker frontend builds) and npm.
 - ``wasm-pack`` and a C compiler; the container WASM builds install Clang.
 - PostgreSQL, or Docker with the Compose v2 plugin to run the supplied database.
 - Native build dependencies for Rust's PostgreSQL/OpenSSL dependencies. On

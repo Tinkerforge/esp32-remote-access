@@ -1,2 +1,2 @@
-FROM node:24
+FROM node:26-bookworm
 ENV BRAND=${BRAND}

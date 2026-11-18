@@ -5,11 +5,13 @@ on:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
       - '.github/workflows/frontend-tests.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - '.nvmrc'
       - '.github/workflows/frontend-tests.yml'
 
 permissions:
@@ -21,12 +23,12 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
-        node-version: '26'
+        node-version-file: '.nvmrc'
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 

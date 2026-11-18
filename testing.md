@@ -120,9 +120,8 @@ on database-wide state and can interfere with concurrent account-flow tests.
 
 ## Frontend unit tests
 
-Use Node.js 24.15.0 or newer, matching CI. With nvm, run `nvm install` and
-`nvm use` from the repository root; `.nvmrc` selects Node 24. Older runtimes
-(including Node 22.14) crash while loading jsdom/Undici before tests can run.
+Use Node.js 26, matching CI. With nvm, run `nvm install` and `nvm use` from the
+repository root to select the version in `.nvmrc`.
 
 Build the local `wg-webclient/pkg` dependency before the initial `npm ci`:
 
@@ -144,7 +143,7 @@ static imports and does not initialize the `web` target's WASM module explicitly
 need the running backend, Mailisk or a device. Use `npm run test:unit` for watch
 mode. Unit-test aliases select WARP branding.
 
-[Frontend CI](.github/workflows/frontend-tests.yml) uses Node 24, stable Rust and
+[Frontend CI](.github/workflows/frontend-tests.yml) uses Node 26, stable Rust and
 wasm-pack, and runs lint, type checking and unit tests. Its initial `npm ci`
 precedes the WASM build; if a clean checkout cannot resolve the local package,
 build WASM first as shown here.
