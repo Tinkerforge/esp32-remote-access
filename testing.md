@@ -44,6 +44,48 @@ the shared schema.
 [Backend CI](.github/workflows/backend-tests.yml) runs migrations, debug backend
 tests, the release state-endpoint test, database tests, formatting and Clippy.
 
+### Release upgrade smoke test
+
+Run from the repository root with Docker Compose v2, Rust, curl, OpenSSL and
+the repository's release tags available:
+
+```sh
+scripts/smoke-release-upgrade.sh
+```
+
+The script starts the latest stable WARP release in the current commit's
+history, registers an emulated IPv4 device through its API, and exchanges
+WireGuard traffic through the authenticated relay WebSocket. It replaces the
+relay with a production image built from the checkout, lets it migrate the same
+PostgreSQL database, and repeats the exchange using the original device
+credentials and saved tunnel keys. It cleans up the disposable database and
+containers after the run.
+
+Pass a stable tag such as `v1.3.16` to choose the baseline explicitly. Set
+`CURRENT_SMOKE_IMAGE` to reuse a locally built production image. The
+[release upgrade workflow](.github/workflows/release-upgrade-smoke.yml) runs
+the same script in CI.
+
+To use a physical device, set `TEST_WALLBOX_DOMAIN`, `TEST_WALLBOX_UID`,
+`TEST_DOMAIN`, and `NEED_CUSTOM_CERT` in `frontend/.env.local` and run:
+
+```sh
+SMOKE_TLS_CERT=/path/to/fullchain.pem SMOKE_TLS_KEY=/path/to/privkey.pem \
+  scripts/smoke-release-upgrade.sh --hardware
+```
+
+Install the frontend dependencies and Playwright Chromium first. Use a
+dedicated test device with an empty remote-access account list. The device
+must reach the Docker host at the HTTPS hostname from `TEST_DOMAIN`, the TCP
+port from `TEST_PORT` or `TEST_DOMAIN` (default 443), and UDP port 51820.
+Supply a certificate chain matching the hostname and trusted by the device.
+`NEED_CUSTOM_CERT=true` selects the custom CA in slot 0, as in the browser
+tests. The required host ports must be free before the run.
+
+Hardware mode uses a temporary relay account and reads the device's UID through
+the browser tunnel before and after the upgrade. Cleanup removes the temporary
+account from the device and restores its relay settings.
+
 ### Device-list notification coverage
 
 When adding a mutation, check both the database fields returned by

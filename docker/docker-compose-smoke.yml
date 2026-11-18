@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: smoke
+      POSTGRES_USER: smoke
+      POSTGRES_PASSWORD: smoke
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "smoke", "-d", "smoke"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - database:/var/lib/postgresql/data
+
+  relay:
+    image: ${SMOKE_RELAY_IMAGE:?}
+    ports:
+      - "${SMOKE_BIND_IP:-127.0.0.1}:${SMOKE_TCP_PORT:-}:443"
+      - "${SMOKE_BIND_IP:-127.0.0.1}:${SMOKE_UDP_PORT:-}:51820/udp"
+    volumes:
+      - ${SMOKE_CERT_DIR:?}:/certs:ro
+    environment:
+      DATABASE_URL: postgres://smoke:smoke@postgres:5432/smoke
+      JWT_SECRET: ${SMOKE_JWT_SECRET:?}
+      EMAIL_USER: smoke@example.test
+      EMAIL_PASS: smoke
+      EMAIL_RELAY: localhost
+      EMAIL_RELAY_PORT: "465"
+      FRONTEND_URL: https://127.0.0.1
+      SERVER_NAME: Release upgrade smoke test
+      MONITORING_EMAIL: smoke@example.test
+      SENDER_EMAIL: smoke@example.test
+      SENDER_NAME: Release upgrade smoke test
+      BRAND: warp
+      FORWARD_HOST: 0.0.0.0
+      TLS_CERT_PATH: /certs/cert.pem
+      TLS_KEY_PATH: /certs/key.pem
+
+volumes:
+  database:

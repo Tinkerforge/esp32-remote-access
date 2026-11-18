@@ -1,0 +1,48 @@
+name: Release Upgrade Smoke Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'db_connector/**'
+      - 'docker/production/Dockerfile'
+      - 'docker/docker-compose-smoke.yml'
+      - 'tun/**'
+      - 'scripts/smoke-release-upgrade.sh'
+      - '.github/workflows/release-upgrade-smoke.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'db_connector/**'
+      - 'docker/production/Dockerfile'
+      - 'docker/docker-compose-smoke.yml'
+      - 'tun/**'
+      - 'scripts/smoke-release-upgrade.sh'
+      - '.github/workflows/release-upgrade-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout release history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache smoke client dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tun
+
+      - name: Test device reachability across the upgrade
+        run: scripts/smoke-release-upgrade.sh

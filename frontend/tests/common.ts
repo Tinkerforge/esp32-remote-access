@@ -49,13 +49,13 @@ export function ensureMailiskConfigured() {
 
 export const needCustomCert = process.env.NEED_CUSTOM_CERT === "true";
 
-export async function configureChargerRelay(page: Page) {
+export async function configureChargerRelay(page: Page, settings = chargerRelaySettings) {
   await page.goto(`${testWallboxDomain}/#status`);
   await page.getByRole('button', { name: 'System', exact: true }).click();
   await page.getByRole('button', { name: 'Remote Access', exact: true }).click();
   await page.getByRole('button', { name: 'Show', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Relay server hostname or IP' }).fill(testDomainForCharger);
-  await page.getByRole('spinbutton', { name: 'Relay server port', exact: true }).fill(testPortForCharger);
+  await page.getByRole('textbox', { name: 'Relay server hostname or IP' }).fill(settings.host);
+  await page.getByRole('spinbutton', { name: 'Relay server port', exact: true }).fill(settings.port);
   await page.getByLabel('TLS certificate', { exact: true }).selectOption(needCustomCert ? '0' : '-1');
 
   const [response] = await Promise.all([
@@ -80,6 +80,24 @@ export async function login(page: Page, email: string, password: string) {
   ]);
   expect(response.status()).toBe(200);
   await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible();
+}
+
+export async function registerAccount(page: Page, email: string, name: string, password: string) {
+  await page.goto(testDomain);
+  await page.getByRole('tab', { name: 'Register' }).click();
+  await page.getByRole('textbox', { name: 'Email-address' }).fill(email);
+  await page.getByPlaceholder('John Doe').fill(name);
+  await page.getByRole('textbox', { name: 'Password', exact: true }).fill(password);
+  await page.getByRole('textbox', { name: 'Confirm password' }).fill(password);
+  await page.getByText('I have read, understood and I am accepting the privacy notice.').click();
+  await page.getByText('I have read, understood and I am accepting the terms and conditions.').click();
+  const [response] = await Promise.all([
+    page.waitForResponse((resp) =>
+      new URL(resp.url()).pathname === '/api/auth/register' && resp.request().method() === 'POST'
+    ),
+    page.getByRole('button', { name: 'Register', exact: true }).click(),
+  ]);
+  expect(response.status()).toBe(201);
 }
 
 export async function verifyEmail(page: Page, email: string, sentAfter: number) {
