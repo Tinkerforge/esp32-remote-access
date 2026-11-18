@@ -257,12 +257,16 @@ mod tests {
         for (version, device_type, expected) in [
             ("2.13.6", Some("Tinkerforge-WARP3_Charger/2.13.6"), false),
             (
-                "2.13.7+1234abcd",
-                Some("Tinkerforge-WARP3_Charger/2.13.7+1234abcd"),
+                "2.13.6+6afda49d",
+                Some("Tinkerforge-WARP3_Charger/2.13.6+6afda49d"),
                 true,
             ),
             ("2.14.0", Some("Tinkerforge-WARP3_Charger/2.14.0"), true),
-            ("2.13.6", Some("Tinkerforge-WARP3_Charger/2.13.6"), false),
+            (
+                "2.13.6+6afda49c",
+                Some("Tinkerforge-WARP3_Charger/2.13.6+6afda49c"),
+                false,
+            ),
             ("invalid", Some("Tinkerforge-WARP3_Charger/invalid"), false),
             ("2.14.0", None, false),
         ] {

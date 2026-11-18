@@ -174,11 +174,12 @@ probes from a random service link-local address. Its outer WireGuard UDP
 transport uses IPv4. It maintains management tunnels for load testing; it does
 not serve the device's HTTP interface or handle management commands.
 
-Management and browser tunnels only attempt IPv6 on these firmware versions
-or newer (one patch above the latest releases as of 2026-11-16): WARP 2.13.6,
-WARP2/3/4 and ELTAKO 2.13.7, WARP Energy Manager 2.9.7, and WARP Energy
-Manager 2.0 / Smart Energy Broker 1.8.7. Older firmware and unknown device
-models or versions use IPv4 directly, without an IPv6 discovery delay.
+Management and browser tunnels attempt IPv6 on builds of the current release
+with a build timestamp after 2026-11-18 13:14:04 UTC. The baseline releases are
+WARP 2.13.5, WARP2/3/4 and ELTAKO 2.13.6, WARP Energy Manager 2.9.6, and
+WARP Energy Manager 2.0 / Smart Energy Broker 1.8.6. Subsequent stable
+releases also qualify. Devices that fail the firmware check use IPv4 directly,
+without an IPv6 discovery delay.
 
 Local development
 -----------------

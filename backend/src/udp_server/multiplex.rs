@@ -757,9 +757,9 @@ mod tests {
             psk: BASE64_STANDARD.encode(psk),
             wg_server_ip: "10.0.0.1/24".parse().unwrap(),
             webinterface_port: 80,
-            firmware_version: "2.13.7+1234abcd".to_string(),
+            firmware_version: "2.13.6+6afda49d".to_string(),
             last_state_change: None,
-            device_type: Some("Tinkerforge-WARP3_Charger/2.13.7+1234abcd".to_string()),
+            device_type: Some("Tinkerforge-WARP3_Charger/2.13.6+6afda49d".to_string()),
             mtu: None,
             last_charge_log_upload_hash: vec![],
         };
@@ -1179,6 +1179,10 @@ mod tests {
 
         for (version, device_type) in [
             ("2.13.6", Some("Tinkerforge-WARP3_Charger/2.13.6")),
+            (
+                "2.13.6+6afda49c",
+                Some("Tinkerforge-WARP3_Charger/2.13.6+6afda49c"),
+            ),
             (
                 "2.13.7-beta.1",
                 Some("Tinkerforge-WARP3_Charger/2.13.7-beta.1"),
