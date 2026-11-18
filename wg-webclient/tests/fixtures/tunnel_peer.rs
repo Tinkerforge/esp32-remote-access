@@ -13,7 +13,8 @@ use boringtun::{
     noise::{Tunn, TunnResult},
     x25519,
 };
-use rand_core::{OsRng, TryRngCore};
+use getrandom::SysRng;
+use rand_core::TryRng;
 use smoltcp::{
     iface::{Config, Interface, SocketHandle, SocketSet},
     phy::{self, ChecksumCapabilities, DeviceCapabilities, Medium},
@@ -147,7 +148,7 @@ fn serve(stream: TcpStream) -> Result<()> {
     let ipv6 = profile != "/v4";
     let local: IpAddress = if ipv6 {
         let mut address = [0; 16];
-        OsRng.try_fill_bytes(&mut address)?;
+        SysRng.try_fill_bytes(&mut address)?;
         address[..8].copy_from_slice(&[0xfe, 0x80, 0, 0, 0, 0, 0, 0]);
         std::net::Ipv6Addr::from(address).into()
     } else {
@@ -159,7 +160,7 @@ fn serve(stream: TcpStream) -> Result<()> {
     let started = Instant::now();
     let mut device = Device::default();
     let mut config = Config::new(HardwareAddress::Ip);
-    config.random_seed = OsRng.try_next_u64()?;
+    config.random_seed = SysRng.try_next_u64()?;
     let mut iface = Interface::new(config, &mut device, NetworkInstant::from_millis(0));
     // There is one authenticated peer, so every destination is on-link.
     iface.update_ip_addrs(|addresses| addresses.push(IpCidr::new(local, 0)).unwrap());

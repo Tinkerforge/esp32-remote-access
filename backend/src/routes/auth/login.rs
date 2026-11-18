@@ -19,7 +19,7 @@
 
 use actix_web::{cookie::Cookie, post, web, HttpRequest, HttpResponse, Responder};
 use actix_web_validator::Json;
-use argon2::password_hash::PasswordHashString;
+use argon2::password_hash::phc::PasswordHash;
 use chrono::{Days, TimeDelta, Utc};
 use db_connector::models::{refresh_tokens::RefreshToken, users::User};
 use diesel::{result::Error::NotFound, ExpressionMethods, QueryDsl, SelectableHelper};
@@ -100,7 +100,7 @@ pub async fn validate_password(
         return Err(Error::NotVerified.into());
     }
 
-    let password_hash = match PasswordHashString::new(&user.login_key) {
+    let password_hash = match PasswordHash::new(&user.login_key) {
         Ok(hash) => hash,
         Err(_err) => return Err(Error::InternalError.into()),
     };

@@ -19,7 +19,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 # The `rt` feature enables `spawn_blocking`; nothing else is needed because
 # the migration work is fully synchronous inside the blocking thread.
 tokio = { version = "1.54.1", features = ["rt"] }
-uuid = { version = "1.29.0", features = ["v4"] }
+uuid = { version = "1.29.2", features = ["v4"] }
 
 [dev-dependencies]
 tokio = { version = "1.54.1", features = ["macros", "rt", "rt-multi-thread"] }

@@ -4,20 +4,21 @@ version = "0.1.0"
 edition = "2024"
 
 [build-dependencies]
-cc = "1.10.0"
+cc = "1.11.1"
 
 [dependencies]
 anyhow = "1.0.104"
-argon2 = "0.5.3"
-base64 = "0.22.1"
-boringtun = { git = "https://github.com/Tinkerforge/boringtun.git", rev = "784f8739adb99fc82799b9e704d5801ccf938afb", default-features = false }
+argon2 = "0.6.0"
+base64 = "0.23.1"
+boringtun = { git = "https://github.com/Tinkerforge/boringtun.git", rev = "9ad180755a5281041dd6035a4db06b777f69f975", default-features = false }
 clap = { version = "4.6.7", features = ["derive", "env"] }
 dotenvy = { version = "0.15.7"}
 futures-util = "0.3.34"
+getrandom = "0.4.3"
 ipnetwork = { version = "0.21.1", features = ["serde"] }
 libc = "0.2.191"
 libsodium-sys-stable = { version = "1.24.5", features = ["optimized", "minimal"] }
-log = "0.4.34"
+log = "0.4.35"
 reqwest = { version = "0.13.5", features = ["cookies"] }
 reqwest-websocket = "0.6.0"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -25,4 +26,4 @@ serde_json = "1.0.154"
 simplelog = "0.12.2"
 tabled = "0.22.0"
 tokio = { version = "1.54.1", features = ["full"] }
-uuid = "1.29.0"
+uuid = "1.29.2"

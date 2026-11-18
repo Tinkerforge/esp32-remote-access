@@ -20,25 +20,25 @@
 use std::sync::Arc;
 
 use argon2::{
-    password_hash::{PasswordHashString, SaltString},
+    password_hash::phc::{PasswordHash, Salt},
     Argon2, PasswordHasher, PasswordVerifier,
 };
 
 struct HashRequest {
     password: Vec<u8>,
-    salt: SaltString,
-    responder: tokio::sync::oneshot::Sender<argon2::password_hash::Result<PasswordHashString>>,
+    salt: Salt,
+    responder: tokio::sync::oneshot::Sender<argon2::password_hash::Result<PasswordHash>>,
 }
 
 struct VerifyRequest {
-    hash: PasswordHashString,
+    hash: PasswordHash,
     password: Vec<u8>,
     responder: tokio::sync::oneshot::Sender<argon2::password_hash::Result<()>>,
 }
 
 enum Request {
     Hash(HashRequest),
-    Verify(VerifyRequest),
+    Verify(Box<VerifyRequest>),
 }
 
 pub struct HasherManager {
@@ -71,22 +71,17 @@ impl HasherManager {
                             if hash_request.responder.is_closed() {
                                 return;
                             }
-                            let result = match hasher
-                                .hash_password(&hash_request.password, &hash_request.salt)
-                            {
-                                Ok(hash) => {
-                                    let string = hash.serialize();
-                                    Ok(string)
-                                }
-                                Err(e) => Err(e),
-                            };
+                            let result = hasher.hash_password_with_salt(
+                                &hash_request.password,
+                                hash_request.salt.as_ref(),
+                            );
                             let _ = hash_request.responder.send(result);
                         }
                         Request::Verify(verify_request) => {
                             if verify_request.responder.is_closed() {
                                 return;
                             }
-                            let hash = verify_request.hash.password_hash();
+                            let hash = verify_request.hash;
                             let result = hasher.verify_password(&verify_request.password, &hash);
                             let _ = verify_request.responder.send(result);
                         }
@@ -103,8 +98,8 @@ impl HasherManager {
     pub async fn hash_password(
         &self,
         password: Vec<u8>,
-        salt: SaltString,
-    ) -> argon2::password_hash::Result<PasswordHashString> {
+        salt: Salt,
+    ) -> argon2::password_hash::Result<PasswordHash> {
         let (responder_tx, responder_rx) = tokio::sync::oneshot::channel();
         let request = Request::Hash(HashRequest {
             password,
@@ -122,15 +117,15 @@ impl HasherManager {
 
     pub async fn verify_password(
         &self,
-        hash: PasswordHashString,
+        hash: PasswordHash,
         password: Vec<u8>,
     ) -> argon2::password_hash::Result<()> {
         let (responder_tx, responder_rx) = tokio::sync::oneshot::channel();
-        let request = Request::Verify(VerifyRequest {
+        let request = Request::Verify(Box::new(VerifyRequest {
             hash,
             password,
             responder: responder_tx,
-        });
+        }));
         self.tx
             .send(request)
             .await
@@ -149,9 +144,28 @@ mod tests {
         let (responder, _receiver) = tokio::sync::oneshot::channel();
         Request::Hash(HashRequest {
             password: b"password".to_vec(),
-            salt: SaltString::encode_b64(b"test salt").unwrap(),
+            salt: Salt::new(b"test salt").unwrap(),
             responder,
         })
+    }
+
+    #[actix_web::test]
+    async fn verifies_legacy_argon2_hashes() {
+        // Argon2 0.5.3's PHC test vector. Existing stored hashes must still
+        // verify using their original parameters after the 0.6 upgrade.
+        let hash = PasswordHash::new(
+            "$argon2id$v=19$m=256,t=2,p=1$c29tZXNhbHQ$nf65EOgLrQMR/uIPnA4rEsF5h7TKyQwu9U1bMCHGi/4",
+        )
+        .unwrap();
+        let hasher = HasherManager::default();
+        hasher
+            .verify_password(hash.clone(), b"password".to_vec())
+            .await
+            .unwrap();
+        assert!(hasher
+            .verify_password(hash, b"wrong".to_vec())
+            .await
+            .is_err());
     }
 
     #[actix_web::test]
@@ -180,10 +194,7 @@ mod tests {
         drop(occupied);
         let hash = tokio::time::timeout(
             std::time::Duration::from_secs(10),
-            hasher.hash_password(
-                b"password".to_vec(),
-                SaltString::encode_b64(b"test salt").unwrap(),
-            ),
+            hasher.hash_password(b"password".to_vec(), Salt::new(b"test salt").unwrap()),
         )
         .await
         .unwrap()

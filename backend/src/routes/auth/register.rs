@@ -19,7 +19,7 @@
 
 use actix_web::{post, web, HttpResponse, Responder};
 use actix_web_validator::Json;
-use argon2::password_hash::{rand_core::OsRng, SaltString};
+use argon2::password_hash::phc::Salt;
 use askama::Template;
 use chrono::Days;
 use db_connector::models::{users::User, verification::Verification};
@@ -75,7 +75,7 @@ pub async fn hash_key(
     key: Vec<u8>,
     hasher: &crate::hasher::HasherManager,
 ) -> Result<String, String> {
-    let salt = SaltString::generate(&mut OsRng);
+    let salt = Salt::generate();
     let hashed_password = match hasher.hash_password(key, salt).await {
         Ok(hash) => hash.to_string(),
         Err(err) => return Err(err.to_string()),

@@ -18,14 +18,15 @@
  */
 
 use actix_web::{put, web, HttpResponse, Responder};
-use argon2::password_hash::PasswordHashString;
+use argon2::password_hash::phc::PasswordHash;
 use base64::prelude::*;
 use db_connector::models::{allowed_users::AllowedUser, chargers::Charger, wg_keys::WgKey};
 use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl as _;
 use ipnetwork::IpNetwork;
+use rand::rngs::SysRng;
 use rand::{distr::Alphanumeric, RngExt};
-use rand_core::{OsRng, TryRngCore};
+use rand_core::TryRng;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
@@ -296,7 +297,7 @@ pub async fn password_matches(
     password_in_db: &str,
     hasher: &crate::hasher::HasherManager,
 ) -> actix_web::Result<bool> {
-    let password_hash = match PasswordHashString::new(password_in_db) {
+    let password_hash = match PasswordHash::new(password_in_db) {
         Ok(p) => p,
         Err(_err) => return Err(Error::InternalError.into()),
     };
@@ -350,7 +351,7 @@ async fn update_charger(
 
     let pub_key = {
         let mut private_key = [0u8; 32];
-        if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
+        if let Err(error) = SysRng.try_fill_bytes(&mut private_key) {
             log::error!("Failed to generate new private key: {error}");
             return Err(Error::InternalError.into());
         }
@@ -423,7 +424,7 @@ pub async fn add_charger(
 
     let ret: (String, String) = {
         let mut private_key = [0u8; 32];
-        if let Err(error) = OsRng.try_fill_bytes(&mut private_key) {
+        if let Err(error) = SysRng.try_fill_bytes(&mut private_key) {
             log::error!("Failed to generate new private key: {error}");
             return Err(Error::InternalError.into());
         }
@@ -526,7 +527,7 @@ pub(crate) mod tests {
     use db_connector::test_connection_pool;
     use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
     use ipnetwork::Ipv4Network;
-    use rand_core::OsRng;
+    use rand::rngs::SysRng;
 
     use crate::{
         middleware::jwt::JwtMiddleware,
@@ -546,7 +547,7 @@ pub(crate) mod tests {
         let mut keys: [MaybeUninit<Keys>; 5] = unsafe { MaybeUninit::uninit().assume_init() };
         for (i, key) in keys.iter_mut().enumerate() {
             let mut private_key = [0u8; 32];
-            OsRng.try_fill_bytes(&mut private_key).unwrap();
+            SysRng.try_fill_bytes(&mut private_key).unwrap();
 
             let secret = x25519::StaticSecret::from(private_key);
             let public = x25519::PublicKey::from(&secret);
@@ -908,7 +909,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_key_validator_valid_key() {
         let mut private_key = [0u8; 32];
-        OsRng.try_fill_bytes(&mut private_key).unwrap();
+        SysRng.try_fill_bytes(&mut private_key).unwrap();
 
         let key = x25519::StaticSecret::from(private_key);
         let key = BASE64_STANDARD.encode(key);
@@ -918,7 +919,7 @@ pub(crate) mod tests {
     #[actix_web::test]
     async fn test_key_validator_invalid_key() {
         let mut private_key = [0u8; 32];
-        OsRng.try_fill_bytes(&mut private_key).unwrap();
+        SysRng.try_fill_bytes(&mut private_key).unwrap();
         let key = x25519::StaticSecret::from(private_key);
         let key = BASE64_STANDARD.encode(key);
         assert!(validate_wg_key(&key[0..key.len() - 2]).is_err());

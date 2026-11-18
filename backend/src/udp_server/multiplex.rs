@@ -33,7 +33,8 @@ use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl as _;
 use futures_util::lock::Mutex;
 use ipnetwork::{IpNetwork, Ipv4Network};
-use rand_core::{OsRng, TryRngCore};
+use rand::rngs::SysRng;
+use rand_core::TryRng;
 
 use crate::{
     firmware::supports_ipv6_tunnel,
@@ -266,7 +267,7 @@ fn match_tunnel(
             peer_static_public,
             Some(psk),
             Some(15),
-            OsRng.try_next_u32()?,
+            SysRng.try_next_u32()?,
             Some(rate_limiter.clone()),
         );
 

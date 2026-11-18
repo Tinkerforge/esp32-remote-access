@@ -129,7 +129,7 @@ pub async fn get_user(
 #[cfg(test)]
 pub mod tests {
     use actix_web::{http::header::ContentType, test, App};
-    use argon2::{password_hash::SaltString, Argon2, Params, PasswordHasher};
+    use argon2::{Argon2, CustomizedPasswordHasher, Params};
     use db_connector::{models::users::User, test_connection_pool};
     use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
     use diesel_async::RunQueryDsl as _AsyncRunQueryDsl;
@@ -137,9 +137,9 @@ pub mod tests {
         crypto_box_SECRETKEYBYTES, crypto_secretbox_KEYBYTES, crypto_secretbox_MACBYTES,
         crypto_secretbox_NONCEBYTES, crypto_secretbox_easy,
     };
+    use rand::rngs::SysRng;
     use rand::RngExt;
-    use rand_core::OsRng;
-    use rand_core::TryRngCore;
+    use rand_core::TryRng;
 
     use crate::{
         models::response_auth_token::ResponseAuthorizationToken,
@@ -196,9 +196,8 @@ pub mod tests {
         let len = len.unwrap_or(24);
         let params = Params::new(19 * 1024, 2, 1, Some(len)).unwrap();
         let argon2 = Argon2::default();
-        let salt = SaltString::encode_b64(salt).unwrap();
         let hash = argon2
-            .hash_password_customized(password, None, None, params, &salt)
+            .hash_password_with_params(password, salt, params)
             .unwrap();
 
         hash.hash.unwrap().as_bytes().to_owned()
@@ -212,13 +211,13 @@ pub mod tests {
     /// Generate a random, non-negative charger UID suitable for use with
     /// `TestUser::add_charger` and friends.
     ///
-    /// A plain `OsRng.try_next_u32().unwrap() as i32` can produce negative
+    /// A plain `SysRng.try_next_u32().unwrap() as i32` can produce negative
     /// values when the high bit is set; that breaks downstream encoders
     /// (notably the Flickr-base58 form) and the integration tests that
     /// round-trip through `decode_charger_uid`. Mask off the sign bit so
     /// the result is always in `[0, i32::MAX]`.
     pub fn random_positive_charger_id() -> i32 {
-        (OsRng.try_next_u32().unwrap() & 0x7FFF_FFFF) as i32
+        (SysRng.try_next_u32().unwrap() & 0x7FFF_FFFF) as i32
     }
 
     impl TestUser {

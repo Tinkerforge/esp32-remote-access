@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use argon2::password_hash::rand_core::{OsRng, RngCore};
 use base64::Engine;
 use ipnetwork::IpNetwork;
 use reqwest::cookie::Jar;
@@ -281,7 +280,7 @@ impl Client {
             boringtun::x25519::PublicKey::from(charger_pub),
             Some(psk),
             None,
-            OsRng.next_u32(),
+            getrandom::u32()?,
             Some(rate_limiter),
         );
 

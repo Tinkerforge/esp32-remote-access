@@ -17,7 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use rand_core::{OsRng, TryRngCore};
+use getrandom::SysRng;
+use rand_core::TryRng;
 use smoltcp::{
     iface::{Config, SocketHandle, SocketSet},
     phy,
@@ -44,7 +45,7 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
     pub fn new(device: Device, ip: IpCidr) -> Self {
         let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         let mut rng = [0u8; 8];
-        OsRng.try_fill_bytes(&mut rng).unwrap();
+        SysRng.try_fill_bytes(&mut rng).unwrap();
 
         config.random_seed = u64::from_ne_bytes(rng);
 
