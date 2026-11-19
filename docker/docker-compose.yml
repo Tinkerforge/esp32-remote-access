@@ -15,6 +15,7 @@ services:
       - ./certs:/certs:ro
       - ./logs:/logs/backend
     environment:
+      - TZ=Europe/Berlin
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - EMAIL_USER=${EMAIL_USER}

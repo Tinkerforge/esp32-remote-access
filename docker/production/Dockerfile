@@ -47,7 +47,9 @@ RUN npm ci && npm run build
 
 # Final stage
 FROM debian:13 as runner
-RUN apt update && apt install -y libpq-dev libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y libpq-dev libssl-dev ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=Europe/Berlin
 
 RUN useradd --create-home --shell /sbin/nologin appuser
 

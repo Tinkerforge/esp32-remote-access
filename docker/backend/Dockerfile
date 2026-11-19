@@ -1,6 +1,7 @@
 FROM debian:12
-RUN apt update && apt install -y curl libpq-dev libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y curl libpq-dev libssl-dev ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 
+ENV TZ=Europe/Berlin
 ENV DATABASE_URL=${DATABASE_URL}
 ENV JWT_SECRET=${JWT_SECRET}
 ENV EMAIL_USER=${EMAIL_USER}
