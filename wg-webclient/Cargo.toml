@@ -37,7 +37,7 @@ tungstenite = "0.30.0"
 
 # Instant::now from smoltcp, enabled by the std-feature must not be used since it will crash in wasm32
 smoltcp = { version = "0.14.0", default-features = false, features = ["proto-ipv4", "proto-ipv6", "medium-ip", "socket-tcp", "socket-icmp", "std"] }
-web-sys = { version = "0.3.107", features = ["WebSocket", "Window", "FileReader", "Document", "Element", "HtmlElement", "Performance", "MessageEvent", "CustomEventInit", "CustomEvent", "Headers", "ResponseInit", "Response", "WorkerGlobalScope", "Request", "AddEventListenerOptions", "Crypto"] }
+web-sys = { version = "0.3.107", features = ["WebSocket", "Window", "FileReader", "Document", "Element", "HtmlElement", "Performance", "MessageEvent", "Headers", "ResponseInit", "Response", "WorkerGlobalScope", "Request", "Crypto"] }
 
 
 pcap-file = "2.0.0"
@@ -60,8 +60,8 @@ wasm-bindgen-test = "0.3.80"
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
 lto = true
-strip = true
 
-# workaround for https://github.com/rustwasm/wasm-pack/issues/1501
+# Preserve target_features for wasm-bindgen. wasm-pack runs wasm-opt afterward.
+# Feature flags work around https://github.com/rustwasm/wasm-pack/issues/1501.
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+wasm-opt = ["-Os", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
