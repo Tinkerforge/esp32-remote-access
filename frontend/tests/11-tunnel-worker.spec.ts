@@ -122,13 +122,15 @@ test.describe('built worker tunnels', () => {
     test(`${index + 1}: ${profile} -> ${target} over ${host}`, async ({ page }) => {
       autoPeer = target;
       const expectIpv6 = target.startsWith('v6');
+      const exerciseQueuedFetches = index === 0;
       await page.goto(`http://${host}:${port}/`);
-      const pcap = await page.evaluate(({ workerFile, profile, secret, expectIpv6 }) => new Promise<number[]>((resolve, reject) => {
+      const pcap = await page.evaluate(({ workerFile, profile, secret, expectIpv6, exerciseQueuedFetches }) => new Promise<number[]>((resolve, reject) => {
         const worker = new Worker(`/assets/${workerFile}`, { type: 'module' });
+        const expectedResponses = exerciseQueuedFetches ? ['status', 'queued', 'digest'] : ['status'];
         const timer = setTimeout(() => finish(new Error(
-          `Worker tunnel timed out (${profile}; started=${started}, ready=${ready}, http=${http}, ws=${ws})`
+          `Worker tunnel timed out (${profile}; started=${started}, ready=${ready}, pending=${expectedResponses}, ws=${ws})`
         )), 12000);
-        let started = false, ready = false, http = false, ws = false, downloading = false;
+        let started = false, ready = false, ws = false, downloading = false;
         function finish(error: Error | null, capture?: number[]) {
           clearTimeout(timer); worker.postMessage('close'); worker.terminate();
           if (error) reject(error); else if (capture) resolve(capture);
@@ -144,20 +146,32 @@ test.describe('built worker tunnels', () => {
             worker.postMessage({ type: 2, id: 'status', data: {
               method: 'GET', headers: [], url: `${location.origin}/status`,
             } });
+            if (exerciseQueuedFetches) {
+              worker.postMessage({ type: 2, id: 'queued', data: {
+                method: 'GET', headers: [], url: `${location.origin}/status`,
+              } });
+              worker.postMessage({ type: 2, id: 'digest', data: {
+                method: 'POST', headers: [], url: `${location.origin.replace('://', '://test:password@')}/digest`,
+                body: new TextEncoder().encode('retry body'),
+              } });
+            }
           }
           if (data.type === 5 || data.unresolved) finish(new Error(JSON.stringify(data)));
           if (data.type === 3) {
-            const expected = expectIpv6 ? 'peer-v6' : 'peer-v4';
-            if (data.data.status !== 200 || new TextDecoder().decode(data.data.body) !== expected) {
-              finish(new Error('Unexpected HTTP response')); return;
+            const id = expectedResponses.shift();
+            if (data.id !== id) {
+              finish(new Error(`Expected HTTP response ${id}, received ${data.id}`)); return;
             }
-            http = true;
+            const expected = id === 'digest' ? 'authenticated' : expectIpv6 ? 'peer-v6' : 'peer-v4';
+            if (data.data.status !== 200 || new TextDecoder().decode(data.data.body) !== expected) {
+              finish(new Error(`Unexpected HTTP response for ${id}`)); return;
+            }
           }
           if (data.type === 0 && data.data === 'peer-ws') ws = true;
-          if (http && ws && !downloading) { downloading = true; worker.postMessage('download'); }
+          if (!expectedResponses.length && ws && !downloading) { downloading = true; worker.postMessage('download'); }
           if (data.type === 1) finish(null, Array.from(data.data as Uint8Array));
         };
-      }), { workerFile, profile, secret, expectIpv6 });
+      }), { workerFile, profile, secret, expectIpv6, exerciseQueuedFetches });
       const bytes = Buffer.from(pcap);
       let interfaces = 0, packets = 0, discoverySource: string | undefined, discoveryPeer: string | undefined;
       const tcpPairs: Array<[string, string]> = [];

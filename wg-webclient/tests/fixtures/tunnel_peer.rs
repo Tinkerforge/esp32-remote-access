@@ -246,6 +246,30 @@ fn serve(stream: TcpStream) -> Result<()> {
                     let mut response = format!("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {}\r\n\r\n", derive_accept_key(key.as_bytes())).into_bytes();
                     response.extend_from_slice(b"\x81\x07peer-ws");
                     response
+                } else if request.starts_with("POST /digest ") {
+                    let (headers, body) = request.split_once("\r\n\r\n").unwrap();
+                    if body.len() < "retry body".len() {
+                        continue;
+                    }
+                    if body != "retry body" {
+                        return Err("unexpected Digest request body".into());
+                    }
+                    let authorization = headers.lines().find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("Authorization").then_some(value.trim())
+                    });
+                    let expected_prefix =
+                        "Digest username=\"test\",realm=\"peer\",nonce=\"challenge\",uri=\"/digest\",";
+                    match authorization {
+                        None => concat!(
+                            "HTTP/1.1 401 Unauthorized\r\n",
+                            "WWW-Authenticate: Digest realm=\"peer\", nonce=\"challenge\", opaque=\"peer\", qop=\"auth\"\r\n",
+                            "Content-Length: 0\r\nConnection: close\r\n\r\n",
+                        ).as_bytes().to_vec(),
+                        Some(value) if value.starts_with(expected_prefix) =>
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 13\r\nConnection: close\r\n\r\nauthenticated".to_vec(),
+                        Some(_) => return Err("unexpected Digest authorization".into()),
+                    }
                 } else {
                     let body = if ipv6 { "peer-v6" } else { "peer-v4" };
                     format!(

@@ -81,7 +81,7 @@ impl<'a, Device: phy::Device + Clone + IsUp> TcpStream<'a, Device> {
     }
 
     #[inline]
-    fn may_recv(&self) -> bool {
+    pub(crate) fn may_recv(&self) -> bool {
         let iface = self.iface.borrow_mut();
         let socket = iface.get_socket(self.handle);
         socket.may_recv()
@@ -94,13 +94,15 @@ impl<'a, Device: phy::Device + Clone + IsUp> TcpStream<'a, Device> {
         socket.can_send()
     }
 
-    // for testing
-    #[allow(dead_code)]
     #[inline]
-    fn may_send(&self) -> bool {
+    pub(crate) fn may_send(&self) -> bool {
         let iface = self.iface.borrow_mut();
         let socket = iface.get_socket(self.handle);
         socket.may_send()
+    }
+
+    pub(crate) fn send_slice(&self, buf: &[u8]) -> Result<usize, tcp::SendError> {
+        self.iface.borrow_mut().send_slice(self.handle, buf)
     }
 
     // for testing
@@ -137,11 +139,7 @@ impl<Device: phy::Device + Clone + IsUp> Write for TcpStream<'_, Device> {
     #[inline]
     fn flush(&mut self) -> std::io::Result<()> {
         let mut buf = self.buf.borrow_mut();
-        match self
-            .iface
-            .borrow_mut()
-            .send_slice(self.handle, &buf[..])
-        {
+        match self.send_slice(&buf) {
             Ok(sent) => {
                 if sent != buf.len() {
                     //FIXME: Implement a buffer in the interface struct to handle bigger payloads.

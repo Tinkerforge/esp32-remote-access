@@ -19,10 +19,12 @@
 
 use std::{
     cell::RefCell,
-    io::{Read, Write},
+    io::{self, Read},
     rc::Rc,
     task::Poll,
 };
+
+use futures::task::AtomicWaker;
 
 use crate::{stream::TcpStream, wg_device::WgTunDevice};
 
@@ -30,17 +32,24 @@ use crate::{stream::TcpStream, wg_device::WgTunDevice};
    A wrapper around a reference counted TcpStream struct that implements the hyper::rt::Read and
    hyper::rt::Write traits to be able to reuse one TcpStream when passing the ownership of this to hyper.
 */
-pub struct HyperStream {
+pub struct HyperStream<'a> {
     stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
+    network_waker: &'a AtomicWaker,
 }
 
-impl HyperStream {
-    pub fn new(stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>) -> Self {
-        Self { stream }
+impl<'a> HyperStream<'a> {
+    pub fn new(
+        stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
+        network_waker: &'a AtomicWaker,
+    ) -> Self {
+        Self {
+            stream,
+            network_waker,
+        }
     }
 }
 
-impl hyper::rt::Read for HyperStream {
+impl hyper::rt::Read for HyperStream<'_> {
     fn poll_read(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -49,56 +58,42 @@ impl hyper::rt::Read for HyperStream {
         let mut stream = self.stream.borrow_mut();
         stream.poll();
         if !stream.can_recv() {
-            cx.waker().wake_by_ref();
+            if !stream.may_recv() {
+                return Poll::Ready(Ok(()));
+            }
+            self.network_waker.register(cx.waker());
             return Poll::Pending;
         }
-        let write_buf = unsafe { buf.as_mut() };
-        let buf_len = write_buf.len();
-        let buf_ptr = write_buf.as_mut_ptr() as *mut u8;
-        let mut write_buf = vec![0u8; buf_len];
-        let len = match stream.read(&mut write_buf) {
-            Ok(len) => len,
-            Err(e) => panic!("failed to read data: {:?}", e),
-        };
-        unsafe {
-            std::ptr::copy_nonoverlapping(write_buf.as_ptr(), buf_ptr, len);
-            buf.advance(len);
-        }
+        let mut data = vec![0; buf.remaining()];
+        let len = stream.read(&mut data)?;
+        buf.put_slice(&data[..len]);
         Poll::Ready(Ok(()))
     }
 }
 
-impl hyper::rt::Write for HyperStream {
+impl hyper::rt::Write for HyperStream<'_> {
     fn poll_write(
         self: std::pin::Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
+        cx: &mut std::task::Context<'_>,
         buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        let mut stream = self.stream.borrow_mut();
-        match stream.write(buf) {
-            Ok(len) => Poll::Ready(Ok(len)),
-            Err(_) => Poll::Ready(Err(std::io::Error::other(
-                "failed to write data",
-            ))),
+    ) -> Poll<io::Result<usize>> {
+        let stream = self.stream.borrow();
+        if !stream.can_send() {
+            if !stream.may_send() {
+                return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()));
+            }
+            self.network_waker.register(cx.waker());
+            return Poll::Pending;
         }
+        Poll::Ready(stream.send_slice(buf).map_err(io::Error::other))
     }
 
     fn poll_flush(
         self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        let mut stream = self.stream.borrow_mut();
-        stream.poll();
-        if !stream.can_send() {
-            cx.waker().wake_by_ref();
-            return Poll::Pending;
-        }
-        match stream.flush() {
-            Ok(_) => Poll::Ready(Ok(())),
-            Err(err) => Poll::Ready(Err(std::io::Error::other(
-                format!("failed to flush data: {:?}", err),
-            ))),
-        }
+        _: &mut std::task::Context<'_>,
+    ) -> Poll<io::Result<()>> {
+        // poll_write queues bytes directly in the TCP socket.
+        Poll::Ready(Ok(()))
     }
 
     fn poll_shutdown(

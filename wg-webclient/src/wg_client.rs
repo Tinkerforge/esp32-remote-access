@@ -17,46 +17,63 @@
  * Boston, MA 02111-1307, USA.
  */
 
-use std::{cell::RefCell, collections::{HashMap, VecDeque}, io::Read, pin::Pin, rc::{Rc, Weak}, task::Poll};
+use std::{
+    cell::RefCell,
+    io::Read,
+    pin::pin,
+    rc::{Rc, Weak},
+    task::Poll,
+};
 
 use crate::{
-    hyper_stream::HyperStream, icmp_discovery::{self, PeerDiscovery},
-    interface::Interface, interval_handle::IntervalHandle,
-    stream::TcpStream, websocket::Websocket, wg_device::WgTunDevice,
+    hyper_stream::HyperStream,
+    icmp_discovery::{self, PeerDiscovery},
+    interface::Interface,
+    interval_handle::IntervalHandle,
+    stream::TcpStream,
+    websocket::Websocket,
+    wg_device::WgTunDevice,
 };
 use base64::Engine;
 use boringtun::x25519;
-use flate2::read::GzDecoder;
-use futures::{Future, FutureExt};
+use flate2::read::{GzDecoder, ZlibDecoder};
+use futures::{
+    channel::oneshot,
+    future::{poll_fn, select, Either, Shared},
+    task::AtomicWaker,
+    FutureExt,
+};
 use gloo_file::{File, ObjectUrl};
-use http_body_util::BodyExt;
-use hyper::{body::Bytes, client::conn::http1::{Connection, SendRequest}};
+use http_body_util::{BodyExt, Full};
+use hyper::body::Bytes;
 use js_sys::Promise;
 use pcap_file::pcapng::PcapNgWriter;
-use smoltcp::wire::IpAddress;
+use smoltcp::wire::{IpAddress, IpEndpoint};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{CustomEvent, MessageEvent, Response};
+use web_sys::{MessageEvent, Response};
 
-type EventClosure = Closure<dyn FnMut(CustomEvent)>;
-type EventQueue = Rc<RefCell<PendingFetches>>;
-
-#[derive(Default)]
-struct PendingFetches {
-    disconnected: bool,
-    callbacks: HashMap<String, (EventClosure, js_sys::Function)>,
+struct HttpRequests {
+    tail: RefCell<Option<oneshot::Receiver<()>>>,
+    disconnect: RefCell<Option<oneshot::Sender<()>>>,
+    disconnected: Shared<oneshot::Receiver<()>>,
+    waker: AtomicWaker,
 }
-type HyperResp = hyper::Response<hyper::body::Incoming>;
-type RequestFuture = Pin<Box<dyn Future<Output = hyper::Result<HyperResp>>>>;
-type ConnPin = Pin<Box<Connection<HyperStream, Box<Body>>>>;
-type RespPin = Pin<Box<HyperResp>>;
 
-/// The exported client and its pending HTTP response callbacks.
+impl HttpRequests {
+    fn new() -> Self {
+        let (disconnect, disconnected) = oneshot::channel();
+        Self {
+            tail: RefCell::new(None),
+            disconnect: RefCell::new(Some(disconnect)),
+            disconnected: disconnected.shared(),
+            waker: AtomicWaker::new(),
+        }
+    }
+}
+
 #[wasm_bindgen]
-pub struct Client(
-    WgClient,
-    EventQueue,
-);
+pub struct Client(WgClient);
 
 #[wasm_bindgen]
 impl Client {
@@ -84,69 +101,52 @@ impl Client {
         fallback_peer: Option<String>,
     ) -> Self {
         console_log::init_with_level(log::Level::Debug).ok();
-        Self(
-            WgClient::new(secret_str, peer_str, psk, url, internal_ip, internal_peer_ip, port, mtu, disconnect_cb, connect_cb, discover_peer.unwrap_or(false), fallback_local.as_deref(), fallback_peer.as_deref()),
-            Rc::new(RefCell::new(PendingFetches::default())),
-        )
+        Self(WgClient::new(
+            secret_str,
+            peer_str,
+            psk,
+            url,
+            internal_ip,
+            internal_peer_ip,
+            port,
+            mtu,
+            disconnect_cb,
+            connect_cb,
+            discover_peer.unwrap_or(false),
+            fallback_local.as_deref(),
+            fallback_peer.as_deref(),
+        ))
     }
 
-
-    /// Creates a new Promise that resolves when the event with the provided id is fired.
-    fn create_await_promise(queue: EventQueue, req_id: String) -> Promise {
-        Promise::new(&mut move |resolve, reject| {
-            let queue_cpy = Rc::downgrade(&queue);
-            let completed_id = req_id.clone();
-            let closure = Closure::<dyn FnMut(_)>::new(move |event: CustomEvent| {
-                let response = event.detail();
-                if let Some(queue) = queue_cpy.upgrade() {
-                    queue.borrow_mut().callbacks.remove(&completed_id);
-                }
-                resolve.call1(&JsValue::NULL, &response).unwrap();
-            });
-
-            // add event listener should not fail
-            let global = js_sys::global();
-            let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
-            let options = web_sys::AddEventListenerOptions::new();
-            options.set_once(true);
-            global
-                .add_event_listener_with_callback_and_add_event_listener_options(
-                    req_id.as_str(),
-                    closure.as_ref().unchecked_ref(),
-                    &options,
-                )
-                .unwrap();
-            queue.borrow_mut().callbacks.insert(req_id.clone(), (closure, reject));
-        })
-    }
-
-
-    /// Makes a http request to the provided url and return a Promise that resolves to a JS Response object.
-    /// Internally it calls the fetch function of the wrapped WgClient object and
-    /// registers an EventListener for the event returned by it.
+    /// Sends an HTTP request through the tunnel and resolves to a JS Response.
     #[wasm_bindgen(unchecked_return_type = "Promise<Response>")]
-    pub fn fetch(&self, request: web_sys::Request, url: String, username: Option<String>, password: Option<String>) -> Promise {
+    pub fn fetch(
+        &self,
+        request: web_sys::Request,
+        url: String,
+        username: Option<String>,
+        password: Option<String>,
+    ) -> Promise {
         // An exported async &self method holds a wasm-bindgen borrow until its
-        // promise settles. Own the request state instead, so reconnect can free
-        // the exported client while HTTP requests are still waiting.
+        // promise settles. Own the client state so reconnect can free the
+        // exported object while HTTP requests are still waiting.
         let client = self.0.clone();
-        let pending = self.1.clone();
         wasm_bindgen_futures::future_to_promise(async move {
-            if pending.borrow().disconnected {
-                return Err(js_sys::Error::new("Tunnel disconnected").into());
-            }
-            let id = client.fetch(request.clone()?, url.clone(), None, username.clone(), password.clone());
-            let result = JsFuture::from(Self::create_await_promise(pending.clone(), id)).await?;
-            let mut response = Response::from(result);
-
-            if response.status() == 401 {
-                if pending.borrow().disconnected {
-                    return Err(js_sys::Error::new("Tunnel disconnected").into());
-                }
-                let id = client.fetch(request, url, None, username, password);
-                let result = JsFuture::from(Self::create_await_promise(pending, id)).await?;
-                response = Response::from(result);
-            }
+            let response = client
+                .fetch(
+                    request.clone()?,
+                    &url,
+                    username.as_deref(),
+                    password.as_deref(),
+                )
+                .await?;
+            let response = if response.status() == 401 {
+                client
+                    .fetch(request, &url, username.as_deref(), password.as_deref())
+                    .await?
+            } else {
+                response
+            };
             Ok(response.into())
         })
     }
@@ -177,22 +177,13 @@ impl Client {
     /// freeing this client. Unlike disconnect_inner_ws, this ends the session.
     #[wasm_bindgen]
     pub fn disconnect(&self) {
-        let callbacks = {
-            let mut pending = self.1.borrow_mut();
-            pending.disconnected = true;
-            std::mem::take(&mut pending.callbacks)
-        };
+        // Closing the shared signal cancels the active request and every queued request.
+        self.0.http.disconnect.borrow_mut().take();
+        self.0.http.waker.take();
         self.0.clone().disconnect_inner_ws();
         self.0._polling_interval.cancel();
-        self.0.current_request.borrow_mut().take();
-        self.0.request_queue.borrow_mut().clear();
+        self.0.stream.borrow_mut().close();
         self.0.iface.borrow().device().disconnect();
-        let global = web_sys::WorkerGlobalScope::from(JsValue::from(js_sys::global()));
-        let error = js_sys::Error::new("Tunnel disconnected");
-        for (id, (callback, reject)) in callbacks {
-            global.remove_event_listener_with_callback(&id, callback.as_ref().unchecked_ref()).ok();
-            reject.call1(&JsValue::NULL, &error).ok();
-        }
     }
 
     // leaks memory, for debugging only!!!
@@ -216,8 +207,7 @@ struct WgClient {
     stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
     iface: Rc<RefCell<Interface<'static, WgTunDevice>>>,
     websocket: Rc<RefCell<Option<Websocket<WgTunDevice>>>>,
-    current_request: Rc<RefCell<Option<IntervalHandle<MessageEvent>>>>,
-    request_queue: Rc<RefCell<VecDeque<Request>>>,
+    http: Rc<HttpRequests>,
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
     /// Registered peer, or the result of explicitly enabled contract discovery.
     internal_peer_ip: Rc<RefCell<Option<IpAddress>>>,
@@ -230,17 +220,6 @@ struct WgClient {
     opaque: Rc<RefCell<String>>,
     nc: Rc<RefCell<i64>>,
     port: u16,
-}
-
-enum RequestState {
-    Begin,
-    Started,
-    Connected,
-    HandshakeDone,
-    SendingRequest,
-    RequestSent,
-    StreamingBody,
-    Done,
 }
 
 impl WgClient {
@@ -345,11 +324,17 @@ impl WgClient {
 
         let stream = Rc::new(RefCell::new(stream));
 
+        let http = Rc::new(HttpRequests::new());
+        let http_weak = Rc::downgrade(&http);
         let peer_weak = Rc::downgrade(&internal_peer_ip);
         let discovery_weak = discovery.as_ref().map(Rc::downgrade);
         let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
             let Some(iface) = iface_cpy.upgrade() else { return; };
             iface.borrow_mut().poll();
+            // Resume HTTP once the network stack has had a chance to make progress.
+            if let Some(http) = http_weak.upgrade() {
+                http.waker.wake();
+            }
             let (Some(handle), Some(discovery), Some(peer)) = (
                 icmp_handle, discovery_weak.as_ref().and_then(Weak::upgrade), peer_weak.upgrade(),
             ) else { return; };
@@ -372,8 +357,7 @@ impl WgClient {
             stream,
             iface,
             websocket: Rc::new(RefCell::new(None)),
-            current_request: Rc::new(RefCell::new(None)),
-            request_queue: Rc::new(RefCell::new(VecDeque::new())),
+            http,
             pcap,
             internal_peer_ip,
             discovery,
@@ -453,146 +437,214 @@ impl WgClient {
         result
     }
 
-    /**
-     The function that actually does the http requests.
-     Since we must not block the thread while waiting for the response because it would also block
-     the underlaying network stack it starts a task with setTimeout that polls the so far received
-     response, fires a custom event when finished and either returns or proceeds with the next
-     request.
-    */
-    fn fetch(&self, js_request: web_sys::Request, url: String, in_id: Option<f64>, username: Option<String>, password: Option<String>) -> String {
-        let id;
-        if let Some(in_id) = in_id {
-            id = in_id;
-        } else {
-            id = js_sys::Math::random();
-        }
-        if self.current_request.borrow_mut().is_some() {
-            let mut request_queue = self.request_queue.borrow_mut();
-            request_queue.push_back(Request {
-                id,
-                js_request,
-                url,
-                username,
-                password,
-            });
-            return format!("get_{}", id);
+    async fn fetch(
+        &self,
+        request: web_sys::Request,
+        url: &str,
+        username: Option<&str>,
+        password: Option<&str>,
+    ) -> Result<Response, JsValue> {
+        if self.http.disconnect.borrow().is_none() {
+            return Err(js_sys::Error::new("Tunnel disconnected").into());
         }
 
-        if let Some(username) = username {
-            *self.username.borrow_mut() = urlencoding::decode(&username).unwrap().into_owned();
+        // Each request waits for its predecessor to finish before using the shared TCP socket.
+        // Dropping the sender also releases the next request on errors.
+        let (_finished, next) = oneshot::channel();
+        let previous = self.http.tail.replace(Some(next));
+        let request = async {
+            if let Some(previous) = previous {
+                let _ = previous.await;
+            }
+            self.send_http_request(request, url, username, password)
+                .await
+        };
+        match select(self.http.disconnected.clone(), pin!(request)).await {
+            Either::Left(_) => Err(js_sys::Error::new("Tunnel disconnected").into()),
+            Either::Right((response, _)) => response,
         }
-        if let Some(password) = password {
-            *self.password.borrow_mut() = urlencoding::decode(&password).unwrap().into_owned();
-        }
-
-        let req = self.build_request_closure(url, js_request, id);
-        let interval = IntervalHandle::new(req, 0);
-        *self.current_request.borrow_mut() = Some(interval);
-
-        format!("get_{}", id)
     }
 
-    /// Builds the closure that gets called by the interval built in the fetch function
-    fn build_request_closure(&self, url: String, js_request: web_sys::Request, id: f64) -> Closure<dyn FnMut(MessageEvent)> {
-        let state = Rc::new(RefCell::new(RequestState::Begin));
-        let stream = Rc::downgrade(&self.stream);
+    async fn send_http_request(
+        &self,
+        request: web_sys::Request,
+        url: &str,
+        username: Option<&str>,
+        password: Option<&str>,
+    ) -> Result<Response, JsValue> {
+        if let Some(username) = username {
+            *self.username.borrow_mut() = urlencoding::decode(username)
+                .map_err(JsError::from)?
+                .into_owned();
+        }
+        if let Some(password) = password {
+            *self.password.borrow_mut() = urlencoding::decode(password)
+                .map_err(JsError::from)?
+                .into_owned();
+        }
 
-        let sender = Rc::new(RefCell::new(None));
-        let conn = Rc::new(RefCell::new(None));
-        let request = Rc::new(RefCell::new(None));
-        let resp = Rc::new(RefCell::new(None));
-
-        let result = Rc::new(RefCell::new(vec![0u8; 0]));
-
-        let url = Rc::new(url);
-        let js_request = Rc::new(js_request);
-
-        let request_queue = Rc::downgrade(&self.request_queue);
-        let current_request = Rc::downgrade(&self.current_request);
-        let self_cpy = self.clone();
-        // We cannot move the `RefCell` into the closure directly because it is
-        // not `Sync`, so we keep a `Weak` reference and re-borrow inside the
-        // closure. This way, the most up-to-date discovered address is used
-        // for every reconnect attempt.
-        let internal_peer_ip = Rc::downgrade(&self.internal_peer_ip);
-
-        let port = self.port;
-        Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
-            if !stream.upgrade().unwrap().borrow().is_up() {
-                return;
+        let request = self.build_http_request(request, url).await?;
+        let peer = poll_fn(|cx| {
+            let stream = self.stream.borrow();
+            if stream.is_up() && !stream.is_open() {
+                if let Some(peer) = *self.internal_peer_ip.borrow() {
+                    return Poll::Ready(peer);
+                }
             }
-            let mut state_ref = state.borrow_mut();
-            let self_cpy = self_cpy.clone();
+            self.http.waker.register(cx.waker());
+            Poll::Pending
+        })
+        .await;
 
-            match *state_ref {
-                RequestState::Begin => {
-                    let out_port = js_sys::Math::random() * 1000.0;
-                    let out_port = out_port as u16;
-                    // The discovered address may not be available yet for the
-                    // IPv6 path; skip the connect attempt until then.
-                    let Some(internal_peer_ip) = internal_peer_ip
-                        .upgrade()
-                        .and_then(|rc| rc.borrow().clone())
-                    else {
-                        log::debug!(
-                            "Skipping connect: peer address not yet discovered via ICMPv6"
-                        );
-                        return;
-                    };
-                    let endpoint = smoltcp::wire::IpEndpoint::new(internal_peer_ip, port);
+        let local_port = 49152 + (js_sys::Math::random() * 16384.0) as u16;
+        self.stream
+            .borrow_mut()
+            .connect(IpEndpoint::new(peer, self.port), local_port)
+            .map_err(|err| js_sys::Error::new(&format!("TCP connect failed: {err}")))?;
 
-                    // FIXME: throw exception instead of panic
-                    if let Err(err) = stream.upgrade().unwrap().borrow_mut().connect(endpoint, out_port) {
-                        log::error!("Error connecting to endpoint {}: {}", endpoint, err);
-                        return;
-                    }
-                    *state_ref = RequestState::Started;
-                }
-                RequestState::Started => {
-                    let stream = stream.upgrade().unwrap();
-                    let stream = stream.borrow_mut();
-                    if stream.can_send() {
-                        *state_ref = RequestState::Connected;
-                    }
-                }
-                RequestState::Connected => {
-                    let is_none = sender.borrow_mut().is_none();
+        let response = self.exchange_http(request).await;
+        {
+            let mut stream = self.stream.borrow_mut();
+            stream.close();
+            stream.poll();
+        }
+        self.http.waker.take();
+        let (parts, body) = response?;
+        self.build_http_response(parts, body)
+    }
 
-                    if is_none {
-                        setup_connection(Rc::downgrade(&sender), Rc::downgrade(&conn), Rc::downgrade(&state), stream.clone());
-                    }
-                }
-                RequestState::HandshakeDone => {
-                    send_http_reqeust(js_request.clone(), url.clone(), Rc::downgrade(&sender), Rc::downgrade(&request), Rc::downgrade(&state), self_cpy);
-                    *state_ref = RequestState::SendingRequest;
-                }
-                RequestState::SendingRequest => (),
-                RequestState::RequestSent => {
-                    poll_request(request.clone(), resp.clone(), state_ref, conn.clone());
-                }
-                RequestState::StreamingBody => {
-                    poll_response(resp.clone(), result.clone(), state_ref, self_cpy, id, conn.clone());
-                }
-                _ => {
-                    let stream = stream.upgrade().unwrap();
-                    let mut stream = stream.borrow_mut();
-                    stream.close();
-                    stream.poll();
-                    if stream.is_open() {
-                        return;
-                    }
-                    *current_request.upgrade().unwrap().borrow_mut() = None;
-                    let request_queue = request_queue.upgrade().unwrap();
-                    let mut request_queue = request_queue.borrow_mut();
-                    if let Some(next) = request_queue.pop_front() {
-                        wasm_bindgen_futures::spawn_local(async move {
-                            self_cpy.fetch(next.js_request, next.url, Some(next.id), next.username, next.password);
-                        })
-                    }
-                }
+    async fn exchange_http(
+        &self,
+        request: http::Request<Full<Bytes>>,
+    ) -> Result<(http::response::Parts, Bytes), JsValue> {
+        poll_fn(|cx| {
+            let stream = self.stream.borrow();
+            if stream.can_send() {
+                Poll::Ready(Ok(()))
+            } else if !stream.is_open() {
+                Poll::Ready(Err(js_sys::Error::new(
+                    "TCP connection closed before the request was sent",
+                )))
+            } else {
+                self.http.waker.register(cx.waker());
+                Poll::Pending
             }
         })
+        .await?;
+
+        let stream = HyperStream::new(self.stream.clone(), &self.http.waker);
+        let (mut sender, connection) = hyper::client::conn::http1::handshake(stream)
+            .await
+            .map_err(JsError::from)?;
+        let response = async move {
+            let (parts, body) = sender.send_request(request).await?.into_parts();
+            Ok::<_, hyper::Error>((parts, body.collect().await?.to_bytes()))
+        };
+
+        // Hyper's connection must run while the response headers and body are read.
+        // Keep both futures here so disconnect can drop the entire exchange.
+        match select(pin!(response), pin!(connection)).await {
+            Either::Left((response, _)) => response.map_err(|err| JsError::from(err).into()),
+            Either::Right((connection, response)) => {
+                connection.map_err(JsError::from)?;
+                Ok(response.await.map_err(JsError::from)?)
+            }
+        }
+    }
+
+    async fn build_http_request(
+        &self,
+        request: web_sys::Request,
+        url: &str,
+    ) -> Result<http::Request<Full<Bytes>>, JsValue> {
+        let body = JsFuture::from(request.array_buffer()?).await?;
+        let method = request.method();
+        let mut builder = http::Request::builder().method(method.as_str());
+        let headers = request.headers();
+        for key in js_sys::Object::keys(&headers).iter() {
+            if let Some(key) = key.as_string() {
+                if let Some(value) = headers.get(&key)? {
+                    builder = builder.header(key, value);
+                }
+            }
+        }
+        if !self.nonce.borrow().is_empty() {
+            builder = builder.header(
+                "Authorization",
+                self.build_authentication_header(&method, url),
+            );
+        }
+
+        let body = Full::new(Bytes::from(js_sys::Uint8Array::new(&body).to_vec()));
+        Ok(builder
+            .header("Content-Type", "application/json; charset=utf-8")
+            .uri(url)
+            .body(body)
+            .map_err(JsError::from)?)
+    }
+
+    fn build_http_response(
+        &self,
+        parts: http::response::Parts,
+        body: Bytes,
+    ) -> Result<Response, JsValue> {
+        let mut decoded = String::new();
+        let body = match parts
+            .headers
+            .get("Content-Encoding")
+            .map(|encoding| encoding.as_bytes())
+        {
+            Some(b"gzip") => {
+                if let Err(err) = GzDecoder::new(body.as_ref()).read_to_string(&mut decoded) {
+                    log::error!("Error decoding gzip: {err}");
+                }
+                decoded.as_bytes()
+            }
+            Some(b"deflate") => {
+                if let Err(err) = ZlibDecoder::new(body.as_ref()).read_to_string(&mut decoded) {
+                    log::error!("Error decoding deflate: {err}");
+                }
+                decoded.as_bytes()
+            }
+            Some(encoding) => {
+                log::error!("Unknown encoding: {}", String::from_utf8_lossy(encoding));
+                body.as_ref()
+            }
+            None => body.as_ref(),
+        };
+
+        let headers = web_sys::Headers::new()?;
+        for (key, value) in &parts.headers {
+            if let Ok(value) = value.to_str() {
+                headers.set(key.as_str(), value)?;
+            }
+        }
+        if let Some(challenge) = headers.get("www-authenticate")? {
+            for param in challenge.split(',') {
+                let Some((key, value)) = param.split_once('=') else {
+                    continue;
+                };
+                let value = value.trim().trim_matches('"');
+                match key.trim() {
+                    "Digest realm" => *self.realm.borrow_mut() = value.to_owned(),
+                    "nonce" => *self.nonce.borrow_mut() = value.to_owned(),
+                    "opaque" => *self.opaque.borrow_mut() = value.to_owned(),
+                    "qop" if value == "auth" => (),
+                    "qop" => log::error!("Got qop {value}, which is not supported"),
+                    key => log::info!("Got unknown value in www-authenticate header: {key}"),
+                }
+            }
+        }
+
+        let init = web_sys::ResponseInit::new();
+        init.set_status(parts.status.as_u16());
+        init.set_headers(&headers);
+        init.set_status_text(parts.status.canonical_reason().unwrap_or(""));
+        let array = match parts.status.as_u16() {
+            204 | 205 | 304 => None,
+            _ => Some(js_sys::Uint8Array::from(body)),
+        };
+        Response::new_with_opt_buffer_source_and_init(array.as_deref(), &init)
     }
 
     // leaks memory, for debugging only!!!
@@ -623,287 +675,6 @@ impl WgClient {
 
     pub fn get_pcap_log(&self) -> Vec<u8> {
         self.pcap.borrow_mut().get_ref().to_owned()
-    }
-}
-
-
-/// Transforms the raw tcp stream into sender and receiver objects for hyper.
-fn setup_connection(sender: Weak<RefCell<Option<SendRequest<Box<Body>>>>>, conn: Weak<RefCell<Option<ConnPin>>>, state: Weak<RefCell<RequestState>>, stream: Weak<RefCell<TcpStream<'static, WgTunDevice>>>) {
-    wasm_bindgen_futures::spawn_local(async move {
-        let stream = HyperStream::new(stream.upgrade().unwrap().clone());
-
-        // FIXME: throw exception instead of panic
-        let (send_request, new_conn) =
-            hyper::client::conn::http1::handshake(stream).await.unwrap();
-        *sender.upgrade().unwrap().borrow_mut() = Some(send_request);
-        *conn.upgrade().unwrap().borrow_mut() = Some(Box::pin(new_conn));
-        *state.upgrade().unwrap().borrow_mut() = RequestState::HandshakeDone;
-    });
-}
-
-
-/// Reads the request coming from js, converts it to a hyper request and sends it.
-fn send_http_reqeust(
-    js_request: Rc<web_sys::Request>,
-    url: Rc<String>,
-    sender: Weak<RefCell<Option<SendRequest<Box<Body>>>>>,
-    request: Weak<RefCell<Option<RequestFuture>>>,
-    state: Weak<RefCell<RequestState>>,
-    self_cpy: WgClient,
-) {
-    wasm_bindgen_futures::spawn_local(async move {
-        let body = JsFuture::from(js_request.array_buffer().unwrap())
-            .await
-            .unwrap();
-        let body = js_sys::Uint8Array::new(&body).to_vec();
-        let method_str = js_request.method();
-        let method = match method_str.as_str() {
-            "GET" => hyper::Method::GET,
-            "PUT" => hyper::Method::PUT,
-            "POST" => hyper::Method::POST,
-            "DELETE" => hyper::Method::DELETE,
-            // FIXME: throw exception instead of panic
-            _ => panic!("unknown method: {}", js_request.method()),
-        };
-
-        let mut req = http::Request::builder().method(method);
-
-        let headers = js_request.headers();
-        for key in js_sys::Object::keys(&headers).iter() {
-            let key = key.as_string().unwrap();
-            let value = if let Ok(Some(value)) = headers.get(&key) {
-                value
-            } else {
-                continue;
-            };
-            req = req.header(key, value);
-        }
-
-        if !self_cpy.nonce.borrow().is_empty() {
-            let auth_header = self_cpy.build_authentication_header(&method_str, &url);
-            req = req.header("Authorization", auth_header);
-        }
-
-        let req = req
-            .header("Content-Type", "application/json; charset=utf-8")
-            .uri(url.as_str())
-            .body(Box::new(Body::new(Bytes::copy_from_slice(&body))))
-            .unwrap();
-        let sender = sender.upgrade().unwrap();
-        let mut sender = sender.borrow_mut();
-        let sender = sender.as_mut().unwrap();
-        let request = request.upgrade().unwrap();
-        let mut request = request.borrow_mut();
-        *request = Some(Box::pin(sender.send_request(req)));
-        *state.upgrade().unwrap().borrow_mut() = RequestState::RequestSent;
-    });
-}
-
-
-/// Polls the sending end of the hyper connection until the request is sent.
-fn poll_request(
-    request: Rc<RefCell<Option<RequestFuture>>>,
-    resp: Rc<RefCell<Option<RespPin>>>,
-    mut state: std::cell::RefMut<'_, RequestState>,
-    conn: Rc<RefCell<Option<ConnPin>>>,
-) {
-    let waker = futures::task::noop_waker();
-    let mut cx = std::task::Context::from_waker(&waker);
-    let mut request = request.borrow_mut();
-    let request = request.as_mut().unwrap();
-    match request.as_mut().poll(&mut cx) {
-        Poll::Ready(Ok(response)) => {
-            *resp.borrow_mut() = Some(Box::pin(response));
-            *state = RequestState::StreamingBody;
-        }
-        // FIXME: throw exception instead of panic
-        Poll::Ready(Err(e)) => panic!("error: {}", e),
-        Poll::Pending => (),
-    };
-    let mut conn = conn.borrow_mut();
-    let conn = conn.as_mut().unwrap();
-    match conn.as_mut().poll(&mut cx) {
-        Poll::Ready(Ok(_)) => (),
-        // FIXME: throw exception instead of panic
-        Poll::Ready(Err(e)) => panic!("error: {}", e),
-        Poll::Pending => (),
-    };
-}
-
-
-/// Collects the raw response stream and parses it into a Response object.
-fn poll_response(
-    resp: Rc<RefCell<Option<RespPin>>>,
-    result: Rc<RefCell<Vec<u8>>>,
-    mut state_ref: std::cell::RefMut<'_, RequestState>,
-    self_cpy: WgClient,
-    id: f64,
-    conn: Rc<RefCell<Option<ConnPin>>>,
-) {
-    let waker = futures::task::noop_waker();
-    let mut cx = std::task::Context::from_waker(&waker);
-    let mut resp = resp.borrow_mut();
-
-    // resp is never None here
-    let resp = resp.as_mut().unwrap();
-    match resp.frame().poll_unpin(&mut cx) {
-
-        // Just append the data to the result while there is is something to read
-        // FIXME: handle Content-Length
-        Poll::Ready(Some(Ok(frame))) => {
-            if let Some(chunk) = frame.data_ref() {
-                let mut result = result.borrow_mut();
-                result.extend_from_slice(chunk);
-            }
-        }
-        // FIXME: throw exception instead of panic
-        Poll::Ready(Some(Err(e))) => panic!("error: {}", e),
-
-        // Parse the data when done reading it
-        Poll::Ready(None) => {
-            log::debug!("done");
-            *state_ref = RequestState::Done;
-            let result = result.borrow_mut();
-            let body =
-                if let Some(encoding) = resp.headers().get("Content-Encoding") {
-                    if encoding == "gzip" {
-                        let mut gz = GzDecoder::new(&result[..]);
-                        let mut s = String::new();
-                        if let Err(err) = gz.read_to_string(&mut s) {
-                            log::error!("Error decoding gzip: {}", err);
-                        }
-                        s.as_bytes().to_vec()
-                    } else if encoding == "deflate" {
-                        let mut gz = flate2::read::ZlibDecoder::new(&result[..]);
-                        let mut s = String::new();
-                        if let Err(err) = gz.read_to_string(&mut s) {
-                            log::error!("Error decoding deflate: {}", err);
-                        }
-                        s.as_bytes().to_vec()
-                    } else {
-                        log::error!("Unknown encoding: {}", encoding.to_str().unwrap());
-                        result.clone()
-                    }
-                } else {
-                    result.clone()
-                };
-
-            let headers = web_sys::Headers::new().unwrap();
-            for (key, value) in resp.headers().iter() {
-                let value = match value.to_str() {
-                    Ok(value) => value,
-                    Err(_) => continue,
-                };
-                headers.set(key.as_str(), value).unwrap();
-            }
-
-            if let Ok(Some(authenticate_header)) = headers.get("www-authenticate") {
-                for val in authenticate_header.split(",") {
-                    let pair: Vec<&str> = val.split("=").collect();
-                    let val = &pair[1][1..pair[1].len() - 1];
-                    match pair[0].trim() {
-                        "Digest realm" => {
-                            *self_cpy.realm.borrow_mut() = val.to_owned()
-                        },
-                        "nonce" => {
-                            *self_cpy.nonce.borrow_mut() = val.to_owned()
-                        },
-                        "opaque" => {
-                            *self_cpy.opaque.borrow_mut() = val.to_owned()
-                        },
-                        "qop" => {
-                            if val != "auth" {
-                                log::error!("Got qop {val}, which is not supported");
-                            }
-                        }
-                        v => log::info!("Got unknown value in www-authenticate header: {}", v)
-                    }
-                }
-            }
-
-            // Build the actual response object
-            let response_init = web_sys::ResponseInit::new();
-            response_init.set_status(resp.status().as_u16());
-            response_init.set_headers(&headers);
-            response_init
-                .set_status_text(resp.status().canonical_reason().unwrap_or(""));
-            let array: js_sys::Uint8Array = (&body[..]).into();
-            let response = web_sys::Response::new_with_opt_buffer_source_and_init(Some(&array), &response_init).unwrap();
-            let init = web_sys::CustomEventInit::new();
-            init.set_detail(&response.into());
-            let event = web_sys::CustomEvent::new_with_event_init_dict(
-                format!("get_{}", id).as_str(),
-                &init,
-            )
-            .unwrap();
-
-            let global = js_sys::global();
-            let global = web_sys::WorkerGlobalScope::from(JsValue::from(global));
-            global.dispatch_event(&event).unwrap();
-        }
-        Poll::Pending => (),
-    };
-    let mut conn = conn.borrow_mut();
-
-    // conn is never None here
-    let conn = conn.as_mut().unwrap();
-    match conn.as_mut().poll(&mut cx) {
-        Poll::Ready(Ok(_)) => (),
-        // FIXME: throw exception instead of panic
-        Poll::Ready(Err(e)) => panic!("error: {}", e),
-        Poll::Pending => (),
-    };
-}
-
-/**
-    Simple struct to hold all relevant informations until WgClient is ready to process the next request.
-*/
-struct Request {
-    pub id: f64,
-    pub js_request: web_sys::Request,
-    pub url: String,
-    pub username: Option<String>,
-    pub password: Option<String>,
-}
-
-/**
-    Helper struct to be able to send Bytes as Body.
-*/
-struct Body(Bytes);
-
-impl Body {
-    fn new(bytes: Bytes) -> Self {
-        Self(bytes)
-    }
-}
-
-impl hyper::body::Body for Body {
-    type Data = Bytes;
-    type Error = DummyErr;
-
-    fn poll_frame(
-        self: std::pin::Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
-        Poll::Ready(Some(Ok(hyper::body::Frame::data(self.0.clone()))))
-    }
-
-    fn size_hint(&self) -> hyper::body::SizeHint {
-        hyper::body::SizeHint::with_exact(self.0.len() as u64)
-    }
-}
-
-/**
-This is a dummy error type that is never returned. It is needed because the Body trait needs an Error type.
-*/
-#[derive(Debug)]
-struct DummyErr;
-
-impl std::error::Error for DummyErr {}
-
-impl std::fmt::Display for DummyErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "how the f did this happen!?")
     }
 }
 
