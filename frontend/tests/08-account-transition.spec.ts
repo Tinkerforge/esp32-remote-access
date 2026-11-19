@@ -1,7 +1,25 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { login, testPassword1, testPassword2, testUser1Email, testUser2Email, testUserName2, testWallboxDomain, testWallboxUID, verifyEmail } from './common';
 
 test.describe.configure({ mode: 'serial' });
+
+function readBootIdThroughTunnel(page: Page, tunnel: string) {
+  return page.evaluate(async (prefix) => {
+    try {
+      const response = await fetch(`${prefix}/event_log/boot_id`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        const { boot_id } = await response.json();
+        if (typeof boot_id === 'number' && Number.isInteger(boot_id)) return boot_id;
+      }
+    } catch {
+      // The tunnel is temporarily unavailable during the reboot.
+    }
+    return null;
+  }, tunnel);
+}
 
 test('change accountname', async ({page}) => {
   test.slow();
@@ -59,12 +77,75 @@ test('connect to charger with new password', async ({page}) => {
   await page.locator('#interface').contentFrame().getByRole('button', { name: 'Close remote access' }).click();
 });
 
+test('an open remote access session reconnects after the charger reboots', async ({ page }) => {
+  test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID');
+  test.setTimeout(240_000);
+
+  const device = new URL(testWallboxDomain);
+  const info = await page.request.get(new URL('/info/name', device).href, { timeout: 5000 });
+  expect(info.ok(), 'Reading the configured charger identity').toBe(true);
+  expect((await info.json()).uid).toBe(testWallboxUID);
+
+  await login(page, testUser2Email, testPassword2);
+  const row = page.getByRole('row').filter({ has: page.getByText(testWallboxUID, { exact: true }) });
+  const connect = row.getByRole('button', { name: 'Connect', exact: true });
+  await expect(connect).toBeEnabled({ timeout: 30_000 });
+  const connectMenu = row.getByRole('button', { name: '', exact: true, expanded: false });
+  if (await connectMenu.isVisible()) {
+    await connectMenu.click();
+    await row.getByRole('button', { name: 'Connect via remote-access', exact: true }).click();
+  } else {
+    await connect.click();
+  }
+
+  const iframe = page.locator('#interface');
+  const status = iframe.contentFrame().getByRole('heading', { name: 'Status', exact: true });
+  await expect(status).toBeVisible({ timeout: 45_000 });
+
+  const src = (await iframe.getAttribute('src')) ?? '';
+  const tunnel = new URL(src, page.url()).pathname.split('/').slice(0, 2).join('/');
+  expect(tunnel).toMatch(/^\/wg-[^/]+$/);
+  const pageUrl = page.url();
+  const documentStart = await page.evaluate(() => performance.timeOrigin);
+
+  let bootIdBefore: number | null = null;
+  await expect.poll(async () => {
+    bootIdBefore = await readBootIdThroughTunnel(page, tunnel);
+    return bootIdBefore;
+  }, { message: 'Read the boot ID over the open tunnel', timeout: 15_000 }).not.toBeNull();
+
+  // Reboot over the LAN so the remote tab receives no navigation or UI input.
+  const reboot = await page.request.put(new URL('/reboot', device).href, {
+    data: 'null',
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 5000,
+  });
+  expect(reboot.ok(), 'The charger accepted the reboot command').toBe(true);
+
+  await expect.poll(async () => {
+    const bootId = await readBootIdThroughTunnel(page, tunnel);
+    return bootId !== null && bootId !== bootIdBefore;
+  }, {
+    message: 'The original browser tunnel responds with a new boot ID',
+    timeout: 120_000,
+    intervals: [1000, 2000, 5000],
+  }).toBe(true);
+
+  await expect(status).toBeVisible({ timeout: 15_000 });
+  await expect(iframe).toHaveAttribute('src', src);
+  await expect(page).toHaveURL(pageUrl);
+  expect(await page.evaluate(() => performance.timeOrigin), 'The remote tab stayed open').toBe(documentStart);
+});
+
 test('remove charger', async ({page}) => {
   test.skip(!testWallboxDomain || !testWallboxUID, 'Requires TEST_WALLBOX_DOMAIN and TEST_WALLBOX_UID environment variables');
-  await page.goto(testWallboxDomain + '/#status');
+  await page.goto(`${testWallboxDomain}/#status`);
   await page.getByRole('button', { name: 'System' }).click();
   await page.getByRole('button', { name: 'Remote Access' }).click();
-  await page.getByRole('row', { name: testUser1Email }).getByRole('button').click();
+  // The charger can refresh the displayed email when it reconnects to the relay.
+  const accountRow = page.getByRole('row', { name: testUser1Email })
+    .or(page.getByRole('row', { name: testUser2Email }));
+  await accountRow.getByRole('button').click();
   await page.getByRole('button', { name: 'Save' }).click();
   await page.waitForTimeout(6000);
   await login(page, testUser2Email, testPassword2);
