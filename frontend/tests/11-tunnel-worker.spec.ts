@@ -14,6 +14,7 @@ const profiles: Record<string, {
   ipv4_fallback?: { web_address: string; charger_address: string };
 }> = {
   v4: { web_address: '10.123.1.3/24', charger_address: '10.123.1.2/32' },
+  'v4-loss': { web_address: '10.123.1.3/24', charger_address: '10.123.1.2/32', ipv6_supported: false },
   v6: { web_address: 'fd00::3/64', charger_address: 'fd00::2/128' },
   'v6-discovery': { web_address: 'fd00::3/128', charger_address: 'ff02::1/128' },
   auto: { web_address: '10.123.1.3/24', charger_address: '10.123.1.2/32' },
@@ -64,7 +65,18 @@ test.describe('built worker tunnels', () => {
           res.end(JSON.stringify({ ...baseKeys, ...profiles[id], id }));
         } else if (url.pathname.startsWith('/assets/') && !url.pathname.includes('..')) {
           res.setHeader('Content-Type', url.pathname.endsWith('.wasm') ? 'application/wasm' : 'text/javascript');
-          res.end(await readFile(new URL(url.pathname.slice(1), dist)));
+          const asset = await readFile(new URL(url.pathname.slice(1), dist));
+          if (url.pathname === `/assets/${workerFile}`) {
+            // The real HTTP and WebSocket flows must work without fast interval polling.
+            res.write(`
+              const originalSetInterval = self.setInterval.bind(self);
+              self.setInterval = (callback, delay, ...args) => {
+                if (delay < 100) throw new Error('The tunnel worker started a fast polling interval');
+                return originalSetInterval(callback, delay, ...args);
+              };
+            `);
+          }
+          res.end(asset);
         } else {
           res.setHeader('Content-Type', 'text/html');
           res.end('<!doctype html><title>Tunnel worker test</title>');
@@ -117,6 +129,7 @@ test.describe('built worker tunnels', () => {
     ['[::1]', 'auto', 'v4'], ['[::1]', 'auto', 'v6-discovery'], ['[::1]', 'auto', 'v4'],
     ['[::1]', 'token-fallback', 'v6-discovery'], ['[::1]', 'token-fallback', 'v4'],
     ['127.0.0.1', 'legacy', 'v4'], ['[::1]', 'legacy-token', 'v4'],
+    ['127.0.0.1', 'v4-loss'],
   ];
   for (const [index, [host, profile, target = profile]] of cases.entries()) {
     test(`${index + 1}: ${profile} -> ${target} over ${host}`, async ({ page }) => {
@@ -209,7 +222,7 @@ test.describe('built worker tunnels', () => {
       assert.equal(interfaces, 1); assert.ok(packets > 0);
       assert.ok(tcpPairs.length > 0, 'Capture must contain inner TCP traffic');
       assert.ok(httpRequests > 0 && wsRequests > 0, 'Both HTTP and inner WebSocket must use TCP');
-      if (profile.startsWith('legacy')) {
+      if (profile.startsWith('legacy') || profile === 'v4-loss') {
         assert.equal(discoverySource, undefined, 'Older firmware must not receive IPv6 discovery probes');
       } else {
         assert.ok(discoverySource?.startsWith('fe80000000000000'));

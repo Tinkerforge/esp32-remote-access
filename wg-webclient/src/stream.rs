@@ -61,6 +61,7 @@ impl<'a, Device: phy::Device + Clone + IsUp> TcpStream<'a, Device> {
         }
     }
 
+    #[cfg(test)]
     #[inline]
     pub fn poll(&mut self) {
         self.iface.borrow_mut().poll();
@@ -172,7 +173,7 @@ where
 impl<Device: phy::Device + Clone + IsUp> Read for TcpStream<'_, Device> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.iface.borrow_mut().poll();
+        self.iface.borrow_mut().poll_before_read();
         if !self.may_recv() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::BrokenPipe,

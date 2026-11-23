@@ -17,16 +17,19 @@
  * Boston, MA 02111-1307, USA.
  */
 
+use std::rc::Weak;
+
 use getrandom::SysRng;
 use rand_core::TryRng;
 use smoltcp::{
     iface::{Config, SocketHandle, SocketSet},
     phy,
     socket::{icmp, tcp::{ConnectError, ListenError, Socket}},
+    time::Instant,
     wire::{IpAddress, IpCidr, IpListenEndpoint},
 };
 
-use crate::{utils::now, wg_device::IsUp};
+use crate::{poll_timer::PollTimer, utils::now, wg_device::IsUp};
 
 /**
     Creates an abstraction layer between smoltcp and this crates TcpStream to be able to have
@@ -39,6 +42,7 @@ where
     device: Device,
     sockets: SocketSet<'a>,
     iface: smoltcp::iface::Interface,
+    poll_timer: Weak<PollTimer>,
 }
 
 impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
@@ -61,6 +65,7 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
             device,
             sockets: socket_set,
             iface,
+            poll_timer: Weak::new(),
         }
     }
 
@@ -109,6 +114,21 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
         self.iface.poll(now(), &mut self.device, &mut self.sockets);
     }
 
+    pub fn poll_at(&mut self) -> Option<Instant> {
+        self.iface.poll_at(now(), &self.sockets)
+    }
+
+    pub fn set_poll_timer(&mut self, timer: Weak<PollTimer>) {
+        self.poll_timer = timer;
+    }
+
+    pub fn poll_before_read(&mut self) {
+        // Standalone streams can drive the interface without a worker timer.
+        if self.poll_timer.strong_count() == 0 {
+            self.poll();
+        }
+    }
+
     // for testing
     #[allow(dead_code)]
     pub fn listen<T: Into<IpListenEndpoint>>(
@@ -125,6 +145,9 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
     pub fn close(&mut self, handle: SocketHandle) {
         let socket = self.sockets.get_mut::<Socket>(handle);
         socket.close();
+        if let Some(timer) = self.poll_timer.upgrade() {
+            timer.request();
+        }
     }
 
     #[inline]
@@ -135,7 +158,13 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
     ) -> Result<usize, smoltcp::socket::tcp::SendError> {
         let socket = self.sockets.get_mut::<Socket>(handle);
         let sent = socket.send_slice(slice)?;
-        self.poll();
+        if let Some(timer) = self.poll_timer.upgrade() {
+            if sent != 0 {
+                timer.request();
+            }
+        } else {
+            self.poll();
+        }
         Ok(sent)
     }
 
@@ -145,9 +174,14 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
         handle: SocketHandle,
         slice: &mut [u8],
     ) -> Result<usize, smoltcp::socket::tcp::RecvError> {
-        self.poll();
         let socket = self.sockets.get_mut::<Socket>(handle);
         let len = socket.recv_slice(slice)?;
+        if len != 0 {
+            // Reading can reopen the receive window and require a TCP update.
+            if let Some(timer) = self.poll_timer.upgrade() {
+                timer.request();
+            }
+        }
         Ok(len)
     }
 
@@ -163,6 +197,9 @@ impl<'a, Device: phy::Device + IsUp> Interface<'a, Device> {
     {
         let socket = self.sockets.get_mut::<Socket>(handle);
         socket.connect(self.iface.context(), remote.into(), local.into())?;
+        if let Some(timer) = self.poll_timer.upgrade() {
+            timer.request();
+        }
         Ok(())
     }
 

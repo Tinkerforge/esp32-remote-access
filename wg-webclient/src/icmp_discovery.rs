@@ -92,8 +92,7 @@ impl PeerDiscovery {
             self.finished = true;
             return Some(IpAddress::Ipv6(peer));
         }
-        let timeout = if self.fallback.is_some() { AUTO_DETECTION_TIMEOUT } else { DISCOVERY_TIMEOUT };
-        let expired = now - self.started >= timeout;
+        let expired = now >= self.deadline();
         if self.first_request.is_some_and(|first| expired || now - first >= IPV6_PROBE_TIMEOUT) {
             if let Some(peer) = self.fallback {
                 self.finished = true;
@@ -118,6 +117,28 @@ impl PeerDiscovery {
             }
         }
         None
+    }
+
+    fn deadline(&self) -> Instant {
+        self.started + if self.fallback.is_some() {
+            AUTO_DETECTION_TIMEOUT
+        } else {
+            DISCOVERY_TIMEOUT
+        }
+    }
+
+    pub fn poll_at(&self, tunnel_ready: bool) -> Option<Instant> {
+        if self.failed || self.finished {
+            return None;
+        }
+        let mut deadline = self.deadline();
+        if let (Some(_), Some(first)) = (self.fallback, self.first_request) {
+            deadline = deadline.min(first + IPV6_PROBE_TIMEOUT);
+        }
+        if tunnel_ready {
+            deadline = deadline.min(self.next_request);
+        }
+        Some(deadline)
     }
 }
 

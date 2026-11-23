@@ -1,7 +1,7 @@
 //! Encrypted WireGuard/smoltcp peer for the browser integration tests.
 //! Defaults to port 18081; Playwright passes 0 to use an ephemeral port.
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     error::Error,
     io::ErrorKind,
     net::{TcpListener, TcpStream},
@@ -22,7 +22,7 @@ use smoltcp::{
     time::Instant as NetworkInstant,
     wire::{
         HardwareAddress, Icmpv6Packet, Icmpv6Repr, IpAddress, IpCidr, IpProtocol, Ipv6Packet,
-        Ipv6Repr,
+        Ipv4Packet, Ipv6Repr, TcpPacket,
     },
 };
 use tungstenite::{
@@ -145,7 +145,9 @@ fn serve(stream: TcpStream) -> Result<()> {
     })
     .map_err(|error| format!("WebSocket handshake: {error}"))?;
     socket.get_mut().set_nonblocking(true)?;
-    let ipv6 = profile != "/v4";
+    let drop_first_syn = profile == "/v4-loss";
+    let mut dropped_syns = HashSet::new();
+    let ipv6 = profile != "/v4" && !drop_first_syn;
     let local: IpAddress = if ipv6 {
         let mut address = [0; 16];
         SysRng.try_fill_bytes(&mut address)?;
@@ -195,6 +197,15 @@ fn serve(stream: TcpStream) -> Result<()> {
                         TunnResult::WriteToTunnelV4(packet, _)
                         | TunnResult::WriteToTunnelV6(packet, _) => {
                             if packet[0] >> 4 == if ipv6 { 6 } else { 4 } {
+                                if drop_first_syn {
+                                    let ip = Ipv4Packet::new_checked(&*packet)?;
+                                    if ip.next_header() == IpProtocol::Tcp {
+                                        let tcp = TcpPacket::new_checked(ip.payload())?;
+                                        if tcp.syn() && !tcp.ack() && dropped_syns.insert(tcp.src_port()) {
+                                            break;
+                                        }
+                                    }
+                                }
                                 if let Some(reply) = discovery_reply(packet, local) {
                                     device.tx.push_back(reply);
                                 } else {

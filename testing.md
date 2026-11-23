@@ -214,6 +214,28 @@ wasm-pack test --headless --chrome
 
 This is separate from the frontend Vitest and Playwright suites.
 
+## Browser tunnel polling benchmark
+
+With Node 26, the frontend dependencies, wasm-pack, and Playwright Chromium
+installed, run from `frontend/`:
+
+```sh
+node benchmarks/tunnel-polling.ts --baseline d1f9b34
+```
+
+The benchmark builds the selected Git revision and the working-tree
+`wg-webclient` and writes the optimized WASM packages to temporary directories.
+Both versions use the same local IPv4 WireGuard peer and headless Chromium.
+After a warm-up, six
+rounds alternate which version runs first. Each sample keeps an inner WebSocket
+open, counts timer callbacks during two seconds of idle time, and times six
+sequential HTTP requests through the tunnel, including response body reads.
+Timer callbacks per second measure idle timer activity. HTTP p50 and p95 measure
+loopback request latency.
+
+Use `--rounds` and `--idle-ms` to increase the sample size, and `--json` to
+export the summary and raw samples. Build output goes to stderr.
+
 ## Regenerate API declarations
 
 The backend's Utoipa annotations generate the OpenAPI document; the frontend's

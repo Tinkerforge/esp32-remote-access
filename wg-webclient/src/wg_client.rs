@@ -29,7 +29,7 @@ use crate::{
     hyper_stream::HyperStream,
     icmp_discovery::{self, PeerDiscovery},
     interface::Interface,
-    interval_handle::IntervalHandle,
+    poll_timer::PollTimer,
     stream::TcpStream,
     websocket::Websocket,
     wg_device::WgTunDevice,
@@ -51,7 +51,7 @@ use pcap_file::pcapng::PcapNgWriter;
 use smoltcp::wire::{IpAddress, IpEndpoint};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{MessageEvent, Response};
+use web_sys::Response;
 
 struct HttpRequests {
     tail: RefCell<Option<oneshot::Receiver<()>>>,
@@ -181,7 +181,7 @@ impl Client {
         self.0.http.disconnect.borrow_mut().take();
         self.0.http.waker.take();
         self.0.clone().disconnect_inner_ws();
-        self.0._polling_interval.cancel();
+        self.0.poll_timer.stop();
         self.0.stream.borrow_mut().close();
         self.0.iface.borrow().device().disconnect();
     }
@@ -206,13 +206,13 @@ impl Client {
 struct WgClient {
     stream: Rc<RefCell<TcpStream<'static, WgTunDevice>>>,
     iface: Rc<RefCell<Interface<'static, WgTunDevice>>>,
-    websocket: Rc<RefCell<Option<Websocket<WgTunDevice>>>>,
+    websocket: Rc<RefCell<Option<Rc<Websocket<WgTunDevice>>>>>,
     http: Rc<HttpRequests>,
     pcap: Rc<RefCell<PcapNgWriter<Vec<u8>>>>,
     /// Registered peer, or the result of explicitly enabled contract discovery.
     internal_peer_ip: Rc<RefCell<Option<IpAddress>>>,
     discovery: Option<Rc<RefCell<PeerDiscovery>>>,
-    _polling_interval: Rc<IntervalHandle<MessageEvent>>,
+    poll_timer: Rc<PollTimer>,
     username: Rc<RefCell<String>>,
     password: Rc<RefCell<String>>,
     realm: Rc<RefCell<String>>,
@@ -299,8 +299,6 @@ impl WgClient {
         if let Some((cidr, _)) = fallback {
             iface.borrow_mut().add_ip_address(cidr);
         }
-        let iface_cpy = Rc::downgrade(&iface);
-
         // A public IPv6 listener says nothing about the inner tunnel family.
         // Only IPv4 can use a registered peer without discovery.
         let (internal_peer_ip, icmp_handle, discovery) = if discover_peer {
@@ -325,43 +323,68 @@ impl WgClient {
         let stream = Rc::new(RefCell::new(stream));
 
         let http = Rc::new(HttpRequests::new());
+        let websocket = Rc::new(RefCell::new(None::<Rc<Websocket<WgTunDevice>>>));
+        let iface_weak = Rc::downgrade(&iface);
+        let websocket_weak = Rc::downgrade(&websocket);
         let http_weak = Rc::downgrade(&http);
         let peer_weak = Rc::downgrade(&internal_peer_ip);
         let discovery_weak = discovery.as_ref().map(Rc::downgrade);
-        let closure = Closure::<dyn FnMut(_)>::new(move |_: MessageEvent| {
-            let Some(iface) = iface_cpy.upgrade() else { return; };
-            iface.borrow_mut().poll();
-            // Resume HTTP once the network stack has had a chance to make progress.
+        let poll_timer = PollTimer::new(move || {
+            let iface = iface_weak.upgrade()?;
+            let tunnel_ready = iface.borrow().is_up();
+            if tunnel_ready {
+                iface.borrow_mut().poll();
+            }
+            let mut discovery_deadline = None;
+            if let (Some(handle), Some(discovery), Some(peer), IpAddress::Ipv6(local)) = (
+                icmp_handle,
+                discovery_weak.as_ref().and_then(Weak::upgrade),
+                peer_weak.upgrade(),
+                self_addr,
+            ) {
+                let mut discovery = discovery.borrow_mut();
+                if discovery.poll_at(tunnel_ready).is_some() {
+                    let mut iface = iface.borrow_mut();
+                    if let Some(address) =
+                        discovery.poll(&mut iface, handle, local, crate::utils::now())
+                    {
+                        iface.select_address_family(address);
+                        log::info!("User tunnel selected peer {address}");
+                        *peer.borrow_mut() = Some(address);
+                    }
+                    discovery_deadline = discovery.poll_at(tunnel_ready);
+                    if discovery_deadline.is_none() {
+                        iface.remove_socket(handle);
+                    }
+                }
+            }
+
+            // Release interface and slot borrows before delivering callbacks.
+            if tunnel_ready {
+                let socket = websocket_weak.upgrade().and_then(|slot| slot.borrow().clone());
+                if let Some(socket) = socket {
+                    socket.poll();
+                }
+            }
             if let Some(http) = http_weak.upgrade() {
                 http.waker.wake();
             }
-            let (Some(handle), Some(discovery), Some(peer)) = (
-                icmp_handle, discovery_weak.as_ref().and_then(Weak::upgrade), peer_weak.upgrade(),
-            ) else { return; };
-            if peer.borrow().is_some() { return; }
-            if let IpAddress::Ipv6(local) = self_addr {
-                let mut iface = iface.borrow_mut();
-                if let Some(address) = discovery.borrow_mut().poll(
-                    &mut iface, handle, local, crate::utils::now(),
-                ) {
-                    iface.remove_socket(handle);
-                    iface.select_address_family(address);
-                    log::info!("User tunnel selected peer {address}");
-                    *peer.borrow_mut() = Some(address);
-                }
-            }
+            let socket_deadline = tunnel_ready.then(|| iface.borrow_mut().poll_at()).flatten();
+            discovery_deadline.into_iter().chain(socket_deadline).min()
         });
-        let polling_interval = Rc::new(IntervalHandle::new(closure, 0));
+        iface.borrow().device().set_poll_timer(Rc::downgrade(&poll_timer));
+        iface.borrow_mut().set_poll_timer(Rc::downgrade(&poll_timer));
+        poll_timer.request();
 
         Self {
             stream,
             iface,
-            websocket: Rc::new(RefCell::new(None)),
+            websocket,
             http,
             pcap,
             internal_peer_ip,
             discovery,
-            _polling_interval: polling_interval,
+            poll_timer,
             username: Rc::new(RefCell::new(String::new())),
             password: Rc::new(RefCell::new(String::new())),
             realm: Rc::new(RefCell::new(String::new())),
@@ -405,9 +428,8 @@ impl WgClient {
         } else {
             None
         };
-        let mut websocket = Websocket::connect(stream, auth_header).unwrap();
-        websocket.on_message(cb);
-        *self.websocket.borrow_mut() = Some(websocket);
+        let websocket = Websocket::connect(stream, auth_header, cb).unwrap();
+        *self.websocket.borrow_mut() = Some(Rc::new(websocket));
     }
 
     /// Builds the authentication header for the http requests.
@@ -503,11 +525,7 @@ impl WgClient {
             .map_err(|err| js_sys::Error::new(&format!("TCP connect failed: {err}")))?;
 
         let response = self.exchange_http(request).await;
-        {
-            let mut stream = self.stream.borrow_mut();
-            stream.close();
-            stream.poll();
-        }
+        self.stream.borrow_mut().close();
         self.http.waker.take();
         let (parts, body) = response?;
         self.build_http_response(parts, body)
@@ -666,11 +684,9 @@ impl WgClient {
     }
 
     pub fn disconnect_inner_ws(&mut self) {
-        let mut sock_ref = self.websocket.borrow_mut();
-        if let Some(socket) = &*sock_ref {
+        if let Some(socket) = self.websocket.borrow_mut().take() {
             socket.disconnect();
         }
-        *sock_ref = None;
     }
 
     pub fn get_pcap_log(&self) -> Vec<u8> {

@@ -56,7 +56,6 @@ impl hyper::rt::Read for HyperStream<'_> {
         mut buf: hyper::rt::ReadBufCursor<'_>,
     ) -> std::task::Poll<Result<(), std::io::Error>> {
         let mut stream = self.stream.borrow_mut();
-        stream.poll();
         if !stream.can_recv() {
             if !stream.may_recv() {
                 return Poll::Ready(Ok(()));

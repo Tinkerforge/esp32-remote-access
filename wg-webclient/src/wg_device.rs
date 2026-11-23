@@ -37,6 +37,7 @@ use std::sync::Arc;
 
 use crate::pcap_logging_enabled;
 use crate::interval_handle::IntervalHandle;
+use crate::poll_timer::PollTimer;
 use web_sys::wasm_bindgen::closure::Closure;
 use web_sys::wasm_bindgen::{JsCast, JsValue};
 use web_sys::{MessageEvent, WebSocket};
@@ -58,6 +59,7 @@ pub struct WgTunDevice {
     rx: Rc<RefCell<VecDeque<Vec<u8>>>>,
     socket: Rc<WebSocket>,
     socket_state: Rc<RefCell<WsConnectionState>>,
+    poll_timer: Rc<RefCell<Weak<PollTimer>>>,
     mtu: usize,
     _reset_rate_limiter_interval: Rc<IntervalHandle<JsValue>>,
     _onopen_closure: Rc<Closure<dyn FnMut(JsValue)>>,
@@ -96,6 +98,7 @@ impl WgTunDevice {
         let tun = Rc::new(RefCell::new(tun));
         let rx = Rc::new(RefCell::new(VecDeque::new()));
         let socket_state = Rc::new(RefCell::new(WsConnectionState::Disconnected));
+        let poll_timer = Rc::new(RefCell::new(Weak::<PollTimer>::new()));
 
         let socket = WebSocket::new(url)?;
         log::debug!("Parent WebSocket Created");
@@ -106,9 +109,13 @@ impl WgTunDevice {
         let onopen = Rc::new(onopen);
 
         let onclose_socket_state = Rc::downgrade(&socket_state);
+        let onclose_poll_timer = poll_timer.clone();
         let onclose = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
             log::debug!("Parent WebSocket Closed");
             *onclose_socket_state.upgrade().unwrap().borrow_mut() = WsConnectionState::Disconnected;
+            if let Some(timer) = onclose_poll_timer.borrow().upgrade() {
+                timer.request();
+            }
             let _ = disconnect_cb.call0(&JsValue::null());
         });
         let onclose = Rc::new(onclose);
@@ -124,7 +131,10 @@ impl WgTunDevice {
 
         let pcap = Rc::new(RefCell::new(new_pcap_writer()));
 
-        let onmessage = create_onmessage_closure(Rc::downgrade(&socket), Rc::downgrade(&tun), Rc::downgrade(&rx), Rc::downgrade(&pcap), connect_cb);
+        let onmessage = create_onmessage_closure(
+            Rc::downgrade(&socket), Rc::downgrade(&tun), Rc::downgrade(&rx),
+            Rc::downgrade(&pcap), connect_cb, poll_timer.clone(),
+        );
         let onmessage = Rc::new(onmessage);
         socket.set_onmessage(Some(onmessage.as_ref().as_ref().unchecked_ref()));
         socket.set_onopen(Some(onopen.as_ref().as_ref().unchecked_ref()));
@@ -135,6 +145,7 @@ impl WgTunDevice {
             rx,
             socket,
             socket_state,
+            poll_timer,
             mtu,
             _reset_rate_limiter_interval,
             _onopen_closure: onopen,
@@ -142,6 +153,10 @@ impl WgTunDevice {
             _onerror_closure: onerror,
             _onmessage_closure: onmessage,
         })
+    }
+
+    pub fn set_poll_timer(&self, timer: Weak<PollTimer>) {
+        self.poll_timer.replace(timer);
     }
 
     pub fn disconnect(&self) {
@@ -218,6 +233,7 @@ fn create_onmessage_closure(
     message_vec: Weak<RefCell<VecDeque<Vec<u8>>>>,
     message_pcap: Weak<RefCell<PcapNgWriter<Vec<u8>>>>,
     connect_cb: js_sys::Function,
+    poll_timer: Rc<RefCell<Weak<PollTimer>>>,
 ) -> Closure<dyn FnMut(MessageEvent)> {
     let connected = Rc::new(RefCell::new(false));
     Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
@@ -244,6 +260,7 @@ fn create_onmessage_closure(
         let message_pcap = message_pcap.clone();
         let connected = connected.clone();
         let connect_cb = connect_cb.clone();
+        let poll_timer = poll_timer.clone();
         spawn_local(async move {
             let array_buffer = wasm_bindgen_futures::JsFuture::from(data.array_buffer()).await.unwrap();
             let data = js_sys::Uint8Array::new(&array_buffer).to_vec();
@@ -259,6 +276,12 @@ fn create_onmessage_closure(
                 },
                 |packet| { let _ = socket.send_with_u8_array(packet); },
             );
+            // The handshake can unblock TCP and peer discovery before any IP packet arrives.
+            if !queue.borrow().is_empty() || matches!(result, Ok(true)) {
+                if let Some(timer) = poll_timer.borrow().upgrade() {
+                    timer.request();
+                }
+            }
             match result {
                 Ok(true) if !*connected.borrow() => {
                     *connected.borrow_mut() = true;
@@ -424,6 +447,7 @@ mod tests {
             Weak::new(),
             Weak::new(),
             connected.as_ref().unchecked_ref::<js_sys::Function>().clone(),
+            Rc::new(RefCell::new(Weak::new())),
         );
         let event = js_sys::Object::new();
         js_sys::Reflect::set(&event, &"data".into(), &"reconnect".into()).unwrap();
