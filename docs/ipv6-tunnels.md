@@ -33,8 +33,7 @@ Subsequent stable firmware releases also qualify. The policy is defined in
 
 `get_key` exposes the decision as `ipv6_supported`. The browser requires an
 explicit `true`; otherwise it uses registered IPv4 or `ipv4_fallback` immediately.
-Without either, the connection times out. Older firmware also requires an IPv4
-management address pair.
+Without either, the connection times out.
 
 ## Address selection and discovery
 
@@ -66,6 +65,8 @@ alone does not select IPv6 user traffic.
 
 Management discovery waits for authenticated data confirming the new WireGuard
 session, then probes for up to ten seconds before using registered IPv4 addresses
-as fallback. Discovery-only registrations have no legacy fallback. Legacy firmware
-uses registered IPv4 immediately. Keepalives run every 15 seconds; sessions silent
-for more than 30 seconds are removed by periodic cleanup.
+as fallback. Legacy firmware uses registered IPv4 immediately. If the management
+peer was registered as `ff02::1`, a downgrade uses the legacy management pair
+`10.123.123.3/32` (relay) and `10.123.123.2/32` (device) with the existing keys.
+Keepalives run every 15 seconds; sessions silent for more than 30 seconds are
+removed by periodic cleanup.

@@ -55,6 +55,7 @@ use crate::{
 use super::{
     admission::{DiscoveryAdmission, DiscoveryPermit},
     management::{reconnect_lost_clients, try_port_discovery},
+    peer_discovery::ALL_NODES_ADDRESS,
     socket::{ManagementSocket, ManagementSocketTCPReceiver, TCPRecvResult},
 };
 
@@ -276,29 +277,32 @@ fn match_tunnel(
             _ => continue,
         };
 
-        // Older firmware goes straight to its registered IPv4 addresses without
-        // waiting for an IPv6 discovery timeout.
+        let mut local = device.wg_server_ip;
+        let mut peer = device.wg_charger_ip;
         let constructor =
             if supports_ipv6_tunnel(device.device_type.as_deref(), &device.firmware_version) {
                 ManagementSocket::new_preferred_ipv6
             } else {
-                if !device.wg_server_ip.is_ipv4() || !device.wg_charger_ip.is_ipv4() {
-                    return Err(anyhow::anyhow!(
-                        "firmware does not support IPv6 management tunnels"
-                    ));
+                match (local, peer) {
+                    (IpNetwork::V4(_), IpNetwork::V4(_)) => {}
+                    (IpNetwork::V6(_), IpNetwork::V6(peer_network))
+                        if peer_network.ip() == ALL_NODES_ADDRESS =>
+                    {
+                        // IPv4 firmware uses this fixed management pair after a
+                        // downgrade from a firmware that registered for discovery.
+                        local = "10.123.123.3/32".parse().unwrap();
+                        peer = "10.123.123.2/32".parse().unwrap();
+                    }
+                    _ => {
+                        return Err(anyhow::anyhow!(
+                            "firmware does not support IPv6 management tunnels"
+                        ));
+                    }
                 }
                 ManagementSocket::new
             };
-        let mut socket = constructor(
-            device.wg_server_ip,
-            device.wg_charger_ip,
-            addr,
-            tunn,
-            rate_limiter,
-            udp_socket,
-            device.id,
-        )
-        .map_err(anyhow::Error::msg)?;
+        let mut socket = constructor(local, peer, addr, tunn, rate_limiter, udp_socket, device.id)
+            .map_err(anyhow::Error::msg)?;
         socket.wait_for_handshake_confirmation(&response);
 
         #[cfg(feature = "pcap-logging")]
@@ -729,6 +733,7 @@ mod tests {
     };
     use std::{
         collections::{HashMap, HashSet},
+        net::IpAddr,
         sync::atomic::Ordering,
         time::Instant,
     };
@@ -1175,8 +1180,6 @@ mod tests {
 
     #[actix_web::test]
     async fn older_or_unknown_firmware_sends_ipv4_commands_without_discovery() {
-        use smoltcp::wire::{Ipv4Packet, UdpPacket};
-
         for (version, device_type) in [
             ("2.13.6", Some("Tinkerforge-WARP3_Charger/2.13.6")),
             (
@@ -1192,50 +1195,80 @@ mod tests {
             ("2.13.7", None),
             ("99.0.0", Some("unknown")),
         ] {
-            let (mut peer, mut charger, init) = peer_and_charger();
+            let (peer, mut charger, init) = peer_and_charger();
             charger.firmware_version = version.to_owned();
             charger.device_type = device_type.map(str::to_owned);
             let local = charger.wg_server_ip.ip();
             let remote = charger.wg_charger_ip.ip();
-            let udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
-            let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
-            udp.writable().await.unwrap();
-            let (_, mut socket, response) =
-                match_tunnel(vec![charger], client.local_addr().unwrap(), &init, udp).unwrap();
-            assert!(!socket.is_discovering_peer());
-            let mut output = [0; 2048];
-            let TunnResult::WriteToNetwork(keepalive) =
-                peer.decapsulate(None, &response, &mut output)
-            else {
-                panic!("peer could not complete handshake");
-            };
-            socket.decrypt(keepalive).unwrap();
-            socket.encrypt_and_send_slice(b"immediate IPv4 command");
-            let mut network = [0; 2048];
-            let packet = loop {
-                let size = tokio::time::timeout(Duration::from_secs(1), client.recv(&mut network))
-                    .await
-                    .unwrap()
-                    .unwrap();
-                match peer.decapsulate(None, &network[..size], &mut output) {
-                    TunnResult::Done => continue,
-                    TunnResult::WriteToTunnelV4(data, _) => break data.to_vec(),
-                    other => panic!("expected IPv4 without a discovery probe: {other:?}"),
-                }
-            };
-            let packet = Ipv4Packet::new_checked(&packet).unwrap();
-            assert_eq!(std::net::IpAddr::from(packet.src_addr()), local);
-            assert_eq!(std::net::IpAddr::from(packet.dst_addr()), remote);
-            assert_eq!(
-                UdpPacket::new_checked(packet.payload()).unwrap().payload(),
-                b"immediate IPv4 command"
-            );
+            assert_immediate_ipv4_command(peer, charger, &init, local, remote).await;
         }
     }
 
     #[actix_web::test]
+    async fn firmware_downgrade_uses_legacy_management_pair_for_discovery_registration() {
+        let (peer, mut charger, init) = peer_and_charger();
+        charger.wg_server_ip = "fe80::1234/128".parse().unwrap();
+        charger.wg_charger_ip = "ff02::1/128".parse().unwrap();
+
+        // The downgraded device identifies itself before starting WireGuard.
+        charger.firmware_version = "2.13.6+6afda49b".to_owned();
+        charger.device_type = Some("Tinkerforge-WARP3_Charger/2.13.6+6afda49b".to_owned());
+        assert_immediate_ipv4_command(
+            peer,
+            charger,
+            &init,
+            "10.123.123.3".parse().unwrap(),
+            "10.123.123.2".parse().unwrap(),
+        )
+        .await;
+    }
+
+    async fn assert_immediate_ipv4_command(
+        mut peer: Tunn,
+        charger: Charger,
+        init: &[u8],
+        local: IpAddr,
+        remote: IpAddr,
+    ) {
+        use smoltcp::wire::{Ipv4Packet, UdpPacket};
+
+        let udp = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        udp.writable().await.unwrap();
+        let (_, mut socket, response) =
+            match_tunnel(vec![charger], client.local_addr().unwrap(), init, udp).unwrap();
+        assert!(!socket.is_discovering_peer());
+        let mut output = [0; 2048];
+        let TunnResult::WriteToNetwork(keepalive) = peer.decapsulate(None, &response, &mut output)
+        else {
+            panic!("peer could not complete handshake");
+        };
+        socket.decrypt(keepalive).unwrap();
+        socket.encrypt_and_send_slice(b"immediate IPv4 command");
+        let mut network = [0; 2048];
+        let packet = loop {
+            let size = tokio::time::timeout(Duration::from_secs(1), client.recv(&mut network))
+                .await
+                .unwrap()
+                .unwrap();
+            match peer.decapsulate(None, &network[..size], &mut output) {
+                TunnResult::Done => continue,
+                TunnResult::WriteToTunnelV4(data, _) => break data.to_vec(),
+                other => panic!("expected IPv4 without a discovery probe: {other:?}"),
+            }
+        };
+        let packet = Ipv4Packet::new_checked(&packet).unwrap();
+        assert_eq!(IpAddr::from(packet.src_addr()), local);
+        assert_eq!(IpAddr::from(packet.dst_addr()), remote);
+        assert_eq!(
+            UdpPacket::new_checked(packet.payload()).unwrap().payload(),
+            b"immediate IPv4 command"
+        );
+    }
+
+    #[actix_web::test]
     async fn candidate_matching_discovers_random_ipv6_despite_stale_ipv4_registration() {
-        use crate::udp_server::peer_discovery::{random_management_address, ALL_NODES_ADDRESS};
+        use crate::udp_server::peer_discovery::random_management_address;
         use smoltcp::wire::{
             Icmpv6Packet, Icmpv6Repr, IpProtocol, Ipv6Packet, Ipv6Repr, UdpPacket,
         };
