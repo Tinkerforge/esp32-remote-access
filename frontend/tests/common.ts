@@ -82,6 +82,37 @@ export async function login(page: Page, email: string, password: string) {
   await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible();
 }
 
+export async function connectToChargerRemotely(page: Page, timeout: number) {
+  const row = page.getByRole('row').filter({ has: page.getByText(testWallboxUID, { exact: true }) });
+  const connect = row.getByRole('button', { name: 'Connect', exact: true });
+  await expect(connect).toBeEnabled({ timeout });
+  const connectMenu = row.getByRole('button', { name: '', exact: true, expanded: false });
+  if (await connectMenu.isVisible()) {
+    await connectMenu.click();
+    await row.getByRole('button', { name: 'Connect via remote-access', exact: true }).click();
+  } else {
+    await connect.click();
+  }
+}
+
+export function readBootIdThroughTunnel(page: Page, tunnel: string) {
+  return page.evaluate(async (prefix) => {
+    try {
+      const response = await fetch(`${prefix}/event_log/boot_id`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        const { boot_id } = await response.json();
+        if (typeof boot_id === 'number' && Number.isInteger(boot_id)) return boot_id;
+      }
+    } catch {
+      // The tunnel is temporarily unavailable during the reboot.
+    }
+    return null;
+  }, tunnel);
+}
+
 export async function registerAccount(page: Page, email: string, name: string, password: string) {
   await page.goto(testDomain);
   await page.getByRole('tab', { name: 'Register' }).click();

@@ -188,6 +188,20 @@ npx playwright test tests/00-relay-settings.spec.ts --project=chromium
 Other authenticated tests require accounts to be prepared first. Firefox and
 WebKit projects are declared in the configs, but the npm scripts select Chromium.
 
+### Remote firmware uploads
+
+Use a dedicated test charger registered to the first test account. Set
+`TEST_FIRMWARE_PATH` in `frontend/.env.local` to a compatible firmware image.
+Relative paths are resolved from `frontend/`. Both tests install the
+selected image and reboot the charger. They verify an HTTP 200 upload response
+and a changed boot ID through the same remote connection.
+
+From `frontend/`:
+
+```sh
+npx playwright test tests/07-remote-firmware.spec.ts --project=chromium
+```
+
 ## WASM tests
 
 `wg-webclient` targets `wasm32-unknown-unknown` through `.cargo/config.toml`.

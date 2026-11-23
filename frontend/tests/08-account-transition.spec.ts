@@ -1,25 +1,7 @@
-import { test, expect, type Page } from '@playwright/test';
-import { login, testPassword1, testPassword2, testUser1Email, testUser2Email, testUserName2, testWallboxDomain, testWallboxUID, verifyEmail } from './common';
+import { test, expect } from '@playwright/test';
+import { connectToChargerRemotely, login, readBootIdThroughTunnel, testPassword1, testPassword2, testUser1Email, testUser2Email, testUserName2, testWallboxDomain, testWallboxUID, verifyEmail } from './common';
 
 test.describe.configure({ mode: 'serial' });
-
-function readBootIdThroughTunnel(page: Page, tunnel: string) {
-  return page.evaluate(async (prefix) => {
-    try {
-      const response = await fetch(`${prefix}/event_log/boot_id`, {
-        cache: 'no-store',
-        signal: AbortSignal.timeout(5000),
-      });
-      if (response.ok) {
-        const { boot_id } = await response.json();
-        if (typeof boot_id === 'number' && Number.isInteger(boot_id)) return boot_id;
-      }
-    } catch {
-      // The tunnel is temporarily unavailable during the reboot.
-    }
-    return null;
-  }, tunnel);
-}
 
 test('change accountname', async ({page}) => {
   test.slow();
@@ -87,16 +69,7 @@ test('an open remote access session reconnects after the charger reboots', async
   expect((await info.json()).uid).toBe(testWallboxUID);
 
   await login(page, testUser2Email, testPassword2);
-  const row = page.getByRole('row').filter({ has: page.getByText(testWallboxUID, { exact: true }) });
-  const connect = row.getByRole('button', { name: 'Connect', exact: true });
-  await expect(connect).toBeEnabled({ timeout: 30_000 });
-  const connectMenu = row.getByRole('button', { name: '', exact: true, expanded: false });
-  if (await connectMenu.isVisible()) {
-    await connectMenu.click();
-    await row.getByRole('button', { name: 'Connect via remote-access', exact: true }).click();
-  } else {
-    await connect.click();
-  }
+  await connectToChargerRemotely(page, 30_000);
 
   const iframe = page.locator('#interface');
   const status = iframe.contentFrame().getByRole('heading', { name: 'Status', exact: true });
