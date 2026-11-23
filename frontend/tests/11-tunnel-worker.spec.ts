@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { connect, type Socket } from 'node:net';
+import { gzipSync } from 'node:zlib';
 import { test } from '@playwright/test';
 import sodium from 'libsodium-wrappers';
 import { startTunnelPeer } from './tunnel-peer';
@@ -63,6 +64,23 @@ test.describe('built worker tunnels', () => {
           assert.ok(id && profiles[id]);
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ ...baseKeys, ...profiles[id], id }));
+        } else if (url.pathname === '/api/webinterface') {
+          switch (url.searchParams.get('charger')) {
+            case 'disconnected':
+              res.destroy();
+              break;
+            case 'stalled':
+              break;
+            case 'invalid-gzip':
+              res.end('invalid gzip');
+              break;
+            default:
+              res.setHeader('Content-Type', 'text/html');
+              res.end(gzipSync('<p>cached webinterface</p>'));
+          }
+        } else if (url.pathname === '/sw.js') {
+          res.setHeader('Content-Type', 'text/javascript');
+          res.end(await readFile(new URL('sw.js', dist)));
         } else if (url.pathname.startsWith('/assets/') && !url.pathname.includes('..')) {
           res.setHeader('Content-Type', url.pathname.endsWith('.wasm') ? 'application/wasm' : 'text/javascript');
           const asset = await readFile(new URL(url.pathname.slice(1), dist));
@@ -242,4 +260,38 @@ test.describe('built worker tunnels', () => {
       previousDiscoverySource = discoverySource;
     });
   }
+
+  test('iframe uses cached HTML or falls back to the tunnel', async ({ page }) => {
+    const caches = ['disconnected', 'stalled', 'invalid-gzip', 'valid'];
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.evaluate(async ({ workerFile, secret, caches }) => {
+      const serviceWorker = navigator.serviceWorker;
+      await serviceWorker.register('/sw.js', { type: 'module' });
+      if (!serviceWorker.controller) {
+        await new Promise<void>(resolve => {
+          serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true });
+        });
+      }
+      const worker = new Worker(`/assets/${workerFile}`, { type: 'module' });
+      serviceWorker.addEventListener('message', ({ data }) => {
+        if (data.receiver_id === 'test-frame') worker.postMessage(data);
+      });
+      worker.onmessage = ({ data }) => {
+        if (data === 'started') worker.postMessage({ type: 4, data: {
+          chargerID: 'legacy', port: 80, mtu: 1240, secret: new Uint8Array(secret), debugMode: true,
+        } });
+        if (data === 'ready') {
+          for (const cache of caches) {
+            const iframe = document.createElement('iframe');
+            iframe.name = cache;
+            iframe.src = `/wg-test-frame/status?charger=${cache}`;
+            document.body.append(iframe);
+          }
+        }
+        if (data.type === 3) serviceWorker.controller?.postMessage(data);
+      };
+    }, { workerFile, secret, caches });
+    await Promise.all(caches.map(cache => page.frameLocator(`iframe[name="${cache}"]`)
+      .getByText(cache === 'valid' ? 'cached webinterface' : 'peer-v4').waitFor({ timeout: 8000 })));
+  });
 });

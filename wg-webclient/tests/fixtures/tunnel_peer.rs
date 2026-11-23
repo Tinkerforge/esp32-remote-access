@@ -146,6 +146,7 @@ fn serve(stream: TcpStream) -> Result<()> {
     .map_err(|error| format!("WebSocket handshake: {error}"))?;
     socket.get_mut().set_nonblocking(true)?;
     let drop_first_syn = profile == "/v4-loss";
+    let mut drop_first_handshake = drop_first_syn;
     let mut dropped_syns = HashSet::new();
     let ipv6 = profile != "/v4" && !drop_first_syn;
     let local: IpAddress = if ipv6 {
@@ -187,6 +188,15 @@ fn serve(stream: TcpStream) -> Result<()> {
     loop {
         match socket.read() {
             Ok(Message::Binary(data)) => {
+                if drop_first_handshake
+                    && matches!(
+                        Tunn::parse_incoming_packet(&data),
+                        Ok(boringtun::noise::Packet::HandshakeInit(_))
+                    )
+                {
+                    drop_first_handshake = false;
+                    continue;
+                }
                 let mut input = data.as_ref();
                 loop {
                     match tunnel.decapsulate(None, input, &mut output) {

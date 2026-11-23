@@ -68,10 +68,6 @@ function isIframeMessage(e: ExtendableMessageEvent): boolean {
 
 function handleWGRequest(event: FetchEvent) {
     let url = event.request.url.replace(self.location.origin, "");
-    const headers1: [string, string][] = [];
-    event.request.headers.forEach((val, key) => {
-        headers1.push([key, val]);
-    });
     if (event.request.headers.has("X-Connection-Id") || url.startsWith("/wg-")) {
         let receiverId = "";
         let chargerId: string | null = null;
@@ -87,28 +83,29 @@ function handleWGRequest(event: FetchEvent) {
         } else {
             receiverId = event.request.headers.get("X-Connection-Id") as string;
         }
-        const promise: Promise<Response> = new Promise(async (resolve) => {
+        const fetchWG = async (): Promise<Response> => {
             if (chargerId) {
-                const params = new URLSearchParams([
-                    ['charger', chargerId]
-                ]);
-                const req = new Request(`/api/webinterface?${params.toString()}`, {cache: 'no-cache'});
-                const response = await fetch(req, {
-                    method: 'GET',
-                    headers: new Headers(headers1)
-                });
-                if (response.status === 200) {
-                    const ds = new DecompressionStream("gzip");
-                    const stream = response.body?.pipeThrough(ds);
-                    if (stream) {
-                        const decompressedResponse = new Response(stream, {
+                try {
+                    const params = new URLSearchParams({ charger: chargerId });
+                    const response = await fetch(`/api/webinterface?${params}`, {
+                        cache: "no-cache",
+                        headers: event.request.headers,
+                        signal: AbortSignal.timeout(5000),
+                    });
+                    if (response.status === 200 && response.body) {
+                        const stream = response.body.pipeThrough(new DecompressionStream("gzip"));
+                        const body = await new Response(stream).arrayBuffer();
+                        const headers = new Headers(response.headers);
+                        headers.delete("Content-Length");
+                        headers.delete("Content-Encoding");
+                        return new Response(body, {
                             status: response.status,
                             statusText: response.statusText,
-                            headers: response.headers
+                            headers,
                         });
-                        resolve(decompressedResponse);
-                        return;
                     }
+                } catch {
+                    // Fall back to the device if the cached webinterface cannot be loaded.
                 }
             }
 
@@ -131,8 +128,6 @@ function handleWGRequest(event: FetchEvent) {
                 data: message
             };
 
-            pendingResolvers.set(id, resolve);
-
             // Claim all clients again. This is needed in case a window is forced to refresh
             // since they drop out of the service workers clients afterwards.
             try {
@@ -142,11 +137,14 @@ function handleWGRequest(event: FetchEvent) {
             }
 
             const clients = await self.clients.matchAll();
-            for (const client of clients) {
-                client.postMessage(msg);
-            }
-        });
-        event.respondWith(promise);
+            return new Promise(resolve => {
+                pendingResolvers.set(id, resolve);
+                for (const client of clients) {
+                    client.postMessage(msg);
+                }
+            });
+        };
+        event.respondWith(fetchWG());
         return true;
     }
 }

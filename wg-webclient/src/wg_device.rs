@@ -18,7 +18,6 @@
  */
 
 use boringtun::noise::errors::WireGuardError;
-use boringtun::noise::rate_limiter::RateLimiter;
 use boringtun::{
     noise::{Tunn, TunnResult},
     x25519,
@@ -33,7 +32,6 @@ use wasm_bindgen_futures::spawn_local;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
-use std::sync::Arc;
 
 use crate::pcap_logging_enabled;
 use crate::interval_handle::IntervalHandle;
@@ -61,7 +59,7 @@ pub struct WgTunDevice {
     socket_state: Rc<RefCell<WsConnectionState>>,
     poll_timer: Rc<RefCell<Weak<PollTimer>>>,
     mtu: usize,
-    _reset_rate_limiter_interval: Rc<IntervalHandle<JsValue>>,
+    wireguard_timer: Rc<IntervalHandle<JsValue>>,
     _onopen_closure: Rc<Closure<dyn FnMut(JsValue)>>,
     _onclose_closure: Rc<Closure<dyn FnMut(JsValue)>>,
     _onerror_closure: Rc<Closure<dyn FnMut(JsValue)>>,
@@ -80,20 +78,14 @@ impl WgTunDevice {
         disconnect_cb: js_sys::Function,
         connect_cb: js_sys::Function,
     ) -> Result<Self, JsValue> {
-        let rate_limiter = Arc::new(RateLimiter::new(&x25519::PublicKey::from(&self_key), 10));
-
         let tun = Tunn::new(
             self_key,
             peer,
             Some(psk),
             Some(4),
             SysRng.try_next_u32().unwrap(),
-            Some(rate_limiter.clone()),
+            None,
         );
-        let reset_rate_limiter = Closure::<dyn FnMut(_)>::new(move |_: JsValue| {
-            rate_limiter.reset_count();
-        });
-        let _reset_rate_limiter_interval = Rc::new(IntervalHandle::new(reset_rate_limiter, 10000));
 
         let tun = Rc::new(RefCell::new(tun));
         let rx = Rc::new(RefCell::new(VecDeque::new()));
@@ -104,6 +96,28 @@ impl WgTunDevice {
         log::debug!("Parent WebSocket Created");
 
         let socket = Rc::new(socket);
+
+        let wireguard_timer = {
+            let tun = tun.clone();
+            let socket = socket.clone();
+            let tick = Closure::new(move |_: JsValue| {
+                if socket.ready_state() != WebSocket::OPEN {
+                    return;
+                }
+                let mut buf = [0; 148];
+                match tun.borrow_mut().update_timers(&mut buf) {
+                    TunnResult::WriteToNetwork(packet) => {
+                        let _ = socket.send_with_u8_array(packet);
+                    }
+                    TunnResult::Err(WireGuardError::ConnectionExpired) => {
+                        let _ = socket.close();
+                    }
+                    TunnResult::Err(error) => log::debug!("WireGuard timer error: {:?}", error),
+                    _ => (),
+                }
+            });
+            Rc::new(IntervalHandle::new(tick, 1000))
+        };
 
         let onopen = create_onopen_closure(Rc::downgrade(&socket_state), Rc::downgrade(&tun), Rc::downgrade(&socket));
         let onopen = Rc::new(onopen);
@@ -147,7 +161,7 @@ impl WgTunDevice {
             socket_state,
             poll_timer,
             mtu,
-            _reset_rate_limiter_interval,
+            wireguard_timer,
             _onopen_closure: onopen,
             _onclose_closure: onclose,
             _onerror_closure: onerror,
@@ -166,7 +180,7 @@ impl WgTunDevice {
         self.socket.set_onclose(None);
         self.socket.set_onerror(None);
         let _ = self.socket.close();
-        self._reset_rate_limiter_interval.cancel();
+        self.wireguard_timer.cancel();
     }
 
     pub fn get_pcap(&self) -> Rc<RefCell<PcapNgWriter<Vec<u8>>>> {
@@ -277,18 +291,19 @@ fn create_onmessage_closure(
                 |packet| { let _ = socket.send_with_u8_array(packet); },
             );
             // The handshake can unblock TCP and peer discovery before any IP packet arrives.
-            if !queue.borrow().is_empty() || matches!(result, Ok(true)) {
+            let newly_connected = !*connected.borrow()
+                && message_tun.borrow().time_since_last_handshake().is_some();
+            if newly_connected || !queue.borrow().is_empty() || matches!(result, Ok(true)) {
                 if let Some(timer) = poll_timer.borrow().upgrade() {
                     timer.request();
                 }
             }
-            match result {
-                Ok(true) if !*connected.borrow() => {
-                    *connected.borrow_mut() = true;
-                    connect_cb.call0(&JsValue::null()).ok();
-                }
-                Err(e) => log::debug!("WireGuard receive error: {:?}", e),
-                _ => (),
+            if newly_connected {
+                *connected.borrow_mut() = true;
+                connect_cb.call0(&JsValue::null()).ok();
+            }
+            if let Err(e) = result {
+                log::debug!("WireGuard receive error: {:?}", e);
             }
         });
     })
