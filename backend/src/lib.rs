@@ -274,7 +274,7 @@ pub async fn clean_devices(conn: &mut AsyncPgConnection) {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{net::Ipv4Addr, num::NonZeroUsize, str::FromStr};
+    use std::{net::Ipv4Addr, num::NonZeroUsize};
 
     use super::*;
     use actix_web::{
@@ -289,10 +289,11 @@ pub(crate) mod tests {
         models::{recovery_tokens::RecoveryToken, refresh_tokens::RefreshToken, users::User},
         test_connection_pool,
     };
+    use diesel_async::{pooled_connection::deadpool::Object, SimpleAsyncConnection};
     use ipnetwork::Ipv4Network;
     use lru::LruCache;
     use rate_limit::{ChargerRateLimiter, LoginRateLimiter};
-    use routes::user::tests::{get_test_uuid, random_positive_charger_id, TestUser};
+    use routes::user::tests::random_positive_charger_id;
 
     /// Async equivalent of a scope guard for test cleanup. `Drop` cannot
     /// await a future, so cleanup runs on a short-lived runtime in a helper
@@ -447,42 +448,43 @@ pub(crate) mod tests {
         cfg.app_data(cache);
     }
 
+    async fn cleanup_test_connection(tables: &[&str]) -> AsyncPgConnection {
+        let pool = test_connection_pool();
+        let mut conn = Object::take(pool.get().await.expect("Failed to get db connection"));
+        // Cleanup scans whole tables. PostgreSQL resolves these unqualified table
+        // names to this session's temporary copies, which disappear on disconnect.
+        for table in tables {
+            conn.batch_execute(&format!(
+                "CREATE TEMP TABLE {table} (LIKE {table} INCLUDING ALL)"
+            ))
+            .await
+            .unwrap_or_else(|err| panic!("Failed to create temporary table {table}: {err}"));
+        }
+        conn
+    }
+
     #[actix_web::test]
     async fn test_clean_recovery_tokens() {
         use db_connector::schema::recovery_tokens::dsl::*;
 
-        let (user, _) = TestUser::random().await;
-
-        let pool = test_connection_pool();
-        let mut conn = pool.get().await.expect("Failed to get db connection");
-
-        let uid = get_test_uuid(&user.mail).await.unwrap();
+        let mut conn = cleanup_test_connection(&["recovery_tokens"]).await;
+        let uid = uuid::Uuid::new_v4();
+        let now = Utc::now();
         let token1_id = uuid::Uuid::new_v4();
         let token1 = RecoveryToken {
             id: token1_id,
             user_id: uid,
-            created: Utc::now()
-                .checked_sub_signed(TimeDelta::hours(6))
-                .unwrap()
-                .timestamp()
-                + 1,
+            created: (now - TimeDelta::hours(5)).timestamp(),
         };
         let token2 = RecoveryToken {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
-            created: Utc::now()
-                .checked_sub_signed(TimeDelta::hours(6))
-                .unwrap()
-                .timestamp()
-                - 1,
+            created: (now - TimeDelta::hours(6) - TimeDelta::minutes(1)).timestamp(),
         };
         let token3 = RecoveryToken {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
-            created: Utc::now()
-                .checked_sub_signed(TimeDelta::hours(7))
-                .unwrap()
-                .timestamp(),
+            created: (now - TimeDelta::hours(7)).timestamp(),
         };
 
         diesel::insert_into(recovery_tokens)
@@ -502,33 +504,25 @@ pub(crate) mod tests {
 
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0].id, token1_id);
-
-        diesel::delete(recovery_tokens.filter(user_id.eq(uid)))
-            .execute(&mut conn)
-            .await
-            .unwrap();
     }
 
     #[actix_web::test]
     async fn test_clean_refresh_tokens() {
         use db_connector::schema::refresh_tokens::dsl::*;
 
-        let (user, _) = TestUser::random().await;
-
-        let pool = test_connection_pool();
-        let mut conn = pool.get().await.expect("Failed to get db connection");
-
-        let uid = get_test_uuid(&user.mail).await.unwrap();
+        let mut conn = cleanup_test_connection(&["refresh_tokens"]).await;
+        let uid = uuid::Uuid::new_v4();
+        let now = Utc::now();
         let token1_id = uuid::Uuid::new_v4();
         let token1 = RefreshToken {
             id: token1_id,
             user_id: uid,
-            expiration: Utc::now().timestamp() + 1,
+            expiration: (now + TimeDelta::hours(1)).timestamp(),
         };
         let token2 = RefreshToken {
             id: uuid::Uuid::new_v4(),
             user_id: uid,
-            expiration: Utc::now().timestamp() - 1,
+            expiration: (now - TimeDelta::hours(1)).timestamp(),
         };
 
         diesel::insert_into(refresh_tokens)
@@ -548,11 +542,6 @@ pub(crate) mod tests {
 
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0].id, token1_id);
-
-        diesel::delete(refresh_tokens.filter(user_id.eq(uid)))
-            .execute(&mut conn)
-            .await
-            .unwrap();
     }
 
     #[actix_web::test]
@@ -660,34 +649,7 @@ pub(crate) mod tests {
                 .naive_utc(),
         };
 
-        let cleanup = async move {
-            let pool = test_connection_pool();
-            let mut conn = pool.get().await.expect("Failed to get db connection");
-            {
-                use db_connector::schema::verification::dsl::*;
-
-                diesel::delete(
-                    verification.filter(user.eq_any(vec![user_id, user2_id, user3_id, user4_id])),
-                )
-                .execute(&mut conn)
-                .await
-                .unwrap();
-            }
-            {
-                use db_connector::schema::users::dsl::*;
-
-                diesel::delete(
-                    users.filter(id.eq_any(vec![user_id, user2_id, user3_id, user4_id])),
-                )
-                .execute(&mut conn)
-                .await
-                .unwrap();
-            }
-        };
-        defer_async!(cleanup);
-
-        let pool = test_connection_pool();
-        let mut conn = pool.get().await.expect("Failed to get db connection");
+        let mut conn = cleanup_test_connection(&["users", "verification"]).await;
         {
             use db_connector::schema::users::dsl::*;
 
@@ -802,10 +764,9 @@ pub(crate) mod tests {
 
     #[actix_web::test]
     async fn test_charger_cleanup() {
-        let (mut user, _) = TestUser::random().await;
-        user.login().await;
-        let device = user.add_random_charger().await;
-        let device2 = Charger {
+        use db_connector::schema::{allowed_users::dsl::allowed_users, chargers::dsl::*};
+
+        let unowned_device = Charger {
             id: uuid::Uuid::new_v4(),
             uid: random_positive_charger_id(),
             password: String::new(),
@@ -827,33 +788,41 @@ pub(crate) mod tests {
             last_charge_log_upload_hash: Vec::new(),
         };
 
-        let pool = test_connection_pool();
-        let mut conn = pool.get().await.expect("Failed to get db connection");
-        {
-            use db_connector::schema::chargers::dsl;
+        let owned_device = Charger {
+            id: uuid::Uuid::new_v4(),
+            uid: random_positive_charger_id(),
+            ..unowned_device.clone()
+        };
+        let owner = AllowedUser {
+            id: uuid::Uuid::new_v4(),
+            user_id: uuid::Uuid::new_v4(),
+            charger_id: owned_device.id,
+            charger_uid: owned_device.uid,
+            valid: true,
+            name: None,
+            note: None,
+            added_at: None,
+        };
 
-            diesel::insert_into(dsl::chargers)
-                .values(&device2)
-                .execute(&mut conn)
-                .await
-                .unwrap();
-        }
+        let mut conn = cleanup_test_connection(&["chargers", "allowed_users"]).await;
+        diesel::insert_into(chargers)
+            .values(vec![&owned_device, &unowned_device])
+            .execute(&mut conn)
+            .await
+            .unwrap();
+        diesel::insert_into(allowed_users)
+            .values(&owner)
+            .execute(&mut conn)
+            .await
+            .unwrap();
 
         clean_devices(&mut conn).await;
 
-        let device_id = uuid::Uuid::from_str(&device.uuid).unwrap();
-        let devices: Vec<Charger> = {
-            use db_connector::schema::chargers::dsl::{self as dsl, *};
-
-            dsl::chargers
-                .filter(id.eq_any(vec![&device_id, &device2.id]))
-                .select(Charger::as_select())
-                .load(&mut conn)
-                .await
-                .unwrap()
-        };
-
-        assert_eq!(devices.len(), 1);
-        assert_eq!(devices[0].id, device_id);
+        let remaining_ids = chargers
+            .select(id)
+            .load::<uuid::Uuid>(&mut conn)
+            .await
+            .unwrap();
+        assert_eq!(remaining_ids, [owned_device.id]);
     }
 }

@@ -114,9 +114,8 @@ WebSockets.
 Regression tests cover multiple tabs, account isolation, rejected mutations,
 shared devices, snapshot/update ordering, and group changes during reconnects.
 The frontend also refreshes groupings after device removals to reflect cascaded
-membership deletions. Run backend tests serially (`cargo test -- --test-threads=1`)
-when checking this against one shared disposable database: cleanup tests operate
-on database-wide state and can interfere with concurrent account-flow tests.
+membership deletions. Cleanup tests use connection-local temporary tables so
+they can run alongside account-flow tests on the same disposable database.
 
 ## Frontend unit tests
 
